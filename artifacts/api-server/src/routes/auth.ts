@@ -146,7 +146,7 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
   }
 
   try {
-    const user = await createOrGetUserByFormsId(parsed.data.user_id);
+    const user = await createOrGetUserByFormsId(parsed.data.forms_user_id);
     const auth_token = await generateAuthToken(user.id);
     res.json({ auth_token });
   } catch (err) {
