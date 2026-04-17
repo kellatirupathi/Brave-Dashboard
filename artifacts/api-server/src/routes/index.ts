@@ -21,8 +21,11 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(storageRouter);
 router.use(campusesRouter);
-router.use(teamsRouter);
+// team-flow must come BEFORE teams so its specific paths
+// (/teams/browse, /teams/join-by-code, /teams/:id/invitations, etc.)
+// aren't swallowed by the generic /teams/:id route.
 router.use(teamFlowRouter);
+router.use(teamsRouter);
 router.use(projectsRouter);
 router.use(financialsRouter);
 router.use(leaderboardRouter);
