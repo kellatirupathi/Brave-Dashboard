@@ -41,6 +41,7 @@ export type Campus = typeof campusesTable.$inferSelect;
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),
   replitId: text("replit_id").unique(),
+  formsUserId: text("forms_user_id").unique(),
   email: text("email").notNull().unique(),
   firstName: text("first_name").notNull().default(""),
   lastName: text("last_name").notNull().default(""),
@@ -56,6 +57,20 @@ export const usersTable = pgTable("users", {
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
+
+// Forms SSO auth tokens (one-time use, short-lived)
+export const authTokensTable = pgTable("auth_tokens", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  userId: text("user_id").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAuthTokenSchema = createInsertSchema(authTokensTable).omit({ id: true, createdAt: true });
+export type InsertAuthToken = z.infer<typeof insertAuthTokenSchema>;
+export type AuthToken = typeof authTokensTable.$inferSelect;
 
 // Student roster
 export const rosterTable = pgTable("roster", {

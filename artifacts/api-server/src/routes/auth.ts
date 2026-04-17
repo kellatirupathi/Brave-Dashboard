@@ -2,7 +2,17 @@ import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { GetCurrentAuthUserResponse } from "@workspace/api-zod";
-import { db, usersTable, teamMembersTable, rosterTable, accessRequestsTable } from "@workspace/db";
+import crypto from "crypto";
+import {
+  db,
+  usersTable,
+  teamMembersTable,
+  rosterTable,
+  accessRequestsTable,
+  createOrGetUserByFormsId,
+  generateAuthToken,
+  validateAndConsumeToken,
+} from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import {
   clearSession,
@@ -106,6 +116,72 @@ async function upsertUser(claims: Record<string, unknown>) {
     .returning();
   return user;
 }
+
+const GenerateTokenBody = z.object({ user_id: z.string().min(1) });
+const ValidateTokenBody = z.object({ token: z.string().min(1) });
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+router.post("/auth/generate-token", async (req: Request, res: Response) => {
+  const apiKey = process.env.FORMS_API_KEY;
+  if (!apiKey) {
+    res.status(500).json({ message: "FORMS_API_KEY not configured" });
+    return;
+  }
+  const provided = req.headers["x-api-key"];
+  if (typeof provided !== "string" || !safeEqual(provided, apiKey)) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  const parsed = GenerateTokenBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid body" });
+    return;
+  }
+
+  try {
+    const user = await createOrGetUserByFormsId(parsed.data.user_id);
+    const auth_token = await generateAuthToken(user.id);
+    res.json({ auth_token });
+  } catch (err) {
+    req.log.error({ err }, "generate-token failed");
+    res.status(500).json({ message: "Failed to generate token" });
+  }
+});
+
+router.post("/auth/validate-token", async (req: Request, res: Response) => {
+  const parsed = ValidateTokenBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(401).json({ message: "Invalid or expired token" });
+    return;
+  }
+
+  try {
+    const dbUser = await validateAndConsumeToken(parsed.data.token);
+    if (!dbUser) {
+      res.status(401).json({ message: "Invalid or expired token" });
+      return;
+    }
+    const authUser = await buildAuthUser(dbUser);
+
+    const sessionData: SessionData = {
+      user: authUser,
+      access_token: "forms-sso",
+    };
+    const sid = await createSession(sessionData);
+    setSessionCookie(res, sid);
+    res.json(GetCurrentAuthUserResponse.parse({ user: authUser }));
+  } catch (err) {
+    req.log.error({ err }, "validate-token failed");
+    res.status(401).json({ message: "Invalid or expired token" });
+  }
+});
 
 router.get("/auth/user", (req: Request, res: Response) => {
   res.json(

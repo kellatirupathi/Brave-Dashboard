@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { ArrowRight, TrendingUp, Trophy, Users, Calendar } from "lucide-react";
 
 export default function Login() {
-  const { login, isAuthenticated, isLoading, user } = useAuth();
+  const { login, isAuthenticated, isLoading, user, error } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -19,11 +19,8 @@ export default function Login() {
     <div className="min-h-screen flex bg-[#0a0a0f]">
       {/* Left — Hero Panel */}
       <div className="hidden lg:flex flex-col justify-between flex-1 relative overflow-hidden px-12 py-10">
-        {/* Background gradient layers */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0f] via-[#0d0d1a] to-[#0a0a0f]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_60%_40%,rgba(99,102,241,0.12),transparent)]" />
-
-        {/* Grid pattern overlay */}
         <div
           className="absolute inset-0 opacity-[0.04]"
           style={{
@@ -32,12 +29,9 @@ export default function Login() {
             backgroundSize: "60px 60px",
           }}
         />
-
-        {/* Floating accent shapes */}
         <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-indigo-600/5 blur-3xl" />
         <div className="absolute bottom-1/3 right-1/4 w-80 h-80 rounded-full bg-violet-600/5 blur-3xl" />
 
-        {/* Top — Logo */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg">
             <span className="text-white font-black text-sm">N</span>
@@ -51,9 +45,7 @@ export default function Login() {
           </span>
         </div>
 
-        {/* Center — Hero text */}
         <div className="relative z-10 max-w-lg">
-          {/* Badge */}
           <div className="inline-flex items-center gap-2 bg-indigo-950/80 border border-indigo-500/30 rounded-full px-4 py-1.5 mb-8">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             <span className="text-indigo-300 text-xs font-semibold tracking-wider uppercase">
@@ -76,7 +68,6 @@ export default function Login() {
             and compete on the national leaderboard across 20 NIAT campuses.
           </p>
 
-          {/* Feature pills */}
           <div className="flex flex-wrap gap-3">
             {[
               { icon: TrendingUp, label: "Revenue Tracking" },
@@ -95,7 +86,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Bottom — Stats */}
         <div className="relative z-10 flex items-center gap-8">
           {[
             { value: "7,500+", label: "Student Entrepreneurs" },
@@ -115,9 +105,7 @@ export default function Login() {
         <div className="absolute inset-0 bg-[#0d0d1a] lg:border-l border-white/[0.06]" />
 
         <div className="relative z-10 w-full max-w-sm">
-          {/* Card */}
           <div className="bg-[#13131f] border border-white/[0.08] rounded-2xl p-8 shadow-2xl shadow-black/60">
-            {/* Logo mobile */}
             <div className="flex lg:hidden items-center gap-3 mb-8">
               <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center">
                 <span className="text-white font-black text-sm">N</span>
@@ -130,7 +118,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Title */}
             <div className="mb-8">
               <h2 className="text-white text-2xl font-black mb-2">
                 BRAVE Programme
@@ -140,47 +127,40 @@ export default function Login() {
               </p>
             </div>
 
-            {/* Features list */}
-            <div className="space-y-3 mb-8">
-              {[
-                "Log Order Book & Revenue entries",
-                "Track team milestone journey",
-                "Compete on National Leaderboard",
-                "Apply for Demo Day pitching",
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-3">
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />
-                  <span className="text-white/50 text-sm">{item}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Login button */}
-            <button
-              onClick={() => login()}
-              disabled={isLoading}
-              className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-all duration-200 shadow-lg shadow-indigo-600/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 group"
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in...
-                </span>
-              ) : (
-                <>
-                  Login with Learning Portal
+            {isLoading ? (
+              <div
+                className="w-full h-12 flex items-center justify-center gap-3 text-white/70 text-sm"
+                data-testid="signing-in-spinner"
+              >
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Signing you in…
+              </div>
+            ) : (
+              <>
+                {error && (
+                  <div
+                    className="mb-4 p-3 rounded-lg bg-red-950/40 border border-red-500/30 text-red-300 text-sm"
+                    data-testid="auth-error"
+                  >
+                    {error}
+                  </div>
+                )}
+                <button
+                  onClick={() => login()}
+                  data-testid="button-sign-in"
+                  className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-all duration-200 shadow-lg shadow-indigo-600/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 group"
+                >
+                  Sign In
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                </>
-              )}
-            </button>
+                </button>
+              </>
+            )}
 
-            {/* Footer note */}
             <p className="mt-5 text-xs text-white/20 text-center leading-relaxed">
-              By logging in, you agree to the NIAT code of conduct and BRAVE programme terms.
+              By signing in, you agree to the NIAT code of conduct and BRAVE programme terms.
             </p>
           </div>
 
-          {/* Below card */}
           <p className="text-center text-white/20 text-xs mt-6">
             NIAT India &mdash; BRAVE Entrepreneurship Programme
           </p>
