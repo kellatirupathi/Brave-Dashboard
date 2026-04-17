@@ -117,7 +117,7 @@ async function upsertUser(claims: Record<string, unknown>) {
   return user;
 }
 
-const GenerateTokenBody = z.object({ user_id: z.string().min(1) });
+const GenerateTokenBody = z.object({ forms_user_id: z.string().min(1) });
 const ValidateTokenBody = z.object({ token: z.string().min(1) });
 
 function safeEqual(a: string, b: string): boolean {
