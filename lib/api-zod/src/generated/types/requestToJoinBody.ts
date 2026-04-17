@@ -7,6 +7,5 @@
  */
 
 export interface RequestToJoinBody {
-  /** @maxLength 500 */
   message?: string;
 }

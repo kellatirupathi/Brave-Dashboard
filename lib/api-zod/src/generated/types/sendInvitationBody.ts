@@ -6,6 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SearchStudentsParams = {
-  q: string;
-};
+export interface SendInvitationBody {
+  inviteeId: string;
+}

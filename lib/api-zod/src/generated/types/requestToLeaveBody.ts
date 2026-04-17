@@ -7,6 +7,5 @@
  */
 
 export interface RequestToLeaveBody {
-  /** @maxLength 500 */
   reason?: string;
 }

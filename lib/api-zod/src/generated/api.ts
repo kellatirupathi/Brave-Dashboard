@@ -126,7 +126,7 @@ export const ListTeamsResponseItem = zod.object({
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
-  inviteCode: zod.string().nullish(),
+  inviteCode: zod.string().nullable(),
   rejectionReason: zod.string().nullish(),
   coordinatorComment: zod.string().nullish(),
   isHidden: zod.boolean(),
@@ -169,7 +169,7 @@ export const GetMyTeamResponse = zod
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
     photoUrl: zod.string().nullish(),
-    inviteCode: zod.string().nullish(),
+    inviteCode: zod.string().nullable(),
     rejectionReason: zod.string().nullish(),
     coordinatorComment: zod.string().nullish(),
     isHidden: zod.boolean(),
@@ -230,7 +230,7 @@ export const GetTeamResponse = zod
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
     photoUrl: zod.string().nullish(),
-    inviteCode: zod.string().nullish(),
+    inviteCode: zod.string().nullable(),
     rejectionReason: zod.string().nullish(),
     coordinatorComment: zod.string().nullish(),
     isHidden: zod.boolean(),
@@ -298,7 +298,7 @@ export const UpdateTeamResponse = zod.object({
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
-  inviteCode: zod.string().nullish(),
+  inviteCode: zod.string().nullable(),
   rejectionReason: zod.string().nullish(),
   coordinatorComment: zod.string().nullish(),
   isHidden: zod.boolean(),
@@ -328,7 +328,7 @@ export const ApproveTeamResponse = zod.object({
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
-  inviteCode: zod.string().nullish(),
+  inviteCode: zod.string().nullable(),
   rejectionReason: zod.string().nullish(),
   coordinatorComment: zod.string().nullish(),
   isHidden: zod.boolean(),
@@ -362,7 +362,7 @@ export const RejectTeamResponse = zod.object({
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
-  inviteCode: zod.string().nullish(),
+  inviteCode: zod.string().nullable(),
   rejectionReason: zod.string().nullish(),
   coordinatorComment: zod.string().nullish(),
   isHidden: zod.boolean(),
@@ -396,7 +396,7 @@ export const RequestTeamChangesResponse = zod.object({
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
-  inviteCode: zod.string().nullish(),
+  inviteCode: zod.string().nullable(),
   rejectionReason: zod.string().nullish(),
   coordinatorComment: zod.string().nullish(),
   isHidden: zod.boolean(),
@@ -425,7 +425,7 @@ export const AddTeamMemberBody = zod.object({
  */
 export const RemoveTeamMemberParams = zod.object({
   id: zod.coerce.number(),
-  userId: zod.coerce.number(),
+  userId: zod.coerce.string(),
 });
 
 export const RemoveTeamMemberResponse = zod
@@ -439,7 +439,7 @@ export const RemoveTeamMemberResponse = zod
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
     photoUrl: zod.string().nullish(),
-    inviteCode: zod.string().nullish(),
+    inviteCode: zod.string().nullable(),
     rejectionReason: zod.string().nullish(),
     coordinatorComment: zod.string().nullish(),
     isHidden: zod.boolean(),
@@ -483,9 +483,9 @@ export const RemoveTeamMemberResponse = zod
   );
 
 /**
- * @summary List teams at the current student's campus
+ * @summary List teams at the current student's campus (any status)
  */
-export const BrowseTeamsResponseItem = zod.object({
+export const BrowseCampusTeamsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
   campusId: zod.number(),
@@ -495,7 +495,7 @@ export const BrowseTeamsResponseItem = zod.object({
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
-  inviteCode: zod.string().nullish(),
+  inviteCode: zod.string().nullable(),
   rejectionReason: zod.string().nullish(),
   coordinatorComment: zod.string().nullish(),
   isHidden: zod.boolean(),
@@ -507,16 +507,37 @@ export const BrowseTeamsResponseItem = zod.object({
   nationalRank: zod.number().nullish(),
   createdAt: zod.coerce.date(),
 });
-export const BrowseTeamsResponse = zod.array(BrowseTeamsResponseItem);
+export const BrowseCampusTeamsResponse = zod.array(
+  BrowseCampusTeamsResponseItem,
+);
 
 /**
- * @summary Join a team by invite code (auto-cancels other pending invites/requests)
+ * @summary Search students at the current user's campus who aren't on a team
  */
-export const JoinByCodeBody = zod.object({
+export const SearchCampusStudentsQueryParams = zod.object({
+  q: zod.coerce.string(),
+});
+
+export const SearchCampusStudentsResponseItem = zod.object({
+  id: zod.string(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+  email: zod.string(),
+  niatId: zod.string().nullish(),
+  profileImage: zod.string().nullish(),
+});
+export const SearchCampusStudentsResponse = zod.array(
+  SearchCampusStudentsResponseItem,
+);
+
+/**
+ * @summary Join a team using its invite code (campus-scoped)
+ */
+export const JoinTeamByCodeBody = zod.object({
   code: zod.string(),
 });
 
-export const JoinByCodeResponse = zod
+export const JoinTeamByCodeResponse = zod
   .object({
     id: zod.number(),
     name: zod.string(),
@@ -527,7 +548,7 @@ export const JoinByCodeResponse = zod
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
     photoUrl: zod.string().nullish(),
-    inviteCode: zod.string().nullish(),
+    inviteCode: zod.string().nullable(),
     rejectionReason: zod.string().nullish(),
     coordinatorComment: zod.string().nullish(),
     isHidden: zod.boolean(),
@@ -569,23 +590,6 @@ export const JoinByCodeResponse = zod
       ),
     }),
   );
-
-/**
- * @summary Search roster students at the current user's campus (excludes those already on a team)
- */
-export const SearchStudentsQueryParams = zod.object({
-  q: zod.coerce.string(),
-});
-
-export const SearchStudentsResponseItem = zod.object({
-  userId: zod.string().nullish(),
-  rosterId: zod.number(),
-  fullName: zod.string(),
-  niatId: zod.string().nullish(),
-  batchSectionName: zod.string().nullish(),
-  hasAccount: zod.boolean(),
-});
-export const SearchStudentsResponse = zod.array(SearchStudentsResponseItem);
 
 /**
  * @summary List invitations sent for a team (any member)
@@ -599,10 +603,11 @@ export const ListTeamInvitationsResponseItem = zod.object({
   teamId: zod.number(),
   teamName: zod.string(),
   teamPhotoUrl: zod.string().nullish(),
-  inviterId: zod.string(),
-  inviterName: zod.string(),
   inviteeId: zod.string(),
   inviteeName: zod.string(),
+  inviteeEmail: zod.string(),
+  inviterId: zod.string(),
+  inviterName: zod.string(),
   status: zod.enum(["pending", "accepted", "declined", "cancelled"]),
   createdAt: zod.coerce.date(),
   respondedAt: zod.coerce.date().nullish(),
@@ -612,14 +617,14 @@ export const ListTeamInvitationsResponse = zod.array(
 );
 
 /**
- * @summary Invite a student to the team (any member, intra-campus only)
+ * @summary Send an invitation to a student (any member)
  */
-export const CreateTeamInvitationParams = zod.object({
+export const SendTeamInvitationParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const CreateTeamInvitationBody = zod.object({
-  inviteeUserId: zod.string(),
+export const SendTeamInvitationBody = zod.object({
+  inviteeId: zod.string(),
 });
 
 /**
@@ -630,10 +635,11 @@ export const ListMyInvitationsResponseItem = zod.object({
   teamId: zod.number(),
   teamName: zod.string(),
   teamPhotoUrl: zod.string().nullish(),
-  inviterId: zod.string(),
-  inviterName: zod.string(),
   inviteeId: zod.string(),
   inviteeName: zod.string(),
+  inviteeEmail: zod.string(),
+  inviterId: zod.string(),
+  inviterName: zod.string(),
   status: zod.enum(["pending", "accepted", "declined", "cancelled"]),
   createdAt: zod.coerce.date(),
   respondedAt: zod.coerce.date().nullish(),
@@ -643,7 +649,7 @@ export const ListMyInvitationsResponse = zod.array(
 );
 
 /**
- * @summary Accept an invitation (auto-cancels other pending invites/requests)
+ * @summary Accept a pending invitation
  */
 export const AcceptInvitationParams = zod.object({
   id: zod.coerce.number(),
@@ -660,7 +666,7 @@ export const AcceptInvitationResponse = zod
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
     photoUrl: zod.string().nullish(),
-    inviteCode: zod.string().nullish(),
+    inviteCode: zod.string().nullable(),
     rejectionReason: zod.string().nullish(),
     coordinatorComment: zod.string().nullish(),
     isHidden: zod.boolean(),
@@ -704,28 +710,18 @@ export const AcceptInvitationResponse = zod
   );
 
 /**
- * @summary Decline an invitation
+ * @summary Decline a pending invitation
  */
 export const DeclineInvitationParams = zod.object({
   id: zod.coerce.number(),
 });
 
 export const DeclineInvitationResponse = zod.object({
-  id: zod.number(),
-  teamId: zod.number(),
-  teamName: zod.string(),
-  teamPhotoUrl: zod.string().nullish(),
-  inviterId: zod.string(),
-  inviterName: zod.string(),
-  inviteeId: zod.string(),
-  inviteeName: zod.string(),
-  status: zod.enum(["pending", "accepted", "declined", "cancelled"]),
-  createdAt: zod.coerce.date(),
-  respondedAt: zod.coerce.date().nullish(),
+  success: zod.boolean(),
 });
 
 /**
- * @summary List join requests for a team (any member)
+ * @summary List pending join requests for a team (any member)
  */
 export const ListTeamJoinRequestsParams = zod.object({
   id: zod.coerce.number(),
@@ -737,48 +733,29 @@ export const ListTeamJoinRequestsResponseItem = zod.object({
   teamName: zod.string(),
   requesterId: zod.string(),
   requesterName: zod.string(),
-  status: zod.enum(["pending", "approved", "declined", "cancelled"]),
+  requesterEmail: zod.string(),
+  requesterProfileImage: zod.string().nullish(),
   message: zod.string().nullish(),
+  status: zod.enum(["pending", "approved", "declined", "cancelled"]),
   createdAt: zod.coerce.date(),
-  respondedAt: zod.coerce.date().nullish(),
 });
 export const ListTeamJoinRequestsResponse = zod.array(
   ListTeamJoinRequestsResponseItem,
 );
 
 /**
- * @summary Request to join a team (intra-campus only)
+ * @summary Request to join a team
  */
 export const RequestToJoinTeamParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const requestToJoinTeamBodyMessageMax = 500;
-
 export const RequestToJoinTeamBody = zod.object({
-  message: zod.string().max(requestToJoinTeamBodyMessageMax).optional(),
+  message: zod.string().optional(),
 });
 
 /**
- * @summary List the current user's outgoing join requests
- */
-export const ListMyJoinRequestsResponseItem = zod.object({
-  id: zod.number(),
-  teamId: zod.number(),
-  teamName: zod.string(),
-  requesterId: zod.string(),
-  requesterName: zod.string(),
-  status: zod.enum(["pending", "approved", "declined", "cancelled"]),
-  message: zod.string().nullish(),
-  createdAt: zod.coerce.date(),
-  respondedAt: zod.coerce.date().nullish(),
-});
-export const ListMyJoinRequestsResponse = zod.array(
-  ListMyJoinRequestsResponseItem,
-);
-
-/**
- * @summary Approve a join request (any member of the target team)
+ * @summary Approve a pending join request (any team member)
  */
 export const ApproveJoinRequestParams = zod.object({
   id: zod.coerce.number(),
@@ -795,7 +772,7 @@ export const ApproveJoinRequestResponse = zod
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
     photoUrl: zod.string().nullish(),
-    inviteCode: zod.string().nullish(),
+    inviteCode: zod.string().nullable(),
     rejectionReason: zod.string().nullish(),
     coordinatorComment: zod.string().nullish(),
     isHidden: zod.boolean(),
@@ -839,26 +816,18 @@ export const ApproveJoinRequestResponse = zod
   );
 
 /**
- * @summary Decline a join request (any member of the target team)
+ * @summary Decline a pending join request (any team member)
  */
 export const DeclineJoinRequestParams = zod.object({
   id: zod.coerce.number(),
 });
 
 export const DeclineJoinRequestResponse = zod.object({
-  id: zod.number(),
-  teamId: zod.number(),
-  teamName: zod.string(),
-  requesterId: zod.string(),
-  requesterName: zod.string(),
-  status: zod.enum(["pending", "approved", "declined", "cancelled"]),
-  message: zod.string().nullish(),
-  createdAt: zod.coerce.date(),
-  respondedAt: zod.coerce.date().nullish(),
+  success: zod.boolean(),
 });
 
 /**
- * @summary List leave requests for a team (leader only)
+ * @summary List pending leave requests (leader only)
  */
 export const ListTeamLeaveRequestsParams = zod.object({
   id: zod.coerce.number(),
@@ -867,107 +836,49 @@ export const ListTeamLeaveRequestsParams = zod.object({
 export const ListTeamLeaveRequestsResponseItem = zod.object({
   id: zod.number(),
   teamId: zod.number(),
-  memberId: zod.string(),
-  memberName: zod.string(),
-  status: zod.enum(["pending", "approved", "declined", "cancelled"]),
+  requesterId: zod.string(),
+  requesterName: zod.string(),
+  requesterEmail: zod.string(),
+  requesterProfileImage: zod.string().nullish(),
   reason: zod.string().nullish(),
+  status: zod.enum(["pending", "approved", "declined"]),
   createdAt: zod.coerce.date(),
-  respondedAt: zod.coerce.date().nullish(),
 });
 export const ListTeamLeaveRequestsResponse = zod.array(
   ListTeamLeaveRequestsResponseItem,
 );
 
 /**
- * @summary Request to leave the team (member only, leader cannot use this)
+ * @summary Request to leave a team
  */
 export const RequestToLeaveTeamParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const requestToLeaveTeamBodyReasonMax = 500;
-
 export const RequestToLeaveTeamBody = zod.object({
-  reason: zod.string().max(requestToLeaveTeamBodyReasonMax).optional(),
+  reason: zod.string().optional(),
 });
 
 /**
- * @summary Approve a leave request (leader only)
+ * @summary Approve a pending leave request (leader only)
  */
 export const ApproveLeaveRequestParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const ApproveLeaveRequestResponse = zod
-  .object({
-    id: zod.number(),
-    name: zod.string(),
-    campusId: zod.number(),
-    campusName: zod.string(),
-    leaderId: zod.number(),
-    leaderName: zod.string(),
-    status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
-    tagline: zod.string().nullish(),
-    photoUrl: zod.string().nullish(),
-    inviteCode: zod.string().nullish(),
-    rejectionReason: zod.string().nullish(),
-    coordinatorComment: zod.string().nullish(),
-    isHidden: zod.boolean(),
-    isFeatured: zod.boolean(),
-    memberCount: zod.number(),
-    projectCount: zod.number(),
-    totalRevenue: zod.number(),
-    totalOrderBook: zod.number(),
-    nationalRank: zod.number().nullish(),
-    createdAt: zod.coerce.date(),
-  })
-  .and(
-    zod.object({
-      members: zod.array(
-        zod.object({
-          userId: zod.number(),
-          email: zod.string(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          profileImage: zod.string().nullish(),
-          role: zod.string().nullish(),
-          isLeader: zod.boolean(),
-        }),
-      ),
-      projects: zod.array(
-        zod.object({
-          id: zod.number(),
-          teamId: zod.number(),
-          teamName: zod.string(),
-          title: zod.string(),
-          description: zod.string(),
-          status: zod.enum(["active", "inactive"]),
-          verifiedOrderBook: zod.number(),
-          verifiedRevenue: zod.number(),
-          clientCount: zod.number(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-        }),
-      ),
-    }),
-  );
+export const ApproveLeaveRequestResponse = zod.object({
+  success: zod.boolean(),
+});
 
 /**
- * @summary Decline a leave request (leader only)
+ * @summary Decline a pending leave request (leader only)
  */
 export const DeclineLeaveRequestParams = zod.object({
   id: zod.coerce.number(),
 });
 
 export const DeclineLeaveRequestResponse = zod.object({
-  id: zod.number(),
-  teamId: zod.number(),
-  memberId: zod.string(),
-  memberName: zod.string(),
-  status: zod.enum(["pending", "approved", "declined", "cancelled"]),
-  reason: zod.string().nullish(),
-  createdAt: zod.coerce.date(),
-  respondedAt: zod.coerce.date().nullish(),
+  success: zod.boolean(),
 });
 
 /**
@@ -1635,7 +1546,7 @@ export const GetTeamDashboardSummaryResponse = zod.object({
       status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
       tagline: zod.string().nullish(),
       photoUrl: zod.string().nullish(),
-      inviteCode: zod.string().nullish(),
+      inviteCode: zod.string().nullable(),
       rejectionReason: zod.string().nullish(),
       coordinatorComment: zod.string().nullish(),
       isHidden: zod.boolean(),

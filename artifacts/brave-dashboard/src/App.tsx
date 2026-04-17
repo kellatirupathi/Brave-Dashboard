@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useGetMyTeam } from "@workspace/api-client-react";
 import NotFound from "@/pages/not-found";
 
 // Auth
@@ -18,6 +19,9 @@ import TeamProfile from "@/pages/student/team";
 import GetStarted from "@/pages/student/get-started";
 import DemoDay from "@/pages/student/demo-day";
 import Notifications from "@/pages/student/notifications";
+import Invitations from "@/pages/student/invitations";
+import JoinByCode from "@/pages/student/join";
+import BrowseTeams from "@/pages/student/browse-teams";
 
 // Coordinator
 import CoordinatorDashboard from "@/pages/coordinator/dashboard";
@@ -85,6 +89,15 @@ function ProtectedRoute({ component: Component, allowedRoles }: { component: Rea
   );
 }
 
+function StudentDashboardOrGetStarted() {
+  const { data: team, isLoading } = useGetMyTeam({ query: { retry: false } });
+  if (isLoading) {
+    return <div className="min-h-screen w-full flex items-center justify-center bg-background"><Spinner className="size-10" /></div>;
+  }
+  if (!team) return <Redirect to="/get-started" />;
+  return <TeamDashboard />;
+}
+
 function RootRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -108,15 +121,11 @@ function RootRedirect() {
   if (user.role === "coordinator") return <Redirect to="/coordinator" />;
   if (user.role === "admin") return <Redirect to="/admin" />;
 
-  // Students without a team go to the get-started hub
-  if (user.role === "student" && !user.teamId) {
-    return <Redirect to="/get-started" />;
-  }
+  // Student dashboard - redirects to /get-started if no team
 
-  // Student dashboard
   return (
     <Layout>
-      <TeamDashboard />
+      <StudentDashboardOrGetStarted />
     </Layout>
   );
 }
@@ -145,6 +154,15 @@ function Router() {
       </Route>
       <Route path="/get-started">
         <ProtectedRoute component={GetStarted} allowedRoles={["student"]} />
+      </Route>
+      <Route path="/invitations">
+        <ProtectedRoute component={Invitations} allowedRoles={["student"]} />
+      </Route>
+      <Route path="/join">
+        <ProtectedRoute component={JoinByCode} allowedRoles={["student"]} />
+      </Route>
+      <Route path="/browse-teams">
+        <ProtectedRoute component={BrowseTeams} allowedRoles={["student"]} />
       </Route>
       <Route path="/demo-day">
         <ProtectedRoute component={DemoDay} allowedRoles={["student"]} />

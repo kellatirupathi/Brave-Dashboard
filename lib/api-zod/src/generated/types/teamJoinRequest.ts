@@ -13,10 +13,11 @@ export interface TeamJoinRequest {
   teamName: string;
   requesterId: string;
   requesterName: string;
-  status: TeamJoinRequestStatus;
+  requesterEmail: string;
+  /** @nullable */
+  requesterProfileImage?: string | null;
   /** @nullable */
   message?: string | null;
+  status: TeamJoinRequestStatus;
   createdAt: Date;
-  /** @nullable */
-  respondedAt?: Date | null;
 }

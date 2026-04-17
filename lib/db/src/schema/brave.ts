@@ -21,6 +21,9 @@ export const enteredByEnum = pgEnum("entered_by", ["student", "admin"]);
 export const milestoneTypeEnum = pgEnum("milestone_type", ["auto", "manual"]);
 export const demoDayStatusEnum = pgEnum("demo_day_status", ["draft", "submitted", "shortlisted", "rejected"]);
 export const announcementTargetEnum = pgEnum("announcement_target", ["all", "campus", "team"]);
+export const invitationStatusEnum = pgEnum("invitation_status", ["pending", "accepted", "declined", "cancelled"]);
+export const joinRequestStatusEnum = pgEnum("join_request_status", ["pending", "approved", "declined", "cancelled"]);
+export const leaveRequestStatusEnum = pgEnum("leave_request_status", ["pending", "approved", "declined"]);
 
 // Campuses
 export const campusesTable = pgTable("campuses", {
@@ -144,43 +147,47 @@ export const insertTeamMemberSchema = createInsertSchema(teamMembersTable).omit(
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
 export type TeamMember = typeof teamMembersTable.$inferSelect;
 
-// Team invitations / join requests / leave requests
-export const invitationStatusEnum = pgEnum("invitation_status", ["pending", "accepted", "declined", "cancelled"]);
-export const joinRequestStatusEnum = pgEnum("join_request_status", ["pending", "approved", "declined", "cancelled"]);
-export const leaveRequestStatusEnum = pgEnum("leave_request_status", ["pending", "approved", "declined", "cancelled"]);
-
+// Team Invitations
 export const teamInvitationsTable = pgTable("team_invitations", {
   id: serial("id").primaryKey(),
   teamId: integer("team_id").notNull(),
-  inviterId: text("inviter_id").notNull(),
   inviteeId: text("invitee_id").notNull(),
+  inviterId: text("inviter_id").notNull(),
   status: invitationStatusEnum("status").notNull().default("pending"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+export const insertTeamInvitationSchema = createInsertSchema(teamInvitationsTable).omit({ id: true, createdAt: true });
+export type InsertTeamInvitation = z.infer<typeof insertTeamInvitationSchema>;
 export type TeamInvitation = typeof teamInvitationsTable.$inferSelect;
 
+// Team Join Requests
 export const teamJoinRequestsTable = pgTable("team_join_requests", {
   id: serial("id").primaryKey(),
   teamId: integer("team_id").notNull(),
   requesterId: text("requester_id").notNull(),
   status: joinRequestStatusEnum("status").notNull().default("pending"),
   message: text("message"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedById: text("decided_by_id"),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
-  respondedById: text("responded_by_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+export const insertTeamJoinRequestSchema = createInsertSchema(teamJoinRequestsTable).omit({ id: true, createdAt: true });
+export type InsertTeamJoinRequest = z.infer<typeof insertTeamJoinRequestSchema>;
 export type TeamJoinRequest = typeof teamJoinRequestsTable.$inferSelect;
 
+// Team Leave Requests
 export const teamLeaveRequestsTable = pgTable("team_leave_requests", {
   id: serial("id").primaryKey(),
   teamId: integer("team_id").notNull(),
-  memberId: text("member_id").notNull(),
-  status: leaveRequestStatusEnum("status").notNull().default("pending"),
+  requesterId: text("requester_id").notNull(),
   reason: text("reason"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  status: leaveRequestStatusEnum("status").notNull().default("pending"),
+  decidedById: text("decided_by_id"),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+export const insertTeamLeaveRequestSchema = createInsertSchema(teamLeaveRequestsTable).omit({ id: true, createdAt: true });
 export type TeamLeaveRequest = typeof teamLeaveRequestsTable.$inferSelect;
 
 // Projects

@@ -10,12 +10,13 @@ import type { TeamLeaveRequestStatus } from "./teamLeaveRequestStatus";
 export interface TeamLeaveRequest {
   id: number;
   teamId: number;
-  memberId: string;
-  memberName: string;
-  status: TeamLeaveRequestStatus;
+  requesterId: string;
+  requesterName: string;
+  requesterEmail: string;
+  /** @nullable */
+  requesterProfileImage?: string | null;
   /** @nullable */
   reason?: string | null;
+  status: TeamLeaveRequestStatus;
   createdAt: Date;
-  /** @nullable */
-  respondedAt?: Date | null;
 }

@@ -26,10 +26,10 @@ import type {
   BulkImportRosterBody,
   BulkImportRosterResponse,
   Campus,
+  CampusStudent,
   CreateAnnouncementBody,
   CreateCampusBody,
   CreateDemoDayApplicationBody,
-  CreateInvitationBody,
   CreateMilestoneBody,
   CreateOrderBookEntryBody,
   CreateProjectBody,
@@ -69,8 +69,8 @@ import type {
   RequestUploadUrlResponse,
   RevenueEntry,
   RosterEntry,
-  SearchStudentsParams,
-  StudentSearchResult,
+  SearchCampusStudentsParams,
+  SendInvitationBody,
   SubmitAccessRequestBody,
   SuccessResponse,
   Team,
@@ -1343,13 +1343,13 @@ export const useAddTeamMember = <
 /**
  * @summary Remove a member from a team
  */
-export const getRemoveTeamMemberUrl = (id: number, userId: number) => {
+export const getRemoveTeamMemberUrl = (id: number, userId: string) => {
   return `/api/teams/${id}/members/${userId}`;
 };
 
 export const removeTeamMember = async (
   id: number,
-  userId: number,
+  userId: string,
   options?: RequestInit,
 ): Promise<TeamDetail> => {
   return customFetch<TeamDetail>(getRemoveTeamMemberUrl(id, userId), {
@@ -1365,14 +1365,14 @@ export const getRemoveTeamMemberMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof removeTeamMember>>,
     TError,
-    { id: number; userId: number },
+    { id: number; userId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof removeTeamMember>>,
   TError,
-  { id: number; userId: number },
+  { id: number; userId: string },
   TContext
 > => {
   const mutationKey = ["removeTeamMember"];
@@ -1386,7 +1386,7 @@ export const getRemoveTeamMemberMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof removeTeamMember>>,
-    { id: number; userId: number }
+    { id: number; userId: string }
   > = (props) => {
     const { id, userId } = props ?? {};
 
@@ -1412,43 +1412,45 @@ export const useRemoveTeamMember = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof removeTeamMember>>,
     TError,
-    { id: number; userId: number },
+    { id: number; userId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof removeTeamMember>>,
   TError,
-  { id: number; userId: number },
+  { id: number; userId: string },
   TContext
 > => {
   return useMutation(getRemoveTeamMemberMutationOptions(options));
 };
 
 /**
- * @summary List teams at the current student's campus
+ * @summary List teams at the current student's campus (any status)
  */
-export const getBrowseTeamsUrl = () => {
+export const getBrowseCampusTeamsUrl = () => {
   return `/api/teams/browse`;
 };
 
-export const browseTeams = async (options?: RequestInit): Promise<Team[]> => {
-  return customFetch<Team[]>(getBrowseTeamsUrl(), {
+export const browseCampusTeams = async (
+  options?: RequestInit,
+): Promise<Team[]> => {
+  return customFetch<Team[]>(getBrowseCampusTeamsUrl(), {
     ...options,
     method: "GET",
   });
 };
 
-export const getBrowseTeamsQueryKey = () => {
+export const getBrowseCampusTeamsQueryKey = () => {
   return [`/api/teams/browse`] as const;
 };
 
-export const getBrowseTeamsQueryOptions = <
-  TData = Awaited<ReturnType<typeof browseTeams>>,
+export const getBrowseCampusTeamsQueryOptions = <
+  TData = Awaited<ReturnType<typeof browseCampusTeams>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof browseTeams>>,
+    Awaited<ReturnType<typeof browseCampusTeams>>,
     TError,
     TData
   >;
@@ -1456,40 +1458,40 @@ export const getBrowseTeamsQueryOptions = <
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getBrowseTeamsQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getBrowseCampusTeamsQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof browseTeams>>> = ({
-    signal,
-  }) => browseTeams({ signal, ...requestOptions });
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof browseCampusTeams>>
+  > = ({ signal }) => browseCampusTeams({ signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof browseTeams>>,
+    Awaited<ReturnType<typeof browseCampusTeams>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type BrowseTeamsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof browseTeams>>
+export type BrowseCampusTeamsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof browseCampusTeams>>
 >;
-export type BrowseTeamsQueryError = ErrorType<unknown>;
+export type BrowseCampusTeamsQueryError = ErrorType<unknown>;
 
 /**
- * @summary List teams at the current student's campus
+ * @summary List teams at the current student's campus (any status)
  */
 
-export function useBrowseTeams<
-  TData = Awaited<ReturnType<typeof browseTeams>>,
+export function useBrowseCampusTeams<
+  TData = Awaited<ReturnType<typeof browseCampusTeams>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof browseTeams>>,
+    Awaited<ReturnType<typeof browseCampusTeams>>,
     TError,
     TData
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getBrowseTeamsQueryOptions(options);
+  const queryOptions = getBrowseCampusTeamsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -1499,95 +1501,11 @@ export function useBrowseTeams<
 }
 
 /**
- * @summary Join a team by invite code (auto-cancels other pending invites/requests)
+ * @summary Search students at the current user's campus who aren't on a team
  */
-export const getJoinByCodeUrl = () => {
-  return `/api/teams/join-by-code`;
-};
-
-export const joinByCode = async (
-  joinByCodeBody: JoinByCodeBody,
-  options?: RequestInit,
-): Promise<TeamDetail> => {
-  return customFetch<TeamDetail>(getJoinByCodeUrl(), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(joinByCodeBody),
-  });
-};
-
-export const getJoinByCodeMutationOptions = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof joinByCode>>,
-    TError,
-    { data: BodyType<JoinByCodeBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof joinByCode>>,
-  TError,
-  { data: BodyType<JoinByCodeBody> },
-  TContext
-> => {
-  const mutationKey = ["joinByCode"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof joinByCode>>,
-    { data: BodyType<JoinByCodeBody> }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return joinByCode(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type JoinByCodeMutationResult = NonNullable<
-  Awaited<ReturnType<typeof joinByCode>>
->;
-export type JoinByCodeMutationBody = BodyType<JoinByCodeBody>;
-export type JoinByCodeMutationError = ErrorType<unknown>;
-
-/**
- * @summary Join a team by invite code (auto-cancels other pending invites/requests)
- */
-export const useJoinByCode = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof joinByCode>>,
-    TError,
-    { data: BodyType<JoinByCodeBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof joinByCode>>,
-  TError,
-  { data: BodyType<JoinByCodeBody> },
-  TContext
-> => {
-  return useMutation(getJoinByCodeMutationOptions(options));
-};
-
-/**
- * @summary Search roster students at the current user's campus (excludes those already on a team)
- */
-export const getSearchStudentsUrl = (params: SearchStudentsParams) => {
+export const getSearchCampusStudentsUrl = (
+  params: SearchCampusStudentsParams,
+) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -1599,32 +1517,34 @@ export const getSearchStudentsUrl = (params: SearchStudentsParams) => {
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/students/search?${stringifiedParams}`
-    : `/api/students/search`;
+    ? `/api/teams/students/search?${stringifiedParams}`
+    : `/api/teams/students/search`;
 };
 
-export const searchStudents = async (
-  params: SearchStudentsParams,
+export const searchCampusStudents = async (
+  params: SearchCampusStudentsParams,
   options?: RequestInit,
-): Promise<StudentSearchResult[]> => {
-  return customFetch<StudentSearchResult[]>(getSearchStudentsUrl(params), {
+): Promise<CampusStudent[]> => {
+  return customFetch<CampusStudent[]>(getSearchCampusStudentsUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getSearchStudentsQueryKey = (params?: SearchStudentsParams) => {
-  return [`/api/students/search`, ...(params ? [params] : [])] as const;
+export const getSearchCampusStudentsQueryKey = (
+  params?: SearchCampusStudentsParams,
+) => {
+  return [`/api/teams/students/search`, ...(params ? [params] : [])] as const;
 };
 
-export const getSearchStudentsQueryOptions = <
-  TData = Awaited<ReturnType<typeof searchStudents>>,
+export const getSearchCampusStudentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchCampusStudents>>,
   TError = ErrorType<unknown>,
 >(
-  params: SearchStudentsParams,
+  params: SearchCampusStudentsParams,
   options?: {
     query?: UseQueryOptions<
-      Awaited<ReturnType<typeof searchStudents>>,
+      Awaited<ReturnType<typeof searchCampusStudents>>,
       TError,
       TData
     >;
@@ -1633,43 +1553,45 @@ export const getSearchStudentsQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getSearchStudentsQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getSearchCampusStudentsQueryKey(params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchStudents>>> = ({
-    signal,
-  }) => searchStudents(params, { signal, ...requestOptions });
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof searchCampusStudents>>
+  > = ({ signal }) =>
+    searchCampusStudents(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof searchStudents>>,
+    Awaited<ReturnType<typeof searchCampusStudents>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type SearchStudentsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof searchStudents>>
+export type SearchCampusStudentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchCampusStudents>>
 >;
-export type SearchStudentsQueryError = ErrorType<unknown>;
+export type SearchCampusStudentsQueryError = ErrorType<unknown>;
 
 /**
- * @summary Search roster students at the current user's campus (excludes those already on a team)
+ * @summary Search students at the current user's campus who aren't on a team
  */
 
-export function useSearchStudents<
-  TData = Awaited<ReturnType<typeof searchStudents>>,
+export function useSearchCampusStudents<
+  TData = Awaited<ReturnType<typeof searchCampusStudents>>,
   TError = ErrorType<unknown>,
 >(
-  params: SearchStudentsParams,
+  params: SearchCampusStudentsParams,
   options?: {
     query?: UseQueryOptions<
-      Awaited<ReturnType<typeof searchStudents>>,
+      Awaited<ReturnType<typeof searchCampusStudents>>,
       TError,
       TData
     >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getSearchStudentsQueryOptions(params, options);
+  const queryOptions = getSearchCampusStudentsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -1677,6 +1599,92 @@ export function useSearchStudents<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Join a team using its invite code (campus-scoped)
+ */
+export const getJoinTeamByCodeUrl = () => {
+  return `/api/teams/join-by-code`;
+};
+
+export const joinTeamByCode = async (
+  joinByCodeBody: JoinByCodeBody,
+  options?: RequestInit,
+): Promise<TeamDetail> => {
+  return customFetch<TeamDetail>(getJoinTeamByCodeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(joinByCodeBody),
+  });
+};
+
+export const getJoinTeamByCodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinTeamByCode>>,
+    TError,
+    { data: BodyType<JoinByCodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof joinTeamByCode>>,
+  TError,
+  { data: BodyType<JoinByCodeBody> },
+  TContext
+> => {
+  const mutationKey = ["joinTeamByCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof joinTeamByCode>>,
+    { data: BodyType<JoinByCodeBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return joinTeamByCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type JoinTeamByCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof joinTeamByCode>>
+>;
+export type JoinTeamByCodeMutationBody = BodyType<JoinByCodeBody>;
+export type JoinTeamByCodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Join a team using its invite code (campus-scoped)
+ */
+export const useJoinTeamByCode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinTeamByCode>>,
+    TError,
+    { data: BodyType<JoinByCodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof joinTeamByCode>>,
+  TError,
+  { data: BodyType<JoinByCodeBody> },
+  TContext
+> => {
+  return useMutation(getJoinTeamByCodeMutationOptions(options));
+};
 
 /**
  * @summary List invitations sent for a team (any member)
@@ -1766,43 +1774,43 @@ export function useListTeamInvitations<
 }
 
 /**
- * @summary Invite a student to the team (any member, intra-campus only)
+ * @summary Send an invitation to a student (any member)
  */
-export const getCreateTeamInvitationUrl = (id: number) => {
+export const getSendTeamInvitationUrl = (id: number) => {
   return `/api/teams/${id}/invitations`;
 };
 
-export const createTeamInvitation = async (
+export const sendTeamInvitation = async (
   id: number,
-  createInvitationBody: CreateInvitationBody,
+  sendInvitationBody: SendInvitationBody,
   options?: RequestInit,
 ): Promise<TeamInvitation> => {
-  return customFetch<TeamInvitation>(getCreateTeamInvitationUrl(id), {
+  return customFetch<TeamInvitation>(getSendTeamInvitationUrl(id), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createInvitationBody),
+    body: JSON.stringify(sendInvitationBody),
   });
 };
 
-export const getCreateTeamInvitationMutationOptions = <
+export const getSendTeamInvitationMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createTeamInvitation>>,
+    Awaited<ReturnType<typeof sendTeamInvitation>>,
     TError,
-    { id: number; data: BodyType<CreateInvitationBody> },
+    { id: number; data: BodyType<SendInvitationBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createTeamInvitation>>,
+  Awaited<ReturnType<typeof sendTeamInvitation>>,
   TError,
-  { id: number; data: BodyType<CreateInvitationBody> },
+  { id: number; data: BodyType<SendInvitationBody> },
   TContext
 > => {
-  const mutationKey = ["createTeamInvitation"];
+  const mutationKey = ["sendTeamInvitation"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -1812,51 +1820,51 @@ export const getCreateTeamInvitationMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createTeamInvitation>>,
-    { id: number; data: BodyType<CreateInvitationBody> }
+    Awaited<ReturnType<typeof sendTeamInvitation>>,
+    { id: number; data: BodyType<SendInvitationBody> }
   > = (props) => {
     const { id, data } = props ?? {};
 
-    return createTeamInvitation(id, data, requestOptions);
+    return sendTeamInvitation(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateTeamInvitationMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createTeamInvitation>>
+export type SendTeamInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendTeamInvitation>>
 >;
-export type CreateTeamInvitationMutationBody = BodyType<CreateInvitationBody>;
-export type CreateTeamInvitationMutationError = ErrorType<unknown>;
+export type SendTeamInvitationMutationBody = BodyType<SendInvitationBody>;
+export type SendTeamInvitationMutationError = ErrorType<unknown>;
 
 /**
- * @summary Invite a student to the team (any member, intra-campus only)
+ * @summary Send an invitation to a student (any member)
  */
-export const useCreateTeamInvitation = <
+export const useSendTeamInvitation = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createTeamInvitation>>,
+    Awaited<ReturnType<typeof sendTeamInvitation>>,
     TError,
-    { id: number; data: BodyType<CreateInvitationBody> },
+    { id: number; data: BodyType<SendInvitationBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof createTeamInvitation>>,
+  Awaited<ReturnType<typeof sendTeamInvitation>>,
   TError,
-  { id: number; data: BodyType<CreateInvitationBody> },
+  { id: number; data: BodyType<SendInvitationBody> },
   TContext
 > => {
-  return useMutation(getCreateTeamInvitationMutationOptions(options));
+  return useMutation(getSendTeamInvitationMutationOptions(options));
 };
 
 /**
  * @summary List the current user's pending invitations
  */
 export const getListMyInvitationsUrl = () => {
-  return `/api/invitations/mine`;
+  return `/api/invitations/my`;
 };
 
 export const listMyInvitations = async (
@@ -1869,7 +1877,7 @@ export const listMyInvitations = async (
 };
 
 export const getListMyInvitationsQueryKey = () => {
-  return [`/api/invitations/mine`] as const;
+  return [`/api/invitations/my`] as const;
 };
 
 export const getListMyInvitationsQueryOptions = <
@@ -1928,7 +1936,7 @@ export function useListMyInvitations<
 }
 
 /**
- * @summary Accept an invitation (auto-cancels other pending invites/requests)
+ * @summary Accept a pending invitation
  */
 export const getAcceptInvitationUrl = (id: number) => {
   return `/api/invitations/${id}/accept`;
@@ -1989,7 +1997,7 @@ export type AcceptInvitationMutationResult = NonNullable<
 export type AcceptInvitationMutationError = ErrorType<unknown>;
 
 /**
- * @summary Accept an invitation (auto-cancels other pending invites/requests)
+ * @summary Accept a pending invitation
  */
 export const useAcceptInvitation = <
   TError = ErrorType<unknown>,
@@ -2012,7 +2020,7 @@ export const useAcceptInvitation = <
 };
 
 /**
- * @summary Decline an invitation
+ * @summary Decline a pending invitation
  */
 export const getDeclineInvitationUrl = (id: number) => {
   return `/api/invitations/${id}/decline`;
@@ -2021,8 +2029,8 @@ export const getDeclineInvitationUrl = (id: number) => {
 export const declineInvitation = async (
   id: number,
   options?: RequestInit,
-): Promise<TeamInvitation> => {
-  return customFetch<TeamInvitation>(getDeclineInvitationUrl(id), {
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeclineInvitationUrl(id), {
     ...options,
     method: "POST",
   });
@@ -2073,7 +2081,7 @@ export type DeclineInvitationMutationResult = NonNullable<
 export type DeclineInvitationMutationError = ErrorType<unknown>;
 
 /**
- * @summary Decline an invitation
+ * @summary Decline a pending invitation
  */
 export const useDeclineInvitation = <
   TError = ErrorType<unknown>,
@@ -2096,7 +2104,7 @@ export const useDeclineInvitation = <
 };
 
 /**
- * @summary List join requests for a team (any member)
+ * @summary List pending join requests for a team (any member)
  */
 export const getListTeamJoinRequestsUrl = (id: number) => {
   return `/api/teams/${id}/join-requests`;
@@ -2157,7 +2165,7 @@ export type ListTeamJoinRequestsQueryResult = NonNullable<
 export type ListTeamJoinRequestsQueryError = ErrorType<unknown>;
 
 /**
- * @summary List join requests for a team (any member)
+ * @summary List pending join requests for a team (any member)
  */
 
 export function useListTeamJoinRequests<
@@ -2184,7 +2192,7 @@ export function useListTeamJoinRequests<
 }
 
 /**
- * @summary Request to join a team (intra-campus only)
+ * @summary Request to join a team
  */
 export const getRequestToJoinTeamUrl = (id: number) => {
   return `/api/teams/${id}/join-requests`;
@@ -2192,7 +2200,7 @@ export const getRequestToJoinTeamUrl = (id: number) => {
 
 export const requestToJoinTeam = async (
   id: number,
-  requestToJoinBody: RequestToJoinBody,
+  requestToJoinBody?: RequestToJoinBody,
   options?: RequestInit,
 ): Promise<TeamJoinRequest> => {
   return customFetch<TeamJoinRequest>(getRequestToJoinTeamUrl(id), {
@@ -2248,7 +2256,7 @@ export type RequestToJoinTeamMutationBody = BodyType<RequestToJoinBody>;
 export type RequestToJoinTeamMutationError = ErrorType<unknown>;
 
 /**
- * @summary Request to join a team (intra-campus only)
+ * @summary Request to join a team
  */
 export const useRequestToJoinTeam = <
   TError = ErrorType<unknown>,
@@ -2271,82 +2279,7 @@ export const useRequestToJoinTeam = <
 };
 
 /**
- * @summary List the current user's outgoing join requests
- */
-export const getListMyJoinRequestsUrl = () => {
-  return `/api/join-requests/mine`;
-};
-
-export const listMyJoinRequests = async (
-  options?: RequestInit,
-): Promise<TeamJoinRequest[]> => {
-  return customFetch<TeamJoinRequest[]>(getListMyJoinRequestsUrl(), {
-    ...options,
-    method: "GET",
-  });
-};
-
-export const getListMyJoinRequestsQueryKey = () => {
-  return [`/api/join-requests/mine`] as const;
-};
-
-export const getListMyJoinRequestsQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyJoinRequests>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listMyJoinRequests>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getListMyJoinRequestsQueryKey();
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listMyJoinRequests>>
-  > = ({ signal }) => listMyJoinRequests({ signal, ...requestOptions });
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyJoinRequests>>,
-    TError,
-    TData
-  > & { queryKey: QueryKey };
-};
-
-export type ListMyJoinRequestsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyJoinRequests>>
->;
-export type ListMyJoinRequestsQueryError = ErrorType<unknown>;
-
-/**
- * @summary List the current user's outgoing join requests
- */
-
-export function useListMyJoinRequests<
-  TData = Awaited<ReturnType<typeof listMyJoinRequests>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listMyJoinRequests>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListMyJoinRequestsQueryOptions(options);
-
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
-    queryKey: QueryKey;
-  };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-/**
- * @summary Approve a join request (any member of the target team)
+ * @summary Approve a pending join request (any team member)
  */
 export const getApproveJoinRequestUrl = (id: number) => {
   return `/api/join-requests/${id}/approve`;
@@ -2407,7 +2340,7 @@ export type ApproveJoinRequestMutationResult = NonNullable<
 export type ApproveJoinRequestMutationError = ErrorType<unknown>;
 
 /**
- * @summary Approve a join request (any member of the target team)
+ * @summary Approve a pending join request (any team member)
  */
 export const useApproveJoinRequest = <
   TError = ErrorType<unknown>,
@@ -2430,7 +2363,7 @@ export const useApproveJoinRequest = <
 };
 
 /**
- * @summary Decline a join request (any member of the target team)
+ * @summary Decline a pending join request (any team member)
  */
 export const getDeclineJoinRequestUrl = (id: number) => {
   return `/api/join-requests/${id}/decline`;
@@ -2439,8 +2372,8 @@ export const getDeclineJoinRequestUrl = (id: number) => {
 export const declineJoinRequest = async (
   id: number,
   options?: RequestInit,
-): Promise<TeamJoinRequest> => {
-  return customFetch<TeamJoinRequest>(getDeclineJoinRequestUrl(id), {
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeclineJoinRequestUrl(id), {
     ...options,
     method: "POST",
   });
@@ -2491,7 +2424,7 @@ export type DeclineJoinRequestMutationResult = NonNullable<
 export type DeclineJoinRequestMutationError = ErrorType<unknown>;
 
 /**
- * @summary Decline a join request (any member of the target team)
+ * @summary Decline a pending join request (any team member)
  */
 export const useDeclineJoinRequest = <
   TError = ErrorType<unknown>,
@@ -2514,7 +2447,7 @@ export const useDeclineJoinRequest = <
 };
 
 /**
- * @summary List leave requests for a team (leader only)
+ * @summary List pending leave requests (leader only)
  */
 export const getListTeamLeaveRequestsUrl = (id: number) => {
   return `/api/teams/${id}/leave-requests`;
@@ -2575,7 +2508,7 @@ export type ListTeamLeaveRequestsQueryResult = NonNullable<
 export type ListTeamLeaveRequestsQueryError = ErrorType<unknown>;
 
 /**
- * @summary List leave requests for a team (leader only)
+ * @summary List pending leave requests (leader only)
  */
 
 export function useListTeamLeaveRequests<
@@ -2602,7 +2535,7 @@ export function useListTeamLeaveRequests<
 }
 
 /**
- * @summary Request to leave the team (member only, leader cannot use this)
+ * @summary Request to leave a team
  */
 export const getRequestToLeaveTeamUrl = (id: number) => {
   return `/api/teams/${id}/leave-requests`;
@@ -2610,7 +2543,7 @@ export const getRequestToLeaveTeamUrl = (id: number) => {
 
 export const requestToLeaveTeam = async (
   id: number,
-  requestToLeaveBody: RequestToLeaveBody,
+  requestToLeaveBody?: RequestToLeaveBody,
   options?: RequestInit,
 ): Promise<TeamLeaveRequest> => {
   return customFetch<TeamLeaveRequest>(getRequestToLeaveTeamUrl(id), {
@@ -2666,7 +2599,7 @@ export type RequestToLeaveTeamMutationBody = BodyType<RequestToLeaveBody>;
 export type RequestToLeaveTeamMutationError = ErrorType<unknown>;
 
 /**
- * @summary Request to leave the team (member only, leader cannot use this)
+ * @summary Request to leave a team
  */
 export const useRequestToLeaveTeam = <
   TError = ErrorType<unknown>,
@@ -2689,7 +2622,7 @@ export const useRequestToLeaveTeam = <
 };
 
 /**
- * @summary Approve a leave request (leader only)
+ * @summary Approve a pending leave request (leader only)
  */
 export const getApproveLeaveRequestUrl = (id: number) => {
   return `/api/leave-requests/${id}/approve`;
@@ -2698,8 +2631,8 @@ export const getApproveLeaveRequestUrl = (id: number) => {
 export const approveLeaveRequest = async (
   id: number,
   options?: RequestInit,
-): Promise<TeamDetail> => {
-  return customFetch<TeamDetail>(getApproveLeaveRequestUrl(id), {
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getApproveLeaveRequestUrl(id), {
     ...options,
     method: "POST",
   });
@@ -2750,7 +2683,7 @@ export type ApproveLeaveRequestMutationResult = NonNullable<
 export type ApproveLeaveRequestMutationError = ErrorType<unknown>;
 
 /**
- * @summary Approve a leave request (leader only)
+ * @summary Approve a pending leave request (leader only)
  */
 export const useApproveLeaveRequest = <
   TError = ErrorType<unknown>,
@@ -2773,7 +2706,7 @@ export const useApproveLeaveRequest = <
 };
 
 /**
- * @summary Decline a leave request (leader only)
+ * @summary Decline a pending leave request (leader only)
  */
 export const getDeclineLeaveRequestUrl = (id: number) => {
   return `/api/leave-requests/${id}/decline`;
@@ -2782,8 +2715,8 @@ export const getDeclineLeaveRequestUrl = (id: number) => {
 export const declineLeaveRequest = async (
   id: number,
   options?: RequestInit,
-): Promise<TeamLeaveRequest> => {
-  return customFetch<TeamLeaveRequest>(getDeclineLeaveRequestUrl(id), {
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeclineLeaveRequestUrl(id), {
     ...options,
     method: "POST",
   });
@@ -2834,7 +2767,7 @@ export type DeclineLeaveRequestMutationResult = NonNullable<
 export type DeclineLeaveRequestMutationError = ErrorType<unknown>;
 
 /**
- * @summary Decline a leave request (leader only)
+ * @summary Decline a pending leave request (leader only)
  */
 export const useDeclineLeaveRequest = <
   TError = ErrorType<unknown>,

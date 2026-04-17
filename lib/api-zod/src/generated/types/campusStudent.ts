@@ -6,14 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface StudentSearchResult {
-  /** @nullable */
-  userId?: string | null;
-  rosterId: number;
-  fullName: string;
+export interface CampusStudent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
   /** @nullable */
   niatId?: string | null;
   /** @nullable */
-  batchSectionName?: string | null;
-  hasAccount: boolean;
+  profileImage?: string | null;
 }

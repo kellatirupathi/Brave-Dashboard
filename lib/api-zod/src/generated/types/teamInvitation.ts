@@ -13,10 +13,11 @@ export interface TeamInvitation {
   teamName: string;
   /** @nullable */
   teamPhotoUrl?: string | null;
-  inviterId: string;
-  inviterName: string;
   inviteeId: string;
   inviteeName: string;
+  inviteeEmail: string;
+  inviterId: string;
+  inviterName: string;
   status: TeamInvitationStatus;
   createdAt: Date;
   /** @nullable */

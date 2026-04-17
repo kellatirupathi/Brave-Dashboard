@@ -151,7 +151,7 @@ export interface Team {
   /** @nullable */
   photoUrl?: string | null;
   /** @nullable */
-  inviteCode?: string | null;
+  inviteCode: string | null;
   /** @nullable */
   rejectionReason?: string | null;
   /** @nullable */
@@ -235,6 +235,108 @@ export interface RequestTeamChangesBody {
 
 export interface AddTeamMemberBody {
   email: string;
+}
+
+export interface CampusStudent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  /** @nullable */
+  niatId?: string | null;
+  /** @nullable */
+  profileImage?: string | null;
+}
+
+export interface JoinByCodeBody {
+  code: string;
+}
+
+export interface SendInvitationBody {
+  inviteeId: string;
+}
+
+export interface RequestToJoinBody {
+  message?: string;
+}
+
+export interface RequestToLeaveBody {
+  reason?: string;
+}
+
+export type TeamInvitationStatus =
+  (typeof TeamInvitationStatus)[keyof typeof TeamInvitationStatus];
+
+export const TeamInvitationStatus = {
+  pending: "pending",
+  accepted: "accepted",
+  declined: "declined",
+  cancelled: "cancelled",
+} as const;
+
+export interface TeamInvitation {
+  id: number;
+  teamId: number;
+  teamName: string;
+  /** @nullable */
+  teamPhotoUrl?: string | null;
+  inviteeId: string;
+  inviteeName: string;
+  inviteeEmail: string;
+  inviterId: string;
+  inviterName: string;
+  status: TeamInvitationStatus;
+  createdAt: string;
+  /** @nullable */
+  respondedAt?: string | null;
+}
+
+export type TeamJoinRequestStatus =
+  (typeof TeamJoinRequestStatus)[keyof typeof TeamJoinRequestStatus];
+
+export const TeamJoinRequestStatus = {
+  pending: "pending",
+  approved: "approved",
+  declined: "declined",
+  cancelled: "cancelled",
+} as const;
+
+export interface TeamJoinRequest {
+  id: number;
+  teamId: number;
+  teamName: string;
+  requesterId: string;
+  requesterName: string;
+  requesterEmail: string;
+  /** @nullable */
+  requesterProfileImage?: string | null;
+  /** @nullable */
+  message?: string | null;
+  status: TeamJoinRequestStatus;
+  createdAt: string;
+}
+
+export type TeamLeaveRequestStatus =
+  (typeof TeamLeaveRequestStatus)[keyof typeof TeamLeaveRequestStatus];
+
+export const TeamLeaveRequestStatus = {
+  pending: "pending",
+  approved: "approved",
+  declined: "declined",
+} as const;
+
+export interface TeamLeaveRequest {
+  id: number;
+  teamId: number;
+  requesterId: string;
+  requesterName: string;
+  requesterEmail: string;
+  /** @nullable */
+  requesterProfileImage?: string | null;
+  /** @nullable */
+  reason?: string | null;
+  status: TeamLeaveRequestStatus;
+  createdAt: string;
 }
 
 export type OrderBookEntryStatus =
@@ -811,109 +913,6 @@ export interface ExchangeMobileAuthorizationCodeBody {
   nonce: string;
 }
 
-export type TeamInvitationStatus =
-  (typeof TeamInvitationStatus)[keyof typeof TeamInvitationStatus];
-
-export const TeamInvitationStatus = {
-  pending: "pending",
-  accepted: "accepted",
-  declined: "declined",
-  cancelled: "cancelled",
-} as const;
-
-export interface TeamInvitation {
-  id: number;
-  teamId: number;
-  teamName: string;
-  /** @nullable */
-  teamPhotoUrl?: string | null;
-  inviterId: string;
-  inviterName: string;
-  inviteeId: string;
-  inviteeName: string;
-  status: TeamInvitationStatus;
-  createdAt: string;
-  /** @nullable */
-  respondedAt?: string | null;
-}
-
-export type TeamJoinRequestStatus =
-  (typeof TeamJoinRequestStatus)[keyof typeof TeamJoinRequestStatus];
-
-export const TeamJoinRequestStatus = {
-  pending: "pending",
-  approved: "approved",
-  declined: "declined",
-  cancelled: "cancelled",
-} as const;
-
-export interface TeamJoinRequest {
-  id: number;
-  teamId: number;
-  teamName: string;
-  requesterId: string;
-  requesterName: string;
-  status: TeamJoinRequestStatus;
-  /** @nullable */
-  message?: string | null;
-  createdAt: string;
-  /** @nullable */
-  respondedAt?: string | null;
-}
-
-export type TeamLeaveRequestStatus =
-  (typeof TeamLeaveRequestStatus)[keyof typeof TeamLeaveRequestStatus];
-
-export const TeamLeaveRequestStatus = {
-  pending: "pending",
-  approved: "approved",
-  declined: "declined",
-  cancelled: "cancelled",
-} as const;
-
-export interface TeamLeaveRequest {
-  id: number;
-  teamId: number;
-  memberId: string;
-  memberName: string;
-  status: TeamLeaveRequestStatus;
-  /** @nullable */
-  reason?: string | null;
-  createdAt: string;
-  /** @nullable */
-  respondedAt?: string | null;
-}
-
-export interface StudentSearchResult {
-  /** @nullable */
-  userId?: string | null;
-  rosterId: number;
-  fullName: string;
-  /** @nullable */
-  niatId?: string | null;
-  /** @nullable */
-  batchSectionName?: string | null;
-  hasAccount: boolean;
-}
-
-export interface CreateInvitationBody {
-  inviteeUserId: string;
-}
-
-export interface RequestToJoinBody {
-  /** @maxLength 500 */
-  message?: string;
-}
-
-export interface RequestToLeaveBody {
-  /** @maxLength 500 */
-  reason?: string;
-}
-
-export interface JoinByCodeBody {
-  code: string;
-}
-
 export type ListTeamsParams = {
   campusId?: number;
   status?: ListTeamsStatus;
@@ -929,7 +928,7 @@ export const ListTeamsStatus = {
   rejected: "rejected",
 } as const;
 
-export type SearchStudentsParams = {
+export type SearchCampusStudentsParams = {
   q: string;
 };
 

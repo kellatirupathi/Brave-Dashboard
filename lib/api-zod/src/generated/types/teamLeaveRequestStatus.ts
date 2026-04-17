@@ -13,5 +13,4 @@ export const TeamLeaveRequestStatus = {
   pending: "pending",
   approved: "approved",
   declined: "declined",
-  cancelled: "cancelled",
 } as const;
