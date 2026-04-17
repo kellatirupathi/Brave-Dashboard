@@ -12,7 +12,7 @@ export interface Team {
   name: string;
   campusId: number;
   campusName: string;
-  leaderId: number;
+  leaderId: string;
   leaderName: string;
   status: TeamStatus;
   /** @nullable */

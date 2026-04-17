@@ -1434,7 +1434,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       requestBody:
         required: true
         content:
@@ -1683,19 +1683,20 @@ components:
       type: object
       properties:
         id:
-          type: ["string", "null"]
+          type: string
         replitId:
           type: ["string", "null"]
         email:
-          type: ["string", "null"]
+          type: string
         firstName:
-          type: ["string", "null"]
+          type: string
         lastName:
-          type: ["string", "null"]
+          type: string
         profileImage:
           type: ["string", "null"]
         role:
-          type: ["string", "null"]
+          type: string
+          enum: [student, coordinator, admin]
         campusId:
           type: ["integer", "null"]
         isOnRoster:
@@ -1800,7 +1801,7 @@ components:
         state:
           type: string
         coordinatorId:
-          type: ["integer", "null"]
+          type: ["string", "null"]
         coordinatorName:
           type: ["string", "null"]
         totalTeams:
@@ -1832,7 +1833,7 @@ components:
         state:
           type: string
         coordinatorId:
-          type: ["integer", "null"]
+          type: ["string", "null"]
       required:
         - name
         - city
@@ -1848,7 +1849,7 @@ components:
         state:
           type: string
         coordinatorId:
-          type: ["integer", "null"]
+          type: ["string", "null"]
 
     Team:
       type: object
@@ -1862,7 +1863,7 @@ components:
         campusName:
           type: string
         leaderId:
-          type: integer
+          type: string
         leaderName:
           type: string
         status:
@@ -1933,7 +1934,7 @@ components:
       type: object
       properties:
         userId:
-          type: integer
+          type: string
         email:
           type: string
         firstName:
@@ -1984,7 +1985,7 @@ components:
         photoUrl:
           type: ["string", "null"]
         leaderId:
-          type: integer
+          type: string
         reason:
           type: string
 
@@ -2699,6 +2700,7 @@ components:
         linkUrl:
           type: ["string", "null"]
       required:
+        - teamId
         - title
         - date
 
@@ -2787,7 +2789,7 @@ components:
         id:
           type: integer
         userId:
-          type: integer
+          type: string
         title:
           type: string
         body:
@@ -2816,7 +2818,7 @@ components:
         id:
           type: integer
         authorId:
-          type: integer
+          type: string
         authorName:
           type: string
         target:

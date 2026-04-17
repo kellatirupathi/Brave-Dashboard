@@ -5,22 +5,18 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { AuthUserRole } from "./authUserRole";
 
 export interface AuthUser {
-  /** @nullable */
-  id: string | null;
+  id: string;
   /** @nullable */
   replitId: string | null;
-  /** @nullable */
-  email: string | null;
-  /** @nullable */
-  firstName: string | null;
-  /** @nullable */
-  lastName: string | null;
+  email: string;
+  firstName: string;
+  lastName: string;
   /** @nullable */
   profileImage: string | null;
-  /** @nullable */
-  role: string | null;
+  role: AuthUserRole;
   /** @nullable */
   campusId: number | null;
   /** @nullable */

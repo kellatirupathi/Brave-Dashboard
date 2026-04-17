@@ -150,7 +150,7 @@ router.post("/admin/users", async (req, res): Promise<void> => {
     .insert(usersTable)
     .values({ ...userData, passwordHash })
     .returning();
-  await logAudit(req.user.id, "create_user", "user", user.id, `Created ${user.role}: ${user.email}`);
+  await logAudit(req.user.id, "create_user", "user", undefined, `Created ${user.role} ${user.id}: ${user.email}`);
   const { passwordHash: _, ...safe } = user;
   res.status(201).json({ ...safe, campusName: null });
 });
@@ -179,7 +179,7 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  await logAudit(req.user.id, "update_user", "user", user.id, JSON.stringify(parsed.data));
+  await logAudit(req.user.id, "update_user", "user", undefined, `${user.id} ${JSON.stringify(parsed.data)}`);
   const { passwordHash, ...safe } = user;
   res.json({ ...safe, campusName: null });
 });

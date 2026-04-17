@@ -8,7 +8,7 @@
 
 export interface Notification {
   id: number;
-  userId: number;
+  userId: string;
   title: string;
   body: string;
   type: string;

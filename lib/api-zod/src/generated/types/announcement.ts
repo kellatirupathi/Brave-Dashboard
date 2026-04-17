@@ -9,7 +9,7 @@ import type { AnnouncementTarget } from "./announcementTarget";
 
 export interface Announcement {
   id: number;
-  authorId: number;
+  authorId: string;
   authorName: string;
   target: AnnouncementTarget;
   /** @nullable */

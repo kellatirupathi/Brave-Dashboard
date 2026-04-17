@@ -20,13 +20,13 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetCurrentAuthUserResponse = zod.object({
   user: zod.object({
-    id: zod.string().nullable(),
+    id: zod.string(),
     replitId: zod.string().nullable(),
-    email: zod.string().nullable(),
-    firstName: zod.string().nullable(),
-    lastName: zod.string().nullable(),
+    email: zod.string(),
+    firstName: zod.string(),
+    lastName: zod.string(),
     profileImage: zod.string().nullable(),
-    role: zod.string().nullable(),
+    role: zod.enum(["student", "coordinator", "admin"]),
     campusId: zod.number().nullable(),
     isOnRoster: zod.boolean().nullable(),
     teamId: zod.number().nullable(),
@@ -41,7 +41,7 @@ export const ListCampusesResponseItem = zod.object({
   name: zod.string(),
   city: zod.string(),
   state: zod.string(),
-  coordinatorId: zod.number().nullish(),
+  coordinatorId: zod.string().nullish(),
   coordinatorName: zod.string().nullish(),
   totalTeams: zod.number(),
   activeTeams: zod.number(),
@@ -57,7 +57,7 @@ export const CreateCampusBody = zod.object({
   name: zod.string(),
   city: zod.string(),
   state: zod.string(),
-  coordinatorId: zod.number().nullish(),
+  coordinatorId: zod.string().nullish(),
 });
 
 /**
@@ -72,7 +72,7 @@ export const GetCampusResponse = zod.object({
   name: zod.string(),
   city: zod.string(),
   state: zod.string(),
-  coordinatorId: zod.number().nullish(),
+  coordinatorId: zod.string().nullish(),
   coordinatorName: zod.string().nullish(),
   totalTeams: zod.number(),
   activeTeams: zod.number(),
@@ -91,7 +91,7 @@ export const UpdateCampusBody = zod.object({
   name: zod.string().optional(),
   city: zod.string().optional(),
   state: zod.string().optional(),
-  coordinatorId: zod.number().nullish(),
+  coordinatorId: zod.string().nullish(),
 });
 
 export const UpdateCampusResponse = zod.object({
@@ -99,7 +99,7 @@ export const UpdateCampusResponse = zod.object({
   name: zod.string(),
   city: zod.string(),
   state: zod.string(),
-  coordinatorId: zod.number().nullish(),
+  coordinatorId: zod.string().nullish(),
   coordinatorName: zod.string().nullish(),
   totalTeams: zod.number(),
   activeTeams: zod.number(),
@@ -121,7 +121,7 @@ export const ListTeamsResponseItem = zod.object({
   name: zod.string(),
   campusId: zod.number(),
   campusName: zod.string(),
-  leaderId: zod.number(),
+  leaderId: zod.string(),
   leaderName: zod.string(),
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
@@ -164,7 +164,7 @@ export const GetMyTeamResponse = zod
     name: zod.string(),
     campusId: zod.number(),
     campusName: zod.string(),
-    leaderId: zod.number(),
+    leaderId: zod.string(),
     leaderName: zod.string(),
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
@@ -185,7 +185,7 @@ export const GetMyTeamResponse = zod
     zod.object({
       members: zod.array(
         zod.object({
-          userId: zod.number(),
+          userId: zod.string(),
           email: zod.string(),
           firstName: zod.string(),
           lastName: zod.string(),
@@ -225,7 +225,7 @@ export const GetTeamResponse = zod
     name: zod.string(),
     campusId: zod.number(),
     campusName: zod.string(),
-    leaderId: zod.number(),
+    leaderId: zod.string(),
     leaderName: zod.string(),
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
@@ -246,7 +246,7 @@ export const GetTeamResponse = zod
     zod.object({
       members: zod.array(
         zod.object({
-          userId: zod.number(),
+          userId: zod.string(),
           email: zod.string(),
           firstName: zod.string(),
           lastName: zod.string(),
@@ -284,7 +284,7 @@ export const UpdateTeamBody = zod.object({
   name: zod.string().optional(),
   tagline: zod.string().optional(),
   photoUrl: zod.string().nullish(),
-  leaderId: zod.number().optional(),
+  leaderId: zod.string().optional(),
   reason: zod.string().optional(),
 });
 
@@ -293,7 +293,7 @@ export const UpdateTeamResponse = zod.object({
   name: zod.string(),
   campusId: zod.number(),
   campusName: zod.string(),
-  leaderId: zod.number(),
+  leaderId: zod.string(),
   leaderName: zod.string(),
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
@@ -323,7 +323,7 @@ export const ApproveTeamResponse = zod.object({
   name: zod.string(),
   campusId: zod.number(),
   campusName: zod.string(),
-  leaderId: zod.number(),
+  leaderId: zod.string(),
   leaderName: zod.string(),
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
@@ -357,7 +357,7 @@ export const RejectTeamResponse = zod.object({
   name: zod.string(),
   campusId: zod.number(),
   campusName: zod.string(),
-  leaderId: zod.number(),
+  leaderId: zod.string(),
   leaderName: zod.string(),
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
@@ -391,7 +391,7 @@ export const RequestTeamChangesResponse = zod.object({
   name: zod.string(),
   campusId: zod.number(),
   campusName: zod.string(),
-  leaderId: zod.number(),
+  leaderId: zod.string(),
   leaderName: zod.string(),
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
@@ -434,7 +434,7 @@ export const RemoveTeamMemberResponse = zod
     name: zod.string(),
     campusId: zod.number(),
     campusName: zod.string(),
-    leaderId: zod.number(),
+    leaderId: zod.string(),
     leaderName: zod.string(),
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
@@ -455,7 +455,7 @@ export const RemoveTeamMemberResponse = zod
     zod.object({
       members: zod.array(
         zod.object({
-          userId: zod.number(),
+          userId: zod.string(),
           email: zod.string(),
           firstName: zod.string(),
           lastName: zod.string(),
@@ -490,7 +490,7 @@ export const BrowseCampusTeamsResponseItem = zod.object({
   name: zod.string(),
   campusId: zod.number(),
   campusName: zod.string(),
-  leaderId: zod.number(),
+  leaderId: zod.string(),
   leaderName: zod.string(),
   status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
   tagline: zod.string().nullish(),
@@ -543,7 +543,7 @@ export const JoinTeamByCodeResponse = zod
     name: zod.string(),
     campusId: zod.number(),
     campusName: zod.string(),
-    leaderId: zod.number(),
+    leaderId: zod.string(),
     leaderName: zod.string(),
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
@@ -564,7 +564,7 @@ export const JoinTeamByCodeResponse = zod
     zod.object({
       members: zod.array(
         zod.object({
-          userId: zod.number(),
+          userId: zod.string(),
           email: zod.string(),
           firstName: zod.string(),
           lastName: zod.string(),
@@ -661,7 +661,7 @@ export const AcceptInvitationResponse = zod
     name: zod.string(),
     campusId: zod.number(),
     campusName: zod.string(),
-    leaderId: zod.number(),
+    leaderId: zod.string(),
     leaderName: zod.string(),
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
@@ -682,7 +682,7 @@ export const AcceptInvitationResponse = zod
     zod.object({
       members: zod.array(
         zod.object({
-          userId: zod.number(),
+          userId: zod.string(),
           email: zod.string(),
           firstName: zod.string(),
           lastName: zod.string(),
@@ -767,7 +767,7 @@ export const ApproveJoinRequestResponse = zod
     name: zod.string(),
     campusId: zod.number(),
     campusName: zod.string(),
-    leaderId: zod.number(),
+    leaderId: zod.string(),
     leaderName: zod.string(),
     status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
     tagline: zod.string().nullish(),
@@ -788,7 +788,7 @@ export const ApproveJoinRequestResponse = zod
     zod.object({
       members: zod.array(
         zod.object({
-          userId: zod.number(),
+          userId: zod.string(),
           email: zod.string(),
           firstName: zod.string(),
           lastName: zod.string(),
@@ -1509,7 +1509,7 @@ export const GetDashboardSummaryResponse = zod.object({
       name: zod.string(),
       city: zod.string(),
       state: zod.string(),
-      coordinatorId: zod.number().nullish(),
+      coordinatorId: zod.string().nullish(),
       coordinatorName: zod.string().nullish(),
       totalTeams: zod.number(),
       activeTeams: zod.number(),
@@ -1541,7 +1541,7 @@ export const GetTeamDashboardSummaryResponse = zod.object({
       name: zod.string(),
       campusId: zod.number(),
       campusName: zod.string(),
-      leaderId: zod.number(),
+      leaderId: zod.string(),
       leaderName: zod.string(),
       status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
       tagline: zod.string().nullish(),
@@ -1582,7 +1582,7 @@ export const GetTeamDashboardSummaryResponse = zod.object({
   announcements: zod.array(
     zod.object({
       id: zod.number(),
-      authorId: zod.number(),
+      authorId: zod.string(),
       authorName: zod.string(),
       target: zod.enum(["all", "campus", "team"]),
       campusId: zod.number().nullish(),
@@ -1618,7 +1618,7 @@ export const ListMilestonesResponse = zod.array(ListMilestonesResponseItem);
  * @summary Create a manual milestone
  */
 export const CreateMilestoneBody = zod.object({
-  teamId: zod.number().optional(),
+  teamId: zod.number(),
   title: zod.string(),
   description: zod.string().nullish(),
   date: zod.coerce.date(),
@@ -1739,7 +1739,7 @@ export const ListNotificationsQueryParams = zod.object({
 
 export const ListNotificationsResponseItem = zod.object({
   id: zod.number(),
-  userId: zod.number(),
+  userId: zod.string(),
   title: zod.string(),
   body: zod.string(),
   type: zod.string(),
@@ -1760,7 +1760,7 @@ export const MarkNotificationReadParams = zod.object({
 
 export const MarkNotificationReadResponse = zod.object({
   id: zod.number(),
-  userId: zod.number(),
+  userId: zod.string(),
   title: zod.string(),
   body: zod.string(),
   type: zod.string(),
@@ -1781,7 +1781,7 @@ export const MarkAllNotificationsReadResponse = zod.object({
  */
 export const ListAnnouncementsResponseItem = zod.object({
   id: zod.number(),
-  authorId: zod.number(),
+  authorId: zod.string(),
   authorName: zod.string(),
   target: zod.enum(["all", "campus", "team"]),
   campusId: zod.number().nullish(),
@@ -1845,7 +1845,7 @@ export const CreateUserBody = zod.object({
  * @summary Update a user (admin)
  */
 export const UpdateUserParams = zod.object({
-  id: zod.coerce.number(),
+  id: zod.coerce.string(),
 });
 
 export const UpdateUserBody = zod.object({

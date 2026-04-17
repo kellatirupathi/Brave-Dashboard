@@ -16,6 +16,7 @@ export * from "./announcement";
 export * from "./announcementTarget";
 export * from "./auditLogEntry";
 export * from "./authUser";
+export * from "./authUserRole";
 export * from "./bulkImportRosterBody";
 export * from "./bulkImportRosterBodyStudentsItem";
 export * from "./bulkImportRosterResponse";

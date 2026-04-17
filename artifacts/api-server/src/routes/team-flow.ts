@@ -123,8 +123,8 @@ async function shapeLeaveRequest(lr: typeof teamLeaveRequestsTable.$inferSelect)
   return {
     id: lr.id,
     teamId: lr.teamId,
-    memberId: lr.memberId,
-    memberName: await userDisplayName(lr.memberId),
+    memberId: lr.requesterId,
+    memberName: await userDisplayName(lr.requesterId),
     status: lr.status,
     reason: lr.reason,
     createdAt: lr.createdAt,
@@ -315,7 +315,7 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
   const memberOK = await isTeamMember(req.user.id, team.id);
   if (!memberOK) { res.status(403).json({ error: "Only team members can send invites" }); return; }
 
-  const [invitee] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.inviteeUserId));
+  const [invitee] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.inviteeId));
   if (!invitee) { res.status(404).json({ error: "User not found" }); return; }
   if (invitee.id === req.user.id) { res.status(400).json({ error: "You cannot invite yourself" }); return; }
 
@@ -488,7 +488,7 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
   if (existing) {
     await db
       .update(teamJoinRequestsTable)
-      .set({ status: "cancelled", respondedAt: new Date(), respondedById: req.user.id })
+      .set({ status: "cancelled", respondedAt: new Date(), decidedById: req.user.id })
       .where(eq(teamJoinRequestsTable.id, jr.id));
     res.status(400).json({ error: "Requester has already joined another team" });
     return;
@@ -500,7 +500,7 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
   }
   await db
     .update(teamJoinRequestsTable)
-    .set({ status: "approved", respondedAt: new Date(), respondedById: req.user.id })
+    .set({ status: "approved", respondedAt: new Date(), decidedById: req.user.id })
     .where(eq(teamJoinRequestsTable.id, jr.id));
   await cancelOtherPendingForUser(jr.requesterId, { keepJoinRequestId: jr.id });
 
@@ -519,7 +519,7 @@ router.post("/join-requests/:id/decline", async (req, res): Promise<void> => {
   if (!memberOK) { res.status(403).json({ error: "Only team members can decline" }); return; }
   const [updated] = await db
     .update(teamJoinRequestsTable)
-    .set({ status: "declined", respondedAt: new Date(), respondedById: req.user.id })
+    .set({ status: "declined", respondedAt: new Date(), decidedById: req.user.id })
     .where(eq(teamJoinRequestsTable.id, jr.id))
     .returning();
   const team = await getTeamOrNull(jr.teamId);
@@ -567,7 +567,7 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     .where(
       and(
         eq(teamLeaveRequestsTable.teamId, team.id),
-        eq(teamLeaveRequestsTable.memberId, req.user.id),
+        eq(teamLeaveRequestsTable.requesterId, req.user.id),
         eq(teamLeaveRequestsTable.status, "pending")
       )
     );
@@ -575,7 +575,7 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
 
   const [lr] = await db
     .insert(teamLeaveRequestsTable)
-    .values({ teamId: team.id, memberId: req.user.id, reason: parsed.data.reason ?? null })
+    .values({ teamId: team.id, requesterId: req.user.id, reason: parsed.data.reason ?? null })
     .returning();
 
   await createNotification(team.leaderId, "Leave Request", `${req.user.firstName} ${req.user.lastName} requested to leave "${team.name}".`, "leave_request", "/team");
@@ -596,12 +596,12 @@ router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
   }
   await db
     .delete(teamMembersTable)
-    .where(and(eq(teamMembersTable.teamId, team.id), eq(teamMembersTable.userId, lr.memberId)));
+    .where(and(eq(teamMembersTable.teamId, team.id), eq(teamMembersTable.userId, lr.requesterId)));
   await db
     .update(teamLeaveRequestsTable)
-    .set({ status: "approved", respondedAt: new Date() })
+    .set({ status: "approved", respondedAt: new Date(), decidedById: req.user.id })
     .where(eq(teamLeaveRequestsTable.id, lr.id));
-  await createNotification(lr.memberId, "Leave Request Approved", `You have been removed from "${team.name}".`, "leave_approved", "/team");
+  await createNotification(lr.requesterId, "Leave Request Approved", `You have been removed from "${team.name}".`, "leave_approved", "/team");
   res.json(await getTeamDetail(team.id));
 });
 
@@ -619,10 +619,10 @@ router.post("/leave-requests/:id/decline", async (req, res): Promise<void> => {
   }
   const [updated] = await db
     .update(teamLeaveRequestsTable)
-    .set({ status: "declined", respondedAt: new Date() })
+    .set({ status: "declined", respondedAt: new Date(), decidedById: req.user.id })
     .where(eq(teamLeaveRequestsTable.id, lr.id))
     .returning();
-  await createNotification(lr.memberId, "Leave Request Declined", `Your request to leave "${team.name}" was declined.`, "leave_declined", "/team");
+  await createNotification(lr.requesterId, "Leave Request Declined", `Your request to leave "${team.name}" was declined.`, "leave_declined", "/team");
   res.json(await shapeLeaveRequest(updated));
 });
 

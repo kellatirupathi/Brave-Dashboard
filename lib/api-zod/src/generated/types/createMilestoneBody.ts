@@ -7,7 +7,7 @@
  */
 
 export interface CreateMilestoneBody {
-  teamId?: number;
+  teamId: number;
   title: string;
   /** @nullable */
   description?: string | null;

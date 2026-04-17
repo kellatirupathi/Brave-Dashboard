@@ -80,10 +80,7 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
   );
 
   // Filter
-  let filtered = results;
-  if (team => !team.isHidden || req.user.role === "admin") {
-    filtered = results.filter(t => !t.isHidden || req.user.role === "admin");
-  }
+  let filtered = results.filter(t => !t.isHidden || req.user.role === "admin");
   if (effectiveCampusId) {
     filtered = filtered.filter(t => t.campusId === effectiveCampusId);
   }

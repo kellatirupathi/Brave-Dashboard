@@ -7,7 +7,7 @@
  */
 
 export interface TeamMember {
-  userId: number;
+  userId: string;
   email: string;
   firstName: string;
   lastName: string;

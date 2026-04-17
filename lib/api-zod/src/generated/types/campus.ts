@@ -12,7 +12,7 @@ export interface Campus {
   city: string;
   state: string;
   /** @nullable */
-  coordinatorId?: number | null;
+  coordinatorId?: string | null;
   /** @nullable */
   coordinatorName?: string | null;
   totalTeams: number;

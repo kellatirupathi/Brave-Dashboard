@@ -9,21 +9,24 @@ export interface HealthStatus {
   status: string;
 }
 
+export type AuthUserRole = (typeof AuthUserRole)[keyof typeof AuthUserRole];
+
+export const AuthUserRole = {
+  student: "student",
+  coordinator: "coordinator",
+  admin: "admin",
+} as const;
+
 export interface AuthUser {
-  /** @nullable */
-  id: string | null;
+  id: string;
   /** @nullable */
   replitId: string | null;
-  /** @nullable */
-  email: string | null;
-  /** @nullable */
-  firstName: string | null;
-  /** @nullable */
-  lastName: string | null;
+  email: string;
+  firstName: string;
+  lastName: string;
   /** @nullable */
   profileImage: string | null;
-  /** @nullable */
-  role: string | null;
+  role: AuthUserRole;
   /** @nullable */
   campusId: number | null;
   /** @nullable */
@@ -104,7 +107,7 @@ export interface Campus {
   city: string;
   state: string;
   /** @nullable */
-  coordinatorId?: number | null;
+  coordinatorId?: string | null;
   /** @nullable */
   coordinatorName?: string | null;
   totalTeams: number;
@@ -118,7 +121,7 @@ export interface CreateCampusBody {
   city: string;
   state: string;
   /** @nullable */
-  coordinatorId?: number | null;
+  coordinatorId?: string | null;
 }
 
 export interface UpdateCampusBody {
@@ -126,7 +129,7 @@ export interface UpdateCampusBody {
   city?: string;
   state?: string;
   /** @nullable */
-  coordinatorId?: number | null;
+  coordinatorId?: string | null;
 }
 
 export type TeamStatus = (typeof TeamStatus)[keyof typeof TeamStatus];
@@ -143,7 +146,7 @@ export interface Team {
   name: string;
   campusId: number;
   campusName: string;
-  leaderId: number;
+  leaderId: string;
   leaderName: string;
   status: TeamStatus;
   /** @nullable */
@@ -168,7 +171,7 @@ export interface Team {
 }
 
 export interface TeamMember {
-  userId: number;
+  userId: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -221,7 +224,7 @@ export interface UpdateTeamBody {
   tagline?: string;
   /** @nullable */
   photoUrl?: string | null;
-  leaderId?: number;
+  leaderId?: string;
   reason?: string;
 }
 
@@ -634,7 +637,7 @@ export const AnnouncementTarget = {
 
 export interface Announcement {
   id: number;
-  authorId: number;
+  authorId: string;
   authorName: string;
   target: AnnouncementTarget;
   /** @nullable */
@@ -662,7 +665,7 @@ export interface TeamDashboardSummary {
 }
 
 export interface CreateMilestoneBody {
-  teamId?: number;
+  teamId: number;
   title: string;
   /** @nullable */
   description?: string | null;
@@ -750,7 +753,7 @@ export interface UpdateDemoDayApplicationBody {
 
 export interface Notification {
   id: number;
-  userId: number;
+  userId: string;
   title: string;
   body: string;
   type: string;

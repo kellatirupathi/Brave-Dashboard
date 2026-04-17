@@ -11,5 +11,5 @@ export interface CreateCampusBody {
   city: string;
   state: string;
   /** @nullable */
-  coordinatorId?: number | null;
+  coordinatorId?: string | null;
 }

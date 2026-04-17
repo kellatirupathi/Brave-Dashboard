@@ -11,6 +11,6 @@ export interface UpdateTeamBody {
   tagline?: string;
   /** @nullable */
   photoUrl?: string | null;
-  leaderId?: number;
+  leaderId?: string;
   reason?: string;
 }
