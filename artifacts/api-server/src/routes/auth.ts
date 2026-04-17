@@ -117,7 +117,7 @@ async function upsertUser(claims: Record<string, unknown>) {
   return user;
 }
 
-const GenerateTokenBody = z.object({ forms_user_id: z.string().min(1) });
+const GenerateTokenBody = z.object({ user_id: z.string().min(1) });
 const ValidateTokenBody = z.object({ token: z.string().min(1) });
 
 function safeEqual(a: string, b: string): boolean {
@@ -146,7 +146,7 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
   }
 
   try {
-    const user = await createOrGetUserByFormsId(parsed.data.forms_user_id);
+    const user = await createOrGetUserByFormsId(parsed.data.user_id);
     const auth_token = await generateAuthToken(user.id);
     res.json({ auth_token });
   } catch (err) {
