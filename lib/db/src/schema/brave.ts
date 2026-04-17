@@ -1,0 +1,274 @@
+import {
+  pgTable,
+  text,
+  serial,
+  integer,
+  boolean,
+  timestamp,
+  pgEnum,
+  unique,
+} from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+// Enums
+export const userRoleEnum = pgEnum("user_role", ["student", "coordinator", "admin"]);
+export const teamStatusEnum = pgEnum("team_status", ["pending", "active", "rejected", "changes_requested"]);
+export const projectStatusEnum = pgEnum("project_status", ["active", "inactive"]);
+export const entryStatusEnum = pgEnum("entry_status", ["draft", "submitted", "verified", "rejected"]);
+export const enteredByEnum = pgEnum("entered_by", ["student", "admin"]);
+export const milestoneTypeEnum = pgEnum("milestone_type", ["auto", "manual"]);
+export const demoDayStatusEnum = pgEnum("demo_day_status", ["draft", "submitted", "shortlisted", "rejected"]);
+export const announcementTargetEnum = pgEnum("announcement_target", ["all", "campus", "team"]);
+
+// Campuses
+export const campusesTable = pgTable("campuses", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  coordinatorId: integer("coordinator_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertCampusSchema = createInsertSchema(campusesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCampus = z.infer<typeof insertCampusSchema>;
+export type Campus = typeof campusesTable.$inferSelect;
+
+// Users
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  replitId: text("replit_id").unique(),
+  email: text("email").notNull().unique(),
+  firstName: text("first_name").notNull().default(""),
+  lastName: text("last_name").notNull().default(""),
+  profileImage: text("profile_image"),
+  role: userRoleEnum("role").notNull().default("student"),
+  campusId: integer("campus_id"),
+  passwordHash: text("password_hash"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof usersTable.$inferSelect;
+
+// Student roster
+export const rosterTable = pgTable("roster", {
+  id: serial("id").primaryKey(),
+  studentId: text("student_id").notNull(),
+  fullName: text("full_name").notNull(),
+  email: text("email").notNull().unique(),
+  campusName: text("campus_name").notNull(),
+  campusId: integer("campus_id"),
+  isWhitelisted: boolean("is_whitelisted").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertRosterSchema = createInsertSchema(rosterTable).omit({ id: true, createdAt: true });
+export type InsertRoster = z.infer<typeof insertRosterSchema>;
+export type Roster = typeof rosterTable.$inferSelect;
+
+// Teams
+export const teamsTable = pgTable("teams", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  campusId: integer("campus_id").notNull(),
+  leaderId: integer("leader_id").notNull(),
+  status: teamStatusEnum("status").notNull().default("pending"),
+  tagline: text("tagline"),
+  photoUrl: text("photo_url"),
+  rejectionReason: text("rejection_reason"),
+  coordinatorComment: text("coordinator_comment"),
+  isHidden: boolean("is_hidden").notNull().default(false),
+  isFeatured: boolean("is_featured").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertTeamSchema = createInsertSchema(teamsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
+export type Team = typeof teamsTable.$inferSelect;
+
+// Team members
+export const teamMembersTable = pgTable("team_members", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  userId: integer("user_id").notNull(),
+  memberRole: text("member_role"),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique("team_members_user_unique").on(t.userId)]);
+
+export const insertTeamMemberSchema = createInsertSchema(teamMembersTable).omit({ id: true, joinedAt: true });
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+export type TeamMember = typeof teamMembersTable.$inferSelect;
+
+// Projects
+export const projectsTable = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  status: projectStatusEnum("status").notNull().default("active"),
+  createdBy: integer("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type Project = typeof projectsTable.$inferSelect;
+
+// Order Book Entries
+export const orderBookEntriesTable = pgTable("order_book_entries", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  clientName: text("client_name").notNull(),
+  amount: integer("amount").notNull(),
+  verifiedAmount: integer("verified_amount"),
+  status: entryStatusEnum("status").notNull().default("draft"),
+  supportingDocUrl: text("supporting_doc_url"),
+  notes: text("notes"),
+  adminNotes: text("admin_notes"),
+  enteredBy: enteredByEnum("entered_by").notNull().default("student"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertOrderBookEntrySchema = createInsertSchema(orderBookEntriesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertOrderBookEntry = z.infer<typeof insertOrderBookEntrySchema>;
+export type OrderBookEntry = typeof orderBookEntriesTable.$inferSelect;
+
+// Revenue Entries
+export const revenueEntriesTable = pgTable("revenue_entries", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  clientName: text("client_name").notNull(),
+  amount: integer("amount").notNull(),
+  verifiedAmount: integer("verified_amount"),
+  paymentDate: text("payment_date").notNull(),
+  status: entryStatusEnum("status").notNull().default("draft"),
+  paymentProofUrl: text("payment_proof_url"),
+  invoiceUrl: text("invoice_url"),
+  testimonialUrl: text("testimonial_url"),
+  notes: text("notes"),
+  adminNotes: text("admin_notes"),
+  enteredBy: enteredByEnum("entered_by").notNull().default("student"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertRevenueEntrySchema = createInsertSchema(revenueEntriesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertRevenueEntry = z.infer<typeof insertRevenueEntrySchema>;
+export type RevenueEntry = typeof revenueEntriesTable.$inferSelect;
+
+// Milestones
+export const milestonesTable = pgTable("milestones", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  type: milestoneTypeEnum("type").notNull().default("manual"),
+  title: text("title").notNull(),
+  description: text("description"),
+  date: timestamp("date", { withTimezone: true }).notNull().defaultNow(),
+  imageUrl: text("image_url"),
+  linkUrl: text("link_url"),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertMilestoneSchema = createInsertSchema(milestonesTable).omit({ id: true, createdAt: true });
+export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
+export type Milestone = typeof milestonesTable.$inferSelect;
+
+// Demo Day Applications
+export const demoDayApplicationsTable = pgTable("demo_day_applications", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull().unique(),
+  demoUrl: text("demo_url"),
+  pitchDeckUrl: text("pitch_deck_url"),
+  growthPlan: text("growth_plan"),
+  status: demoDayStatusEnum("status").notNull().default("draft"),
+  timeSlot: text("time_slot"),
+  presentationOrder: integer("presentation_order"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertDemoDayApplicationSchema = createInsertSchema(demoDayApplicationsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDemoDayApplication = z.infer<typeof insertDemoDayApplicationSchema>;
+export type DemoDayApplication = typeof demoDayApplicationsTable.$inferSelect;
+
+// Notifications
+export const notificationsTable = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  type: text("type").notNull().default("general"),
+  isRead: boolean("is_read").notNull().default(false),
+  link: text("link"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({ id: true, createdAt: true });
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notificationsTable.$inferSelect;
+
+// Announcements
+export const announcementsTable = pgTable("announcements", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id").notNull(),
+  target: announcementTargetEnum("target").notNull().default("all"),
+  campusId: integer("campus_id"),
+  teamId: integer("team_id"),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAnnouncementSchema = createInsertSchema(announcementsTable).omit({ id: true, createdAt: true });
+export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
+export type Announcement = typeof announcementsTable.$inferSelect;
+
+// Programme Config
+export const programmeConfigTable = pgTable("programme_config", {
+  id: serial("id").primaryKey(),
+  startDate: text("start_date").notNull().default("2025-04-15"),
+  endDate: text("end_date").notNull().default("2025-07-15"),
+  demoDayDate: text("demo_day_date"),
+  demoEligibilityThreshold: integer("demo_eligibility_threshold").notNull().default(200000),
+  leaderboardFrozen: boolean("leaderboard_frozen").notNull().default(false),
+  demoDayApplicationsOpen: boolean("demo_day_applications_open").notNull().default(false),
+  demoDayApplicationDeadline: text("demo_day_application_deadline"),
+  programmePhase: text("programme_phase").notNull().default("Phase 1 - Launch"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertProgrammeConfigSchema = createInsertSchema(programmeConfigTable).omit({ id: true, updatedAt: true });
+export type InsertProgrammeConfig = z.infer<typeof insertProgrammeConfigSchema>;
+export type ProgrammeConfig = typeof programmeConfigTable.$inferSelect;
+
+// Audit Log
+export const auditLogTable = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  actorId: integer("actor_id").notNull(),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: integer("target_id"),
+  details: text("details"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogTable).omit({ id: true, createdAt: true });
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLogTable.$inferSelect;

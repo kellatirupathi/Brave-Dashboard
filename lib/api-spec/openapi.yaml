@@ -3,13 +3,40 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: BRAVE Program Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: campuses
+    description: Campus management
+  - name: teams
+    description: Team registration and management
+  - name: projects
+    description: Project management
+  - name: financials
+    description: Order book and revenue entries
+  - name: leaderboard
+    description: Leaderboard views
+  - name: milestones
+    description: Team milestones
+  - name: demoday
+    description: Demo day applications
+  - name: notifications
+    description: In-app notifications
+  - name: announcements
+    description: Programme announcements
+  - name: admin
+    description: Admin-only operations
+  - name: storage
+    description: Object storage
+  - name: roster
+    description: Student roster management
+
 paths:
   /healthz:
     get:
@@ -24,6 +51,1217 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # Auth endpoints
+  /auth/user:
+    get:
+      operationId: getCurrentAuthUser
+      tags: [auth]
+      summary: Get current auth user
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCurrentAuthUserResponse"
+
+  # Campuses
+  /campuses:
+    get:
+      operationId: listCampuses
+      tags: [campuses]
+      summary: List all campuses
+      responses:
+        "200":
+          description: List of campuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campus"
+    post:
+      operationId: createCampus
+      tags: [campuses]
+      summary: Create a campus (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCampusBody"
+      responses:
+        "201":
+          description: Created campus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campus"
+
+  /campuses/{id}:
+    get:
+      operationId: getCampus
+      tags: [campuses]
+      summary: Get a campus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campus details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campus"
+    patch:
+      operationId: updateCampus
+      tags: [campuses]
+      summary: Update a campus (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCampusBody"
+      responses:
+        "200":
+          description: Updated campus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campus"
+
+  # Teams
+  /teams:
+    get:
+      operationId: listTeams
+      tags: [teams]
+      summary: List teams (filtered by role)
+      parameters:
+        - name: campusId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, active, rejected]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Team"
+    post:
+      operationId: createTeam
+      tags: [teams]
+      summary: Create/register a team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTeamBody"
+      responses:
+        "201":
+          description: Created team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  /teams/my:
+    get:
+      operationId: getMyTeam
+      tags: [teams]
+      summary: Get current user's team
+      responses:
+        "200":
+          description: User's team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+
+  /teams/{id}:
+    get:
+      operationId: getTeam
+      tags: [teams]
+      summary: Get a team
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Team details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+    patch:
+      operationId: updateTeam
+      tags: [teams]
+      summary: Update a team
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTeamBody"
+      responses:
+        "200":
+          description: Updated team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  /teams/{id}/approve:
+    post:
+      operationId: approveTeam
+      tags: [teams]
+      summary: Approve a team registration (coordinator/admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Team approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  /teams/{id}/reject:
+    post:
+      operationId: rejectTeam
+      tags: [teams]
+      summary: Reject a team registration (coordinator/admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectTeamBody"
+      responses:
+        "200":
+          description: Team rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  /teams/{id}/request-changes:
+    post:
+      operationId: requestTeamChanges
+      tags: [teams]
+      summary: Request changes to a team registration (coordinator/admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestTeamChangesBody"
+      responses:
+        "200":
+          description: Changes requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  /teams/{id}/members:
+    post:
+      operationId: addTeamMember
+      tags: [teams]
+      summary: Add a member to a team
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTeamMemberBody"
+      responses:
+        "201":
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+
+  /teams/{id}/members/{userId}:
+    delete:
+      operationId: removeTeamMember
+      tags: [teams]
+      summary: Remove a member from a team
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Member removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+
+  # Projects
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List projects for current team
+      parameters:
+        - name: teamId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectBody"
+      responses:
+        "201":
+          description: Created project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a project with financials
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectBody"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  # Order Book Entries
+  /order-book-entries:
+    get:
+      operationId: listOrderBookEntries
+      tags: [financials]
+      summary: List order book entries
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: integer
+        - name: teamId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, submitted, verified, rejected]
+      responses:
+        "200":
+          description: List of order book entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrderBookEntry"
+    post:
+      operationId: createOrderBookEntry
+      tags: [financials]
+      summary: Create an order book entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderBookEntryBody"
+      responses:
+        "201":
+          description: Created entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookEntry"
+
+  /order-book-entries/{id}:
+    get:
+      operationId: getOrderBookEntry
+      tags: [financials]
+      summary: Get an order book entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order book entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookEntry"
+    patch:
+      operationId: updateOrderBookEntry
+      tags: [financials]
+      summary: Update an order book entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrderBookEntryBody"
+      responses:
+        "200":
+          description: Updated entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookEntry"
+
+  /order-book-entries/{id}/submit:
+    post:
+      operationId: submitOrderBookEntry
+      tags: [financials]
+      summary: Submit an order book entry for review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookEntry"
+
+  /order-book-entries/{id}/verify:
+    post:
+      operationId: verifyOrderBookEntry
+      tags: [financials]
+      summary: Verify an order book entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEntryBody"
+      responses:
+        "200":
+          description: Entry verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookEntry"
+
+  /order-book-entries/{id}/reject:
+    post:
+      operationId: rejectOrderBookEntry
+      tags: [financials]
+      summary: Reject an order book entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectEntryBody"
+      responses:
+        "200":
+          description: Entry rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookEntry"
+
+  # Revenue Entries
+  /revenue-entries:
+    get:
+      operationId: listRevenueEntries
+      tags: [financials]
+      summary: List revenue entries
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: integer
+        - name: teamId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, submitted, verified, rejected]
+      responses:
+        "200":
+          description: List of revenue entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RevenueEntry"
+    post:
+      operationId: createRevenueEntry
+      tags: [financials]
+      summary: Create a revenue entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRevenueEntryBody"
+      responses:
+        "201":
+          description: Created entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+
+  /revenue-entries/{id}:
+    get:
+      operationId: getRevenueEntry
+      tags: [financials]
+      summary: Get a revenue entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Revenue entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+    patch:
+      operationId: updateRevenueEntry
+      tags: [financials]
+      summary: Update a revenue entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRevenueEntryBody"
+      responses:
+        "200":
+          description: Updated entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+
+  /revenue-entries/{id}/submit:
+    post:
+      operationId: submitRevenueEntry
+      tags: [financials]
+      summary: Submit a revenue entry for review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+
+  /revenue-entries/{id}/verify:
+    post:
+      operationId: verifyRevenueEntry
+      tags: [financials]
+      summary: Verify a revenue entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEntryBody"
+      responses:
+        "200":
+          description: Entry verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+
+  /revenue-entries/{id}/reject:
+    post:
+      operationId: rejectRevenueEntry
+      tags: [financials]
+      summary: Reject a revenue entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectEntryBody"
+      responses:
+        "200":
+          description: Entry rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+
+  # Admin review queue
+  /admin/review-queue:
+    get:
+      operationId: getAdminReviewQueue
+      tags: [admin]
+      summary: Get all pending financial entries for review
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [order_book, revenue]
+        - name: campusId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Review queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReviewQueueResponse"
+
+  # Leaderboard
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Get leaderboard
+      parameters:
+        - name: view
+          in: query
+          schema:
+            type: string
+            enum: [national, campus, top10]
+        - name: campusId
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [all_time, this_month, this_week]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Leaderboard data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  # Dashboard summary
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [admin]
+      summary: Get programme-wide dashboard summary (admin/coordinator)
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/team-summary:
+    get:
+      operationId: getTeamDashboardSummary
+      tags: [teams]
+      summary: Get current team's dashboard summary
+      responses:
+        "200":
+          description: Team dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDashboardSummary"
+
+  # Milestones
+  /milestones:
+    get:
+      operationId: listMilestones
+      tags: [milestones]
+      summary: List milestones for a team
+      parameters:
+        - name: teamId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Milestones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Milestone"
+    post:
+      operationId: createMilestone
+      tags: [milestones]
+      summary: Create a manual milestone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMilestoneBody"
+      responses:
+        "201":
+          description: Created milestone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Milestone"
+
+  /milestones/{id}:
+    patch:
+      operationId: updateMilestone
+      tags: [milestones]
+      summary: Update a milestone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMilestoneBody"
+      responses:
+        "200":
+          description: Updated milestone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Milestone"
+
+  # Demo Day
+  /demo-day/application:
+    get:
+      operationId: getDemoDayApplication
+      tags: [demoday]
+      summary: Get current team's demo day application
+      responses:
+        "200":
+          description: Demo day application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoDayApplication"
+    post:
+      operationId: submitDemoDayApplication
+      tags: [demoday]
+      summary: Submit demo day application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDemoDayApplicationBody"
+      responses:
+        "201":
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoDayApplication"
+    patch:
+      operationId: updateDemoDayApplication
+      tags: [demoday]
+      summary: Update demo day application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDemoDayApplicationBody"
+      responses:
+        "200":
+          description: Updated application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoDayApplication"
+
+  /admin/demo-day/applications:
+    get:
+      operationId: listDemoDayApplications
+      tags: [demoday]
+      summary: List all demo day applications (admin)
+      responses:
+        "200":
+          description: All applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DemoDayApplication"
+
+  # Notifications
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List user's notifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notification marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: All notifications marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # Announcements
+  /announcements:
+    get:
+      operationId: listAnnouncements
+      tags: [announcements]
+      summary: List announcements for current user
+      responses:
+        "200":
+          description: Announcements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Announcement"
+    post:
+      operationId: createAnnouncement
+      tags: [announcements]
+      summary: Create an announcement (admin/coordinator)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAnnouncementBody"
+      responses:
+        "201":
+          description: Created announcement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+
+  # User management (admin)
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [admin]
+      summary: List all users (admin)
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [student, coordinator, admin]
+        - name: campusId
+          in: query
+          schema:
+            type: integer
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [admin]
+      summary: Create a coordinator or admin account (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [admin]
+      summary: Update a user (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # Programme config
+  /admin/programme-config:
+    get:
+      operationId: getProgrammeConfig
+      tags: [admin]
+      summary: Get programme configuration
+      responses:
+        "200":
+          description: Programme config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgrammeConfig"
+    patch:
+      operationId: updateProgrammeConfig
+      tags: [admin]
+      summary: Update programme configuration (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProgrammeConfigBody"
+      responses:
+        "200":
+          description: Updated config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgrammeConfig"
+
+  # Audit log
+  /admin/audit-log:
+    get:
+      operationId: getAuditLog
+      tags: [admin]
+      summary: Get audit log (admin)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLogEntry"
+
+  # Roster management
+  /admin/roster:
+    get:
+      operationId: listRosterEntries
+      tags: [roster]
+      summary: List roster entries
+      parameters:
+        - name: campusId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Roster entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RosterEntry"
+    post:
+      operationId: addRosterEntry
+      tags: [roster]
+      summary: Add a student to the roster
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddRosterEntryBody"
+      responses:
+        "201":
+          description: Roster entry added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RosterEntry"
+
+  # Object storage
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      summary: Get a stored object
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object file content
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +1272,1221 @@ components:
       required:
         - status
 
+    GetCurrentAuthUserResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+      required:
+        - user
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: ["integer", "null"]
+        replitId:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        profileImage:
+          type: ["string", "null"]
+        role:
+          type: ["string", "null"]
+        campusId:
+          type: ["integer", "null"]
+        isOnRoster:
+          type: ["boolean", "null"]
+        teamId:
+          type: ["integer", "null"]
+      required:
+        - id
+        - replitId
+        - email
+        - firstName
+        - lastName
+        - profileImage
+        - role
+        - campusId
+        - isOnRoster
+        - teamId
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        replitId:
+          type: ["string", "null"]
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        profileImage:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [student, coordinator, admin]
+        campusId:
+          type: ["integer", "null"]
+        campusName:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - firstName
+        - lastName
+        - role
+        - isActive
+        - createdAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [coordinator, admin]
+        campusId:
+          type: ["integer", "null"]
+        password:
+          type: string
+      required:
+        - email
+        - firstName
+        - lastName
+        - role
+        - password
+
+    UpdateUserBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [student, coordinator, admin]
+        campusId:
+          type: ["integer", "null"]
+        isActive:
+          type: boolean
+
+    Campus:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        coordinatorId:
+          type: ["integer", "null"]
+        coordinatorName:
+          type: ["string", "null"]
+        totalTeams:
+          type: integer
+        activeTeams:
+          type: integer
+        totalRevenue:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - city
+        - state
+        - totalTeams
+        - activeTeams
+        - totalRevenue
+        - createdAt
+
+    CreateCampusBody:
+      type: object
+      properties:
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        coordinatorId:
+          type: ["integer", "null"]
+      required:
+        - name
+        - city
+        - state
+
+    UpdateCampusBody:
+      type: object
+      properties:
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        coordinatorId:
+          type: ["integer", "null"]
+
+    Team:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        campusId:
+          type: integer
+        campusName:
+          type: string
+        leaderId:
+          type: integer
+        leaderName:
+          type: string
+        status:
+          type: string
+          enum: [pending, active, rejected, changes_requested]
+        tagline:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        rejectionReason:
+          type: ["string", "null"]
+        coordinatorComment:
+          type: ["string", "null"]
+        isHidden:
+          type: boolean
+        isFeatured:
+          type: boolean
+        memberCount:
+          type: integer
+        projectCount:
+          type: integer
+        totalRevenue:
+          type: integer
+        totalOrderBook:
+          type: integer
+        nationalRank:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - campusId
+        - campusName
+        - leaderId
+        - leaderName
+        - status
+        - isHidden
+        - isFeatured
+        - memberCount
+        - projectCount
+        - totalRevenue
+        - totalOrderBook
+        - createdAt
+
+    TeamDetail:
+      allOf:
+        - $ref: "#/components/schemas/Team"
+        - type: object
+          properties:
+            members:
+              type: array
+              items:
+                $ref: "#/components/schemas/TeamMember"
+            projects:
+              type: array
+              items:
+                $ref: "#/components/schemas/Project"
+          required:
+            - members
+            - projects
+
+    TeamMember:
+      type: object
+      properties:
+        userId:
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        profileImage:
+          type: ["string", "null"]
+        role:
+          type: ["string", "null"]
+        isLeader:
+          type: boolean
+      required:
+        - userId
+        - email
+        - firstName
+        - lastName
+        - isLeader
+
+    CreateTeamBody:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 60
+        tagline:
+          type: string
+          maxLength: 120
+        campusId:
+          type: integer
+        memberEmails:
+          type: array
+          items:
+            type: string
+        photoUrl:
+          type: ["string", "null"]
+      required:
+        - name
+        - campusId
+
+    UpdateTeamBody:
+      type: object
+      properties:
+        name:
+          type: string
+        tagline:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        leaderId:
+          type: integer
+        reason:
+          type: string
+
+    RejectTeamBody:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+        - reason
+
+    RequestTeamChangesBody:
+      type: object
+      properties:
+        comment:
+          type: string
+      required:
+        - comment
+
+    AddTeamMemberBody:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        verifiedOrderBook:
+          type: integer
+        verifiedRevenue:
+          type: integer
+        clientCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - teamId
+        - teamName
+        - title
+        - description
+        - status
+        - verifiedOrderBook
+        - verifiedRevenue
+        - clientCount
+        - createdAt
+        - updatedAt
+
+    ProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            orderBookEntries:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrderBookEntry"
+            revenueEntries:
+              type: array
+              items:
+                $ref: "#/components/schemas/RevenueEntry"
+          required:
+            - orderBookEntries
+            - revenueEntries
+
+    CreateProjectBody:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 500
+        teamId:
+          type: integer
+      required:
+        - title
+        - description
+
+    UpdateProjectBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+
+    OrderBookEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        projectTitle:
+          type: string
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        campusName:
+          type: string
+        clientName:
+          type: string
+        amount:
+          type: integer
+        verifiedAmount:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [draft, submitted, verified, rejected]
+        supportingDocUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        adminNotes:
+          type: ["string", "null"]
+        enteredBy:
+          type: string
+          enum: [student, admin]
+        submittedAt:
+          type: ["string", "null"]
+          format: date-time
+        verifiedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - projectTitle
+        - teamId
+        - teamName
+        - campusName
+        - clientName
+        - amount
+        - status
+        - enteredBy
+        - createdAt
+
+    CreateOrderBookEntryBody:
+      type: object
+      properties:
+        projectId:
+          type: integer
+        clientName:
+          type: string
+          maxLength: 100
+        amount:
+          type: integer
+        supportingDocUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - projectId
+        - clientName
+        - amount
+
+    UpdateOrderBookEntryBody:
+      type: object
+      properties:
+        clientName:
+          type: string
+        amount:
+          type: integer
+        supportingDocUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    RevenueEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        projectTitle:
+          type: string
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        campusName:
+          type: string
+        clientName:
+          type: string
+        amount:
+          type: integer
+        verifiedAmount:
+          type: ["integer", "null"]
+        paymentDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, submitted, verified, rejected]
+        paymentProofUrl:
+          type: ["string", "null"]
+        invoiceUrl:
+          type: ["string", "null"]
+        testimonialUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        adminNotes:
+          type: ["string", "null"]
+        enteredBy:
+          type: string
+          enum: [student, admin]
+        submittedAt:
+          type: ["string", "null"]
+          format: date-time
+        verifiedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - projectTitle
+        - teamId
+        - teamName
+        - campusName
+        - clientName
+        - amount
+        - paymentDate
+        - status
+        - enteredBy
+        - createdAt
+
+    CreateRevenueEntryBody:
+      type: object
+      properties:
+        projectId:
+          type: integer
+        clientName:
+          type: string
+          maxLength: 100
+        amount:
+          type: integer
+        paymentDate:
+          type: string
+          format: date
+        paymentProofUrl:
+          type: ["string", "null"]
+        invoiceUrl:
+          type: ["string", "null"]
+        testimonialUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - projectId
+        - clientName
+        - amount
+        - paymentDate
+
+    UpdateRevenueEntryBody:
+      type: object
+      properties:
+        clientName:
+          type: string
+        amount:
+          type: integer
+        paymentDate:
+          type: string
+          format: date
+        paymentProofUrl:
+          type: ["string", "null"]
+        invoiceUrl:
+          type: ["string", "null"]
+        testimonialUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    VerifyEntryBody:
+      type: object
+      properties:
+        verifiedAmount:
+          type: integer
+        adminNotes:
+          type: ["string", "null"]
+      required:
+        - verifiedAmount
+
+    RejectEntryBody:
+      type: object
+      properties:
+        adminNotes:
+          type: string
+      required:
+        - adminNotes
+
+    AdminReviewQueueItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [order_book, revenue]
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        campusName:
+          type: string
+        projectTitle:
+          type: string
+        clientName:
+          type: string
+        amount:
+          type: integer
+        submittedAt:
+          type: string
+          format: date-time
+        isOverdue:
+          type: boolean
+        supportingDocUrl:
+          type: ["string", "null"]
+        paymentProofUrl:
+          type: ["string", "null"]
+        invoiceUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - id
+        - type
+        - teamId
+        - teamName
+        - campusName
+        - projectTitle
+        - clientName
+        - amount
+        - submittedAt
+        - isOverdue
+
+    AdminReviewQueueResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReviewQueueItem"
+        overdueCount:
+          type: integer
+        totalCount:
+          type: integer
+      required:
+        - items
+        - overdueCount
+        - totalCount
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        campusName:
+          type: string
+        campusId:
+          type: integer
+        tagline:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        totalRevenue:
+          type: integer
+        totalOrderBook:
+          type: integer
+        activeProjects:
+          type: integer
+        clientCount:
+          type: integer
+        lastPaymentDate:
+          type: ["string", "null"]
+          format: date
+        isDemoEligible:
+          type: boolean
+        isFeatured:
+          type: boolean
+        isHidden:
+          type: boolean
+      required:
+        - rank
+        - teamId
+        - teamName
+        - campusName
+        - campusId
+        - totalRevenue
+        - totalOrderBook
+        - activeProjects
+        - clientCount
+        - isDemoEligible
+        - isFeatured
+        - isHidden
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalVerifiedRevenue:
+          type: integer
+        totalOrderBook:
+          type: integer
+        activeTeams:
+          type: integer
+        pendingTeams:
+          type: integer
+        demoEligibleTeams:
+          type: integer
+        pendingReviewCount:
+          type: integer
+        overdueReviewCount:
+          type: integer
+        totalCampuses:
+          type: integer
+        topCampuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/Campus"
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
+      required:
+        - totalVerifiedRevenue
+        - totalOrderBook
+        - activeTeams
+        - pendingTeams
+        - demoEligibleTeams
+        - pendingReviewCount
+        - overdueReviewCount
+        - totalCampuses
+        - topCampuses
+        - recentActivity
+
+    TeamDashboardSummary:
+      type: object
+      properties:
+        team:
+          $ref: "#/components/schemas/Team"
+        totalRevenue:
+          type: integer
+        totalOrderBook:
+          type: integer
+        nationalRank:
+          type: ["integer", "null"]
+        campusRank:
+          type: ["integer", "null"]
+        activeProjects:
+          type: integer
+        pendingSubmissions:
+          type: integer
+        demoEligible:
+          type: boolean
+        recentMilestones:
+          type: array
+          items:
+            $ref: "#/components/schemas/Milestone"
+        announcements:
+          type: array
+          items:
+            $ref: "#/components/schemas/Announcement"
+      required:
+        - totalRevenue
+        - totalOrderBook
+        - activeProjects
+        - pendingSubmissions
+        - demoEligible
+        - recentMilestones
+        - announcements
+
+    Milestone:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        type:
+          type: string
+          enum: [auto, manual]
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        date:
+          type: string
+          format: date-time
+        imageUrl:
+          type: ["string", "null"]
+        linkUrl:
+          type: ["string", "null"]
+        isPinned:
+          type: boolean
+      required:
+        - id
+        - teamId
+        - type
+        - title
+        - date
+        - isPinned
+
+    CreateMilestoneBody:
+      type: object
+      properties:
+        teamId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        date:
+          type: string
+          format: date-time
+        imageUrl:
+          type: ["string", "null"]
+        linkUrl:
+          type: ["string", "null"]
+      required:
+        - title
+        - date
+
+    UpdateMilestoneBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        isPinned:
+          type: boolean
+        imageUrl:
+          type: ["string", "null"]
+        linkUrl:
+          type: ["string", "null"]
+
+    DemoDayApplication:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        demoUrl:
+          type: ["string", "null"]
+        pitchDeckUrl:
+          type: ["string", "null"]
+        growthPlan:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, submitted, shortlisted, rejected]
+        timeSlot:
+          type: ["string", "null"]
+        presentationOrder:
+          type: ["integer", "null"]
+        totalRevenue:
+          type: integer
+        submittedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - teamId
+        - teamName
+        - status
+        - totalRevenue
+        - createdAt
+
+    CreateDemoDayApplicationBody:
+      type: object
+      properties:
+        demoUrl:
+          type: ["string", "null"]
+        pitchDeckUrl:
+          type: ["string", "null"]
+        growthPlan:
+          type: ["string", "null"]
+
+    UpdateDemoDayApplicationBody:
+      type: object
+      properties:
+        demoUrl:
+          type: ["string", "null"]
+        pitchDeckUrl:
+          type: ["string", "null"]
+        growthPlan:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, submitted, shortlisted, rejected]
+        timeSlot:
+          type: ["string", "null"]
+        presentationOrder:
+          type: ["integer", "null"]
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        type:
+          type: string
+        isRead:
+          type: boolean
+        link:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - title
+        - body
+        - type
+        - isRead
+        - createdAt
+
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: integer
+        authorId:
+          type: integer
+        authorName:
+          type: string
+        target:
+          type: string
+          enum: [all, campus, team]
+        campusId:
+          type: ["integer", "null"]
+        teamId:
+          type: ["integer", "null"]
+        title:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - authorId
+        - authorName
+        - target
+        - title
+        - body
+        - createdAt
+
+    CreateAnnouncementBody:
+      type: object
+      properties:
+        target:
+          type: string
+          enum: [all, campus, team]
+        campusId:
+          type: ["integer", "null"]
+        teamId:
+          type: ["integer", "null"]
+        title:
+          type: string
+        body:
+          type: string
+      required:
+        - target
+        - title
+        - body
+
+    ProgrammeConfig:
+      type: object
+      properties:
+        id:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        demoDayDate:
+          type: ["string", "null"]
+          format: date
+        demoEligibilityThreshold:
+          type: integer
+        leaderboardFrozen:
+          type: boolean
+        demoDayApplicationsOpen:
+          type: boolean
+        demoDayApplicationDeadline:
+          type: ["string", "null"]
+          format: date
+        programmePhase:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - startDate
+        - endDate
+        - demoEligibilityThreshold
+        - leaderboardFrozen
+        - demoDayApplicationsOpen
+        - programmePhase
+        - updatedAt
+
+    UpdateProgrammeConfigBody:
+      type: object
+      properties:
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        demoDayDate:
+          type: ["string", "null"]
+          format: date
+        demoEligibilityThreshold:
+          type: integer
+        leaderboardFrozen:
+          type: boolean
+        demoDayApplicationsOpen:
+          type: boolean
+        demoDayApplicationDeadline:
+          type: ["string", "null"]
+          format: date
+        programmePhase:
+          type: string
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        actorId:
+          type: integer
+        actorName:
+          type: string
+        action:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: ["integer", "null"]
+        details:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - actorId
+        - actorName
+        - action
+        - targetType
+        - createdAt
+
+    RosterEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        studentId:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        campusName:
+          type: string
+        campusId:
+          type: ["integer", "null"]
+        isWhitelisted:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - studentId
+        - fullName
+        - email
+        - campusName
+        - isWhitelisted
+        - createdAt
+
+    AddRosterEntryBody:
+      type: object
+      properties:
+        studentId:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        campusName:
+          type: string
+        campusId:
+          type: ["integer", "null"]
+        isWhitelisted:
+          type: boolean
+      required:
+        - studentId
+        - fullName
+        - email
+        - campusName
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required:
+        - name
+        - size
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+      required:
+        - uploadURL
+        - objectPath
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    ExchangeMobileAuthorizationCodeBody:
+      type: object
+      properties:
+        code:
+          type: string
+        codeVerifier:
+          type: string
+        state:
+          type: string
+        nonce:
+          type: string
+      required:
+        - code
+        - codeVerifier
+        - state
+        - nonce
