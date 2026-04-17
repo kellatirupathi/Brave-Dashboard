@@ -37,3 +37,8 @@ externalPort = 3000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+VITE_FORMS_LOGIN_URL = "https://forms-gamma.earlywave.in/mid/brave-dashboard"
