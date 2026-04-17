@@ -12,10 +12,10 @@ import {
   rosterTable,
 } from "@workspace/db";
 import {
-  CreateTeamInvitationBody,
+  SendTeamInvitationBody as CreateTeamInvitationBody,
   RequestToJoinTeamBody,
   RequestToLeaveTeamBody,
-  JoinByCodeBody,
+  JoinTeamByCodeBody as JoinByCodeBody,
 } from "@workspace/api-zod";
 import { z } from "zod/v4";
 import { createNotification } from "../lib/notifications";
