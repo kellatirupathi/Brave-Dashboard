@@ -6,18 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RosterEntry {
+export interface AccessRequest {
   id: number;
-  studentId: string;
   fullName: string;
   email: string;
-  campusName: string;
   /** @nullable */
-  campusId?: number | null;
+  batch?: string | null;
   /** @nullable */
   niatId?: string | null;
+  campusName: string;
+  status: string;
   /** @nullable */
-  batchSectionName?: string | null;
-  isWhitelisted: boolean;
+  notes?: string | null;
   createdAt: Date;
 }

@@ -17,11 +17,14 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AccessRequest,
   AddRosterEntryBody,
   AddTeamMemberBody,
   AdminReviewQueueResponse,
   Announcement,
   AuditLogEntry,
+  BulkImportRosterBody,
+  BulkImportRosterResponse,
   Campus,
   CreateAnnouncementBody,
   CreateCampusBody,
@@ -40,6 +43,7 @@ import type {
   GetLeaderboardParams,
   HealthStatus,
   LeaderboardEntry,
+  ListAccessRequestsParams,
   ListMilestonesParams,
   ListNotificationsParams,
   ListOrderBookEntriesParams,
@@ -61,10 +65,12 @@ import type {
   RequestUploadUrlResponse,
   RevenueEntry,
   RosterEntry,
+  SubmitAccessRequestBody,
   SuccessResponse,
   Team,
   TeamDashboardSummary,
   TeamDetail,
+  UpdateAccessRequestBody,
   UpdateCampusBody,
   UpdateDemoDayApplicationBody,
   UpdateMilestoneBody,
@@ -5066,6 +5072,362 @@ export const useAddRosterEntry = <
   TContext
 > => {
   return useMutation(getAddRosterEntryMutationOptions(options));
+};
+
+/**
+ * @summary Bulk import students into roster from parsed Excel data
+ */
+export const getBulkImportRosterUrl = () => {
+  return `/api/admin/roster/import`;
+};
+
+export const bulkImportRoster = async (
+  bulkImportRosterBody: BulkImportRosterBody,
+  options?: RequestInit,
+): Promise<BulkImportRosterResponse> => {
+  return customFetch<BulkImportRosterResponse>(getBulkImportRosterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bulkImportRosterBody),
+  });
+};
+
+export const getBulkImportRosterMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkImportRoster>>,
+    TError,
+    { data: BodyType<BulkImportRosterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkImportRoster>>,
+  TError,
+  { data: BodyType<BulkImportRosterBody> },
+  TContext
+> => {
+  const mutationKey = ["bulkImportRoster"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkImportRoster>>,
+    { data: BodyType<BulkImportRosterBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bulkImportRoster(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkImportRosterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkImportRoster>>
+>;
+export type BulkImportRosterMutationBody = BodyType<BulkImportRosterBody>;
+export type BulkImportRosterMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Bulk import students into roster from parsed Excel data
+ */
+export const useBulkImportRoster = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkImportRoster>>,
+    TError,
+    { data: BodyType<BulkImportRosterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkImportRoster>>,
+  TError,
+  { data: BodyType<BulkImportRosterBody> },
+  TContext
+> => {
+  return useMutation(getBulkImportRosterMutationOptions(options));
+};
+
+/**
+ * @summary List access requests
+ */
+export const getListAccessRequestsUrl = (params?: ListAccessRequestsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/access-requests?${stringifiedParams}`
+    : `/api/admin/access-requests`;
+};
+
+export const listAccessRequests = async (
+  params?: ListAccessRequestsParams,
+  options?: RequestInit,
+): Promise<AccessRequest[]> => {
+  return customFetch<AccessRequest[]>(getListAccessRequestsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAccessRequestsQueryKey = (
+  params?: ListAccessRequestsParams,
+) => {
+  return [`/api/admin/access-requests`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAccessRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAccessRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListAccessRequestsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAccessRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAccessRequestsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAccessRequests>>
+  > = ({ signal }) => listAccessRequests(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAccessRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAccessRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAccessRequests>>
+>;
+export type ListAccessRequestsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List access requests
+ */
+
+export function useListAccessRequests<
+  TData = Awaited<ReturnType<typeof listAccessRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListAccessRequestsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAccessRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAccessRequestsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Approve or reject an access request
+ */
+export const getUpdateAccessRequestUrl = (id: number) => {
+  return `/api/admin/access-requests/${id}`;
+};
+
+export const updateAccessRequest = async (
+  id: number,
+  updateAccessRequestBody: UpdateAccessRequestBody,
+  options?: RequestInit,
+): Promise<AccessRequest> => {
+  return customFetch<AccessRequest>(getUpdateAccessRequestUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateAccessRequestBody),
+  });
+};
+
+export const getUpdateAccessRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAccessRequest>>,
+    TError,
+    { id: number; data: BodyType<UpdateAccessRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAccessRequest>>,
+  TError,
+  { id: number; data: BodyType<UpdateAccessRequestBody> },
+  TContext
+> => {
+  const mutationKey = ["updateAccessRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAccessRequest>>,
+    { id: number; data: BodyType<UpdateAccessRequestBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateAccessRequest(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAccessRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAccessRequest>>
+>;
+export type UpdateAccessRequestMutationBody = BodyType<UpdateAccessRequestBody>;
+export type UpdateAccessRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Approve or reject an access request
+ */
+export const useUpdateAccessRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAccessRequest>>,
+    TError,
+    { id: number; data: BodyType<UpdateAccessRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAccessRequest>>,
+  TError,
+  { id: number; data: BodyType<UpdateAccessRequestBody> },
+  TContext
+> => {
+  return useMutation(getUpdateAccessRequestMutationOptions(options));
+};
+
+/**
+ * @summary Submit an access request (public)
+ */
+export const getSubmitAccessRequestUrl = () => {
+  return `/api/access-request`;
+};
+
+export const submitAccessRequest = async (
+  submitAccessRequestBody: SubmitAccessRequestBody,
+  options?: RequestInit,
+): Promise<AccessRequest> => {
+  return customFetch<AccessRequest>(getSubmitAccessRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(submitAccessRequestBody),
+  });
+};
+
+export const getSubmitAccessRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitAccessRequest>>,
+    TError,
+    { data: BodyType<SubmitAccessRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitAccessRequest>>,
+  TError,
+  { data: BodyType<SubmitAccessRequestBody> },
+  TContext
+> => {
+  const mutationKey = ["submitAccessRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitAccessRequest>>,
+    { data: BodyType<SubmitAccessRequestBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return submitAccessRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitAccessRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitAccessRequest>>
+>;
+export type SubmitAccessRequestMutationBody = BodyType<SubmitAccessRequestBody>;
+export type SubmitAccessRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Submit an access request (public)
+ */
+export const useSubmitAccessRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitAccessRequest>>,
+    TError,
+    { data: BodyType<SubmitAccessRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitAccessRequest>>,
+  TError,
+  { data: BodyType<SubmitAccessRequestBody> },
+  TContext
+> => {
+  return useMutation(getSubmitAccessRequestMutationOptions(options));
 };
 
 /**

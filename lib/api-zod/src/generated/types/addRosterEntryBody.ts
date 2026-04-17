@@ -13,5 +13,9 @@ export interface AddRosterEntryBody {
   campusName: string;
   /** @nullable */
   campusId?: number | null;
+  /** @nullable */
+  niatId?: string | null;
+  /** @nullable */
+  batchSectionName?: string | null;
   isWhitelisted?: boolean;
 }

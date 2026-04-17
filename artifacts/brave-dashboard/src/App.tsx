@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 
 // Auth
 import Login from "@/pages/auth/login";
+import NotOnRoster from "@/pages/auth/not-on-roster";
 
 // Student
 import TeamDashboard from "@/pages/student/dashboard";
@@ -64,6 +65,11 @@ function ProtectedRoute({ component: Component, allowedRoles }: { component: Rea
     return <Redirect to="/login" />;
   }
 
+  // Students must be on the roster to access the dashboard
+  if (user.role === "student" && !user.isOnRoster) {
+    return <Redirect to="/not-on-roster" />;
+  }
+
   if (!allowedRoles.includes(user.role || "")) {
     if (user.role === "student") return <Redirect to="/" />;
     if (user.role === "coordinator") return <Redirect to="/coordinator" />;
@@ -93,6 +99,11 @@ function RootRedirect() {
     return <Redirect to="/login" />;
   }
 
+  // Students must be on the roster to access the dashboard
+  if (user.role === "student" && !user.isOnRoster) {
+    return <Redirect to="/not-on-roster" />;
+  }
+
   if (user.role === "coordinator") return <Redirect to="/coordinator" />;
   if (user.role === "admin") return <Redirect to="/admin" />;
 
@@ -108,6 +119,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/not-on-roster" component={NotOnRoster} />
 
       {/* Root - role-based redirect */}
       <Route path="/" component={RootRedirect} />

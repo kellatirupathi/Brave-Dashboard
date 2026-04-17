@@ -711,6 +711,10 @@ export interface RosterEntry {
   campusName: string;
   /** @nullable */
   campusId?: number | null;
+  /** @nullable */
+  niatId?: string | null;
+  /** @nullable */
+  batchSectionName?: string | null;
   isWhitelisted: boolean;
   createdAt: string;
 }
@@ -722,7 +726,65 @@ export interface AddRosterEntryBody {
   campusName: string;
   /** @nullable */
   campusId?: number | null;
+  /** @nullable */
+  niatId?: string | null;
+  /** @nullable */
+  batchSectionName?: string | null;
   isWhitelisted?: boolean;
+}
+
+export type BulkImportRosterBodyStudentsItem = {
+  studentUserId?: string;
+  studentName: string;
+  niatId?: string;
+  instituteName: string;
+  batchSectionName?: string;
+};
+
+export interface BulkImportRosterBody {
+  students: BulkImportRosterBodyStudentsItem[];
+}
+
+export interface BulkImportRosterResponse {
+  inserted: number;
+  skipped: number;
+  total: number;
+}
+
+export interface AccessRequest {
+  id: number;
+  fullName: string;
+  email: string;
+  /** @nullable */
+  batch?: string | null;
+  /** @nullable */
+  niatId?: string | null;
+  campusName: string;
+  status: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface SubmitAccessRequestBody {
+  fullName: string;
+  email: string;
+  batch?: string;
+  niatId?: string;
+  campusName: string;
+}
+
+export type UpdateAccessRequestBodyStatus =
+  (typeof UpdateAccessRequestBodyStatus)[keyof typeof UpdateAccessRequestBodyStatus];
+
+export const UpdateAccessRequestBodyStatus = {
+  approved: "approved",
+  rejected: "rejected",
+} as const;
+
+export interface UpdateAccessRequestBody {
+  status: UpdateAccessRequestBodyStatus;
+  notes?: string;
 }
 
 export interface RequestUploadUrlBody {
@@ -874,4 +936,8 @@ export type GetAuditLogParams = {
 
 export type ListRosterEntriesParams = {
   campusId?: number;
+};
+
+export type ListAccessRequestsParams = {
+  status?: string;
 };

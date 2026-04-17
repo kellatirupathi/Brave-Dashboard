@@ -1539,6 +1539,8 @@ export const ListRosterEntriesResponseItem = zod.object({
   email: zod.string(),
   campusName: zod.string(),
   campusId: zod.number().nullish(),
+  niatId: zod.string().nullish(),
+  batchSectionName: zod.string().nullish(),
   isWhitelisted: zod.boolean(),
   createdAt: zod.coerce.date(),
 });
@@ -1555,7 +1557,87 @@ export const AddRosterEntryBody = zod.object({
   email: zod.string(),
   campusName: zod.string(),
   campusId: zod.number().nullish(),
+  niatId: zod.string().nullish(),
+  batchSectionName: zod.string().nullish(),
   isWhitelisted: zod.boolean().optional(),
+});
+
+/**
+ * @summary Bulk import students into roster from parsed Excel data
+ */
+export const BulkImportRosterBody = zod.object({
+  students: zod.array(
+    zod.object({
+      studentUserId: zod.string().optional(),
+      studentName: zod.string(),
+      niatId: zod.string().optional(),
+      instituteName: zod.string(),
+      batchSectionName: zod.string().optional(),
+    }),
+  ),
+});
+
+export const BulkImportRosterResponse = zod.object({
+  inserted: zod.number(),
+  skipped: zod.number(),
+  total: zod.number(),
+});
+
+/**
+ * @summary List access requests
+ */
+export const ListAccessRequestsQueryParams = zod.object({
+  status: zod.coerce.string().optional(),
+});
+
+export const ListAccessRequestsResponseItem = zod.object({
+  id: zod.number(),
+  fullName: zod.string(),
+  email: zod.string(),
+  batch: zod.string().nullish(),
+  niatId: zod.string().nullish(),
+  campusName: zod.string(),
+  status: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+export const ListAccessRequestsResponse = zod.array(
+  ListAccessRequestsResponseItem,
+);
+
+/**
+ * @summary Approve or reject an access request
+ */
+export const UpdateAccessRequestParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateAccessRequestBody = zod.object({
+  status: zod.enum(["approved", "rejected"]),
+  notes: zod.string().optional(),
+});
+
+export const UpdateAccessRequestResponse = zod.object({
+  id: zod.number(),
+  fullName: zod.string(),
+  email: zod.string(),
+  batch: zod.string().nullish(),
+  niatId: zod.string().nullish(),
+  campusName: zod.string(),
+  status: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Submit an access request (public)
+ */
+export const SubmitAccessRequestBody = zod.object({
+  fullName: zod.string(),
+  email: zod.string(),
+  batch: zod.string().optional(),
+  niatId: zod.string().optional(),
+  campusName: zod.string(),
 });
 
 /**

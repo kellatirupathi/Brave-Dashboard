@@ -6,6 +6,7 @@ import {
   programmeConfigTable,
   auditLogTable,
   rosterTable,
+  accessRequestsTable,
   campusesTable,
   orderBookEntriesTable,
   revenueEntriesTable,
@@ -22,6 +23,9 @@ import {
   GetAuditLogQueryParams,
   ListRosterEntriesQueryParams,
   AddRosterEntryBody,
+  BulkImportRosterBody,
+  UpdateAccessRequestBody,
+  UpdateAccessRequestParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
 import * as bcrypt from "bcryptjs";
@@ -275,6 +279,76 @@ router.post("/admin/roster", async (req, res): Promise<void> => {
   }
   const [entry] = await db.insert(rosterTable).values(parsed.data).returning();
   res.status(201).json(entry);
+});
+
+// Bulk import roster from parsed Excel/CSV data
+router.post("/admin/roster/import", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const parsed = BulkImportRosterBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { students } = parsed.data;
+  let inserted = 0;
+  let skipped = 0;
+  for (const s of students) {
+    try {
+      await db.insert(rosterTable).values({
+        studentId: s.studentUserId ?? "",
+        fullName: s.studentName,
+        campusName: s.instituteName,
+        niatId: s.niatId ?? null,
+        batchSectionName: s.batchSectionName ?? null,
+        isWhitelisted: true,
+      }).onConflictDoNothing();
+      inserted++;
+    } catch {
+      skipped++;
+    }
+  }
+  await logAudit(req.user.id, "bulk_import_roster", "roster", undefined, `Imported ${inserted} students, skipped ${skipped}`);
+  res.json({ inserted, skipped, total: students.length });
+});
+
+// Access Requests (admin)
+router.get("/admin/access-requests", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const status = req.query.status as string | undefined;
+  const requests = status
+    ? await db.select().from(accessRequestsTable).where(eq(accessRequestsTable.status, status))
+    : await db.select().from(accessRequestsTable);
+  res.json(requests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+});
+
+router.patch("/admin/access-requests/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const params = UpdateAccessRequestParams.safeParse({ id: Number(req.params.id) });
+  const body = UpdateAccessRequestBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const [updated] = await db
+    .update(accessRequestsTable)
+    .set({ status: body.data.status, notes: body.data.notes ?? null })
+    .where(eq(accessRequestsTable.id, params.data.id))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await logAudit(req.user.id, `access_request_${body.data.status}`, "access_request", updated.id, `${body.data.status}: ${updated.email}`);
+  res.json(updated);
 });
 
 export default router;

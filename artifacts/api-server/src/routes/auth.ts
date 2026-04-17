@@ -2,8 +2,8 @@ import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { GetCurrentAuthUserResponse } from "@workspace/api-zod";
-import { db, usersTable, teamMembersTable, rosterTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, teamMembersTable, rosterTable, accessRequestsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
@@ -66,7 +66,9 @@ function getSafeReturnTo(value: unknown): string {
 
 async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
   const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, dbUser.id));
-  const [rosterEntry] = await db.select().from(rosterTable).where(eq(rosterTable.email, dbUser.email));
+  const [rosterEntry] = await db.select().from(rosterTable).where(
+    and(eq(rosterTable.email, dbUser.email), eq(rosterTable.isWhitelisted, true))
+  );
   return {
     id: dbUser.id,
     replitId: dbUser.replitId ?? null,
@@ -285,6 +287,40 @@ router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
     await deleteSession(sid);
   }
   res.json(LogoutMobileSessionResponse.parse({ success: true }));
+});
+
+const SubmitAccessRequestBody = z.object({
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  batch: z.string().optional(),
+  niatId: z.string().optional(),
+  campusName: z.string().min(1),
+});
+
+router.post("/access-request", async (req: Request, res: Response) => {
+  const parsed = SubmitAccessRequestBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body" });
+    return;
+  }
+  const { fullName, email, batch, niatId, campusName } = parsed.data;
+  try {
+    const [existing] = await db
+      .select()
+      .from(accessRequestsTable)
+      .where(eq(accessRequestsTable.email, email));
+    if (existing) {
+      res.status(200).json(existing);
+      return;
+    }
+    const [request] = await db
+      .insert(accessRequestsTable)
+      .values({ fullName, email, batch: batch ?? null, niatId: niatId ?? null, campusName, status: "pending" })
+      .returning();
+    res.status(201).json(request);
+  } catch {
+    res.status(500).json({ error: "Failed to submit request" });
+  }
 });
 
 export default router;

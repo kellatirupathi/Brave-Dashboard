@@ -62,9 +62,11 @@ export const rosterTable = pgTable("roster", {
   id: serial("id").primaryKey(),
   studentId: text("student_id").notNull(),
   fullName: text("full_name").notNull(),
-  email: text("email").notNull().unique(),
+  email: text("email").unique(),
   campusName: text("campus_name").notNull(),
   campusId: integer("campus_id"),
+  niatId: text("niat_id"),
+  batchSectionName: text("batch_section_name"),
   isWhitelisted: boolean("is_whitelisted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -72,6 +74,25 @@ export const rosterTable = pgTable("roster", {
 export const insertRosterSchema = createInsertSchema(rosterTable).omit({ id: true, createdAt: true });
 export type InsertRoster = z.infer<typeof insertRosterSchema>;
 export type Roster = typeof rosterTable.$inferSelect;
+
+// Access Requests
+export const accessRequestStatusEnum = pgEnum("access_request_status", ["pending", "approved", "rejected"]);
+
+export const accessRequestsTable = pgTable("access_requests", {
+  id: serial("id").primaryKey(),
+  fullName: text("full_name").notNull(),
+  email: text("email").notNull(),
+  batch: text("batch"),
+  niatId: text("niat_id"),
+  campusName: text("campus_name").notNull(),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAccessRequestSchema = createInsertSchema(accessRequestsTable).omit({ id: true, createdAt: true });
+export type InsertAccessRequest = z.infer<typeof insertAccessRequestSchema>;
+export type AccessRequest = typeof accessRequestsTable.$inferSelect;
 
 // Teams
 export const teamsTable = pgTable("teams", {

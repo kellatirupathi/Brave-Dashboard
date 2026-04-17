@@ -1227,6 +1227,89 @@ paths:
               schema:
                 $ref: "#/components/schemas/RosterEntry"
 
+  /admin/roster/import:
+    post:
+      operationId: bulkImportRoster
+      tags: [roster]
+      summary: Bulk import students into roster from parsed Excel data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkImportRosterBody"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkImportRosterResponse"
+
+  /admin/access-requests:
+    get:
+      operationId: listAccessRequests
+      tags: [roster]
+      summary: List access requests
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Access requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessRequest"
+
+  /admin/access-requests/{id}:
+    patch:
+      operationId: updateAccessRequest
+      tags: [roster]
+      summary: Approve or reject an access request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccessRequestBody"
+      responses:
+        "200":
+          description: Updated access request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessRequest"
+
+  /access-request:
+    post:
+      operationId: submitAccessRequest
+      tags: [roster]
+      summary: Submit an access request (public)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitAccessRequestBody"
+      responses:
+        "201":
+          description: Access request submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessRequest"
+
   # Object storage
   /storage/uploads/request-url:
     post:
@@ -2406,6 +2489,10 @@ components:
           type: string
         campusId:
           type: ["integer", "null"]
+        niatId:
+          type: ["string", "null"]
+        batchSectionName:
+          type: ["string", "null"]
         isWhitelisted:
           type: boolean
         createdAt:
@@ -2433,6 +2520,10 @@ components:
           type: string
         campusId:
           type: ["integer", "null"]
+        niatId:
+          type: ["string", "null"]
+        batchSectionName:
+          type: ["string", "null"]
         isWhitelisted:
           type: boolean
       required:
@@ -2440,6 +2531,103 @@ components:
         - fullName
         - email
         - campusName
+
+    BulkImportRosterBody:
+      type: object
+      properties:
+        students:
+          type: array
+          items:
+            type: object
+            properties:
+              studentUserId:
+                type: string
+              studentName:
+                type: string
+              niatId:
+                type: string
+              instituteName:
+                type: string
+              batchSectionName:
+                type: string
+            required:
+              - studentName
+              - instituteName
+      required:
+        - students
+
+    BulkImportRosterResponse:
+      type: object
+      properties:
+        inserted:
+          type: integer
+        skipped:
+          type: integer
+        total:
+          type: integer
+      required:
+        - inserted
+        - skipped
+        - total
+
+    AccessRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        email:
+          type: string
+        batch:
+          type: ["string", "null"]
+        niatId:
+          type: ["string", "null"]
+        campusName:
+          type: string
+        status:
+          type: string
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - fullName
+        - email
+        - campusName
+        - status
+        - createdAt
+
+    SubmitAccessRequestBody:
+      type: object
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+        batch:
+          type: string
+        niatId:
+          type: string
+        campusName:
+          type: string
+      required:
+        - fullName
+        - email
+        - campusName
+
+    UpdateAccessRequestBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+        notes:
+          type: string
+      required:
+        - status
 
     RequestUploadUrlBody:
       type: object

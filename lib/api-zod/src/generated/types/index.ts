@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./accessRequest";
 export * from "./addRosterEntryBody";
 export * from "./addTeamMemberBody";
 export * from "./adminReviewQueueItem";
@@ -15,6 +16,9 @@ export * from "./announcement";
 export * from "./announcementTarget";
 export * from "./auditLogEntry";
 export * from "./authUser";
+export * from "./bulkImportRosterBody";
+export * from "./bulkImportRosterBodyStudentsItem";
+export * from "./bulkImportRosterResponse";
 export * from "./campus";
 export * from "./createAnnouncementBody";
 export * from "./createAnnouncementBodyTarget";
@@ -40,6 +44,7 @@ export * from "./getLeaderboardPeriod";
 export * from "./getLeaderboardView";
 export * from "./healthStatus";
 export * from "./leaderboardEntry";
+export * from "./listAccessRequestsParams";
 export * from "./listMilestonesParams";
 export * from "./listNotificationsParams";
 export * from "./listOrderBookEntriesParams";
@@ -72,12 +77,15 @@ export * from "./revenueEntry";
 export * from "./revenueEntryEnteredBy";
 export * from "./revenueEntryStatus";
 export * from "./rosterEntry";
+export * from "./submitAccessRequestBody";
 export * from "./successResponse";
 export * from "./team";
 export * from "./teamDashboardSummary";
 export * from "./teamDetail";
 export * from "./teamMember";
 export * from "./teamStatus";
+export * from "./updateAccessRequestBody";
+export * from "./updateAccessRequestBodyStatus";
 export * from "./updateCampusBody";
 export * from "./updateDemoDayApplicationBody";
 export * from "./updateDemoDayApplicationBodyStatus";
