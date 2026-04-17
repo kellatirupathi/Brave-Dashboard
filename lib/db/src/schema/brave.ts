@@ -118,6 +118,7 @@ export const teamsTable = pgTable("teams", {
   status: teamStatusEnum("status").notNull().default("pending"),
   tagline: text("tagline"),
   photoUrl: text("photo_url"),
+  inviteCode: text("invite_code").unique(),
   rejectionReason: text("rejection_reason"),
   coordinatorComment: text("coordinator_comment"),
   isHidden: boolean("is_hidden").notNull().default(false),
@@ -142,6 +143,45 @@ export const teamMembersTable = pgTable("team_members", {
 export const insertTeamMemberSchema = createInsertSchema(teamMembersTable).omit({ id: true, joinedAt: true });
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
 export type TeamMember = typeof teamMembersTable.$inferSelect;
+
+// Team invitations / join requests / leave requests
+export const invitationStatusEnum = pgEnum("invitation_status", ["pending", "accepted", "declined", "cancelled"]);
+export const joinRequestStatusEnum = pgEnum("join_request_status", ["pending", "approved", "declined", "cancelled"]);
+export const leaveRequestStatusEnum = pgEnum("leave_request_status", ["pending", "approved", "declined", "cancelled"]);
+
+export const teamInvitationsTable = pgTable("team_invitations", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  inviterId: text("inviter_id").notNull(),
+  inviteeId: text("invitee_id").notNull(),
+  status: invitationStatusEnum("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+});
+export type TeamInvitation = typeof teamInvitationsTable.$inferSelect;
+
+export const teamJoinRequestsTable = pgTable("team_join_requests", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  requesterId: text("requester_id").notNull(),
+  status: joinRequestStatusEnum("status").notNull().default("pending"),
+  message: text("message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  respondedById: text("responded_by_id"),
+});
+export type TeamJoinRequest = typeof teamJoinRequestsTable.$inferSelect;
+
+export const teamLeaveRequestsTable = pgTable("team_leave_requests", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  memberId: text("member_id").notNull(),
+  status: leaveRequestStatusEnum("status").notNull().default("pending"),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+});
+export type TeamLeaveRequest = typeof teamLeaveRequestsTable.$inferSelect;
 
 // Projects
 export const projectsTable = pgTable("projects", {

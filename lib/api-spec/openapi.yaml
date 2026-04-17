@@ -361,6 +361,337 @@ paths:
               schema:
                 $ref: "#/components/schemas/TeamDetail"
 
+  /teams/browse:
+    get:
+      operationId: browseTeams
+      tags: [teams]
+      summary: List teams at the current student's campus
+      responses:
+        "200":
+          description: List of teams at my campus
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Team"
+
+  /teams/join-by-code:
+    post:
+      operationId: joinByCode
+      tags: [teams]
+      summary: Join a team by invite code (auto-cancels other pending invites/requests)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinByCodeBody"
+      responses:
+        "200":
+          description: Joined team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+
+  /students/search:
+    get:
+      operationId: searchStudents
+      tags: [teams]
+      summary: Search roster students at the current user's campus (excludes those already on a team)
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching students
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudentSearchResult"
+
+  /teams/{id}/invitations:
+    get:
+      operationId: listTeamInvitations
+      tags: [teams]
+      summary: List invitations sent for a team (any member)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamInvitation"
+    post:
+      operationId: createTeamInvitation
+      tags: [teams]
+      summary: Invite a student to the team (any member, intra-campus only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvitationBody"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamInvitation"
+
+  /invitations/mine:
+    get:
+      operationId: listMyInvitations
+      tags: [teams]
+      summary: List the current user's pending invitations
+      responses:
+        "200":
+          description: List of pending invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamInvitation"
+
+  /invitations/{id}/accept:
+    post:
+      operationId: acceptInvitation
+      tags: [teams]
+      summary: Accept an invitation (auto-cancels other pending invites/requests)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Joined team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+
+  /invitations/{id}/decline:
+    post:
+      operationId: declineInvitation
+      tags: [teams]
+      summary: Decline an invitation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamInvitation"
+
+  /teams/{id}/join-requests:
+    get:
+      operationId: listTeamJoinRequests
+      tags: [teams]
+      summary: List join requests for a team (any member)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of join requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamJoinRequest"
+    post:
+      operationId: requestToJoinTeam
+      tags: [teams]
+      summary: Request to join a team (intra-campus only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestToJoinBody"
+      responses:
+        "201":
+          description: Join request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamJoinRequest"
+
+  /join-requests/mine:
+    get:
+      operationId: listMyJoinRequests
+      tags: [teams]
+      summary: List the current user's outgoing join requests
+      responses:
+        "200":
+          description: List of outgoing join requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamJoinRequest"
+
+  /join-requests/{id}/approve:
+    post:
+      operationId: approveJoinRequest
+      tags: [teams]
+      summary: Approve a join request (any member of the target team)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+
+  /join-requests/{id}/decline:
+    post:
+      operationId: declineJoinRequest
+      tags: [teams]
+      summary: Decline a join request (any member of the target team)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamJoinRequest"
+
+  /teams/{id}/leave-requests:
+    get:
+      operationId: listTeamLeaveRequests
+      tags: [teams]
+      summary: List leave requests for a team (leader only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamLeaveRequest"
+    post:
+      operationId: requestToLeaveTeam
+      tags: [teams]
+      summary: Request to leave the team (member only, leader cannot use this)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestToLeaveBody"
+      responses:
+        "201":
+          description: Leave request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamLeaveRequest"
+
+  /leave-requests/{id}/approve:
+    post:
+      operationId: approveLeaveRequest
+      tags: [teams]
+      summary: Approve a leave request (leader only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved (member removed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+
+  /leave-requests/{id}/decline:
+    post:
+      operationId: declineLeaveRequest
+      tags: [teams]
+      summary: Decline a leave request (leader only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamLeaveRequest"
+
   # Projects
   /projects:
     get:
@@ -1556,6 +1887,8 @@ components:
           type: ["string", "null"]
         photoUrl:
           type: ["string", "null"]
+        inviteCode:
+          type: ["string", "null"]
         rejectionReason:
           type: ["string", "null"]
         coordinatorComment:
@@ -2678,3 +3011,155 @@ components:
         - codeVerifier
         - state
         - nonce
+
+    TeamInvitation:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        teamPhotoUrl:
+          type: ["string", "null"]
+        inviterId:
+          type: string
+        inviterName:
+          type: string
+        inviteeId:
+          type: string
+        inviteeName:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, declined, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+        respondedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - teamId
+        - teamName
+        - inviterId
+        - inviterName
+        - inviteeId
+        - inviteeName
+        - status
+        - createdAt
+
+    TeamJoinRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        requesterId:
+          type: string
+        requesterName:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, declined, cancelled]
+        message:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        respondedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - teamId
+        - teamName
+        - requesterId
+        - requesterName
+        - status
+        - createdAt
+
+    TeamLeaveRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        memberId:
+          type: string
+        memberName:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, declined, cancelled]
+        reason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        respondedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - teamId
+        - memberId
+        - memberName
+        - status
+        - createdAt
+
+    StudentSearchResult:
+      type: object
+      properties:
+        userId:
+          type: ["string", "null"]
+        rosterId:
+          type: integer
+        fullName:
+          type: string
+        niatId:
+          type: ["string", "null"]
+        batchSectionName:
+          type: ["string", "null"]
+        hasAccount:
+          type: boolean
+      required:
+        - rosterId
+        - fullName
+        - hasAccount
+
+    CreateInvitationBody:
+      type: object
+      properties:
+        inviteeUserId:
+          type: string
+      required:
+        - inviteeUserId
+
+    RequestToJoinBody:
+      type: object
+      properties:
+        message:
+          type: string
+          maxLength: 500
+
+    RequestToLeaveBody:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+
+    JoinByCodeBody:
+      type: object
+      properties:
+        code:
+          type: string
+      required:
+        - code

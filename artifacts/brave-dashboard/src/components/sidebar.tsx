@@ -38,13 +38,18 @@ export function Sidebar() {
   const role = user.role;
 
   const navItems = {
-    student: [
-      { name: "Dashboard", href: "/", icon: LayoutDashboard },
-      { name: "Projects", href: "/projects", icon: FolderKanban },
-      { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
-      { name: "My Team", href: "/team", icon: Users },
-      { name: "Demo Day", href: "/demo-day", icon: FileText },
-    ],
+    student: user.teamId
+      ? [
+          { name: "Dashboard", href: "/", icon: LayoutDashboard },
+          { name: "Projects", href: "/projects", icon: FolderKanban },
+          { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
+          { name: "My Team", href: "/team", icon: Users },
+          { name: "Demo Day", href: "/demo-day", icon: FileText },
+        ]
+      : [
+          { name: "Get started", href: "/get-started", icon: Users },
+          { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
+        ],
     coordinator: [
       { name: "Dashboard", href: "/coordinator", icon: LayoutDashboard },
       { name: "Teams", href: "/coordinator/teams", icon: Users },

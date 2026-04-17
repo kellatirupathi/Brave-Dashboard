@@ -83,15 +83,36 @@ async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
   const [rosterEntry] = await db.select().from(rosterTable).where(
     and(or(...matchClauses), eq(rosterTable.isWhitelisted, true))
   );
+  // If we matched roster and the user has no campus / name set yet, propagate from roster
+  let campusId = dbUser.campusId ?? null;
+  let firstName = dbUser.firstName;
+  let lastName = dbUser.lastName;
+  if (rosterEntry) {
+    const updates: Partial<typeof usersTable.$inferInsert> = {};
+    if (campusId == null && rosterEntry.campusId != null) {
+      campusId = rosterEntry.campusId;
+      updates.campusId = rosterEntry.campusId;
+    }
+    if ((!firstName || !lastName) && rosterEntry.fullName) {
+      const parts = rosterEntry.fullName.trim().split(/\s+/);
+      const fn = parts[0] ?? "";
+      const ln = parts.slice(1).join(" ");
+      if (!firstName) { firstName = fn; updates.firstName = fn; }
+      if (!lastName)  { lastName  = ln; updates.lastName  = ln; }
+    }
+    if (Object.keys(updates).length > 0) {
+      await db.update(usersTable).set({ ...updates, updatedAt: new Date() }).where(eq(usersTable.id, dbUser.id));
+    }
+  }
   return {
     id: dbUser.id,
     replitId: dbUser.replitId ?? null,
     email: dbUser.email,
-    firstName: dbUser.firstName,
-    lastName: dbUser.lastName,
+    firstName,
+    lastName,
     profileImage: dbUser.profileImage ?? null,
     role: dbUser.role,
-    campusId: dbUser.campusId ?? null,
+    campusId,
     teamId: member?.teamId ?? null,
     isOnRoster: !!rosterEntry,
   };

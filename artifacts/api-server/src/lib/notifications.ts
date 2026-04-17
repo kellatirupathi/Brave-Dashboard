@@ -1,7 +1,7 @@
 import { db, notificationsTable } from "@workspace/db";
 
 export async function createNotification(
-  userId: number,
+  userId: string,
   title: string,
   body: string,
   type: string,

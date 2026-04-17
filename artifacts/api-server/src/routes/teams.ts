@@ -157,31 +157,32 @@ router.post("/teams", async (req, res): Promise<void> => {
     res.status(400).json({ error: "You are already a member of a team" });
     return;
   }
-  const { memberEmails, ...teamData } = parsed.data;
+  const { memberEmails: _ignored, ...teamData } = parsed.data;
+  // Enforce campus = user's campus; reject if not assigned (admins may set campusId explicitly)
+  const campusId = req.user.role === "admin"
+    ? (req.user.campusId ?? parsed.data.campusId)
+    : req.user.campusId;
+  if (!campusId) {
+    res.status(400).json({ error: "Your account has no campus assigned. Please contact your coordinator." });
+    return;
+  }
+  const inviteCode = generateInviteCode();
   const [team] = await db
     .insert(teamsTable)
-    .values({ ...teamData, leaderId: req.user.id, campusId: parsed.data.campusId })
+    .values({ ...teamData, leaderId: req.user.id, campusId, inviteCode })
     .returning();
   // Add leader as member
   await db.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
-  // Add other members
-  if (memberEmails && memberEmails.length > 0) {
-    for (const email of memberEmails) {
-      const [member] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-      if (member) {
-        const [existing] = await db
-          .select()
-          .from(teamMembersTable)
-          .where(eq(teamMembersTable.userId, member.id));
-        if (!existing) {
-          await db.insert(teamMembersTable).values({ teamId: team.id, userId: member.id });
-        }
-      }
-    }
-  }
   const teamDetail = await getTeamWithStats(team.id);
   res.status(201).json(teamDetail);
 });
+
+function generateInviteCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "BRAVE-";
+  for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
 
 router.get("/teams/my", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
@@ -240,6 +241,12 @@ router.get("/teams/:id", async (req, res): Promise<void> => {
   if (!teamDetail) {
     res.status(404).json({ error: "Team not found" });
     return;
+  }
+  // Strip invite code unless the requester is a member of this team or staff
+  const isStaff = ["admin", "coordinator"].includes(req.user.role ?? "");
+  const isMember = teamDetail.members?.some?.((m: any) => m.userId === req.user.id) ?? false;
+  if (!isStaff && !isMember) {
+    (teamDetail as any).inviteCode = null;
   }
   const projects = await db.select().from(projectsTable).where(eq(projectsTable.teamId, params.data.id));
   const projectsWithStats = await Promise.all(
@@ -391,8 +398,8 @@ router.post("/teams/:id/request-changes", async (req, res): Promise<void> => {
 });
 
 router.post("/teams/:id/members", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Admin only — students must use the team invitation flow." });
     return;
   }
   const params = AddTeamMemberParams.safeParse(req.params);
@@ -422,13 +429,19 @@ router.post("/teams/:id/members", async (req, res): Promise<void> => {
 });
 
 router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Admin only — students must use the leave-request flow." });
     return;
   }
   const params = RemoveTeamMemberParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+  // Prevent removing the team leader
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
+  if (team && team.leaderId === params.data.userId) {
+    res.status(400).json({ error: "Cannot remove the team leader. Transfer leadership first." });
     return;
   }
   await db

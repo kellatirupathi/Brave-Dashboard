@@ -51,8 +51,11 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `campuses` — 19-20 NIAT campuses
 - `users` — All users (students/coordinators/admins) with role enum
 - `roster` — Whitelist of enrolled students
-- `teams` — Student teams with status (pending/active/rejected/changes_requested)
+- `teams` — Student teams with status (pending/active/rejected/changes_requested) + unique `inviteCode` (BRAVE-XXXXX)
 - `teamMembers` — Team membership (unique per user)
+- `teamInvitations` — Outgoing invites from team members to specific students (status: pending/accepted/declined/cancelled)
+- `teamJoinRequests` — Incoming join requests from students to teams (status: pending/approved/declined/cancelled)
+- `teamLeaveRequests` — Member-initiated leave requests requiring leader approval (status: pending/approved/declined)
 - `projects` — Business projects per team
 - `orderBookEntries` — Order book entries (draft→submitted→verified/rejected)
 - `revenueEntries` — Revenue received entries with payment proof
@@ -72,7 +75,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `auth.ts` — OIDC login/callback/logout + /auth/user
 - `storage.ts` — File upload URL generation
 - `campuses.ts` — CRUD for campuses
-- `teams.ts` — Team registration, approval workflow, member management
+- `teams.ts` — Team registration, approval workflow, member management (legacy POST/DELETE /teams/:id/members are admin-only)
+- `team-flow.ts` — Browse same-campus teams, search students, join-by-code, invitations, join-requests, leave-requests. All membership mutations enforce strict same-campus equality and auto-cancel other pending pendings on accept
 - `projects.ts` — Project CRUD
 - `financials.ts` — Order book + revenue entry CRUD with submit/verify/reject
 - `leaderboard.ts` — National/campus leaderboard ranked by verified revenue
@@ -90,7 +94,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `/projects` — Project list
 - `/projects/:id` — Project detail with order book + revenue entries
 - `/leaderboard` — National leaderboard
-- `/team` — Team profile + milestone timeline
+- `/get-started` — Hub for students without a team: pending invitations callout, create team, browse same-campus teams (request to join), join by invite code
+- `/team` — Team profile + members + invite code + invitations + join requests + leave requests + milestone timeline
 - `/demo-day` — Demo Day application
 - `/notifications` — Notifications
 

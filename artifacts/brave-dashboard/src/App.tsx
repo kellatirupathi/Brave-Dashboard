@@ -15,6 +15,7 @@ import ProjectsList from "@/pages/student/projects/list";
 import ProjectDetail from "@/pages/student/projects/detail";
 import Leaderboard from "@/pages/student/leaderboard";
 import TeamProfile from "@/pages/student/team";
+import GetStarted from "@/pages/student/get-started";
 import DemoDay from "@/pages/student/demo-day";
 import Notifications from "@/pages/student/notifications";
 
@@ -107,6 +108,11 @@ function RootRedirect() {
   if (user.role === "coordinator") return <Redirect to="/coordinator" />;
   if (user.role === "admin") return <Redirect to="/admin" />;
 
+  // Students without a team go to the get-started hub
+  if (user.role === "student" && !user.teamId) {
+    return <Redirect to="/get-started" />;
+  }
+
   // Student dashboard
   return (
     <Layout>
@@ -136,6 +142,9 @@ function Router() {
       </Route>
       <Route path="/team">
         <ProtectedRoute component={TeamProfile} allowedRoles={["student"]} />
+      </Route>
+      <Route path="/get-started">
+        <ProtectedRoute component={GetStarted} allowedRoles={["student"]} />
       </Route>
       <Route path="/demo-day">
         <ProtectedRoute component={DemoDay} allowedRoles={["student"]} />

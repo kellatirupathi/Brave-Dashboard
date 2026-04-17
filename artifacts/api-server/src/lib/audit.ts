@@ -1,7 +1,7 @@
 import { db, auditLogTable } from "@workspace/db";
 
 export async function logAudit(
-  actorId: number,
+  actorId: string,
   action: string,
   targetType: string,
   targetId?: number,

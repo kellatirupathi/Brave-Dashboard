@@ -29,6 +29,7 @@ import type {
   CreateAnnouncementBody,
   CreateCampusBody,
   CreateDemoDayApplicationBody,
+  CreateInvitationBody,
   CreateMilestoneBody,
   CreateOrderBookEntryBody,
   CreateProjectBody,
@@ -42,6 +43,7 @@ import type {
   GetCurrentAuthUserResponse,
   GetLeaderboardParams,
   HealthStatus,
+  JoinByCodeBody,
   LeaderboardEntry,
   ListAccessRequestsParams,
   ListMilestonesParams,
@@ -61,15 +63,22 @@ import type {
   RejectEntryBody,
   RejectTeamBody,
   RequestTeamChangesBody,
+  RequestToJoinBody,
+  RequestToLeaveBody,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
   RevenueEntry,
   RosterEntry,
+  SearchStudentsParams,
+  StudentSearchResult,
   SubmitAccessRequestBody,
   SuccessResponse,
   Team,
   TeamDashboardSummary,
   TeamDetail,
+  TeamInvitation,
+  TeamJoinRequest,
+  TeamLeaveRequest,
   UpdateAccessRequestBody,
   UpdateCampusBody,
   UpdateDemoDayApplicationBody,
@@ -1414,6 +1423,1437 @@ export const useRemoveTeamMember = <
   TContext
 > => {
   return useMutation(getRemoveTeamMemberMutationOptions(options));
+};
+
+/**
+ * @summary List teams at the current student's campus
+ */
+export const getBrowseTeamsUrl = () => {
+  return `/api/teams/browse`;
+};
+
+export const browseTeams = async (options?: RequestInit): Promise<Team[]> => {
+  return customFetch<Team[]>(getBrowseTeamsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getBrowseTeamsQueryKey = () => {
+  return [`/api/teams/browse`] as const;
+};
+
+export const getBrowseTeamsQueryOptions = <
+  TData = Awaited<ReturnType<typeof browseTeams>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof browseTeams>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getBrowseTeamsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof browseTeams>>> = ({
+    signal,
+  }) => browseTeams({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof browseTeams>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type BrowseTeamsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof browseTeams>>
+>;
+export type BrowseTeamsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List teams at the current student's campus
+ */
+
+export function useBrowseTeams<
+  TData = Awaited<ReturnType<typeof browseTeams>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof browseTeams>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getBrowseTeamsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Join a team by invite code (auto-cancels other pending invites/requests)
+ */
+export const getJoinByCodeUrl = () => {
+  return `/api/teams/join-by-code`;
+};
+
+export const joinByCode = async (
+  joinByCodeBody: JoinByCodeBody,
+  options?: RequestInit,
+): Promise<TeamDetail> => {
+  return customFetch<TeamDetail>(getJoinByCodeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(joinByCodeBody),
+  });
+};
+
+export const getJoinByCodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinByCode>>,
+    TError,
+    { data: BodyType<JoinByCodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof joinByCode>>,
+  TError,
+  { data: BodyType<JoinByCodeBody> },
+  TContext
+> => {
+  const mutationKey = ["joinByCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof joinByCode>>,
+    { data: BodyType<JoinByCodeBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return joinByCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type JoinByCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof joinByCode>>
+>;
+export type JoinByCodeMutationBody = BodyType<JoinByCodeBody>;
+export type JoinByCodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Join a team by invite code (auto-cancels other pending invites/requests)
+ */
+export const useJoinByCode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinByCode>>,
+    TError,
+    { data: BodyType<JoinByCodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof joinByCode>>,
+  TError,
+  { data: BodyType<JoinByCodeBody> },
+  TContext
+> => {
+  return useMutation(getJoinByCodeMutationOptions(options));
+};
+
+/**
+ * @summary Search roster students at the current user's campus (excludes those already on a team)
+ */
+export const getSearchStudentsUrl = (params: SearchStudentsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/students/search?${stringifiedParams}`
+    : `/api/students/search`;
+};
+
+export const searchStudents = async (
+  params: SearchStudentsParams,
+  options?: RequestInit,
+): Promise<StudentSearchResult[]> => {
+  return customFetch<StudentSearchResult[]>(getSearchStudentsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getSearchStudentsQueryKey = (params?: SearchStudentsParams) => {
+  return [`/api/students/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getSearchStudentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchStudents>>,
+  TError = ErrorType<unknown>,
+>(
+  params: SearchStudentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchStudents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getSearchStudentsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchStudents>>> = ({
+    signal,
+  }) => searchStudents(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchStudents>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type SearchStudentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchStudents>>
+>;
+export type SearchStudentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Search roster students at the current user's campus (excludes those already on a team)
+ */
+
+export function useSearchStudents<
+  TData = Awaited<ReturnType<typeof searchStudents>>,
+  TError = ErrorType<unknown>,
+>(
+  params: SearchStudentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchStudents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getSearchStudentsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List invitations sent for a team (any member)
+ */
+export const getListTeamInvitationsUrl = (id: number) => {
+  return `/api/teams/${id}/invitations`;
+};
+
+export const listTeamInvitations = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamInvitation[]> => {
+  return customFetch<TeamInvitation[]>(getListTeamInvitationsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTeamInvitationsQueryKey = (id: number) => {
+  return [`/api/teams/${id}/invitations`] as const;
+};
+
+export const getListTeamInvitationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTeamInvitations>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamInvitations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListTeamInvitationsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTeamInvitations>>
+  > = ({ signal }) => listTeamInvitations(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTeamInvitations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTeamInvitationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTeamInvitations>>
+>;
+export type ListTeamInvitationsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List invitations sent for a team (any member)
+ */
+
+export function useListTeamInvitations<
+  TData = Awaited<ReturnType<typeof listTeamInvitations>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamInvitations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTeamInvitationsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Invite a student to the team (any member, intra-campus only)
+ */
+export const getCreateTeamInvitationUrl = (id: number) => {
+  return `/api/teams/${id}/invitations`;
+};
+
+export const createTeamInvitation = async (
+  id: number,
+  createInvitationBody: CreateInvitationBody,
+  options?: RequestInit,
+): Promise<TeamInvitation> => {
+  return customFetch<TeamInvitation>(getCreateTeamInvitationUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createInvitationBody),
+  });
+};
+
+export const getCreateTeamInvitationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTeamInvitation>>,
+    TError,
+    { id: number; data: BodyType<CreateInvitationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTeamInvitation>>,
+  TError,
+  { id: number; data: BodyType<CreateInvitationBody> },
+  TContext
+> => {
+  const mutationKey = ["createTeamInvitation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTeamInvitation>>,
+    { id: number; data: BodyType<CreateInvitationBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createTeamInvitation(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTeamInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTeamInvitation>>
+>;
+export type CreateTeamInvitationMutationBody = BodyType<CreateInvitationBody>;
+export type CreateTeamInvitationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Invite a student to the team (any member, intra-campus only)
+ */
+export const useCreateTeamInvitation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTeamInvitation>>,
+    TError,
+    { id: number; data: BodyType<CreateInvitationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTeamInvitation>>,
+  TError,
+  { id: number; data: BodyType<CreateInvitationBody> },
+  TContext
+> => {
+  return useMutation(getCreateTeamInvitationMutationOptions(options));
+};
+
+/**
+ * @summary List the current user's pending invitations
+ */
+export const getListMyInvitationsUrl = () => {
+  return `/api/invitations/mine`;
+};
+
+export const listMyInvitations = async (
+  options?: RequestInit,
+): Promise<TeamInvitation[]> => {
+  return customFetch<TeamInvitation[]>(getListMyInvitationsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMyInvitationsQueryKey = () => {
+  return [`/api/invitations/mine`] as const;
+};
+
+export const getListMyInvitationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyInvitations>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyInvitations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyInvitationsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyInvitations>>
+  > = ({ signal }) => listMyInvitations({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyInvitations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyInvitationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyInvitations>>
+>;
+export type ListMyInvitationsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the current user's pending invitations
+ */
+
+export function useListMyInvitations<
+  TData = Awaited<ReturnType<typeof listMyInvitations>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyInvitations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyInvitationsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Accept an invitation (auto-cancels other pending invites/requests)
+ */
+export const getAcceptInvitationUrl = (id: number) => {
+  return `/api/invitations/${id}/accept`;
+};
+
+export const acceptInvitation = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamDetail> => {
+  return customFetch<TeamDetail>(getAcceptInvitationUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAcceptInvitationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInvitation>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptInvitation>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["acceptInvitation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptInvitation>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return acceptInvitation(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptInvitation>>
+>;
+
+export type AcceptInvitationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Accept an invitation (auto-cancels other pending invites/requests)
+ */
+export const useAcceptInvitation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInvitation>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptInvitation>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAcceptInvitationMutationOptions(options));
+};
+
+/**
+ * @summary Decline an invitation
+ */
+export const getDeclineInvitationUrl = (id: number) => {
+  return `/api/invitations/${id}/decline`;
+};
+
+export const declineInvitation = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamInvitation> => {
+  return customFetch<TeamInvitation>(getDeclineInvitationUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDeclineInvitationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineInvitation>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineInvitation>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["declineInvitation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineInvitation>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return declineInvitation(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineInvitation>>
+>;
+
+export type DeclineInvitationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Decline an invitation
+ */
+export const useDeclineInvitation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineInvitation>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof declineInvitation>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeclineInvitationMutationOptions(options));
+};
+
+/**
+ * @summary List join requests for a team (any member)
+ */
+export const getListTeamJoinRequestsUrl = (id: number) => {
+  return `/api/teams/${id}/join-requests`;
+};
+
+export const listTeamJoinRequests = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamJoinRequest[]> => {
+  return customFetch<TeamJoinRequest[]>(getListTeamJoinRequestsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTeamJoinRequestsQueryKey = (id: number) => {
+  return [`/api/teams/${id}/join-requests`] as const;
+};
+
+export const getListTeamJoinRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTeamJoinRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamJoinRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListTeamJoinRequestsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTeamJoinRequests>>
+  > = ({ signal }) => listTeamJoinRequests(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTeamJoinRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTeamJoinRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTeamJoinRequests>>
+>;
+export type ListTeamJoinRequestsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List join requests for a team (any member)
+ */
+
+export function useListTeamJoinRequests<
+  TData = Awaited<ReturnType<typeof listTeamJoinRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamJoinRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTeamJoinRequestsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Request to join a team (intra-campus only)
+ */
+export const getRequestToJoinTeamUrl = (id: number) => {
+  return `/api/teams/${id}/join-requests`;
+};
+
+export const requestToJoinTeam = async (
+  id: number,
+  requestToJoinBody: RequestToJoinBody,
+  options?: RequestInit,
+): Promise<TeamJoinRequest> => {
+  return customFetch<TeamJoinRequest>(getRequestToJoinTeamUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(requestToJoinBody),
+  });
+};
+
+export const getRequestToJoinTeamMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestToJoinTeam>>,
+    TError,
+    { id: number; data: BodyType<RequestToJoinBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestToJoinTeam>>,
+  TError,
+  { id: number; data: BodyType<RequestToJoinBody> },
+  TContext
+> => {
+  const mutationKey = ["requestToJoinTeam"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestToJoinTeam>>,
+    { id: number; data: BodyType<RequestToJoinBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return requestToJoinTeam(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestToJoinTeamMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestToJoinTeam>>
+>;
+export type RequestToJoinTeamMutationBody = BodyType<RequestToJoinBody>;
+export type RequestToJoinTeamMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Request to join a team (intra-campus only)
+ */
+export const useRequestToJoinTeam = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestToJoinTeam>>,
+    TError,
+    { id: number; data: BodyType<RequestToJoinBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestToJoinTeam>>,
+  TError,
+  { id: number; data: BodyType<RequestToJoinBody> },
+  TContext
+> => {
+  return useMutation(getRequestToJoinTeamMutationOptions(options));
+};
+
+/**
+ * @summary List the current user's outgoing join requests
+ */
+export const getListMyJoinRequestsUrl = () => {
+  return `/api/join-requests/mine`;
+};
+
+export const listMyJoinRequests = async (
+  options?: RequestInit,
+): Promise<TeamJoinRequest[]> => {
+  return customFetch<TeamJoinRequest[]>(getListMyJoinRequestsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMyJoinRequestsQueryKey = () => {
+  return [`/api/join-requests/mine`] as const;
+};
+
+export const getListMyJoinRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyJoinRequests>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyJoinRequests>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyJoinRequestsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyJoinRequests>>
+  > = ({ signal }) => listMyJoinRequests({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyJoinRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyJoinRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyJoinRequests>>
+>;
+export type ListMyJoinRequestsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the current user's outgoing join requests
+ */
+
+export function useListMyJoinRequests<
+  TData = Awaited<ReturnType<typeof listMyJoinRequests>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyJoinRequests>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyJoinRequestsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Approve a join request (any member of the target team)
+ */
+export const getApproveJoinRequestUrl = (id: number) => {
+  return `/api/join-requests/${id}/approve`;
+};
+
+export const approveJoinRequest = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamDetail> => {
+  return customFetch<TeamDetail>(getApproveJoinRequestUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getApproveJoinRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveJoinRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveJoinRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["approveJoinRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveJoinRequest>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return approveJoinRequest(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveJoinRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveJoinRequest>>
+>;
+
+export type ApproveJoinRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Approve a join request (any member of the target team)
+ */
+export const useApproveJoinRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveJoinRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveJoinRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getApproveJoinRequestMutationOptions(options));
+};
+
+/**
+ * @summary Decline a join request (any member of the target team)
+ */
+export const getDeclineJoinRequestUrl = (id: number) => {
+  return `/api/join-requests/${id}/decline`;
+};
+
+export const declineJoinRequest = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamJoinRequest> => {
+  return customFetch<TeamJoinRequest>(getDeclineJoinRequestUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDeclineJoinRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineJoinRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineJoinRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["declineJoinRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineJoinRequest>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return declineJoinRequest(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineJoinRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineJoinRequest>>
+>;
+
+export type DeclineJoinRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Decline a join request (any member of the target team)
+ */
+export const useDeclineJoinRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineJoinRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof declineJoinRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeclineJoinRequestMutationOptions(options));
+};
+
+/**
+ * @summary List leave requests for a team (leader only)
+ */
+export const getListTeamLeaveRequestsUrl = (id: number) => {
+  return `/api/teams/${id}/leave-requests`;
+};
+
+export const listTeamLeaveRequests = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamLeaveRequest[]> => {
+  return customFetch<TeamLeaveRequest[]>(getListTeamLeaveRequestsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTeamLeaveRequestsQueryKey = (id: number) => {
+  return [`/api/teams/${id}/leave-requests`] as const;
+};
+
+export const getListTeamLeaveRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTeamLeaveRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamLeaveRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListTeamLeaveRequestsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTeamLeaveRequests>>
+  > = ({ signal }) => listTeamLeaveRequests(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTeamLeaveRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTeamLeaveRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTeamLeaveRequests>>
+>;
+export type ListTeamLeaveRequestsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List leave requests for a team (leader only)
+ */
+
+export function useListTeamLeaveRequests<
+  TData = Awaited<ReturnType<typeof listTeamLeaveRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamLeaveRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTeamLeaveRequestsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Request to leave the team (member only, leader cannot use this)
+ */
+export const getRequestToLeaveTeamUrl = (id: number) => {
+  return `/api/teams/${id}/leave-requests`;
+};
+
+export const requestToLeaveTeam = async (
+  id: number,
+  requestToLeaveBody: RequestToLeaveBody,
+  options?: RequestInit,
+): Promise<TeamLeaveRequest> => {
+  return customFetch<TeamLeaveRequest>(getRequestToLeaveTeamUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(requestToLeaveBody),
+  });
+};
+
+export const getRequestToLeaveTeamMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestToLeaveTeam>>,
+    TError,
+    { id: number; data: BodyType<RequestToLeaveBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestToLeaveTeam>>,
+  TError,
+  { id: number; data: BodyType<RequestToLeaveBody> },
+  TContext
+> => {
+  const mutationKey = ["requestToLeaveTeam"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestToLeaveTeam>>,
+    { id: number; data: BodyType<RequestToLeaveBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return requestToLeaveTeam(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestToLeaveTeamMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestToLeaveTeam>>
+>;
+export type RequestToLeaveTeamMutationBody = BodyType<RequestToLeaveBody>;
+export type RequestToLeaveTeamMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Request to leave the team (member only, leader cannot use this)
+ */
+export const useRequestToLeaveTeam = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestToLeaveTeam>>,
+    TError,
+    { id: number; data: BodyType<RequestToLeaveBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestToLeaveTeam>>,
+  TError,
+  { id: number; data: BodyType<RequestToLeaveBody> },
+  TContext
+> => {
+  return useMutation(getRequestToLeaveTeamMutationOptions(options));
+};
+
+/**
+ * @summary Approve a leave request (leader only)
+ */
+export const getApproveLeaveRequestUrl = (id: number) => {
+  return `/api/leave-requests/${id}/approve`;
+};
+
+export const approveLeaveRequest = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamDetail> => {
+  return customFetch<TeamDetail>(getApproveLeaveRequestUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getApproveLeaveRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveLeaveRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveLeaveRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["approveLeaveRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveLeaveRequest>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return approveLeaveRequest(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveLeaveRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveLeaveRequest>>
+>;
+
+export type ApproveLeaveRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Approve a leave request (leader only)
+ */
+export const useApproveLeaveRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveLeaveRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveLeaveRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getApproveLeaveRequestMutationOptions(options));
+};
+
+/**
+ * @summary Decline a leave request (leader only)
+ */
+export const getDeclineLeaveRequestUrl = (id: number) => {
+  return `/api/leave-requests/${id}/decline`;
+};
+
+export const declineLeaveRequest = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TeamLeaveRequest> => {
+  return customFetch<TeamLeaveRequest>(getDeclineLeaveRequestUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDeclineLeaveRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineLeaveRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineLeaveRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["declineLeaveRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineLeaveRequest>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return declineLeaveRequest(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineLeaveRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineLeaveRequest>>
+>;
+
+export type DeclineLeaveRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Decline a leave request (leader only)
+ */
+export const useDeclineLeaveRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineLeaveRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof declineLeaveRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeclineLeaveRequestMutationOptions(options));
 };
 
 /**

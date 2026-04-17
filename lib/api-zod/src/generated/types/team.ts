@@ -20,6 +20,8 @@ export interface Team {
   /** @nullable */
   photoUrl?: string | null;
   /** @nullable */
+  inviteCode?: string | null;
+  /** @nullable */
   rejectionReason?: string | null;
   /** @nullable */
   coordinatorComment?: string | null;
