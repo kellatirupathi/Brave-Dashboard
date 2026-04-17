@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "./auth";
+import devAuthRouter from "./dev-auth";
 import storageRouter from "./storage";
 import campusesRouter from "./campuses";
 import teamsRouter from "./teams";
@@ -19,6 +20,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(devAuthRouter);
 router.use(storageRouter);
 router.use(campusesRouter);
 // team-flow must come BEFORE teams so its specific paths

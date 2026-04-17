@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 // Auth
 import Login from "@/pages/auth/login";
 import NotOnRoster from "@/pages/auth/not-on-roster";
+import DevLogin from "@/pages/auth/dev-login";
 
 // Student
 import TeamDashboard from "@/pages/student/dashboard";
@@ -135,6 +136,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/not-on-roster" component={NotOnRoster} />
+      <Route path="/dev/login" component={DevLogin} />
 
       {/* Root - role-based redirect */}
       <Route path="/" component={RootRedirect} />

@@ -74,7 +74,7 @@ function getSafeReturnTo(value: unknown): string {
   return value;
 }
 
-async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
+export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
   const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, dbUser.id));
   const matchClauses = [eq(rosterTable.email, dbUser.email)];
   if (dbUser.formsUserId) {
