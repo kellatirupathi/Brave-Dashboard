@@ -8,6 +8,7 @@ import {
   pgEnum,
   unique,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -27,7 +28,7 @@ export const campusesTable = pgTable("campuses", {
   name: text("name").notNull(),
   city: text("city").notNull(),
   state: text("state").notNull(),
-  coordinatorId: integer("coordinator_id"),
+  coordinatorId: text("coordinator_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -38,12 +39,12 @@ export type Campus = typeof campusesTable.$inferSelect;
 
 // Users
 export const usersTable = pgTable("users", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey().default(sql`gen_random_uuid()`),
   replitId: text("replit_id").unique(),
   email: text("email").notNull().unique(),
   firstName: text("first_name").notNull().default(""),
   lastName: text("last_name").notNull().default(""),
-  profileImage: text("profile_image"),
+  profileImage: text("profile_image_url"),
   role: userRoleEnum("role").notNull().default("student"),
   campusId: integer("campus_id"),
   passwordHash: text("password_hash"),
@@ -77,7 +78,7 @@ export const teamsTable = pgTable("teams", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   campusId: integer("campus_id").notNull(),
-  leaderId: integer("leader_id").notNull(),
+  leaderId: text("leader_id").notNull(),
   status: teamStatusEnum("status").notNull().default("pending"),
   tagline: text("tagline"),
   photoUrl: text("photo_url"),
@@ -97,7 +98,7 @@ export type Team = typeof teamsTable.$inferSelect;
 export const teamMembersTable = pgTable("team_members", {
   id: serial("id").primaryKey(),
   teamId: integer("team_id").notNull(),
-  userId: integer("user_id").notNull(),
+  userId: text("user_id").notNull(),
   memberRole: text("member_role"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique("team_members_user_unique").on(t.userId)]);
@@ -113,7 +114,7 @@ export const projectsTable = pgTable("projects", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   status: projectStatusEnum("status").notNull().default("active"),
-  createdBy: integer("created_by").notNull(),
+  createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -211,7 +212,7 @@ export type DemoDayApplication = typeof demoDayApplicationsTable.$inferSelect;
 // Notifications
 export const notificationsTable = pgTable("notifications", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: text("user_id").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
   type: text("type").notNull().default("general"),
@@ -227,7 +228,7 @@ export type Notification = typeof notificationsTable.$inferSelect;
 // Announcements
 export const announcementsTable = pgTable("announcements", {
   id: serial("id").primaryKey(),
-  authorId: integer("author_id").notNull(),
+  authorId: text("author_id").notNull(),
   target: announcementTargetEnum("target").notNull().default("all"),
   campusId: integer("campus_id"),
   teamId: integer("team_id"),
@@ -261,7 +262,7 @@ export type ProgrammeConfig = typeof programmeConfigTable.$inferSelect;
 // Audit Log
 export const auditLogTable = pgTable("audit_log", {
   id: serial("id").primaryKey(),
-  actorId: integer("actor_id").notNull(),
+  actorId: text("actor_id").notNull(),
   action: text("action").notNull(),
   targetType: text("target_type").notNull(),
   targetId: integer("target_id"),

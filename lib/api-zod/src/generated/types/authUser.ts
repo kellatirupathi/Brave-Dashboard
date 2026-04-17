@@ -8,7 +8,7 @@
 
 export interface AuthUser {
   /** @nullable */
-  id: number | null;
+  id: string | null;
   /** @nullable */
   replitId: string | null;
   /** @nullable */

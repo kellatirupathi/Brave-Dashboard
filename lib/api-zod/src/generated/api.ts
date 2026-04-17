@@ -20,7 +20,7 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetCurrentAuthUserResponse = zod.object({
   user: zod.object({
-    id: zod.number().nullable(),
+    id: zod.string().nullable(),
     replitId: zod.string().nullable(),
     email: zod.string().nullable(),
     firstName: zod.string().nullable(),
@@ -1407,7 +1407,7 @@ export const ListUsersQueryParams = zod.object({
 });
 
 export const ListUsersResponseItem = zod.object({
-  id: zod.number(),
+  id: zod.string(),
   replitId: zod.string().nullish(),
   email: zod.string(),
   firstName: zod.string(),
@@ -1449,7 +1449,7 @@ export const UpdateUserBody = zod.object({
 });
 
 export const UpdateUserResponse = zod.object({
-  id: zod.number(),
+  id: zod.string(),
   replitId: zod.string().nullish(),
   email: zod.string(),
   firstName: zod.string(),

@@ -1284,7 +1284,7 @@ components:
       type: object
       properties:
         id:
-          type: ["integer", "null"]
+          type: ["string", "null"]
         replitId:
           type: ["string", "null"]
         email:
@@ -1319,7 +1319,7 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         replitId:
           type: ["string", "null"]
         email:

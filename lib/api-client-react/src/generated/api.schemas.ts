@@ -11,7 +11,7 @@ export interface HealthStatus {
 
 export interface AuthUser {
   /** @nullable */
-  id: number | null;
+  id: string | null;
   /** @nullable */
   replitId: string | null;
   /** @nullable */
@@ -45,7 +45,7 @@ export const UserRole = {
 } as const;
 
 export interface User {
-  id: number;
+  id: string;
   /** @nullable */
   replitId?: string | null;
   email: string;
