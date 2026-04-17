@@ -227,6 +227,31 @@ router.get("/auth/user", (req: Request, res: Response) => {
   );
 });
 
+// Dev-only login shortcut for seeded users. Disabled in production.
+// Usage: GET /api/auth/dev-login?email=admin.1@brave.seed&returnTo=/admin
+router.get("/auth/dev-login", async (req: Request, res: Response) => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const email = typeof req.query.email === "string" ? req.query.email : "";
+  if (!email.endsWith("@brave.seed")) {
+    res.status(400).json({ error: "dev-login only works for seeded @brave.seed accounts" });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  if (!user) {
+    res.status(404).json({ error: `No seeded user with email ${email}` });
+    return;
+  }
+  const authUser = await buildAuthUser(user);
+  const sessionData: SessionData = { user: authUser, access_token: "dev-login" };
+  const sid = await createSession(sessionData);
+  setSessionCookie(res, sid);
+  const returnTo = getSafeReturnTo(req.query.returnTo);
+  res.redirect(returnTo);
+});
+
 router.get("/login", async (req: Request, res: Response) => {
   const config = await getOidcConfig();
   const callbackUrl = `${getOrigin(req)}/api/callback`;
