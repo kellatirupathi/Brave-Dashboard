@@ -136,7 +136,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/not-on-roster" component={NotOnRoster} />
-      <Route path="/dev/login" component={DevLogin} />
+      {import.meta.env.DEV && <Route path="/dev/login" component={DevLogin} />}
 
       {/* Root - role-based redirect */}
       <Route path="/" component={RootRedirect} />
