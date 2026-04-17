@@ -36,7 +36,7 @@ export interface AuthUser {
 }
 
 export interface GetCurrentAuthUserResponse {
-  user: AuthUser;
+  user: AuthUser | null;
 }
 
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];

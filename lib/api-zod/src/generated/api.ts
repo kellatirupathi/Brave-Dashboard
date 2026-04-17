@@ -19,18 +19,21 @@ export const HealthCheckResponse = zod.object({
  * @summary Get current auth user
  */
 export const GetCurrentAuthUserResponse = zod.object({
-  user: zod.object({
-    id: zod.string(),
-    replitId: zod.string().nullable(),
-    email: zod.string(),
-    firstName: zod.string(),
-    lastName: zod.string(),
-    profileImage: zod.string().nullable(),
-    role: zod.enum(["student", "coordinator", "admin"]),
-    campusId: zod.number().nullable(),
-    isOnRoster: zod.boolean().nullable(),
-    teamId: zod.number().nullable(),
-  }),
+  user: zod.union([
+    zod.object({
+      id: zod.string(),
+      replitId: zod.string().nullable(),
+      email: zod.string(),
+      firstName: zod.string(),
+      lastName: zod.string(),
+      profileImage: zod.string().nullable(),
+      role: zod.enum(["student", "coordinator", "admin"]),
+      campusId: zod.number().nullable(),
+      isOnRoster: zod.boolean().nullable(),
+      teamId: zod.number().nullable(),
+    }),
+    zod.null(),
+  ]),
 });
 
 /**

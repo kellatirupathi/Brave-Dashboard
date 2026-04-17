@@ -8,5 +8,5 @@
 import type { AuthUser } from "./authUser";
 
 export interface GetCurrentAuthUserResponse {
-  user: AuthUser;
+  user: AuthUser | null;
 }

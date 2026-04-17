@@ -1675,7 +1675,9 @@ components:
       type: object
       properties:
         user:
-          $ref: "#/components/schemas/AuthUser"
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
       required:
         - user
 

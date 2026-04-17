@@ -211,18 +211,7 @@ router.post("/auth/validate-token", async (req: Request, res: Response) => {
 router.get("/auth/user", (req: Request, res: Response) => {
   res.json(
     GetCurrentAuthUserResponse.parse({
-      user: req.isAuthenticated() ? req.user : {
-        id: null,
-        replitId: null,
-        email: null,
-        firstName: null,
-        lastName: null,
-        profileImage: null,
-        role: null,
-        campusId: null,
-        isOnRoster: null,
-        teamId: null,
-      },
+      user: req.isAuthenticated() ? req.user : null,
     }),
   );
 });
