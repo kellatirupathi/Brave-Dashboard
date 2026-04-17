@@ -13,7 +13,7 @@ import {
   generateAuthToken,
   validateAndConsumeToken,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
@@ -76,8 +76,12 @@ function getSafeReturnTo(value: unknown): string {
 
 async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
   const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, dbUser.id));
+  const matchClauses = [eq(rosterTable.email, dbUser.email)];
+  if (dbUser.formsUserId) {
+    matchClauses.push(eq(rosterTable.studentId, dbUser.formsUserId));
+  }
   const [rosterEntry] = await db.select().from(rosterTable).where(
-    and(eq(rosterTable.email, dbUser.email), eq(rosterTable.isWhitelisted, true))
+    and(or(...matchClauses), eq(rosterTable.isWhitelisted, true))
   );
   return {
     id: dbUser.id,
