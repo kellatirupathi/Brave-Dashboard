@@ -850,6 +850,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrderBookEntry"
+    delete:
+      operationId: deleteOrderBookEntry
+      tags: [financials]
+      summary: Delete an order book entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   # Revenue Entries
   /revenue-entries:

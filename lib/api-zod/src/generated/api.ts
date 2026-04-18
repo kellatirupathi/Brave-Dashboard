@@ -1125,6 +1125,13 @@ export const UpdateOrderBookEntryResponse = zod.object({
 });
 
 /**
+ * @summary Delete an order book entry
+ */
+export const DeleteOrderBookEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List revenue entries
  */
 export const ListRevenueEntriesQueryParams = zod.object({

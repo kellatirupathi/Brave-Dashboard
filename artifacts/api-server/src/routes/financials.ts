@@ -6,6 +6,7 @@ import {
   revenueEntriesTable,
   projectsTable,
   teamsTable,
+  teamMembersTable,
   campusesTable,
   milestonesTable,
   programmeConfigTable,
@@ -141,6 +142,15 @@ router.get("/order-book-entries/:id", async (req, res): Promise<void> => {
   res.json(await enrichOBEntry(entry));
 });
 
+async function userCanModifyOBEntry(userId: string, role: string | null | undefined, teamId: number): Promise<boolean> {
+  if (role === "admin") return true;
+  const memberships = await db
+    .select({ teamId: teamMembersTable.teamId })
+    .from(teamMembersTable)
+    .where(and(eq(teamMembersTable.userId, userId), eq(teamMembersTable.teamId, teamId)));
+  return memberships.length > 0;
+}
+
 router.patch("/order-book-entries/:id", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
@@ -156,16 +166,54 @@ router.patch("/order-book-entries/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [existing] = await db.select().from(orderBookEntriesTable).where(eq(orderBookEntriesTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  if (!(await userCanModifyOBEntry(req.user.id, req.user.role, existing.teamId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const updateData: Record<string, unknown> = { ...parsed.data };
+  if (parsed.data.amount !== undefined) {
+    updateData.verifiedAmount = parsed.data.amount;
+  }
   const [entry] = await db
     .update(orderBookEntriesTable)
-    .set(parsed.data)
+    .set(updateData as Partial<typeof orderBookEntriesTable.$inferInsert>)
     .where(eq(orderBookEntriesTable.id, params.data.id))
     .returning();
   if (!entry) {
     res.status(404).json({ error: "Entry not found" });
     return;
   }
+  await logAudit(req.user.id, "update_order_book_entry", "order_book_entry", entry.id, `Updated by ${req.user.role}`);
   res.json(await enrichOBEntry(entry));
+});
+
+router.delete("/order-book-entries/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const params = GetOrderBookEntryParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [existing] = await db.select().from(orderBookEntriesTable).where(eq(orderBookEntriesTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  if (!(await userCanModifyOBEntry(req.user.id, req.user.role, existing.teamId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  await db.delete(orderBookEntriesTable).where(eq(orderBookEntriesTable.id, params.data.id));
+  await logAudit(req.user.id, "delete_order_book_entry", "order_book_entry", params.data.id, `Deleted by ${req.user.role}`);
+  res.status(204).end();
 });
 
 // Revenue Entries

@@ -1,6 +1,8 @@
 import {
   useGetProject,
   useCreateOrderBookEntry,
+  useUpdateOrderBookEntry,
+  useDeleteOrderBookEntry,
   useCreateRevenueEntry,
   useSubmitRevenueEntry,
   useRequestUploadUrl,
@@ -23,6 +25,8 @@ import {
   Send,
   Upload,
   Paperclip,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
@@ -33,6 +37,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +60,8 @@ export default function ProjectDetail() {
   const { data: project, isLoading } = useGetProject(id);
 
   const createOrderBook = useCreateOrderBookEntry();
+  const updateOrderBook = useUpdateOrderBookEntry();
+  const deleteOrderBook = useDeleteOrderBookEntry();
   const createRevenue = useCreateRevenueEntry();
   const submitRevenue = useSubmitRevenueEntry();
   const requestUpload = useRequestUploadUrl();
@@ -54,6 +70,8 @@ export default function ProjectDetail() {
 
   const [isOrderOpen, setIsOrderOpen] = useState(false);
   const [isRevenueOpen, setIsRevenueOpen] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
 
   // Form states
   const [clientName, setClientName] = useState("");
@@ -160,6 +178,65 @@ export default function ProjectDetail() {
           setIsOrderOpen(false);
           resetForms();
         },
+      },
+    );
+  };
+
+  const startEditOrder = (entry: typeof project.orderBookEntries[number]) => {
+    setEditingOrderId(entry.id);
+    setClientName(entry.clientName);
+    setAmount(entry.amount);
+    setNotes(entry.notes ?? "");
+    setSupportingDocUrl(entry.supportingDocUrl ?? null);
+  };
+
+  const handleEditOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingOrderId == null || !amount) return;
+    updateOrderBook.mutate(
+      {
+        id: editingOrderId,
+        data: {
+          clientName,
+          amount: Number(amount),
+          notes,
+          supportingDocUrl: supportingDocUrl ?? null,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Order updated" });
+          refresh();
+          setEditingOrderId(null);
+          resetForms();
+        },
+        onError: (err) =>
+          toast({
+            title: "Could not update",
+            description: err instanceof Error ? err.message : "Try again",
+            variant: "destructive",
+          }),
+      },
+    );
+  };
+
+  const handleDeleteOrder = () => {
+    if (deletingOrderId == null) return;
+    const idToDelete = deletingOrderId;
+    deleteOrderBook.mutate(
+      { id: idToDelete },
+      {
+        onSuccess: () => {
+          toast({ title: "Order deleted" });
+          refresh();
+          setDeletingOrderId(null);
+        },
+        onError: (err) =>
+          toast({
+            title: "Could not delete",
+            description: err instanceof Error ? err.message : "Try again",
+            variant: "destructive",
+          }),
       },
     );
   };
@@ -581,6 +658,11 @@ export default function ProjectDetail() {
                           {formatINR(entry.amount)}
                         </strong>
                       </div>
+                      {entry.notes && (
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {entry.notes}
+                        </div>
+                      )}
                       <div className="flex flex-wrap gap-3 pt-1">
                         {docLink(entry.supportingDocUrl, "Supporting document")}
                       </div>
@@ -589,6 +671,25 @@ export default function ProjectDetail() {
                       <Badge className="bg-green-500 hover:bg-green-600 border-none text-white">
                         <CheckCircle2 className="w-3 h-3 mr-1" /> Confirmed
                       </Badge>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startEditOrder(entry)}
+                          data-testid={`button-edit-order-${entry.id}`}
+                        >
+                          <Pencil className="w-3 h-3 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeletingOrderId(entry.id)}
+                          data-testid={`button-delete-order-${entry.id}`}
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" /> Delete
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -597,6 +698,103 @@ export default function ProjectDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={editingOrderId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingOrderId(null);
+            resetForms();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Order Book Entry</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditOrder} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Client Name</label>
+              <Input
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                required
+                data-testid="input-edit-order-client"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Amount (₹)</label>
+              <Input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+                required
+                data-testid="input-edit-order-amount"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notes</label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                data-testid="input-edit-order-notes"
+              />
+            </div>
+            <FilePicker
+              field="supportingDoc"
+              currentUrl={supportingDocUrl}
+              label="Supporting document (PO, signed contract, etc.)"
+            />
+            <div className="flex justify-end pt-4">
+              <Button
+                type="submit"
+                disabled={updateOrderBook.isPending || uploadingField !== null}
+                data-testid="button-save-edit-order"
+              >
+                {updateOrderBook.isPending && (
+                  <Spinner className="w-4 h-4 mr-2" />
+                )}{" "}
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deletingOrderId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingOrderId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete order book entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the entry from your order book and update your
+              team's totals. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-order">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteOrder();
+              }}
+              disabled={deleteOrderBook.isPending}
+              data-testid="button-confirm-delete-order"
+            >
+              {deleteOrderBook.isPending && (
+                <Spinner className="w-4 h-4 mr-2" />
+              )}{" "}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
