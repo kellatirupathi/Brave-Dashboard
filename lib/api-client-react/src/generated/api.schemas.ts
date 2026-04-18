@@ -346,10 +346,7 @@ export type OrderBookEntryStatus =
   (typeof OrderBookEntryStatus)[keyof typeof OrderBookEntryStatus];
 
 export const OrderBookEntryStatus = {
-  draft: "draft",
-  submitted: "submitted",
   verified: "verified",
-  rejected: "rejected",
 } as const;
 
 export type OrderBookEntryEnteredBy =
@@ -526,7 +523,6 @@ export type AdminReviewQueueItemType =
   (typeof AdminReviewQueueItemType)[keyof typeof AdminReviewQueueItemType];
 
 export const AdminReviewQueueItemType = {
-  order_book: "order_book",
   revenue: "revenue",
 } as const;
 
@@ -958,10 +954,7 @@ export type ListOrderBookEntriesStatus =
   (typeof ListOrderBookEntriesStatus)[keyof typeof ListOrderBookEntriesStatus];
 
 export const ListOrderBookEntriesStatus = {
-  draft: "draft",
-  submitted: "submitted",
   verified: "verified",
-  rejected: "rejected",
 } as const;
 
 export type ListRevenueEntriesParams = {
@@ -989,7 +982,6 @@ export type GetAdminReviewQueueType =
   (typeof GetAdminReviewQueueType)[keyof typeof GetAdminReviewQueueType];
 
 export const GetAdminReviewQueueType = {
-  order_book: "order_book",
   revenue: "revenue",
 } as const;
 

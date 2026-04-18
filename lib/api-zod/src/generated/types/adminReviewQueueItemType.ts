@@ -10,6 +10,5 @@ export type AdminReviewQueueItemType =
   (typeof AdminReviewQueueItemType)[keyof typeof AdminReviewQueueItemType];
 
 export const AdminReviewQueueItemType = {
-  order_book: "order_book",
   revenue: "revenue",
 } as const;

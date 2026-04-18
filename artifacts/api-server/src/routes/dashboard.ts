@@ -46,10 +46,6 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const [totalCampuses] = await db
     .select({ count: sql<number>`count(*)` })
     .from(campusesTable);
-  const [pendingReview] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(orderBookEntriesTable)
-    .where(sql`status = 'submitted'`);
   const [pendingRevReview] = await db
     .select({ count: sql<number>`count(*)` })
     .from(revenueEntriesTable)
@@ -106,7 +102,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     activeTeams: Number(activeTeams?.count ?? 0),
     pendingTeams: Number(pendingTeams?.count ?? 0),
     demoEligibleTeams: demoEligible,
-    pendingReviewCount: Number(pendingReview?.count ?? 0) + Number(pendingRevReview?.count ?? 0),
+    pendingReviewCount: Number(pendingRevReview?.count ?? 0),
     overdueReviewCount: 0,
     totalCampuses: Number(totalCampuses?.count ?? 0),
     topCampuses: campusStats.slice(0, 5),
@@ -156,10 +152,6 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
     .select({ count: sql<number>`count(*)` })
     .from(projectsTable)
     .where(and(eq(projectsTable.teamId, team.id), eq(projectsTable.status, "active")));
-  const [pendingOB] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(orderBookEntriesTable)
-    .where(and(eq(orderBookEntriesTable.teamId, team.id), sql`status in ('draft', 'submitted')`));
   const [pendingRev] = await db
     .select({ count: sql<number>`count(*)` })
     .from(revenueEntriesTable)
@@ -204,7 +196,7 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
     nationalRank: null,
     campusRank: null,
     activeProjects: Number(projectCount?.count ?? 0),
-    pendingSubmissions: Number(pendingOB?.count ?? 0) + Number(pendingRev?.count ?? 0),
+    pendingSubmissions: Number(pendingRev?.count ?? 0),
     demoEligible: Number(revStats?.total ?? 0) >= threshold,
     recentMilestones: milestones,
     announcements: enrichedAnnouncements,

@@ -95,7 +95,7 @@ export default function Leaderboard() {
                   <div className="text-2xl font-extrabold text-primary">{formatINR(entry.totalRevenue)}</div>
                   {entry.totalOrderBook > 0 && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      + {formatINR(entry.totalOrderBook)} pending
+                      + {formatINR(entry.totalOrderBook)} in order book
                     </div>
                   )}
                 </div>

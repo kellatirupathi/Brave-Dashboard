@@ -214,7 +214,7 @@ export const orderBookEntriesTable = pgTable("order_book_entries", {
   clientName: text("client_name").notNull(),
   amount: integer("amount").notNull(),
   verifiedAmount: integer("verified_amount"),
-  status: entryStatusEnum("status").notNull().default("draft"),
+  status: entryStatusEnum("status").notNull().default("verified"),
   supportingDocUrl: text("supporting_doc_url"),
   notes: text("notes"),
   adminNotes: text("admin_notes"),

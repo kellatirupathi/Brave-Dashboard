@@ -954,7 +954,7 @@ export const GetProjectResponse = zod
           clientName: zod.string(),
           amount: zod.number(),
           verifiedAmount: zod.number().nullish(),
-          status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+          status: zod.enum(["verified"]),
           supportingDocUrl: zod.string().nullish(),
           notes: zod.string().nullish(),
           adminNotes: zod.string().nullish(),
@@ -1024,7 +1024,7 @@ export const UpdateProjectResponse = zod.object({
 export const ListOrderBookEntriesQueryParams = zod.object({
   projectId: zod.coerce.number().optional(),
   teamId: zod.coerce.number().optional(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]).optional(),
+  status: zod.enum(["verified"]).optional(),
 });
 
 export const ListOrderBookEntriesResponseItem = zod.object({
@@ -1037,7 +1037,7 @@ export const ListOrderBookEntriesResponseItem = zod.object({
   clientName: zod.string(),
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["verified"]),
   supportingDocUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1080,7 +1080,7 @@ export const GetOrderBookEntryResponse = zod.object({
   clientName: zod.string(),
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["verified"]),
   supportingDocUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1114,97 +1114,7 @@ export const UpdateOrderBookEntryResponse = zod.object({
   clientName: zod.string(),
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
-  supportingDocUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
-  adminNotes: zod.string().nullish(),
-  enteredBy: zod.enum(["student", "admin"]),
-  submittedAt: zod.coerce.date().nullish(),
-  verifiedAt: zod.coerce.date().nullish(),
-  createdAt: zod.coerce.date(),
-});
-
-/**
- * @summary Submit an order book entry for review
- */
-export const SubmitOrderBookEntryParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const SubmitOrderBookEntryResponse = zod.object({
-  id: zod.number(),
-  projectId: zod.number(),
-  projectTitle: zod.string(),
-  teamId: zod.number(),
-  teamName: zod.string(),
-  campusName: zod.string(),
-  clientName: zod.string(),
-  amount: zod.number(),
-  verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
-  supportingDocUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
-  adminNotes: zod.string().nullish(),
-  enteredBy: zod.enum(["student", "admin"]),
-  submittedAt: zod.coerce.date().nullish(),
-  verifiedAt: zod.coerce.date().nullish(),
-  createdAt: zod.coerce.date(),
-});
-
-/**
- * @summary Verify an order book entry (admin only)
- */
-export const VerifyOrderBookEntryParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const VerifyOrderBookEntryBody = zod.object({
-  verifiedAmount: zod.number(),
-  adminNotes: zod.string().nullish(),
-});
-
-export const VerifyOrderBookEntryResponse = zod.object({
-  id: zod.number(),
-  projectId: zod.number(),
-  projectTitle: zod.string(),
-  teamId: zod.number(),
-  teamName: zod.string(),
-  campusName: zod.string(),
-  clientName: zod.string(),
-  amount: zod.number(),
-  verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
-  supportingDocUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
-  adminNotes: zod.string().nullish(),
-  enteredBy: zod.enum(["student", "admin"]),
-  submittedAt: zod.coerce.date().nullish(),
-  verifiedAt: zod.coerce.date().nullish(),
-  createdAt: zod.coerce.date(),
-});
-
-/**
- * @summary Reject an order book entry (admin only)
- */
-export const RejectOrderBookEntryParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const RejectOrderBookEntryBody = zod.object({
-  adminNotes: zod.string(),
-});
-
-export const RejectOrderBookEntryResponse = zod.object({
-  id: zod.number(),
-  projectId: zod.number(),
-  projectTitle: zod.string(),
-  teamId: zod.number(),
-  teamName: zod.string(),
-  campusName: zod.string(),
-  clientName: zod.string(),
-  amount: zod.number(),
-  verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["verified"]),
   supportingDocUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1438,7 +1348,7 @@ export const RejectRevenueEntryResponse = zod.object({
  * @summary Get all pending financial entries for review
  */
 export const GetAdminReviewQueueQueryParams = zod.object({
-  type: zod.enum(["order_book", "revenue"]).optional(),
+  type: zod.enum(["revenue"]).optional(),
   campusId: zod.coerce.number().optional(),
 });
 
@@ -1446,7 +1356,7 @@ export const GetAdminReviewQueueResponse = zod.object({
   items: zod.array(
     zod.object({
       id: zod.number(),
-      type: zod.enum(["order_book", "revenue"]),
+      type: zod.enum(["revenue"]),
       teamId: zod.number(),
       teamName: zod.string(),
       campusName: zod.string(),

@@ -781,7 +781,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [draft, submitted, verified, rejected]
+            enum: [verified]
       responses:
         "200":
           description: List of order book entries
@@ -846,75 +846,6 @@ paths:
       responses:
         "200":
           description: Updated entry
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrderBookEntry"
-
-  /order-book-entries/{id}/submit:
-    post:
-      operationId: submitOrderBookEntry
-      tags: [financials]
-      summary: Submit an order book entry for review
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Entry submitted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrderBookEntry"
-
-  /order-book-entries/{id}/verify:
-    post:
-      operationId: verifyOrderBookEntry
-      tags: [financials]
-      summary: Verify an order book entry (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VerifyEntryBody"
-      responses:
-        "200":
-          description: Entry verified
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrderBookEntry"
-
-  /order-book-entries/{id}/reject:
-    post:
-      operationId: rejectOrderBookEntry
-      tags: [financials]
-      summary: Reject an order book entry (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RejectEntryBody"
-      responses:
-        "200":
-          description: Entry rejected
           content:
             application/json:
               schema:
@@ -1089,7 +1020,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [order_book, revenue]
+            enum: [revenue]
         - name: campusId
           in: query
           schema:
@@ -2280,7 +2211,7 @@ components:
           type: ["integer", "null"]
         status:
           type: string
-          enum: [draft, submitted, verified, rejected]
+          enum: [verified]
         supportingDocUrl:
           type: ["string", "null"]
         notes:
@@ -2477,7 +2408,7 @@ components:
           type: integer
         type:
           type: string
-          enum: [order_book, revenue]
+          enum: [revenue]
         teamId:
           type: integer
         teamName:

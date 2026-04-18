@@ -10,6 +10,5 @@ export type GetAdminReviewQueueType =
   (typeof GetAdminReviewQueueType)[keyof typeof GetAdminReviewQueueType];
 
 export const GetAdminReviewQueueType = {
-  order_book: "order_book",
   revenue: "revenue",
 } as const;

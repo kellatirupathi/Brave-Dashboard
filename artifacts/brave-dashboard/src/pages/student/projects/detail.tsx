@@ -2,7 +2,6 @@ import {
   useGetProject,
   useCreateOrderBookEntry,
   useCreateRevenueEntry,
-  useSubmitOrderBookEntry,
   useSubmitRevenueEntry,
   useRequestUploadUrl,
   getGetProjectQueryKey,
@@ -48,7 +47,6 @@ export default function ProjectDetail() {
 
   const createOrderBook = useCreateOrderBookEntry();
   const createRevenue = useCreateRevenueEntry();
-  const submitOrderBook = useSubmitOrderBookEntry();
   const submitRevenue = useSubmitRevenueEntry();
   const requestUpload = useRequestUploadUrl();
   const queryClient = useQueryClient();
@@ -188,24 +186,6 @@ export default function ProjectDetail() {
           setIsRevenueOpen(false);
           resetForms();
         },
-      },
-    );
-  };
-
-  const handleSubmitOrder = (entryId: number) => {
-    submitOrderBook.mutate(
-      { id: entryId },
-      {
-        onSuccess: () => {
-          toast({ title: "Sent for verification" });
-          refresh();
-        },
-        onError: (err) =>
-          toast({
-            title: "Could not submit",
-            description: err instanceof Error ? err.message : "Try again",
-            variant: "destructive",
-          }),
       },
     );
   };
@@ -571,7 +551,7 @@ export default function ProjectDetail() {
                       {createOrderBook.isPending && (
                         <Spinner className="w-4 h-4 mr-2" />
                       )}{" "}
-                      Save as Draft
+                      Add Order
                     </Button>
                   </div>
                 </form>
@@ -604,25 +584,11 @@ export default function ProjectDetail() {
                       <div className="flex flex-wrap gap-3 pt-1">
                         {docLink(entry.supportingDocUrl, "Supporting document")}
                       </div>
-                      {entry.adminNotes && entry.status === "rejected" && (
-                        <div className="text-sm text-destructive mt-2 bg-destructive/10 p-2 rounded-md">
-                          <strong>Admin note:</strong> {entry.adminNotes}
-                        </div>
-                      )}
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      {getStatusBadge(entry.status)}
-                      {entry.status === "draft" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={submitOrderBook.isPending}
-                          onClick={() => handleSubmitOrder(entry.id)}
-                        >
-                          <Send className="w-3 h-3 mr-1" /> Submit for
-                          verification
-                        </Button>
-                      )}
+                      <Badge className="bg-green-500 hover:bg-green-600 border-none text-white">
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> Confirmed
+                      </Badge>
                     </div>
                   </div>
                 ))

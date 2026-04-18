@@ -1,27 +1,24 @@
-import { useGetAdminReviewQueue, useVerifyOrderBookEntry, useRejectOrderBookEntry, useVerifyRevenueEntry, useRejectRevenueEntry, getGetAdminReviewQueueQueryKey } from "@workspace/api-client-react";
+import { useGetAdminReviewQueue, useVerifyRevenueEntry, useRejectRevenueEntry, getGetAdminReviewQueueQueryKey } from "@workspace/api-client-react";
 import { formatINR, formatDate } from "@/lib/format";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Check, X, FileText, IndianRupee } from "lucide-react";
+import { AlertCircle, Check, X, FileText } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
 export default function AdminQueue() {
-  const [type, setType] = useState<"revenue" | "order_book">("revenue");
+  const type = "revenue" as const;
   const { data: queue, isLoading } = useGetAdminReviewQueue({ type });
-  
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
-  const verifyOrderBook = useVerifyOrderBookEntry();
-  const rejectOrderBook = useRejectOrderBookEntry();
+
   const verifyRevenue = useVerifyRevenueEntry();
   const rejectRevenue = useRejectRevenueEntry();
 
@@ -35,41 +32,21 @@ export default function AdminQueue() {
     
     if (actionType === "approve") {
       const amount = Number(verifiedAmount) || actionItem.amount;
-      if (type === "order_book") {
-        verifyOrderBook.mutate({ id: actionItem.id, data: { verifiedAmount: amount, adminNotes } }, {
-          onSuccess: () => {
-            toast({ title: "Order book entry verified" });
-            queryClient.invalidateQueries({ queryKey: getGetAdminReviewQueueQueryKey({ type }) });
-            resetAction();
-          }
-        });
-      } else {
-        verifyRevenue.mutate({ id: actionItem.id, data: { verifiedAmount: amount, adminNotes } }, {
-          onSuccess: () => {
-            toast({ title: "Revenue entry verified" });
-            queryClient.invalidateQueries({ queryKey: getGetAdminReviewQueueQueryKey({ type }) });
-            resetAction();
-          }
-        });
-      }
+      verifyRevenue.mutate({ id: actionItem.id, data: { verifiedAmount: amount, adminNotes } }, {
+        onSuccess: () => {
+          toast({ title: "Revenue entry verified" });
+          queryClient.invalidateQueries({ queryKey: getGetAdminReviewQueueQueryKey({ type }) });
+          resetAction();
+        }
+      });
     } else {
-      if (type === "order_book") {
-        rejectOrderBook.mutate({ id: actionItem.id, data: { adminNotes } }, {
-          onSuccess: () => {
-            toast({ title: "Order book entry rejected" });
-            queryClient.invalidateQueries({ queryKey: getGetAdminReviewQueueQueryKey({ type }) });
-            resetAction();
-          }
-        });
-      } else {
-        rejectRevenue.mutate({ id: actionItem.id, data: { adminNotes } }, {
-          onSuccess: () => {
-            toast({ title: "Revenue entry rejected" });
-            queryClient.invalidateQueries({ queryKey: getGetAdminReviewQueueQueryKey({ type }) });
-            resetAction();
-          }
-        });
-      }
+      rejectRevenue.mutate({ id: actionItem.id, data: { adminNotes } }, {
+        onSuccess: () => {
+          toast({ title: "Revenue entry rejected" });
+          queryClient.invalidateQueries({ queryKey: getGetAdminReviewQueueQueryKey({ type }) });
+          resetAction();
+        }
+      });
     }
   };
 
@@ -87,7 +64,7 @@ export default function AdminQueue() {
     setAdminNotes("");
   };
 
-  const isPending = verifyOrderBook.isPending || rejectOrderBook.isPending || verifyRevenue.isPending || rejectRevenue.isPending;
+  const isPending = verifyRevenue.isPending || rejectRevenue.isPending;
 
   if (isLoading) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
 
@@ -98,16 +75,9 @@ export default function AdminQueue() {
           <h1 className="text-3xl font-bold tracking-tight">Review Queue</h1>
           <p className="text-muted-foreground mt-1">
             {queue?.overdueCount ? <span className="text-destructive font-medium mr-2">{queue.overdueCount} overdue items</span> : null}
-            Verify submitted revenue and order book entries
+            Verify submitted revenue entries
           </p>
         </div>
-        
-        <Tabs value={type} onValueChange={(v: any) => setType(v)}>
-          <TabsList>
-            <TabsTrigger value="revenue"><IndianRupee className="w-4 h-4 mr-2" /> Revenue</TabsTrigger>
-            <TabsTrigger value="order_book"><FileText className="w-4 h-4 mr-2" /> Order Book</TabsTrigger>
-          </TabsList>
-        </Tabs>
       </div>
 
       <div className="grid gap-4">
@@ -179,7 +149,7 @@ export default function AdminQueue() {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Verify {type === 'revenue' ? 'Revenue' : 'Order Book'} Entry</DialogTitle>
+                        <DialogTitle>Verify Revenue Entry</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="space-y-2">
@@ -214,7 +184,7 @@ export default function AdminQueue() {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Reject {type === 'revenue' ? 'Revenue' : 'Order Book'} Entry</DialogTitle>
+                        <DialogTitle>Reject Revenue Entry</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div className="space-y-2">
@@ -244,7 +214,7 @@ export default function AdminQueue() {
           <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-lg">
             <Check className="w-12 h-12 mx-auto mb-4 text-green-500 opacity-50" />
             <h3 className="text-lg font-semibold text-foreground">Queue is empty</h3>
-            <p>You're all caught up on {type === 'revenue' ? 'revenue' : 'order book'} reviews!</p>
+            <p>You're all caught up on revenue reviews!</p>
           </div>
         )}
       </div>

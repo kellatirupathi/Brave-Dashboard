@@ -7,7 +7,6 @@ import {
   projectsTable,
   teamsTable,
   campusesTable,
-  teamMembersTable,
   milestonesTable,
   programmeConfigTable,
 } from "@workspace/db";
@@ -17,11 +16,6 @@ import {
   GetOrderBookEntryParams,
   UpdateOrderBookEntryParams,
   UpdateOrderBookEntryBody,
-  SubmitOrderBookEntryParams,
-  VerifyOrderBookEntryParams,
-  VerifyOrderBookEntryBody,
-  RejectOrderBookEntryParams,
-  RejectOrderBookEntryBody,
   ListRevenueEntriesQueryParams,
   CreateRevenueEntryBody,
   GetRevenueEntryParams,
@@ -100,10 +94,32 @@ router.post("/order-book-entries", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Project not found" });
     return;
   }
+  const now = new Date();
   const [entry] = await db
     .insert(orderBookEntriesTable)
-    .values({ ...parsed.data, teamId: project.teamId })
+    .values({
+      ...parsed.data,
+      teamId: project.teamId,
+      status: "verified",
+      verifiedAmount: parsed.data.amount,
+      submittedAt: now,
+      verifiedAt: now,
+    })
     .returning();
+  // First-order-book milestone (kept from previous verify flow)
+  const [obCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(orderBookEntriesTable)
+    .where(and(eq(orderBookEntriesTable.teamId, project.teamId), sql`status = 'verified'`));
+  if (Number(obCount?.count ?? 0) === 1) {
+    await db.insert(milestonesTable).values({
+      teamId: project.teamId,
+      type: "auto",
+      title: "First Order Book Entry",
+      description: `First order book entry added for ₹${parsed.data.amount.toLocaleString('en-IN')}`,
+      date: now,
+    });
+  }
   res.status(201).json(await enrichOBEntry(entry));
 });
 
@@ -149,102 +165,6 @@ router.patch("/order-book-entries/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Entry not found" });
     return;
   }
-  res.json(await enrichOBEntry(entry));
-});
-
-router.post("/order-book-entries/:id/submit", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const params = SubmitOrderBookEntryParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const [entry] = await db
-    .update(orderBookEntriesTable)
-    .set({ status: "submitted", submittedAt: new Date() })
-    .where(eq(orderBookEntriesTable.id, params.data.id))
-    .returning();
-  if (!entry) {
-    res.status(404).json({ error: "Entry not found" });
-    return;
-  }
-  res.json(await enrichOBEntry(entry));
-});
-
-router.post("/order-book-entries/:id/verify", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = VerifyOrderBookEntryParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = VerifyOrderBookEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [entry] = await db
-    .update(orderBookEntriesTable)
-    .set({ status: "verified", verifiedAmount: parsed.data.verifiedAmount, adminNotes: parsed.data.adminNotes ?? null, verifiedAt: new Date() })
-    .where(eq(orderBookEntriesTable.id, params.data.id))
-    .returning();
-  if (!entry) {
-    res.status(404).json({ error: "Entry not found" });
-    return;
-  }
-  // Check first order book milestone
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, entry.teamId));
-  const [obCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(orderBookEntriesTable)
-    .where(and(eq(orderBookEntriesTable.teamId, entry.teamId), sql`status = 'verified'`));
-  if (Number(obCount?.count ?? 0) === 1) {
-    await db.insert(milestonesTable).values({
-      teamId: entry.teamId,
-      type: "auto",
-      title: "First Order Book Entry Verified",
-      description: `First order book entry verified for ₹${parsed.data.verifiedAmount?.toLocaleString('en-IN')}`,
-      date: new Date(),
-    });
-  }
-  if (team) await createNotification(team.leaderId, "Order Book Verified", `Your order book entry of ₹${parsed.data.verifiedAmount?.toLocaleString('en-IN')} has been verified.`, "entry_verified", "/projects");
-  await logAudit(req.user.id, "verify_order_book_entry", "order_book_entry", entry.id, `Verified: ₹${parsed.data.verifiedAmount}`);
-  res.json(await enrichOBEntry(entry));
-});
-
-router.post("/order-book-entries/:id/reject", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = RejectOrderBookEntryParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = RejectOrderBookEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [entry] = await db
-    .update(orderBookEntriesTable)
-    .set({ status: "rejected", adminNotes: parsed.data.adminNotes })
-    .where(eq(orderBookEntriesTable.id, params.data.id))
-    .returning();
-  if (!entry) {
-    res.status(404).json({ error: "Entry not found" });
-    return;
-  }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, entry.teamId));
-  if (team) await createNotification(team.leaderId, "Order Book Rejected", `Your order book entry was rejected: ${parsed.data.adminNotes}`, "entry_rejected", "/projects");
-  await logAudit(req.user.id, "reject_order_book_entry", "order_book_entry", entry.id, parsed.data.adminNotes);
   res.json(await enrichOBEntry(entry));
 });
 

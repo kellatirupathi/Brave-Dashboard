@@ -448,7 +448,8 @@ export async function runSeed(): Promise<void> {
   const obStatuses: ("draft" | "submitted" | "verified" | "rejected")[] = [];
   for (let i = 0; i < ORDER_BOOK_TARGET; i++) {
     const r = rand();
-    obStatuses.push(r < 0.6 ? "verified" : r < 0.8 ? "submitted" : r < 0.92 ? "draft" : "rejected");
+    obStatuses.push("verified");
+    void r;
   }
   for (let i = 0; i < ORDER_BOOK_TARGET; i++) {
     if (projects.length === 0) break;

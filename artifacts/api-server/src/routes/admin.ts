@@ -8,7 +8,6 @@ import {
   rosterTable,
   accessRequestsTable,
   campusesTable,
-  orderBookEntriesTable,
   revenueEntriesTable,
   teamsTable,
   projectsTable,
@@ -47,34 +46,11 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
   const items: Array<{
-    id: number; type: "order_book" | "revenue"; teamId: number; teamName: string;
+    id: number; type: "revenue"; teamId: number; teamName: string;
     campusName: string; projectTitle: string; clientName: string; amount: number;
     submittedAt: Date; isOverdue: boolean; supportingDocUrl: string | null;
     paymentProofUrl: string | null; invoiceUrl: string | null; notes: string | null;
   }> = [];
-
-  if (!type || type === "order_book") {
-    const obEntries = await db
-      .select()
-      .from(orderBookEntriesTable)
-      .where(eq(orderBookEntriesTable.status, "submitted"))
-      .orderBy(orderBookEntriesTable.submittedAt);
-    for (const e of obEntries) {
-      const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, e.teamId));
-      if (campusId && team?.campusId !== campusId) continue;
-      const [campus] = team ? await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId)) : [null];
-      const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, e.projectId));
-      items.push({
-        id: e.id, type: "order_book", teamId: e.teamId, teamName: team?.name ?? "",
-        campusName: campus?.name ?? "", projectTitle: project?.title ?? "",
-        clientName: e.clientName, amount: e.amount,
-        submittedAt: e.submittedAt ?? new Date(),
-        isOverdue: (e.submittedAt ?? new Date()) < cutoff,
-        supportingDocUrl: e.supportingDocUrl ?? null,
-        paymentProofUrl: null, invoiceUrl: null, notes: e.notes ?? null,
-      });
-    }
-  }
 
   if (!type || type === "revenue") {
     const revEntries = await db
