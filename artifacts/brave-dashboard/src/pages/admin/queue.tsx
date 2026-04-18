@@ -151,21 +151,21 @@ export default function AdminQueue() {
                 <div className="space-y-2">
                   {item.supportingDocUrl && (
                     <Button variant="outline" className="w-full justify-start" asChild>
-                      <a href={item.supportingDocUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={item.supportingDocUrl.startsWith("/") ? `/api${item.supportingDocUrl}` : item.supportingDocUrl} target="_blank" rel="noopener noreferrer">
                         <FileText className="w-4 h-4 mr-2" /> View Document
                       </a>
                     </Button>
                   )}
                   {item.paymentProofUrl && (
                     <Button variant="outline" className="w-full justify-start" asChild>
-                      <a href={item.paymentProofUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={item.paymentProofUrl.startsWith("/") ? `/api${item.paymentProofUrl}` : item.paymentProofUrl} target="_blank" rel="noopener noreferrer">
                         <FileText className="w-4 h-4 mr-2" /> Payment Proof
                       </a>
                     </Button>
                   )}
                   {item.invoiceUrl && (
                     <Button variant="outline" className="w-full justify-start" asChild>
-                      <a href={item.invoiceUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={item.invoiceUrl.startsWith("/") ? `/api${item.invoiceUrl}` : item.invoiceUrl} target="_blank" rel="noopener noreferrer">
                         <FileText className="w-4 h-4 mr-2" /> Invoice
                       </a>
                     </Button>
