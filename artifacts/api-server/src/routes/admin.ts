@@ -28,9 +28,13 @@ import {
   UpdateAccessRequestParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { runSeed } from "../seed";
 import * as bcrypt from "bcryptjs";
 
 const router: IRouter = Router();
+
+// In-flight reseed guard: prevents two admins from clobbering each other.
+let reseedInFlight = false;
 
 // Review Queue
 router.get("/admin/review-queue", async (req, res): Promise<void> => {
@@ -349,6 +353,42 @@ router.patch("/admin/access-requests/:id", async (req, res): Promise<void> => {
   }
   await logAudit(req.user.id, `access_request_${body.data.status}`, "access_request", updated.id, `${body.data.status}: ${updated.email}`);
   res.json(updated);
+});
+
+// Dev-only: re-run the seed routine that the CLI runs. Hidden in production.
+router.post("/admin/dev/reseed", async (req, res): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (reseedInFlight) {
+    res.status(409).json({ error: "A reseed is already in progress." });
+    return;
+  }
+
+  reseedInFlight = true;
+  const startedAt = Date.now();
+  try {
+    await runSeed();
+    const durationMs = Date.now() - startedAt;
+    await logAudit(
+      req.user.id,
+      "reseed_demo_data",
+      "system",
+      undefined,
+      `Demo data reseeded via admin UI in ${durationMs}ms.`,
+    );
+    res.json({ ok: true, durationMs });
+  } catch (err) {
+    req.log.error({ err }, "reseed failed");
+    res.status(500).json({ error: "Reseed failed", detail: err instanceof Error ? err.message : String(err) });
+  } finally {
+    reseedInFlight = false;
+  }
 });
 
 export default router;

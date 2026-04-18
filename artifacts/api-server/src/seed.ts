@@ -11,7 +11,6 @@
 import { inArray, like, eq } from "drizzle-orm";
 import {
   db,
-  pool,
   campusesTable,
   usersTable,
   rosterTable,
@@ -40,7 +39,11 @@ function makeRng(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rand = makeRng(20260417);
+const RNG_SEED = 20260417;
+// `rand` is intentionally re-initialized at the top of every `runSeed()` call
+// (see below) so repeated reseeds in the same Node process produce the same
+// canonical dataset every time, just like a fresh `tsx ./src/seed-cli.ts` run.
+let rand = makeRng(RNG_SEED);
 const pick = <T>(arr: readonly T[]) => arr[Math.floor(rand() * arr.length)];
 const between = (lo: number, hi: number) => Math.floor(rand() * (hi - lo + 1)) + lo;
 
@@ -199,7 +202,12 @@ async function clearPriorSeed() {
 }
 
 // ---------- Seed ----------
-async function seed() {
+export async function runSeed(): Promise<void> {
+  // Re-seed the PRNG so every invocation (CLI or admin endpoint) produces the
+  // exact same canonical dataset, regardless of how many times runSeed has
+  // already executed in this process.
+  rand = makeRng(RNG_SEED);
+
   await clearPriorSeed();
 
   console.log("🌱 Seeding campuses…");
@@ -595,13 +603,6 @@ async function seed() {
   console.log("");
 }
 
-seed()
-  .then(async () => {
-    await pool.end();
-    process.exit(0);
-  })
-  .catch(async (err) => {
-    console.error("Seed failed:", err);
-    await pool.end().catch(() => {});
-    process.exit(1);
-  });
+// Note: this module is intentionally side-effect free. The CLI entry point
+// lives in `seed-cli.ts` so importing `runSeed` from the admin route never
+// triggers a seed at module load time.
