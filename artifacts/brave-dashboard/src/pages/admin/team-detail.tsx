@@ -18,7 +18,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Users, FolderKanban, IndianRupee, ListChecks } from "lucide-react";
+import {
+  ArrowLeft,
+  Users,
+  FolderKanban,
+  IndianRupee,
+  ListChecks,
+} from "lucide-react";
 
 export default function AdminTeamDetail() {
   const params = useParams<{ id: string }>();
@@ -44,7 +50,27 @@ export default function AdminTeamDetail() {
     );
   }
 
-  const projects = (team as any).projects ?? [];
+  const projects: any[] = (team as any).projects ?? [];
+
+  // Group order book + revenue entries by project. Anything orphaned
+  // (project missing or unknown) lands in an "Unassigned" bucket.
+  const obByProject = new Map<number, any[]>();
+  for (const e of orderBook as any[]) {
+    const arr = obByProject.get(e.projectId) ?? [];
+    arr.push(e);
+    obByProject.set(e.projectId, arr);
+  }
+  const revByProject = new Map<number, any[]>();
+  for (const e of revenue as any[]) {
+    const arr = revByProject.get(e.projectId) ?? [];
+    arr.push(e);
+    revByProject.set(e.projectId, arr);
+  }
+
+  const knownProjectIds = new Set(projects.map((p) => p.id));
+  const orphanedOB = (orderBook as any[]).filter((e) => !knownProjectIds.has(e.projectId));
+  const orphanedRev = (revenue as any[]).filter((e) => !knownProjectIds.has(e.projectId));
+
   const statusVariant =
     team.status === "active"
       ? "default"
@@ -139,126 +165,168 @@ export default function AdminTeamDetail() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Projects ({projects.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {projects.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No projects submitted yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Verified Revenue</TableHead>
-                  <TableHead className="text-right">Verified Order Book</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {projects.map((p: any) => (
-                  <TableRow key={p.id} data-testid={`project-${p.id}`}>
-                    <TableCell>
-                      <div className="font-medium">{p.title}</div>
-                      {p.description && (
-                        <div className="text-xs text-muted-foreground truncate max-w-[400px]">
-                          {p.description}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] capitalize">
-                        {p.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatINR(p.verifiedRevenue ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatINR(p.verifiedOrderBook ?? 0)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight mb-3">
+          Projects ({projects.length})
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Each project below shows the order book and revenue entries it has produced.
+        </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Order Book Entries ({orderBook.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {orderBook.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No entries.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orderBook.map((e: any) => (
-                    <TableRow key={e.id} data-testid={`ob-${e.id}`}>
-                      <TableCell className="text-sm">{e.clientName ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-[10px] capitalize">
-                          {e.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatINR(e.verifiedAmount ?? e.amount ?? 0)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        {projects.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">
+              No projects submitted yet.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {projects.map((p) => (
+              <ProjectCard
+                key={p.id}
+                project={p}
+                orderBook={obByProject.get(p.id) ?? []}
+                revenue={revByProject.get(p.id) ?? []}
+              />
+            ))}
+          </div>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Revenue Entries ({revenue.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {revenue.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No entries.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {revenue.map((e: any) => (
-                    <TableRow key={e.id} data-testid={`rev-${e.id}`}>
-                      <TableCell className="text-sm">{e.clientName ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-[10px] capitalize">
-                          {e.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatINR(e.verifiedAmount ?? e.amount ?? 0)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        {(orphanedOB.length > 0 || orphanedRev.length > 0) && (
+          <Card className="mt-4 border-dashed">
+            <CardHeader>
+              <CardTitle className="text-base">Unassigned entries</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                These entries reference a project that no longer exists.
+              </p>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <EntryTable
+                title="Order Book"
+                entries={orphanedOB}
+                emptyText="None."
+                testIdPrefix="ob-orphan"
+              />
+              <EntryTable
+                title="Revenue"
+                entries={orphanedRev}
+                emptyText="None."
+                testIdPrefix="rev-orphan"
+              />
+            </CardContent>
+          </Card>
+        )}
       </div>
+    </div>
+  );
+}
+
+function ProjectCard({
+  project,
+  orderBook,
+  revenue,
+}: {
+  project: any;
+  orderBook: any[];
+  revenue: any[];
+}) {
+  return (
+    <Card data-testid={`project-${project.id}`}>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+          <div className="min-w-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              {project.title}
+              <Badge variant="outline" className="text-[10px] capitalize">
+                {project.status}
+              </Badge>
+            </CardTitle>
+            {project.description && (
+              <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+                {project.description}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-4 text-sm shrink-0">
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Verified Revenue
+              </div>
+              <div className="font-semibold">
+                {formatINR(project.verifiedRevenue ?? 0)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Verified Order Book
+              </div>
+              <div className="font-semibold">
+                {formatINR(project.verifiedOrderBook ?? 0)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <EntryTable
+          title={`Order Book (${orderBook.length})`}
+          entries={orderBook}
+          emptyText="No order book entries."
+          testIdPrefix={`ob-p${project.id}`}
+        />
+        <EntryTable
+          title={`Revenue (${revenue.length})`}
+          entries={revenue}
+          emptyText="No revenue entries."
+          testIdPrefix={`rev-p${project.id}`}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function EntryTable({
+  title,
+  entries,
+  emptyText,
+  testIdPrefix,
+}: {
+  title: string;
+  entries: any[];
+  emptyText: string;
+  testIdPrefix: string;
+}) {
+  return (
+    <div>
+      <h4 className="text-sm font-medium mb-2">{title}</h4>
+      {entries.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{emptyText}</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Client</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {entries.map((e) => (
+              <TableRow key={e.id} data-testid={`${testIdPrefix}-${e.id}`}>
+                <TableCell className="text-sm">{e.clientName ?? "—"}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-[10px] capitalize">
+                    {e.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatINR(e.verifiedAmount ?? e.amount ?? 0)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </div>
   );
 }
