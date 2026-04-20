@@ -24,7 +24,26 @@ import {
   FolderKanban,
   IndianRupee,
   ListChecks,
+  Paperclip,
 } from "lucide-react";
+
+function docLink(url: string | null | undefined, label: string, key: string) {
+  if (!url) return null;
+  const href = url.startsWith("/") ? `/api${url}` : url;
+  return (
+    <a
+      key={key}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2 hover:opacity-80"
+      data-testid={`attachment-${key}`}
+    >
+      <Paperclip className="w-3 h-3" />
+      {label}
+    </a>
+  );
+}
 
 export default function AdminTeamDetail() {
   const params = useParams<{ id: string }>();
@@ -308,22 +327,38 @@ function EntryTable({
               <TableHead>Client</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Attachments</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entries.map((e) => (
-              <TableRow key={e.id} data-testid={`${testIdPrefix}-${e.id}`}>
-                <TableCell className="text-sm">{e.clientName ?? "—"}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="text-[10px] capitalize">
-                    {e.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatINR(e.verifiedAmount ?? e.amount ?? 0)}
-                </TableCell>
-              </TableRow>
-            ))}
+            {entries.map((e) => {
+              const attachments = [
+                docLink(e.supportingDocUrl, "Supporting doc", `${testIdPrefix}-${e.id}-support`),
+                docLink(e.paymentProofUrl, "Payment proof", `${testIdPrefix}-${e.id}-proof`),
+                docLink(e.invoiceUrl, "Invoice", `${testIdPrefix}-${e.id}-invoice`),
+                docLink(e.testimonialUrl, "Testimonial", `${testIdPrefix}-${e.id}-testimonial`),
+              ].filter(Boolean);
+              return (
+                <TableRow key={e.id} data-testid={`${testIdPrefix}-${e.id}`}>
+                  <TableCell className="text-sm">{e.clientName ?? "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px] capitalize">
+                      {e.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatINR(e.verifiedAmount ?? e.amount ?? 0)}
+                  </TableCell>
+                  <TableCell>
+                    {attachments.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">{attachments}</div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">None</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
