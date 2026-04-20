@@ -201,6 +201,9 @@ function Router() {
       <Route path="/admin/teams/:id">
         <ProtectedRoute component={AdminTeamDetail} allowedRoles={["admin"]} />
       </Route>
+      <Route path="/teams/:id">
+        <ProtectedRoute component={AdminTeamDetail} allowedRoles={["student", "coordinator", "admin"]} />
+      </Route>
       <Route path="/admin/leaderboard">
         <ProtectedRoute component={AdminLeaderboard} allowedRoles={["admin"]} />
       </Route>

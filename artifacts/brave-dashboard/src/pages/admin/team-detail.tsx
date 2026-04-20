@@ -1,4 +1,5 @@
-import { useParams, Link } from "wouter";
+import { useParams } from "wouter";
+import { useAuth } from "@workspace/replit-auth-web";
 import {
   useGetTeam,
   useListOrderBookEntries,
@@ -48,6 +49,14 @@ function docLink(url: string | null | undefined, label: string, key: string) {
 export default function AdminTeamDetail() {
   const params = useParams<{ id: string }>();
   const teamId = Number(params.id);
+  const { user } = useAuth();
+  const backHref =
+    user?.role === "admin"
+      ? "/admin/teams"
+      : user?.role === "coordinator"
+        ? "/coordinator/leaderboard"
+        : "/leaderboard";
+  const backLabel = user?.role === "admin" ? "Back to Teams" : "Back to Leaderboard";
 
   const { data: team, isLoading: teamLoading } = useGetTeam(teamId, {
     query: { enabled: Number.isFinite(teamId) },
@@ -100,11 +109,17 @@ export default function AdminTeamDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/admin/teams">
-          <Button variant="ghost" size="sm" data-testid="button-back-to-teams">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Teams
-          </Button>
-        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (window.history.length > 1) window.history.back();
+            else window.location.assign(backHref);
+          }}
+          data-testid="button-back-to-teams"
+        >
+          <ArrowLeft className="w-4 h-4 mr-1" /> {backLabel}
+        </Button>
       </div>
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

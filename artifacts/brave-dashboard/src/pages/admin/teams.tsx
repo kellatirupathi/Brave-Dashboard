@@ -76,7 +76,7 @@ export default function AdminTeams() {
                 <TableRow
                   key={team.id}
                   className="hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => setLocation(`/admin/teams/${team.id}`)}
+                  onClick={() => setLocation(`/teams/${team.id}`)}
                   data-testid={`row-team-${team.id}`}
                 >
                   <TableCell>

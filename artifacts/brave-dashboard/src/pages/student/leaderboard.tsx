@@ -14,7 +14,6 @@ import { useLocation } from "wouter";
 export default function Leaderboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
-  const isAdmin = user?.role === "admin";
   const [view, setView] = useState<"national" | "campus">("national");
   const [search, setSearch] = useState("");
   
@@ -63,12 +62,12 @@ export default function Leaderboard() {
             return (
               <Card 
                 key={entry.teamId} 
-                onClick={isAdmin ? () => setLocation(`/admin/teams/${entry.teamId}`) : undefined}
-                role={isAdmin ? "button" : undefined}
-                tabIndex={isAdmin ? 0 : undefined}
-                onKeyDown={isAdmin ? (e) => { if (e.key === "Enter") setLocation(`/admin/teams/${entry.teamId}`); } : undefined}
-                data-testid={isAdmin ? `leaderboard-row-${entry.teamId}` : undefined}
-                className={`p-4 flex flex-col sm:flex-row items-center gap-4 transition-all hover-elevate ${isCurrentUserTeam ? 'border-primary shadow-sm bg-primary/5' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}
+                onClick={() => setLocation(`/teams/${entry.teamId}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter") setLocation(`/teams/${entry.teamId}`); }}
+                data-testid={`leaderboard-row-${entry.teamId}`}
+                className={`p-4 flex flex-col sm:flex-row items-center gap-4 transition-all hover-elevate cursor-pointer ${isCurrentUserTeam ? 'border-primary shadow-sm bg-primary/5' : ''}`}
               >
                 <div className="flex items-center justify-center w-12 h-12 shrink-0">
                   {entry.rank === 1 ? <Trophy className="w-8 h-8 text-yellow-500" /> :
