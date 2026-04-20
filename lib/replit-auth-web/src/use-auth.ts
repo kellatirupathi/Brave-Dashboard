@@ -17,7 +17,6 @@ const importMetaEnv = (
 ).env ?? {};
 
 const FORMS_LOGIN_URL = importMetaEnv.VITE_FORMS_LOGIN_URL;
-const BASE_URL = importMetaEnv.BASE_URL ?? "/";
 
 export function useAuth(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -103,9 +102,7 @@ export function useAuth(): AuthState {
   }, []);
 
   const logout = useCallback(() => {
-    fetch("/api/logout", { credentials: "include" }).finally(() => {
-      window.location.href = BASE_URL;
-    });
+    window.location.href = "/api/logout";
   }, []);
 
   return {
