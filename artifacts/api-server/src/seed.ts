@@ -9,6 +9,7 @@
  */
 
 import { inArray, like, eq } from "drizzle-orm";
+import { bootstrapCanonicalCampuses } from "./bootstrap-campuses";
 import {
   db,
   campusesTable,
@@ -48,14 +49,33 @@ const pick = <T>(arr: readonly T[]) => arr[Math.floor(rand() * arr.length)];
 const between = (lo: number, hi: number) => Math.floor(rand() * (hi - lo + 1)) + lo;
 
 // ---------- Reference data ----------
-const CAMPUSES = [
-  { name: "NIAT Hyderabad", city: "Hyderabad", state: "Telangana" },
-  { name: "NIAT Bengaluru", city: "Bengaluru", state: "Karnataka" },
-  { name: "NIAT Pune", city: "Pune", state: "Maharashtra" },
-  { name: "NIAT Chennai", city: "Chennai", state: "Tamil Nadu" },
-  { name: "NIAT Delhi", city: "New Delhi", state: "Delhi" },
-  { name: "NIAT Vizag", city: "Visakhapatnam", state: "Andhra Pradesh" },
+// Canonical 19 partner campuses. The seed never creates new campuses —
+// it only attaches demo users/teams to whichever of these already exist
+// in the DB (the bootstrap step in src/index.ts ensures all 19 exist).
+const CANONICAL_CAMPUS_NAMES = [
+  "AMET University",
+  "Ajeenkya DY Patil University",
+  "Annamacharya University",
+  "Aurora Deemed University",
+  "Chaitanya \u2013 Deemed to be University",
+  "Chalapathi Institute of Engineering and Technology",
+  "Chalapathi Institute of Technology, Autonomous",
+  "Crescent University",
+  "Malla Reddy Vishwavidyapeeth",
+  "NIAT - Chevella",
+  "NIAT - KKH",
+  "NRI Institute of Technology",
+  "NSRIT - Nadimpalli Satyanarayana Raju Institute of Technology",
+  "Noida International University",
+  "S-VYASA University",
+  "Sanjay Ghodawat University",
+  "Takshashila University",
+  "Vivekananda Global University",
+  "Yenepoya University",
 ];
+// Use the first 6 canonical campuses for demo data so we don't create
+// 19 coordinators / hundreds of demo students.
+const SEED_CAMPUS_COUNT = 6;
 
 const FIRST_NAMES = [
   "Aarav", "Vivaan", "Aditya", "Rohan", "Arjun", "Krishna", "Ishaan", "Kabir",
@@ -182,6 +202,8 @@ async function clearPriorSeed() {
     // All announcements we ever inserted have a seeded author — scope by author.
     await db.delete(announcementsTable).where(inArray(announcementsTable.authorId, userIds));
     // Null out coordinator references on seeded campuses before deleting users.
+    // We DO NOT delete the campuses themselves — they are the canonical 19
+    // partner campuses now and must persist across re-seeds.
     for (const cid of campusIds) {
       await db.update(campusesTable).set({ coordinatorId: null }).where(eq(campusesTable.id, cid));
     }
@@ -194,11 +216,7 @@ async function clearPriorSeed() {
   await db.delete(rosterTable).where(like(rosterTable.email, `%${SEED_USER_SUFFIX}`));
   await db.delete(accessRequestsTable).where(like(accessRequestsTable.email, `%${SEED_USER_SUFFIX}`));
 
-  if (campusIds.length) {
-    await db.delete(campusesTable).where(inArray(campusesTable.id, campusIds));
-  }
-
-  console.log(`   removed ${userIds.length} users, ${teamIds.length} teams, ${campusIds.length} campuses`);
+  console.log(`   removed ${userIds.length} users, ${teamIds.length} teams (campuses preserved)`);
 }
 
 // ---------- Seed ----------
@@ -210,8 +228,19 @@ export async function runSeed(): Promise<void> {
 
   await clearPriorSeed();
 
-  console.log("🌱 Seeding campuses…");
-  const campusRows = await db.insert(campusesTable).values(CAMPUSES).returning();
+  // Make seeding self-sufficient: ensure the 19 canonical campuses exist
+  // before we look them up (in case the CLI is run against a fresh DB
+  // before the api-server has booted).
+  await bootstrapCanonicalCampuses();
+
+  console.log("🌱 Looking up canonical campuses for demo data…");
+  const allCampuses = await db.select().from(campusesTable);
+  const byName = new Map(allCampuses.map((c) => [c.name, c]));
+  const campusRows = CANONICAL_CAMPUS_NAMES.slice(0, SEED_CAMPUS_COUNT).map((n) => {
+    const c = byName.get(n);
+    if (!c) throw new Error(`Canonical campus missing from DB: "${n}". The bootstrap step should have created it.`);
+    return c;
+  });
 
   console.log("🌱 Seeding admins & coordinators…");
   const adminEmails = ["admin.1@brave.seed", "admin.2@brave.seed"];
