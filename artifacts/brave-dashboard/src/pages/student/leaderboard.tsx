@@ -9,9 +9,12 @@ import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useLocation } from "wouter";
 
 export default function Leaderboard() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const isAdmin = user?.role === "admin";
   const [view, setView] = useState<"national" | "campus">("national");
   const [search, setSearch] = useState("");
   
@@ -60,7 +63,12 @@ export default function Leaderboard() {
             return (
               <Card 
                 key={entry.teamId} 
-                className={`p-4 flex flex-col sm:flex-row items-center gap-4 transition-all hover-elevate ${isCurrentUserTeam ? 'border-primary shadow-sm bg-primary/5' : ''}`}
+                onClick={isAdmin ? () => setLocation(`/admin/teams/${entry.teamId}`) : undefined}
+                role={isAdmin ? "button" : undefined}
+                tabIndex={isAdmin ? 0 : undefined}
+                onKeyDown={isAdmin ? (e) => { if (e.key === "Enter") setLocation(`/admin/teams/${entry.teamId}`); } : undefined}
+                data-testid={isAdmin ? `leaderboard-row-${entry.teamId}` : undefined}
+                className={`p-4 flex flex-col sm:flex-row items-center gap-4 transition-all hover-elevate ${isCurrentUserTeam ? 'border-primary shadow-sm bg-primary/5' : ''} ${isAdmin ? 'cursor-pointer' : ''}`}
               >
                 <div className="flex items-center justify-center w-12 h-12 shrink-0">
                   {entry.rank === 1 ? <Trophy className="w-8 h-8 text-yellow-500" /> :
