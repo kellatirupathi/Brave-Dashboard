@@ -1,4 +1,5 @@
 import { useListTeams, getListTeamsQueryKey } from "@workspace/api-client-react";
+import { useLocation } from "wouter";
 import { formatINR } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function AdminTeams() {
+  const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   
@@ -71,7 +73,12 @@ export default function AdminTeams() {
             </TableHeader>
             <TableBody>
               {teams?.map((team) => (
-                <TableRow key={team.id} className="hover:bg-muted/50 cursor-pointer transition-colors">
+                <TableRow
+                  key={team.id}
+                  className="hover:bg-muted/50 cursor-pointer transition-colors"
+                  onClick={() => setLocation(`/admin/teams/${team.id}`)}
+                  data-testid={`row-team-${team.id}`}
+                >
                   <TableCell>
                     <div className="font-semibold">{team.name}</div>
                     <div className="text-xs text-muted-foreground truncate max-w-[200px]">{team.tagline || "-"}</div>

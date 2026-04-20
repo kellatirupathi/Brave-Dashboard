@@ -34,6 +34,7 @@ import CoordinatorAnnouncements from "@/pages/coordinator/announcements";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminQueue from "@/pages/admin/queue";
 import AdminTeams from "@/pages/admin/teams";
+import AdminTeamDetail from "@/pages/admin/team-detail";
 import AdminLeaderboard from "@/pages/admin/leaderboard";
 import AdminDemoDay from "@/pages/admin/demo-day";
 import AdminUsers from "@/pages/admin/users";
@@ -196,6 +197,9 @@ function Router() {
       </Route>
       <Route path="/admin/teams">
         <ProtectedRoute component={AdminTeams} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/teams/:id">
+        <ProtectedRoute component={AdminTeamDetail} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/leaderboard">
         <ProtectedRoute component={AdminLeaderboard} allowedRoles={["admin"]} />
