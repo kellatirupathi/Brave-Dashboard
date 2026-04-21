@@ -1,39 +1,108 @@
-import { useListTeams, useApproveTeam, useRejectTeam, getListTeamsQueryKey } from "@workspace/api-client-react";
+import {
+  useListTeams,
+  useApproveTeam,
+  useRejectTeam,
+  useRequestTeamChanges,
+  getListTeamsQueryKey,
+} from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Check, X } from "lucide-react";
+import { Users, Check, X, MessageSquareWarning } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/format";
+import { useState } from "react";
+import { ReasonPromptDialog } from "@/components/reason-prompt-dialog";
 
 export default function CoordinatorTeams() {
   const { data: teams, isLoading } = useListTeams();
   const approveTeam = useApproveTeam();
   const rejectTeam = useRejectTeam();
+  const requestChanges = useRequestTeamChanges();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [rejectId, setRejectId] = useState<number | null>(null);
+  const [changesId, setChangesId] = useState<number | null>(null);
+
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
 
   const handleApprove = (id: number) => {
-    approveTeam.mutate({ id }, {
-      onSuccess: () => {
-        toast({ title: "Team approved" });
-        queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
-      }
+    approveTeam.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          toast({ title: "Team approved" });
+          refresh();
+        },
+        onError: (err: any) =>
+          toast({
+            title: "Approval failed",
+            description: err?.message ?? "Please try again.",
+            variant: "destructive",
+          }),
+      },
+    );
+  };
+
+  const handleReject = async (reason: string) => {
+    if (rejectId == null) return;
+    await new Promise<void>((resolve) => {
+      rejectTeam.mutate(
+        { id: rejectId, data: { reason } },
+        {
+          onSuccess: () => {
+            toast({ title: "Team rejected" });
+            refresh();
+            setRejectId(null);
+            resolve();
+          },
+          onError: (err: any) => {
+            toast({
+              title: "Rejection failed",
+              description: err?.message ?? "Please try again.",
+              variant: "destructive",
+            });
+            resolve();
+          },
+        },
+      );
     });
   };
 
-  const handleReject = (id: number) => {
-    rejectTeam.mutate({ id, data: { reason: "Rejected by coordinator" } }, {
-      onSuccess: () => {
-        toast({ title: "Team rejected" });
-        queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
-      }
+  const handleRequestChanges = async (comment: string) => {
+    if (changesId == null) return;
+    await new Promise<void>((resolve) => {
+      requestChanges.mutate(
+        { id: changesId, data: { comment } },
+        {
+          onSuccess: () => {
+            toast({ title: "Changes requested" });
+            refresh();
+            setChangesId(null);
+            resolve();
+          },
+          onError: (err: any) => {
+            toast({
+              title: "Request failed",
+              description: err?.message ?? "Please try again.",
+              variant: "destructive",
+            });
+            resolve();
+          },
+        },
+      );
     });
   };
 
-  if (isLoading) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
+  if (isLoading)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
 
   return (
     <div className="space-y-6">
@@ -46,10 +115,13 @@ export default function CoordinatorTeams() {
 
       <div className="grid gap-4">
         {teams?.map((team) => (
-          <Card key={team.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <Card
+            key={team.id}
+            className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+          >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold">
-                {team.name.substring(0,2).toUpperCase()}
+                {team.name.substring(0, 2).toUpperCase()}
               </div>
               <div>
                 <h3 className="font-bold text-lg">{team.name}</h3>
@@ -60,17 +132,38 @@ export default function CoordinatorTeams() {
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <Badge variant={team.status === 'active' ? 'default' : 'secondary'} className="capitalize">
-                {team.status}
+
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              <Badge
+                variant={team.status === "active" ? "default" : "secondary"}
+                className="capitalize"
+              >
+                {team.status.replace("_", " ")}
               </Badge>
-              {team.status === 'pending' && (
-                <div className="flex gap-2 ml-auto sm:ml-0">
-                  <Button size="sm" onClick={() => handleApprove(team.id)} disabled={approveTeam.isPending}>
+              {team.status === "pending" && (
+                <div className="flex flex-wrap gap-2 ml-auto sm:ml-0">
+                  <Button
+                    size="sm"
+                    onClick={() => handleApprove(team.id)}
+                    disabled={approveTeam.isPending}
+                    data-testid={`button-approve-${team.id}`}
+                  >
                     <Check className="w-4 h-4 mr-1" /> Approve
                   </Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleReject(team.id)} disabled={rejectTeam.isPending}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setChangesId(team.id)}
+                    data-testid={`button-request-changes-${team.id}`}
+                  >
+                    <MessageSquareWarning className="w-4 h-4 mr-1" /> Request changes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setRejectId(team.id)}
+                    data-testid={`button-reject-${team.id}`}
+                  >
                     <X className="w-4 h-4 mr-1" /> Reject
                   </Button>
                 </div>
@@ -85,6 +178,35 @@ export default function CoordinatorTeams() {
           </div>
         )}
       </div>
+
+      <ReasonPromptDialog
+        open={rejectId != null}
+        onOpenChange={(o) => {
+          if (!o) setRejectId(null);
+        }}
+        title="Reject team"
+        description="Tell the team why their registration is being rejected."
+        label="Rejection reason"
+        placeholder="e.g. Team name conflicts with an existing team."
+        submitLabel="Reject team"
+        submitVariant="destructive"
+        isSubmitting={rejectTeam.isPending}
+        onSubmit={handleReject}
+      />
+
+      <ReasonPromptDialog
+        open={changesId != null}
+        onOpenChange={(o) => {
+          if (!o) setChangesId(null);
+        }}
+        title="Request changes"
+        description="Let the team know what they need to fix before approval."
+        label="Comment for the team"
+        placeholder="e.g. Please update your team tagline and add a 4th member."
+        submitLabel="Send request"
+        isSubmitting={requestChanges.isPending}
+        onSubmit={handleRequestChanges}
+      />
     </div>
   );
 }

@@ -1,16 +1,25 @@
 import { useParams } from "wouter";
+import { useState } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
   useGetTeam,
   useListOrderBookEntries,
   useListRevenueEntries,
+  useApproveTeam,
+  useRejectTeam,
+  useRequestTeamChanges,
+  getGetTeamQueryKey,
+  getListTeamsQueryKey,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { ReasonPromptDialog } from "@/components/reason-prompt-dialog";
 import {
   Table,
   TableBody,
@@ -26,6 +35,9 @@ import {
   IndianRupee,
   ListChecks,
   Paperclip,
+  Check,
+  X,
+  MessageSquareWarning,
 } from "lucide-react";
 
 function docLink(url: string | null | undefined, label: string, key: string) {
@@ -69,6 +81,85 @@ export default function AdminTeamDetail() {
     { teamId },
     { query: { enabled: Number.isFinite(teamId) } },
   );
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const approveTeam = useApproveTeam();
+  const rejectTeam = useRejectTeam();
+  const requestChanges = useRequestTeamChanges();
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [changesOpen, setChangesOpen] = useState(false);
+
+  const refreshTeam = () => {
+    queryClient.invalidateQueries({ queryKey: getGetTeamQueryKey(teamId) });
+    queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
+  };
+
+  const handleApprove = () => {
+    approveTeam.mutate(
+      { id: teamId },
+      {
+        onSuccess: () => {
+          toast({ title: "Team approved" });
+          refreshTeam();
+        },
+        onError: (err: any) =>
+          toast({
+            title: "Approval failed",
+            description: err?.message ?? "Please try again.",
+            variant: "destructive",
+          }),
+      },
+    );
+  };
+
+  const handleReject = async (reason: string) => {
+    await new Promise<void>((resolve) => {
+      rejectTeam.mutate(
+        { id: teamId, data: { reason } },
+        {
+          onSuccess: () => {
+            toast({ title: "Team rejected" });
+            refreshTeam();
+            setRejectOpen(false);
+            resolve();
+          },
+          onError: (err: any) => {
+            toast({
+              title: "Rejection failed",
+              description: err?.message ?? "Please try again.",
+              variant: "destructive",
+            });
+            resolve();
+          },
+        },
+      );
+    });
+  };
+
+  const handleRequestChanges = async (comment: string) => {
+    await new Promise<void>((resolve) => {
+      requestChanges.mutate(
+        { id: teamId, data: { comment } },
+        {
+          onSuccess: () => {
+            toast({ title: "Changes requested" });
+            refreshTeam();
+            setChangesOpen(false);
+            resolve();
+          },
+          onError: (err: any) => {
+            toast({
+              title: "Request failed",
+              description: err?.message ?? "Please try again.",
+              variant: "destructive",
+            });
+            resolve();
+          },
+        },
+      );
+    });
+  };
 
   if (teamLoading || !team) {
     return (
@@ -135,6 +226,70 @@ export default function AdminTeamDetail() {
           {team.status}
         </Badge>
       </div>
+
+      {user?.role === "admin" && team.status === "pending" && (
+        <Card className="border-dashed">
+          <CardContent className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Pending review</p>
+              <p className="text-xs text-muted-foreground">
+                Approve, reject, or request changes from the team.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleApprove}
+                disabled={approveTeam.isPending}
+                data-testid="button-approve-team"
+              >
+                <Check className="w-4 h-4 mr-1" /> Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setChangesOpen(true)}
+                data-testid="button-request-changes-team"
+              >
+                <MessageSquareWarning className="w-4 h-4 mr-1" /> Request changes
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setRejectOpen(true)}
+                data-testid="button-reject-team"
+              >
+                <X className="w-4 h-4 mr-1" /> Reject
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <ReasonPromptDialog
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        title="Reject team"
+        description="Tell the team why their registration is being rejected."
+        label="Rejection reason"
+        placeholder="e.g. Team name conflicts with an existing team."
+        submitLabel="Reject team"
+        submitVariant="destructive"
+        isSubmitting={rejectTeam.isPending}
+        onSubmit={handleReject}
+      />
+
+      <ReasonPromptDialog
+        open={changesOpen}
+        onOpenChange={setChangesOpen}
+        title="Request changes"
+        description="Let the team know what they need to fix before approval."
+        label="Comment for the team"
+        placeholder="e.g. Please update your team tagline and add a 4th member."
+        submitLabel="Send request"
+        isSubmitting={requestChanges.isPending}
+        onSubmit={handleRequestChanges}
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
