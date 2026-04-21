@@ -100,10 +100,19 @@ router.post("/projects", async (req, res): Promise<void> => {
   if (!effectiveTeamId) {
     const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
     effectiveTeamId = member?.teamId;
-  }
-  if (!effectiveTeamId) {
-    res.status(400).json({ error: "No team found" });
-    return;
+    if (!effectiveTeamId) {
+      res.status(400).json({ error: "You must join or create a team before creating a project." });
+      return;
+    }
+  } else {
+    const [member] = await db
+      .select()
+      .from(teamMembersTable)
+      .where(and(eq(teamMembersTable.userId, req.user.id), eq(teamMembersTable.teamId, effectiveTeamId)));
+    if (!member) {
+      res.status(403).json({ error: "You are not a member of this team." });
+      return;
+    }
   }
   const [project] = await db
     .insert(projectsTable)

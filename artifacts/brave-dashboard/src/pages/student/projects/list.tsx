@@ -1,4 +1,4 @@
-import { useListProjects, useCreateProject, getListProjectsQueryKey } from "@workspace/api-client-react";
+import { useListProjects, useCreateProject, getListProjectsQueryKey, useGetMyTeam } from "@workspace/api-client-react";
 import { formatINR, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Building2, Activity, Wallet, FolderOpen } from "lucide-react";
+import { Plus, Building2, Activity, Wallet, FolderOpen, Users } from "lucide-react";
 import { Link } from "wouter";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -24,10 +25,12 @@ const projectSchema = z.object({
 
 export default function ProjectsList() {
   const { data: projects, isLoading } = useListProjects();
+  const { data: myTeam, isLoading: teamLoading } = useGetMyTeam({ query: { retry: false } });
   const createProject = useCreateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const hasTeam = !!myTeam;
 
   const form = useForm<z.infer<typeof projectSchema>>({
     resolver: zodResolver(projectSchema),
@@ -43,12 +46,14 @@ export default function ProjectsList() {
         form.reset();
       },
       onError: (err: any) => {
-        toast({ title: "Error creating project", description: err.message, variant: "destructive" });
+        const apiMsg = err?.response?.data?.error ?? err?.data?.error;
+        const message = typeof apiMsg === "string" ? apiMsg : err?.message ?? "Something went wrong.";
+        toast({ title: "Couldn't create project", description: message, variant: "destructive" });
       }
     });
   };
 
-  if (isLoading) {
+  if (isLoading || teamLoading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
   }
 
@@ -60,13 +65,31 @@ export default function ProjectsList() {
           <p className="text-muted-foreground mt-1">Manage your active projects and revenue</p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
-          </DialogTrigger>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open || hasTeam) setIsDialogOpen(open); }}>
+          {hasTeam ? (
+            <DialogTrigger asChild>
+              <Button data-testid="button-new-project">
+                <Plus className="w-4 h-4 mr-2" />
+                New Project
+              </Button>
+            </DialogTrigger>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button disabled data-testid="button-new-project-disabled">
+                      <Plus className="w-4 h-4 mr-2" />
+                      New Project
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Join or create a team first to add projects.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
@@ -113,14 +136,31 @@ export default function ProjectsList() {
 
       {!projects || projects.length === 0 ? (
         <div className="text-center py-20 bg-card border rounded-xl border-dashed">
-          <FolderOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-          <h3 className="text-lg font-semibold">No projects yet</h3>
-          <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-            Create your first project to start tracking your order book and verified revenue.
-          </p>
-          <Button className="mt-6" variant="outline" onClick={() => setIsDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" /> Add Project
-          </Button>
+          {hasTeam ? (
+            <>
+              <FolderOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold">No projects yet</h3>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                Create your first project to start tracking your order book and verified revenue.
+              </p>
+              <Button className="mt-6" variant="outline" onClick={() => setIsDialogOpen(true)} data-testid="button-add-project">
+                <Plus className="w-4 h-4 mr-2" /> Add Project
+              </Button>
+            </>
+          ) : (
+            <>
+              <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold">Join a team to add projects</h3>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                Projects belong to a team. Join an existing team or create your own to start tracking revenue.
+              </p>
+              <Link href="/get-started">
+                <Button className="mt-6" variant="outline" data-testid="button-join-team">
+                  <Users className="w-4 h-4 mr-2" /> Join or create a team
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
