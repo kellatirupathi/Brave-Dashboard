@@ -61,8 +61,13 @@ export function Navbar() {
       ? STUDENT_LINKS_WITH_TEAM
       : STUDENT_LINKS_NO_TEAM;
 
-  const isActive = (href: string) =>
-    href === "/" ? location === "/" : location === href || location.startsWith(href + "/");
+  const isActive = (href: string) => {
+    const isExactOnly = links.some(
+      (other) => other.href !== href && other.href.startsWith(href === "/" ? "/" : href + "/")
+    );
+    if (isExactOnly) return location === href;
+    return location === href || location.startsWith(href + "/");
+  };
 
   return (
     <header className="h-16 border-b bg-card flex items-center justify-between px-6 sticky top-0 z-10">
