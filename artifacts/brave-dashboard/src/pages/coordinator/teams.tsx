@@ -4,7 +4,9 @@ import {
   useRejectTeam,
   useRequestTeamChanges,
   getListTeamsQueryKey,
+  type ErrorType,
 } from "@workspace/api-client-react";
+import { useAuth } from "@workspace/replit-auth-web";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +19,8 @@ import { useState } from "react";
 import { ReasonPromptDialog } from "@/components/reason-prompt-dialog";
 
 export default function CoordinatorTeams() {
+  const { user } = useAuth();
+  const isCoordinator = user?.role === "coordinator";
   const { data: teams, isLoading } = useListTeams();
   const approveTeam = useApproveTeam();
   const rejectTeam = useRejectTeam();
@@ -29,6 +33,9 @@ export default function CoordinatorTeams() {
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
 
+  const errorDescription = (err: ErrorType<unknown>) =>
+    err instanceof Error ? err.message : "Please try again.";
+
   const handleApprove = (id: number) => {
     approveTeam.mutate(
       { id },
@@ -37,10 +44,10 @@ export default function CoordinatorTeams() {
           toast({ title: "Team approved" });
           refresh();
         },
-        onError: (err: any) =>
+        onError: (err) =>
           toast({
             title: "Approval failed",
-            description: err?.message ?? "Please try again.",
+            description: errorDescription(err),
             variant: "destructive",
           }),
       },
@@ -59,10 +66,10 @@ export default function CoordinatorTeams() {
             setRejectId(null);
             resolve();
           },
-          onError: (err: any) => {
+          onError: (err) => {
             toast({
               title: "Rejection failed",
-              description: err?.message ?? "Please try again.",
+              description: errorDescription(err),
               variant: "destructive",
             });
             resolve();
@@ -84,10 +91,10 @@ export default function CoordinatorTeams() {
             setChangesId(null);
             resolve();
           },
-          onError: (err: any) => {
+          onError: (err) => {
             toast({
               title: "Request failed",
-              description: err?.message ?? "Please try again.",
+              description: errorDescription(err),
               variant: "destructive",
             });
             resolve();
@@ -140,7 +147,7 @@ export default function CoordinatorTeams() {
               >
                 {team.status.replace("_", " ")}
               </Badge>
-              {team.status === "pending" && (
+              {isCoordinator && team.status === "pending" && (
                 <div className="flex flex-wrap gap-2 ml-auto sm:ml-0">
                   <Button
                     size="sm"

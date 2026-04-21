@@ -3,6 +3,8 @@ import {
   useApproveTeam,
   useRejectTeam,
   getListTeamsQueryKey,
+  type ErrorType,
+  type ListTeamsStatus,
 } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -43,7 +45,7 @@ export default function AdminTeams() {
 
   const { data: teams, isLoading } = useListTeams({
     search: search || undefined,
-    status: status !== "all" ? (status as any) : undefined,
+    status: status !== "all" ? (status as ListTeamsStatus) : undefined,
   });
 
   const queryClient = useQueryClient();
@@ -62,10 +64,10 @@ export default function AdminTeams() {
           toast({ title: "Team approved" });
           refresh();
         },
-        onError: (err: any) =>
+        onError: (err: ErrorType<unknown>) =>
           toast({
             title: "Approval failed",
-            description: err?.message ?? "Please try again.",
+            description: err instanceof Error ? err.message : "Please try again.",
             variant: "destructive",
           }),
       },
@@ -84,10 +86,10 @@ export default function AdminTeams() {
             setRejectId(null);
             resolve();
           },
-          onError: (err: any) => {
+          onError: (err: ErrorType<unknown>) => {
             toast({
               title: "Rejection failed",
-              description: err?.message ?? "Please try again.",
+              description: err instanceof Error ? err.message : "Please try again.",
               variant: "destructive",
             });
             resolve();

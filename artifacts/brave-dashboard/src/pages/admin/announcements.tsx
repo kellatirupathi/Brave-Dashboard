@@ -3,6 +3,10 @@ import {
   useCreateAnnouncement,
   useListCampuses,
   getListAnnouncementsQueryKey,
+  type Announcement,
+  type Campus,
+  type CreateAnnouncementBody,
+  type ErrorType,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +49,7 @@ export default function AdminAnnouncements() {
 
   const campusNameById = useMemo(() => {
     const m = new Map<number, string>();
-    (campuses ?? []).forEach((c: any) => m.set(c.id, c.name));
+    (campuses ?? []).forEach((c: Campus) => m.set(c.id, c.name));
     return m;
   }, [campuses]);
 
@@ -66,7 +70,7 @@ export default function AdminAnnouncements() {
       });
       return;
     }
-    const payload: any = {
+    const payload: CreateAnnouncementBody = {
       title,
       body,
       target,
@@ -84,10 +88,10 @@ export default function AdminAnnouncements() {
           setIsOpen(false);
           reset();
         },
-        onError: (err: any) =>
+        onError: (err: ErrorType<unknown>) =>
           toast({
             title: "Failed to send",
-            description: err?.message ?? "Please try again.",
+            description: err instanceof Error ? err.message : "Please try again.",
             variant: "destructive",
           }),
       },
@@ -151,7 +155,7 @@ export default function AdminAnnouncements() {
                       <SelectValue placeholder="Pick a campus" />
                     </SelectTrigger>
                     <SelectContent>
-                      {campuses?.map((c: any) => (
+                      {campuses?.map((c: Campus) => (
                         <SelectItem key={c.id} value={String(c.id)}>
                           {c.name}
                         </SelectItem>
@@ -197,12 +201,12 @@ export default function AdminAnnouncements() {
       </div>
 
       <div className="grid gap-4">
-        {announcements?.map((a: any) => {
+        {announcements?.map((a: Announcement) => {
           const targetLabel =
             a.target === "all"
               ? "All campuses"
               : a.target === "campus"
-                ? `Campus: ${campusNameById.get(a.campusId) ?? "—"}`
+                ? `Campus: ${a.campusId != null ? (campusNameById.get(a.campusId) ?? "—") : "—"}`
                 : a.target === "team"
                   ? "Team"
                   : a.target;

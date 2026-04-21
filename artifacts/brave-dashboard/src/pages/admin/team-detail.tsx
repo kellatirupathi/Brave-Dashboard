@@ -10,6 +10,7 @@ import {
   useRequestTeamChanges,
   getGetTeamQueryKey,
   getListTeamsQueryKey,
+  type ErrorType,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -103,10 +104,10 @@ export default function AdminTeamDetail() {
           toast({ title: "Team approved" });
           refreshTeam();
         },
-        onError: (err: any) =>
+        onError: (err: ErrorType<unknown>) =>
           toast({
             title: "Approval failed",
-            description: err?.message ?? "Please try again.",
+            description: err instanceof Error ? err.message : "Please try again.",
             variant: "destructive",
           }),
       },
@@ -124,10 +125,10 @@ export default function AdminTeamDetail() {
             setRejectOpen(false);
             resolve();
           },
-          onError: (err: any) => {
+          onError: (err: ErrorType<unknown>) => {
             toast({
               title: "Rejection failed",
-              description: err?.message ?? "Please try again.",
+              description: err instanceof Error ? err.message : "Please try again.",
               variant: "destructive",
             });
             resolve();
@@ -148,10 +149,10 @@ export default function AdminTeamDetail() {
             setChangesOpen(false);
             resolve();
           },
-          onError: (err: any) => {
+          onError: (err: ErrorType<unknown>) => {
             toast({
               title: "Request failed",
-              description: err?.message ?? "Please try again.",
+              description: err instanceof Error ? err.message : "Please try again.",
               variant: "destructive",
             });
             resolve();
