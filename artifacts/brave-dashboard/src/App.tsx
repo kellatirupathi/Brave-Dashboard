@@ -39,6 +39,7 @@ import AdminLeaderboard from "@/pages/admin/leaderboard";
 import AdminDemoDay from "@/pages/admin/demo-day";
 import AdminUsers from "@/pages/admin/users";
 import AdminCampuses from "@/pages/admin/campuses";
+import AdminCampusDetail from "@/pages/admin/campus-detail";
 import AdminConfig from "@/pages/admin/config";
 import AdminRoster from "@/pages/admin/roster";
 import AdminAuditLog from "@/pages/admin/audit-log";
@@ -215,6 +216,9 @@ function Router() {
       </Route>
       <Route path="/admin/campuses">
         <ProtectedRoute component={AdminCampuses} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/campuses/:id">
+        <ProtectedRoute component={AdminCampusDetail} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/config">
         <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />

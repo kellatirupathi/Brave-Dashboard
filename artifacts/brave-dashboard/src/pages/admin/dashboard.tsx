@@ -87,7 +87,7 @@ export default function AdminDashboard() {
               {summary.topCampuses.map((campus, i) => (
                 <Link
                   key={campus.id}
-                  href="/admin/campuses"
+                  href={`/admin/campuses/${campus.id}`}
                   className="flex items-center justify-between rounded-md p-2 -mx-2 hover-elevate active-elevate-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   data-testid={`link-top-campus-${campus.id}`}
                 >

@@ -10,12 +10,14 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/format";
+import { Link, useLocation } from "wouter";
 
 export default function AdminCampuses() {
   const { data: campuses, isLoading } = useListCampuses();
   const createCampus = useCreateCampus();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState("");
@@ -92,8 +94,22 @@ export default function AdminCampuses() {
             </TableHeader>
             <TableBody>
               {campuses?.map(c => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-semibold">{c.name}</TableCell>
+                <TableRow
+                  key={c.id}
+                  className="cursor-pointer hover-elevate"
+                  onClick={() => setLocation(`/admin/campuses/${c.id}`)}
+                  data-testid={`row-campus-${c.id}`}
+                >
+                  <TableCell className="font-semibold">
+                    <Link
+                      href={`/admin/campuses/${c.id}`}
+                      className="hover:underline"
+                      data-testid={`link-campus-${c.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {c.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{c.city}, {c.state}</TableCell>
                   <TableCell className="text-right">{c.activeTeams} / {c.totalTeams}</TableCell>
                   <TableCell className="text-right font-medium text-primary">{formatINR(c.totalRevenue)}</TableCell>
