@@ -11,6 +11,7 @@ import { AlertCircle, Check, X, FileText } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { Link } from "wouter";
 
 export default function AdminQueue() {
   const type = "revenue" as const;
@@ -82,11 +83,26 @@ export default function AdminQueue() {
 
       <div className="grid gap-4">
         {queue?.items?.map((item) => (
-          <Card key={item.id} className={item.isOverdue ? "border-destructive/50 shadow-sm" : ""}>
+          <Card
+            key={item.id}
+            className={`group relative transition-shadow hover:shadow-md hover:border-primary/40 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${item.isOverdue ? "border-destructive/50 shadow-sm" : ""}`}
+          >
+            <Link
+              href={`/admin/teams/${item.teamId}`}
+              className="absolute inset-0 z-10 rounded-lg cursor-pointer focus:outline-none"
+              aria-label={`Open ${item.teamName} team details`}
+              data-testid={`link-queue-card-${item.id}`}
+              onKeyDown={(e: React.KeyboardEvent<HTMLAnchorElement>) => {
+                if (e.key === " ") {
+                  e.preventDefault();
+                  (e.currentTarget as HTMLAnchorElement).click();
+                }
+              }}
+            />
             <div className="p-4 flex flex-col md:flex-row gap-6">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-bold text-lg">{item.teamName}</h3>
+                  <h3 className="font-bold text-lg group-hover:underline underline-offset-2">{item.teamName}</h3>
                   <Badge variant="outline">{item.campusName}</Badge>
                   {item.isOverdue && <Badge variant="destructive" className="h-5 px-1.5"><AlertCircle className="w-3 h-3 mr-1" /> Overdue</Badge>}
                 </div>
@@ -117,7 +133,9 @@ export default function AdminQueue() {
                 )}
               </div>
               
-              <div className="w-full md:w-64 flex flex-col justify-between gap-4 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6">
+              <div className="w-full md:w-64 flex flex-col justify-between gap-4 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6 relative z-20"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="space-y-2">
                   {item.supportingDocUrl && (
                     <Button variant="outline" className="w-full justify-start" asChild>
