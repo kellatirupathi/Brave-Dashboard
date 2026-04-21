@@ -50,6 +50,12 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     .select({ count: sql<number>`count(*)` })
     .from(revenueEntriesTable)
     .where(sql`status = 'submitted'`);
+  // Match the Review Queue's 48-hour overdue cutoff
+  const overdueCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const [overdueRevReview] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(revenueEntriesTable)
+    .where(sql`status = 'submitted' and submitted_at < ${overdueCutoff}`);
 
   // Demo eligible teams
   const teams = await db.select().from(teamsTable).where(eq(teamsTable.status, "active"));
@@ -103,7 +109,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     pendingTeams: Number(pendingTeams?.count ?? 0),
     demoEligibleTeams: demoEligible,
     pendingReviewCount: Number(pendingRevReview?.count ?? 0),
-    overdueReviewCount: 0,
+    overdueReviewCount: Number(overdueRevReview?.count ?? 0),
     totalCampuses: Number(totalCampuses?.count ?? 0),
     topCampuses: campusStats.slice(0, 5),
     recentActivity,
