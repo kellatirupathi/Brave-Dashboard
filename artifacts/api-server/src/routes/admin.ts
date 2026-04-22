@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, sql } from "drizzle-orm";
+import { eq, ilike, and, sql, desc } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -57,7 +57,7 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
       .select()
       .from(revenueEntriesTable)
       .where(eq(revenueEntriesTable.status, "submitted"))
-      .orderBy(revenueEntriesTable.submittedAt);
+      .orderBy(desc(revenueEntriesTable.submittedAt));
     for (const e of revEntries) {
       const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, e.teamId));
       if (campusId && team?.campusId !== campusId) continue;
@@ -75,7 +75,7 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     }
   }
 
-  items.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
+  items.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
   res.json({
     items,
     overdueCount: items.filter(i => i.isOverdue).length,

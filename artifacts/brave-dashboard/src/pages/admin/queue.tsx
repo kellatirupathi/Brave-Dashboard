@@ -7,7 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Check, X } from "lucide-react";
+import { AlertCircle, Check, X, Sparkles } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -76,8 +76,9 @@ export default function AdminQueue() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Review Queue</h1>
           <p className="text-muted-foreground mt-1">
-            {queue?.overdueCount ? <span className="text-destructive font-medium mr-2">{queue.overdueCount} overdue items</span> : null}
-            Verify submitted revenue entries
+            <span className="mr-2">{queue?.totalCount ?? 0} total</span>
+            {queue?.overdueCount ? <span className="text-destructive font-medium mr-2">· {queue.overdueCount} overdue</span> : null}
+            · Verify submitted revenue entries
           </p>
         </div>
       </div>
@@ -105,7 +106,11 @@ export default function AdminQueue() {
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-bold text-lg group-hover:underline underline-offset-2">{item.teamName}</h3>
                   <Badge variant="outline">{item.campusName}</Badge>
-                  {item.isOverdue && <Badge variant="destructive" className="h-5 px-1.5"><AlertCircle className="w-3 h-3 mr-1" /> Overdue</Badge>}
+                  {item.isOverdue ? (
+                    <Badge variant="destructive" className="h-5 px-1.5"><AlertCircle className="w-3 h-3 mr-1" /> Overdue</Badge>
+                  ) : (Date.now() - new Date(item.submittedAt).getTime() < 10 * 60 * 1000) ? (
+                    <Badge className="h-5 px-1.5 bg-emerald-600 hover:bg-emerald-600 text-white" data-testid={`badge-just-submitted-${item.id}`}><Sparkles className="w-3 h-3 mr-1" /> Just submitted</Badge>
+                  ) : null}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4 mt-4">
