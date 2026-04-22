@@ -52,7 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-type UploadField = "supportingDoc" | "paymentProof" | "invoice";
+type UploadField = "supportingDoc" | "brd";
 
 export default function ProjectDetail() {
   const params = useParams();
@@ -79,8 +79,7 @@ export default function ProjectDetail() {
   const [paymentDate, setPaymentDate] = useState("");
   const [notes, setNotes] = useState("");
   const [supportingDocUrl, setSupportingDocUrl] = useState<string | null>(null);
-  const [paymentProofUrl, setPaymentProofUrl] = useState<string | null>(null);
-  const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
+  const [brdUrl, setBrdUrl] = useState<string | null>(null);
   const [uploadingField, setUploadingField] = useState<UploadField | null>(null);
 
   if (isLoading)
@@ -144,8 +143,7 @@ export default function ProjectDetail() {
       if (!putRes.ok) throw new Error("Upload failed");
       const url = presigned.objectPath;
       if (field === "supportingDoc") setSupportingDocUrl(url);
-      else if (field === "paymentProof") setPaymentProofUrl(url);
-      else setInvoiceUrl(url);
+      else setBrdUrl(url);
       toast({ title: "File uploaded" });
     } catch (err) {
       toast({
@@ -252,8 +250,7 @@ export default function ProjectDetail() {
           amount: Number(amount),
           paymentDate,
           notes,
-          paymentProofUrl: paymentProofUrl ?? undefined,
-          invoiceUrl: invoiceUrl ?? undefined,
+          brdUrl: brdUrl ?? undefined,
         },
       },
       {
@@ -291,8 +288,7 @@ export default function ProjectDetail() {
     setPaymentDate("");
     setNotes("");
     setSupportingDocUrl(null);
-    setPaymentProofUrl(null);
-    setInvoiceUrl(null);
+    setBrdUrl(null);
   };
 
   const docLink = (url: string | null | undefined, label: string) => {
@@ -475,18 +471,34 @@ export default function ProjectDetail() {
                       onChange={(e) => setNotes(e.target.value)}
                     />
                   </div>
+                  <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                    <div className="text-sm font-semibold">
+                      What is a BRD (Business Requirement Document)?
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      A single consolidated document that captures everything
+                      about this engagement. Please include:
+                    </p>
+                    <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
+                      <li>Business Owner Details</li>
+                      <li>Problem Identified</li>
+                      <li>Solution Proposed</li>
+                      <li>Phase-wise Plan</li>
+                      <li>Prototype / Demo with Links</li>
+                      <li>
+                        Proof of Outcome{" "}
+                        <span className="font-medium text-foreground">(Mandatory)</span>
+                      </li>
+                      <li>Proof of Payment</li>
+                    </ul>
+                  </div>
                   <FilePicker
-                    field="paymentProof"
-                    currentUrl={paymentProofUrl}
-                    label="Payment proof (PDF / image)"
-                  />
-                  <FilePicker
-                    field="invoice"
-                    currentUrl={invoiceUrl}
-                    label="Invoice (optional)"
+                    field="brd"
+                    currentUrl={brdUrl}
+                    label="BRD document (PDF)"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Files are private and visible only to your team and the
+                    Your BRD is private and visible only to your team and the
                     coordinator/admin reviewing this entry.
                   </p>
                   <div className="flex justify-end pt-4">
@@ -534,6 +546,7 @@ export default function ProjectDetail() {
                         <span>Paid: {formatDate(entry.paymentDate)}</span>
                       </div>
                       <div className="flex flex-wrap gap-3 pt-1">
+                        {docLink(entry.brdUrl, "BRD")}
                         {docLink(entry.paymentProofUrl, "Payment proof")}
                         {docLink(entry.invoiceUrl, "Invoice")}
                         {docLink(entry.testimonialUrl, "Testimonial")}

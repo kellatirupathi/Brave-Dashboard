@@ -26,6 +26,8 @@ export interface RevenueEntry {
   /** @nullable */
   invoiceUrl?: string | null;
   /** @nullable */
+  brdUrl?: string | null;
+  /** @nullable */
   testimonialUrl?: string | null;
   /** @nullable */
   notes?: string | null;

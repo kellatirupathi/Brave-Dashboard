@@ -419,6 +419,8 @@ export interface RevenueEntry {
   /** @nullable */
   invoiceUrl?: string | null;
   /** @nullable */
+  brdUrl?: string | null;
+  /** @nullable */
   testimonialUrl?: string | null;
   /** @nullable */
   notes?: string | null;
@@ -490,6 +492,8 @@ export interface CreateRevenueEntryBody {
   /** @nullable */
   invoiceUrl?: string | null;
   /** @nullable */
+  brdUrl?: string | null;
+  /** @nullable */
   testimonialUrl?: string | null;
   /** @nullable */
   notes?: string | null;
@@ -503,6 +507,8 @@ export interface UpdateRevenueEntryBody {
   paymentProofUrl?: string | null;
   /** @nullable */
   invoiceUrl?: string | null;
+  /** @nullable */
+  brdUrl?: string | null;
   /** @nullable */
   testimonialUrl?: string | null;
   /** @nullable */
