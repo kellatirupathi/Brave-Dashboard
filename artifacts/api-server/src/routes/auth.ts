@@ -25,6 +25,7 @@ import {
   ISSUER_URL,
   type SessionData,
 } from "../lib/auth";
+import { getBootstrapAdminFormsIds } from "../bootstrap-admins";
 
 const ExchangeMobileAuthorizationCodeBody = z.object({
   code: z.string(),
@@ -171,7 +172,17 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
   }
 
   try {
-    const user = await createOrGetUserByFormsId(parsed.data.user_id);
+    let user = await createOrGetUserByFormsId(parsed.data.user_id);
+    // Promote to admin if this Forms user_id is in the bootstrap list.
+    const adminFormsIds = getBootstrapAdminFormsIds();
+    if (adminFormsIds.includes(parsed.data.user_id) && user.role !== "admin") {
+      const [updated] = await db
+        .update(usersTable)
+        .set({ role: "admin", isActive: true })
+        .where(eq(usersTable.id, user.id))
+        .returning();
+      if (updated) user = updated;
+    }
     const auth_token = await generateAuthToken(user.id);
     res.json({ auth_token });
   } catch (err) {

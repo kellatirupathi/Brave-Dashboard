@@ -164,6 +164,40 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
   res.json({ ...safe, campusName: null });
 });
 
+router.delete("/admin/users/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const id = String(req.params.id);
+  if (id === req.user.id) {
+    res.status(400).json({ error: "You cannot delete your own account." });
+    return;
+  }
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (target.role === "student") {
+    res.status(400).json({ error: "Use the roster tools to manage students." });
+    return;
+  }
+  if (target.role === "admin") {
+    const [{ count: adminCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(usersTable)
+      .where(eq(usersTable.role, "admin"));
+    if (Number(adminCount) <= 1) {
+      res.status(400).json({ error: "Cannot delete the last remaining admin." });
+      return;
+    }
+  }
+  await db.delete(usersTable).where(eq(usersTable.id, id));
+  await logAudit(req.user.id, "delete_user", "user", undefined, `Deleted ${target.role} ${target.email}`);
+  res.json({ ok: true });
+});
+
 // Programme Config
 router.get("/admin/programme-config", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {

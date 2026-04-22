@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { bootstrapCanonicalCampuses } from "./bootstrap-campuses";
+import { bootstrapAdmins } from "./bootstrap-admins";
 
 async function backfillOrderBookEntries(): Promise<void> {
   try {
@@ -39,6 +40,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function start(): Promise<void> {
   await bootstrapCanonicalCampuses();
+  await bootstrapAdmins();
   await backfillOrderBookEntries();
   app.listen(port, (err) => {
     if (err) {
