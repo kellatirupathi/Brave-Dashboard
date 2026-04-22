@@ -20,6 +20,4 @@ export interface CreateRevenueEntryBody {
   brdUrl?: string | null;
   /** @nullable */
   testimonialUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }

@@ -24,6 +24,4 @@ export interface AdminReviewQueueItem {
   paymentProofUrl?: string | null;
   /** @nullable */
   invoiceUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }

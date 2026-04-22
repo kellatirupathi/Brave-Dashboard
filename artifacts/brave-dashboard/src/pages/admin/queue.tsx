@@ -126,11 +126,6 @@ export default function AdminQueue() {
                   </div>
                 </div>
 
-                {item.notes && (
-                  <div className="mt-4 text-sm bg-muted/50 p-3 rounded-md">
-                    <strong>Student notes:</strong> {item.notes}
-                  </div>
-                )}
               </div>
               
               <div className="w-full md:w-64 flex flex-col justify-between gap-4 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6 relative z-20"

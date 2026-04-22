@@ -18,6 +18,4 @@ export interface UpdateRevenueEntryBody {
   brdUrl?: string | null;
   /** @nullable */
   testimonialUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }

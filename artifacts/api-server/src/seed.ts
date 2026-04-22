@@ -525,7 +525,6 @@ export async function runSeed(): Promise<void> {
       paymentProofUrl: status !== "draft" ? "https://example.com/proof.pdf" : null,
       invoiceUrl: status !== "draft" ? "https://example.com/invoice.pdf" : null,
       testimonialUrl: status === "verified" && rand() < 0.3 ? "https://example.com/testimonial.png" : null,
-      notes: "Payment received via bank transfer.",
       adminNotes: status === "rejected" ? "Payment proof unreadable." : status === "verified" ? "Cross-checked with bank statement." : null,
       enteredBy: "student",
       submittedAt: status !== "draft" ? new Date(Date.now() - between(1, daysAgo) * 24 * 60 * 60 * 1000) : null,

@@ -423,8 +423,6 @@ export interface RevenueEntry {
   /** @nullable */
   testimonialUrl?: string | null;
   /** @nullable */
-  notes?: string | null;
-  /** @nullable */
   adminNotes?: string | null;
   enteredBy: RevenueEntryEnteredBy;
   /** @nullable */
@@ -495,8 +493,6 @@ export interface CreateRevenueEntryBody {
   brdUrl?: string | null;
   /** @nullable */
   testimonialUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }
 
 export interface UpdateRevenueEntryBody {
@@ -511,8 +507,6 @@ export interface UpdateRevenueEntryBody {
   brdUrl?: string | null;
   /** @nullable */
   testimonialUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }
 
 export interface VerifyEntryBody {
@@ -549,8 +543,6 @@ export interface AdminReviewQueueItem {
   paymentProofUrl?: string | null;
   /** @nullable */
   invoiceUrl?: string | null;
-  /** @nullable */
-  notes?: string | null;
 }
 
 export interface AdminReviewQueueResponse {

@@ -981,7 +981,6 @@ export const GetProjectResponse = zod
           invoiceUrl: zod.string().nullish(),
           brdUrl: zod.string().nullish(),
           testimonialUrl: zod.string().nullish(),
-          notes: zod.string().nullish(),
           adminNotes: zod.string().nullish(),
           enteredBy: zod.enum(["student", "admin"]),
           submittedAt: zod.coerce.date().nullish(),
@@ -1157,7 +1156,6 @@ export const ListRevenueEntriesResponseItem = zod.object({
   invoiceUrl: zod.string().nullish(),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
@@ -1182,7 +1180,6 @@ export const CreateRevenueEntryBody = zod.object({
   invoiceUrl: zod.string().nullish(),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
 });
 
 /**
@@ -1208,7 +1205,6 @@ export const GetRevenueEntryResponse = zod.object({
   invoiceUrl: zod.string().nullish(),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
@@ -1231,7 +1227,6 @@ export const UpdateRevenueEntryBody = zod.object({
   invoiceUrl: zod.string().nullish(),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
 });
 
 export const UpdateRevenueEntryResponse = zod.object({
@@ -1250,7 +1245,6 @@ export const UpdateRevenueEntryResponse = zod.object({
   invoiceUrl: zod.string().nullish(),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
@@ -1281,7 +1275,6 @@ export const SubmitRevenueEntryResponse = zod.object({
   invoiceUrl: zod.string().nullish(),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
@@ -1317,7 +1310,6 @@ export const VerifyRevenueEntryResponse = zod.object({
   invoiceUrl: zod.string().nullish(),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
@@ -1352,7 +1344,6 @@ export const RejectRevenueEntryResponse = zod.object({
   invoiceUrl: zod.string().nullish(),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
-  notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
@@ -1384,7 +1375,6 @@ export const GetAdminReviewQueueResponse = zod.object({
       supportingDocUrl: zod.string().nullish(),
       paymentProofUrl: zod.string().nullish(),
       invoiceUrl: zod.string().nullish(),
-      notes: zod.string().nullish(),
     }),
   ),
   overdueCount: zod.number(),

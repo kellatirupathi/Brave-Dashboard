@@ -243,7 +243,6 @@ export const revenueEntriesTable = pgTable("revenue_entries", {
   invoiceUrl: text("invoice_url"),
   brdUrl: text("brd_url"),
   testimonialUrl: text("testimonial_url"),
-  notes: text("notes"),
   adminNotes: text("admin_notes"),
   enteredBy: enteredByEnum("entered_by").notNull().default("student"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),

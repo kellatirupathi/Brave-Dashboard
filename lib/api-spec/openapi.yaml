@@ -2322,8 +2322,6 @@ components:
           type: ["string", "null"]
         testimonialUrl:
           type: ["string", "null"]
-        notes:
-          type: ["string", "null"]
         adminNotes:
           type: ["string", "null"]
         enteredBy:
@@ -2373,8 +2371,6 @@ components:
           type: ["string", "null"]
         testimonialUrl:
           type: ["string", "null"]
-        notes:
-          type: ["string", "null"]
       required:
         - projectId
         - clientName
@@ -2398,8 +2394,6 @@ components:
         brdUrl:
           type: ["string", "null"]
         testimonialUrl:
-          type: ["string", "null"]
-        notes:
           type: ["string", "null"]
 
     VerifyEntryBody:
@@ -2450,8 +2444,6 @@ components:
         paymentProofUrl:
           type: ["string", "null"]
         invoiceUrl:
-          type: ["string", "null"]
-        notes:
           type: ["string", "null"]
       required:
         - id

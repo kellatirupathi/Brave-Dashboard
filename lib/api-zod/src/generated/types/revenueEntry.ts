@@ -30,8 +30,6 @@ export interface RevenueEntry {
   /** @nullable */
   testimonialUrl?: string | null;
   /** @nullable */
-  notes?: string | null;
-  /** @nullable */
   adminNotes?: string | null;
   enteredBy: RevenueEntryEnteredBy;
   /** @nullable */
