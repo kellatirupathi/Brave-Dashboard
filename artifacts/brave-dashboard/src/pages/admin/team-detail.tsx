@@ -310,7 +310,7 @@ export default function AdminTeamDetail() {
         />
         <StatCard
           icon={<ListChecks className="w-4 h-4" />}
-          label="Verified Order Book"
+          label="Order Book"
           value={formatINR(team.totalOrderBook ?? 0)}
         />
       </div>
@@ -448,7 +448,7 @@ function ProjectCard({
             </div>
             <div className="text-right">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Verified Order Book
+                Order Book
               </div>
               <div className="font-semibold">
                 {formatINR(project.verifiedOrderBook ?? 0)}

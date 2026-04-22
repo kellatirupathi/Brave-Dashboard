@@ -151,7 +151,7 @@ export default function AdminCampusDetail() {
         />
         <StatCard
           icon={<ListChecks className="w-4 h-4" />}
-          label="Verified Order Book"
+          label="Order Book"
           value={formatINR(totalOrderBook)}
         />
         <StatCard
