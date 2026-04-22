@@ -38,6 +38,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -249,7 +254,6 @@ export default function ProjectDetail() {
           clientName,
           amount: Number(amount),
           paymentDate,
-          notes,
           brdUrl: brdUrl ?? undefined,
         },
       },
@@ -314,11 +318,11 @@ export default function ProjectDetail() {
   }: {
     field: UploadField;
     currentUrl: string | null;
-    label: string;
+    label?: string;
     accept?: string;
   }) => (
     <div className="space-y-1">
-      <label className="text-sm font-medium">{label}</label>
+      {label && <label className="text-sm font-medium">{label}</label>}
       <div className="flex items-center gap-3">
         <label
           className={`inline-flex items-center gap-2 px-3 py-2 text-sm border rounded-md cursor-pointer hover:bg-muted ${
@@ -465,42 +469,52 @@ export default function ProjectDetail() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Notes</label>
-                    <Textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                    />
-                  </div>
-                  <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-                    <div className="text-sm font-semibold">
-                      What is a BRD (Business Requirement Document)?
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-sm font-medium">
+                        BRD document (PDF)
+                      </label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-primary hover:underline"
+                          >
+                            What should the BRD include?
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-80">
+                          <div className="space-y-2">
+                            <div className="text-sm font-semibold">
+                              What is a BRD (Business Requirement Document)?
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              A single consolidated document that captures
+                              everything about this engagement. Please include:
+                            </p>
+                            <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
+                              <li>Business Owner Details</li>
+                              <li>Problem Identified</li>
+                              <li>Solution Proposed</li>
+                              <li>Phase-wise Plan</li>
+                              <li>Prototype / Demo with Links</li>
+                              <li>
+                                Proof of Outcome{" "}
+                                <span className="font-medium text-foreground">
+                                  (Mandatory)
+                                </span>
+                              </li>
+                              <li>Proof of Payment</li>
+                            </ul>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
+                    <FilePicker field="brd" currentUrl={brdUrl} />
                     <p className="text-xs text-muted-foreground">
-                      A single consolidated document that captures everything
-                      about this engagement. Please include:
+                      Your BRD is private and visible only to your team and the
+                      coordinator/admin reviewing this entry.
                     </p>
-                    <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
-                      <li>Business Owner Details</li>
-                      <li>Problem Identified</li>
-                      <li>Solution Proposed</li>
-                      <li>Phase-wise Plan</li>
-                      <li>Prototype / Demo with Links</li>
-                      <li>
-                        Proof of Outcome{" "}
-                        <span className="font-medium text-foreground">(Mandatory)</span>
-                      </li>
-                      <li>Proof of Payment</li>
-                    </ul>
                   </div>
-                  <FilePicker
-                    field="brd"
-                    currentUrl={brdUrl}
-                    label="BRD document (PDF)"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Your BRD is private and visible only to your team and the
-                    coordinator/admin reviewing this entry.
-                  </p>
                   <div className="flex justify-end pt-4">
                     <Button
                       type="submit"
