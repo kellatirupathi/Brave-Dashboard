@@ -489,7 +489,12 @@ export default function ProjectDetail() {
                             </div>
                             <p className="text-xs text-muted-foreground">
                               A single consolidated document that captures
-                              everything about this engagement. Please include:
+                              everything about this engagement. All of the
+                              following are{" "}
+                              <span className="font-medium text-foreground">
+                                mandatory
+                              </span>{" "}
+                              and must be included:
                             </p>
                             <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
                               <li>Business Owner Details</li>
@@ -497,12 +502,7 @@ export default function ProjectDetail() {
                               <li>Solution Proposed</li>
                               <li>Phase-wise Plan</li>
                               <li>Prototype / Demo with Links</li>
-                              <li>
-                                Proof of Outcome{" "}
-                                <span className="font-medium text-foreground">
-                                  (Mandatory)
-                                </span>
-                              </li>
+                              <li>Proof of Outcome</li>
                               <li>Proof of Payment</li>
                             </ul>
                           </div>
