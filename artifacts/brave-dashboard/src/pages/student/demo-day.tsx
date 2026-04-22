@@ -31,7 +31,7 @@ const LEVELS: Level[] = [
   },
   {
     num: 3,
-    threshold: 1000000,
+    threshold: 2000000,
     title: "Level 3",
     unlockedMessage: "Congratulations! You have cleared Level 3.",
     lockedMessage: "Generate more revenue to unlock Level 3.",
