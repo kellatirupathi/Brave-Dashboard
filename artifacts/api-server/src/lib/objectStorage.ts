@@ -87,7 +87,11 @@ export class ObjectStorageService {
     return null;
   }
 
-  async downloadObject(file: File, cacheTtlSec: number = 3600): Promise<Response> {
+  async downloadObject(
+    file: File,
+    cacheTtlSec: number = 3600,
+    options: { disposition?: "inline" | "attachment"; filename?: string } = {},
+  ): Promise<Response> {
     const [metadata] = await file.getMetadata();
     const aclPolicy = await getObjectAclPolicy(file);
     const isPublic = aclPolicy?.visibility === "public";
@@ -102,6 +106,10 @@ export class ObjectStorageService {
     if (metadata.size) {
       headers["Content-Length"] = String(metadata.size);
     }
+
+    const disposition = options.disposition ?? "inline";
+    headers["Content-Disposition"] = buildContentDisposition(disposition, options.filename);
+    headers["X-Content-Type-Options"] = "nosniff";
 
     return new Response(webStream, { headers });
   }
@@ -204,6 +212,17 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+}
+
+function buildContentDisposition(
+  disposition: "inline" | "attachment",
+  filename?: string,
+): string {
+  if (!filename) return disposition;
+  const sanitized = filename.replace(/[\r\n"\\]/g, "_");
+  const fallback = sanitized.replace(/[^\x20-\x7E]/g, "_");
+  const encoded = encodeURIComponent(filename).replace(/['()]/g, escape);
+  return `${disposition}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
 function parseObjectPath(path: string): {

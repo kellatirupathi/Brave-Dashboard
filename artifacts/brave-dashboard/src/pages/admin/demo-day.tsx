@@ -5,6 +5,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, ExternalLink } from "lucide-react";
 import { formatINR } from "@/lib/format";
+import { DocumentLinkButton } from "@/components/document-viewer";
 
 export default function AdminDemoDay() {
   const { data: applications, isLoading } = useListDemoDayApplications();
@@ -39,8 +40,24 @@ export default function AdminDemoDay() {
                   <TableCell className="font-medium text-primary">{formatINR(app.totalRevenue)}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1 text-sm">
-                      {app.demoUrl && <a href={app.demoUrl} target="_blank" rel="noreferrer" className="flex items-center text-blue-500 hover:underline"><ExternalLink className="w-3 h-3 mr-1"/> Demo</a>}
-                      {app.pitchDeckUrl && <a href={app.pitchDeckUrl} target="_blank" rel="noreferrer" className="flex items-center text-blue-500 hover:underline"><ExternalLink className="w-3 h-3 mr-1"/> Pitch Deck</a>}
+                      <DocumentLinkButton
+                        url={app.demoUrl}
+                        label="Demo"
+                        filename={`${app.teamName}-demo`}
+                        variant="inline"
+                        className="flex items-center text-blue-500 hover:underline text-sm"
+                        icon={<ExternalLink className="w-3 h-3 mr-1" />}
+                        testId={`link-demo-${app.id}`}
+                      />
+                      <DocumentLinkButton
+                        url={app.pitchDeckUrl}
+                        label="Pitch Deck"
+                        filename={`${app.teamName}-pitch-deck`}
+                        variant="inline"
+                        className="flex items-center text-blue-500 hover:underline text-sm"
+                        icon={<ExternalLink className="w-3 h-3 mr-1" />}
+                        testId={`link-pitch-${app.id}`}
+                      />
                     </div>
                   </TableCell>
                   <TableCell>

@@ -24,10 +24,10 @@ import {
   FileText,
   Send,
   Upload,
-  Paperclip,
   Pencil,
   Trash2,
 } from "lucide-react";
+import { DocumentLinkButton } from "@/components/document-viewer";
 import { Link } from "wouter";
 import { useState } from "react";
 import {
@@ -297,16 +297,13 @@ export default function ProjectDetail() {
 
   const docLink = (url: string | null | undefined, label: string) => {
     if (!url) return null;
-    const href = url.startsWith("/") ? `/api${url}` : url;
     return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2 hover:opacity-80"
-      >
-        <Paperclip className="w-3 h-3" /> {label}
-      </a>
+      <DocumentLinkButton
+        url={url}
+        label={label}
+        filename={label}
+        variant="inline"
+      />
     );
   };
 

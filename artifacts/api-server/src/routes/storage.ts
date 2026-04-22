@@ -60,7 +60,19 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
       return;
     }
 
-    const response = await objectStorageService.downloadObject(file);
+    const downloadFlag = req.query.download;
+    const isDownload =
+      downloadFlag === "1" || downloadFlag === "true" || downloadFlag === "";
+    const filenameParam = req.query.filename;
+    const filename =
+      typeof filenameParam === "string" && filenameParam.length > 0
+        ? filenameParam
+        : undefined;
+
+    const response = await objectStorageService.downloadObject(file, 3600, {
+      disposition: isDownload ? "attachment" : "inline",
+      filename,
+    });
 
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
@@ -106,7 +118,19 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     //   return;
     // }
 
-    const response = await objectStorageService.downloadObject(objectFile);
+    const downloadFlag = req.query.download;
+    const isDownload =
+      downloadFlag === "1" || downloadFlag === "true" || downloadFlag === "";
+    const filenameParam = req.query.filename;
+    const filename =
+      typeof filenameParam === "string" && filenameParam.length > 0
+        ? filenameParam
+        : undefined;
+
+    const response = await objectStorageService.downloadObject(objectFile, 3600, {
+      disposition: isDownload ? "attachment" : "inline",
+      filename,
+    });
 
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));

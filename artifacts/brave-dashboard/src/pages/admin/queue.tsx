@@ -7,7 +7,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Check, X, FileText } from "lucide-react";
+import { AlertCircle, Check, X } from "lucide-react";
+import { DocumentLinkButton } from "@/components/document-viewer";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -132,27 +133,24 @@ export default function AdminQueue() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="space-y-2">
-                  {item.supportingDocUrl && (
-                    <Button variant="outline" className="w-full justify-start" asChild>
-                      <a href={item.supportingDocUrl.startsWith("/") ? `/api${item.supportingDocUrl}` : item.supportingDocUrl} target="_blank" rel="noopener noreferrer">
-                        <FileText className="w-4 h-4 mr-2" /> View Document
-                      </a>
-                    </Button>
-                  )}
-                  {item.paymentProofUrl && (
-                    <Button variant="outline" className="w-full justify-start" asChild>
-                      <a href={item.paymentProofUrl.startsWith("/") ? `/api${item.paymentProofUrl}` : item.paymentProofUrl} target="_blank" rel="noopener noreferrer">
-                        <FileText className="w-4 h-4 mr-2" /> Payment Proof
-                      </a>
-                    </Button>
-                  )}
-                  {item.invoiceUrl && (
-                    <Button variant="outline" className="w-full justify-start" asChild>
-                      <a href={item.invoiceUrl.startsWith("/") ? `/api${item.invoiceUrl}` : item.invoiceUrl} target="_blank" rel="noopener noreferrer">
-                        <FileText className="w-4 h-4 mr-2" /> Invoice
-                      </a>
-                    </Button>
-                  )}
+                  <DocumentLinkButton
+                    url={item.supportingDocUrl}
+                    label="View Document"
+                    filename={`${item.teamName}-supporting-doc`}
+                    testId={`button-view-doc-${item.id}`}
+                  />
+                  <DocumentLinkButton
+                    url={item.paymentProofUrl}
+                    label="Payment Proof"
+                    filename={`${item.teamName}-payment-proof`}
+                    testId={`button-view-proof-${item.id}`}
+                  />
+                  <DocumentLinkButton
+                    url={item.invoiceUrl}
+                    label="Invoice"
+                    filename={`${item.teamName}-invoice`}
+                    testId={`button-view-invoice-${item.id}`}
+                  />
                 </div>
 
                 <div className="flex gap-2">

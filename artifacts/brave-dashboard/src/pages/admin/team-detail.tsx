@@ -35,27 +35,23 @@ import {
   FolderKanban,
   IndianRupee,
   ListChecks,
-  Paperclip,
   Check,
   X,
   MessageSquareWarning,
 } from "lucide-react";
+import { DocumentLinkButton } from "@/components/document-viewer";
 
 function docLink(url: string | null | undefined, label: string, key: string) {
   if (!url) return null;
-  const href = url.startsWith("/") ? `/api${url}` : url;
   return (
-    <a
+    <DocumentLinkButton
       key={key}
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2 hover:opacity-80"
-      data-testid={`attachment-${key}`}
-    >
-      <Paperclip className="w-3 h-3" />
-      {label}
-    </a>
+      url={url}
+      label={label}
+      filename={label}
+      variant="inline"
+      testId={`attachment-${key}`}
+    />
   );
 }
 
