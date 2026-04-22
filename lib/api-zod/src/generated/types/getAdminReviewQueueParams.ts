@@ -10,4 +10,5 @@ import type { GetAdminReviewQueueType } from "./getAdminReviewQueueType";
 export type GetAdminReviewQueueParams = {
   type?: GetAdminReviewQueueType;
   campusId?: number;
+  search?: string;
 };

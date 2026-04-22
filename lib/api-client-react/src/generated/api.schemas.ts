@@ -918,6 +918,7 @@ export type SearchCampusStudentsParams = {
 export type ListProjectsParams = {
   teamId?: number;
   status?: ListProjectsStatus;
+  search?: string;
 };
 
 export type ListProjectsStatus =
@@ -960,6 +961,7 @@ export const ListRevenueEntriesStatus = {
 export type GetAdminReviewQueueParams = {
   type?: GetAdminReviewQueueType;
   campusId?: number;
+  search?: string;
 };
 
 export type GetAdminReviewQueueType =

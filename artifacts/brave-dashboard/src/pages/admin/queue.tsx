@@ -11,12 +11,19 @@ import { AlertCircle, Check, X, Sparkles } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
+import { Search } from "lucide-react";
 
 export default function AdminQueue() {
   const type = "revenue" as const;
-  const { data: queue, isLoading } = useGetAdminReviewQueue({ type });
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+  const { data: queue, isLoading } = useGetAdminReviewQueue({ type, search: search || undefined });
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -72,7 +79,7 @@ export default function AdminQueue() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Review Queue</h1>
           <p className="text-muted-foreground mt-1">
@@ -80,6 +87,16 @@ export default function AdminQueue() {
             {queue?.overdueCount ? <span className="text-destructive font-medium mr-2">· {queue.overdueCount} overdue</span> : null}
             · Verify submitted revenue entries
           </p>
+        </div>
+        <div className="relative w-full md:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by team, project, client, amount…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="pl-9"
+            data-testid="input-search-queue"
+          />
         </div>
       </div>
 

@@ -890,6 +890,7 @@ export const DeclineLeaveRequestResponse = zod.object({
 export const ListProjectsQueryParams = zod.object({
   teamId: zod.coerce.number().optional(),
   status: zod.enum(["active", "inactive"]).optional(),
+  search: zod.coerce.string().optional(),
 });
 
 export const ListProjectsResponseItem = zod.object({
@@ -1339,6 +1340,7 @@ export const RejectRevenueEntryResponse = zod.object({
 export const GetAdminReviewQueueQueryParams = zod.object({
   type: zod.enum(["revenue"]).optional(),
   campusId: zod.coerce.number().optional(),
+  search: zod.coerce.string().optional(),
 });
 
 export const GetAdminReviewQueueResponse = zod.object({

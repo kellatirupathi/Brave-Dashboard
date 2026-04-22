@@ -693,6 +693,10 @@ paths:
           schema:
             type: string
             enum: [active, inactive]
+        - name: search
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: List of projects
@@ -1038,6 +1042,10 @@ paths:
           in: query
           schema:
             type: integer
+        - name: search
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: Review queue

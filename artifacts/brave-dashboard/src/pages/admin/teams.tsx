@@ -113,7 +113,7 @@ export default function AdminTeams() {
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search teams..."
+              placeholder="Search by team, campus, member name, email or NIAT ID…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"

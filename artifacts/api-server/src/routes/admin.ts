@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, sql, desc } from "drizzle-orm";
+import { eq, ilike, and, or, sql, desc } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -43,7 +43,10 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
   }
   const type = req.query.type as string | undefined;
   const campusId = req.query.campusId ? Number(req.query.campusId) : undefined;
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const searchLower = search.toLowerCase();
+  const searchAmount = search && /^\d+$/.test(search) ? Number(search) : null;
 
   const items: Array<{
     id: number; type: "revenue"; teamId: number; teamName: string;
@@ -63,6 +66,24 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
       if (campusId && team?.campusId !== campusId) continue;
       const [campus] = team ? await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId)) : [null];
       const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, e.projectId));
+      // submitter: prefer the team leader as the submitter context
+      const [submitter] = team ? await db.select().from(usersTable).where(eq(usersTable.id, team.leaderId)) : [null];
+      const submitterName = submitter ? `${submitter.firstName ?? ""} ${submitter.lastName ?? ""}`.trim() : "";
+      if (search) {
+        const haystack = [
+          team?.name ?? "",
+          campus?.name ?? "",
+          project?.title ?? "",
+          e.clientName ?? "",
+          submitterName,
+          submitter?.email ?? "",
+        ].join(" \u0001 ").toLowerCase();
+        const textMatch = haystack.includes(searchLower);
+        const amountMatch =
+          searchAmount !== null &&
+          (e.amount === searchAmount || e.verifiedAmount === searchAmount);
+        if (!textMatch && !amountMatch) continue;
+      }
       items.push({
         id: e.id, type: "revenue", teamId: e.teamId, teamName: team?.name ?? "",
         campusName: campus?.name ?? "", projectTitle: project?.title ?? "",
@@ -97,7 +118,16 @@ router.get("/admin/users", async (req, res): Promise<void> => {
   let conditions: ReturnType<typeof and>[] = [];
   if (role) conditions.push(eq(usersTable.role, role));
   if (campusId) conditions.push(eq(usersTable.campusId, campusId));
-  if (search) conditions.push(ilike(usersTable.email, `%${search}%`));
+  if (search) {
+    const pattern = `%${search}%`;
+    const orFilter = or(
+      ilike(usersTable.email, pattern),
+      ilike(usersTable.firstName, pattern),
+      ilike(usersTable.lastName, pattern),
+      ilike(sql`(${usersTable.firstName} || ' ' || ${usersTable.lastName})`, pattern),
+    );
+    if (orFilter) conditions.push(orFilter);
+  }
   const users = conditions.length > 0
     ? await db.select().from(usersTable).where(and(...conditions))
     : await db.select().from(usersTable);

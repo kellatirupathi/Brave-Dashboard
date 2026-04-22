@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql, desc, ilike } from "drizzle-orm";
+import { eq, and, sql, desc, ilike, inArray } from "drizzle-orm";
 import {
   db,
   teamsTable,
@@ -8,6 +8,9 @@ import {
   orderBookEntriesTable,
   projectsTable,
   programmeConfigTable,
+  teamMembersTable,
+  usersTable,
+  rosterTable,
 } from "@workspace/db";
 import { GetLeaderboardQueryParams } from "@workspace/api-zod";
 
@@ -86,7 +89,61 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
   }
   if (search) {
     const lower = search.toLowerCase();
-    filtered = filtered.filter(t => t.teamName.toLowerCase().includes(lower));
+    // Build set of team IDs that match by member name or NIAT id
+    const teamIdsInScope = filtered.map((t) => t.teamId);
+    let memberMatchedTeamIds = new Set<number>();
+    if (teamIdsInScope.length > 0) {
+      const members = await db
+        .select({ teamId: teamMembersTable.teamId, userId: teamMembersTable.userId })
+        .from(teamMembersTable)
+        .where(inArray(teamMembersTable.teamId, teamIdsInScope));
+      const userIds = Array.from(new Set(members.map((m) => m.userId)));
+      if (userIds.length > 0) {
+        const users = await db
+          .select()
+          .from(usersTable)
+          .where(inArray(usersTable.id, userIds));
+        const userMap = new Map(users.map((u) => [u.id, u]));
+        // Look up niat ids via roster (by email or formsUserId)
+        const emails = users.map((u) => u.email).filter((e): e is string => !!e);
+        const formsIds = users.map((u) => u.formsUserId).filter((s): s is string => !!s);
+        const rosterRows = await db
+          .select()
+          .from(rosterTable)
+          .where(
+            inArray(rosterTable.email, emails.length > 0 ? emails : [""]),
+          );
+        const rosterByEmail = new Map(
+          rosterRows.filter((r) => r.email).map((r) => [r.email!, r] as const),
+        );
+        const rosterByStudentIdRows = formsIds.length > 0
+          ? await db
+              .select()
+              .from(rosterTable)
+              .where(inArray(rosterTable.studentId, formsIds))
+          : [];
+        const rosterByStudentId = new Map(
+          rosterByStudentIdRows.map((r) => [r.studentId, r] as const),
+        );
+        const niatByUserId = new Map<string, string | null>();
+        for (const u of users) {
+          const r = rosterByEmail.get(u.email) ?? (u.formsUserId ? rosterByStudentId.get(u.formsUserId) : undefined);
+          niatByUserId.set(u.id, r?.niatId ?? null);
+        }
+        for (const m of members) {
+          const u = userMap.get(m.userId);
+          if (!u) continue;
+          const niat = niatByUserId.get(u.id) ?? "";
+          const hay = `${u.firstName ?? ""} ${u.lastName ?? ""} ${u.email ?? ""} ${niat ?? ""}`.toLowerCase();
+          if (hay.includes(lower)) memberMatchedTeamIds.add(m.teamId);
+        }
+      }
+    }
+    filtered = filtered.filter((t) =>
+      t.teamName.toLowerCase().includes(lower) ||
+      (t.campusName ?? "").toLowerCase().includes(lower) ||
+      memberMatchedTeamIds.has(t.teamId),
+    );
   }
 
   // Sort by totalRevenue desc

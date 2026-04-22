@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, or, sql, ilike, inArray } from "drizzle-orm";
 import {
   db,
   projectsTable,
   teamsTable,
+  campusesTable,
   orderBookEntriesTable,
   revenueEntriesTable,
   teamMembersTable,
@@ -51,7 +52,7 @@ router.get("/projects", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { teamId, status } = queryParams.data;
+  const { teamId, status, search } = queryParams.data;
   let effectiveTeamId = teamId;
   if (!effectiveTeamId && req.user.role === "student") {
     const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
@@ -60,6 +61,34 @@ router.get("/projects", async (req, res): Promise<void> => {
   let conditions: ReturnType<typeof and>[] = [];
   if (effectiveTeamId) conditions.push(eq(projectsTable.teamId, effectiveTeamId));
   if (status) conditions.push(eq(projectsTable.status, status));
+  if (search) {
+    const pattern = `%${search}%`;
+    // Match by team name and campus name -> set of team IDs
+    const matchingCampuses = await db
+      .select({ id: campusesTable.id })
+      .from(campusesTable)
+      .where(ilike(campusesTable.name, pattern));
+    const matchingCampusIds = matchingCampuses.map((c) => c.id);
+    const teamMatchOr = or(
+      ilike(teamsTable.name, pattern),
+      ...(matchingCampusIds.length > 0 ? [inArray(teamsTable.campusId, matchingCampusIds)] : []),
+    );
+    let matchingTeamIds: number[] = [];
+    if (teamMatchOr) {
+      const matchingTeams = await db
+        .select({ id: teamsTable.id })
+        .from(teamsTable)
+        .where(teamMatchOr);
+      matchingTeamIds = matchingTeams.map((t) => t.id);
+    }
+    const orParts = [
+      ilike(projectsTable.title, pattern),
+      ilike(projectsTable.description, pattern),
+    ];
+    if (matchingTeamIds.length > 0) orParts.push(inArray(projectsTable.teamId, matchingTeamIds));
+    const orFilter = or(...orParts);
+    if (orFilter) conditions.push(orFilter);
+  }
 
   const projects = conditions.length > 0
     ? await db.select().from(projectsTable).where(and(...conditions)).orderBy(projectsTable.createdAt)

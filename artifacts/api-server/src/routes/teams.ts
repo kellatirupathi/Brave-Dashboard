@@ -142,11 +142,82 @@ router.get("/teams", async (req, res): Promise<void> => {
     conditions.push(eq(teamsTable.campusId, campusId));
   }
   if (status) conditions.push(eq(teamsTable.status, status));
-  if (search) conditions.push(ilike(teamsTable.name, `%${search}%`));
+  if (search) {
+    const pattern = `%${search}%`;
+    // Find campus IDs whose name matches
+    const matchingCampuses = await db
+      .select({ id: campusesTable.id })
+      .from(campusesTable)
+      .where(ilike(campusesTable.name, pattern));
+    const matchingCampusIds = matchingCampuses.map((c) => c.id);
 
-  const teams = conditions.length > 0
+    // Find user IDs whose name/email matches
+    const matchingUsers = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(
+        or(
+          ilike(usersTable.email, pattern),
+          ilike(usersTable.firstName, pattern),
+          ilike(usersTable.lastName, pattern),
+          ilike(sql`(${usersTable.firstName} || ' ' || ${usersTable.lastName})`, pattern),
+        ),
+      );
+    const matchingUserIds = matchingUsers.map((u) => u.id);
+
+    // Find user IDs by NIAT ID via roster (match by roster.email -> users.email,
+    // or roster.studentId -> users.formsUserId)
+    const matchingRoster = await db
+      .select()
+      .from(rosterTable)
+      .where(ilike(rosterTable.niatId, pattern));
+    const rosterEmails = matchingRoster.map((r) => r.email).filter((e): e is string => !!e);
+    const rosterStudentIds = matchingRoster
+      .map((r) => r.studentId)
+      .filter((s): s is string => !!s);
+    if (rosterEmails.length > 0 || rosterStudentIds.length > 0) {
+      const rosterUserOr = or(
+        ...(rosterEmails.length > 0 ? [inArray(usersTable.email, rosterEmails)] : []),
+        ...(rosterStudentIds.length > 0 ? [inArray(usersTable.formsUserId, rosterStudentIds)] : []),
+      );
+      if (rosterUserOr) {
+        const rosterMatchedUsers = await db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(rosterUserOr);
+        for (const u of rosterMatchedUsers) {
+          if (!matchingUserIds.includes(u.id)) matchingUserIds.push(u.id);
+        }
+      }
+    }
+
+    // Map matching users -> their team IDs via team_members
+    let memberTeamIds: number[] = [];
+    if (matchingUserIds.length > 0) {
+      const memberRows = await db
+        .select({ teamId: teamMembersTable.teamId })
+        .from(teamMembersTable)
+        .where(inArray(teamMembersTable.userId, matchingUserIds));
+      memberTeamIds = Array.from(new Set(memberRows.map((m) => m.teamId)));
+    }
+
+    const orParts = [ilike(teamsTable.name, pattern)];
+    if (matchingCampusIds.length > 0) orParts.push(inArray(teamsTable.campusId, matchingCampusIds));
+    if (memberTeamIds.length > 0) orParts.push(inArray(teamsTable.id, memberTeamIds));
+    const orFilter = or(...orParts);
+    if (orFilter) conditions.push(orFilter);
+  }
+
+  const teamsRaw = conditions.length > 0
     ? await db.select().from(teamsTable).where(and(...conditions)).orderBy(teamsTable.createdAt)
     : await db.select().from(teamsTable).orderBy(teamsTable.createdAt);
+  // De-duplicate by team id (defensive — query above shouldn't dup, but joins/usage may)
+  const seenTeamIds = new Set<number>();
+  const teams = teamsRaw.filter((t) => {
+    if (seenTeamIds.has(t.id)) return false;
+    seenTeamIds.add(t.id);
+    return true;
+  });
 
   const result = await Promise.all(
     teams.map(async (team) => {

@@ -10,4 +10,5 @@ import type { ListProjectsStatus } from "./listProjectsStatus";
 export type ListProjectsParams = {
   teamId?: number;
   status?: ListProjectsStatus;
+  search?: string;
 };

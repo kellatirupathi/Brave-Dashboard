@@ -201,7 +201,7 @@ function TeamView({
                   </DialogHeader>
                   <div className="space-y-3">
                     <Input
-                      placeholder="Search by name or email…"
+                      placeholder="Search by name, email, NIAT ID or student ID…"
                       value={searchQ}
                       onChange={(e) => setSearchQ(e.target.value)}
                       data-testid="input-search-students"
