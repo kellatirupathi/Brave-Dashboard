@@ -501,8 +501,7 @@ function EntryTable({
             {entries.map((e) => {
               const attachments = [
                 docLink(e.supportingDocUrl, "Supporting doc", `${testIdPrefix}-${e.id}-support`),
-                docLink(e.paymentProofUrl, "Payment proof", `${testIdPrefix}-${e.id}-proof`),
-                docLink(e.invoiceUrl, "Invoice", `${testIdPrefix}-${e.id}-invoice`),
+                docLink(e.brdUrl, "BRD", `${testIdPrefix}-${e.id}-brd`),
                 docLink(e.testimonialUrl, "Testimonial", `${testIdPrefix}-${e.id}-testimonial`),
               ].filter(Boolean);
               return (

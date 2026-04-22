@@ -11,10 +11,6 @@ export interface UpdateRevenueEntryBody {
   amount?: number;
   paymentDate?: Date;
   /** @nullable */
-  paymentProofUrl?: string | null;
-  /** @nullable */
-  invoiceUrl?: string | null;
-  /** @nullable */
   brdUrl?: string | null;
   /** @nullable */
   testimonialUrl?: string | null;

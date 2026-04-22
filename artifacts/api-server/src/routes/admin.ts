@@ -49,7 +49,7 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     id: number; type: "revenue"; teamId: number; teamName: string;
     campusName: string; projectTitle: string; clientName: string; amount: number;
     submittedAt: Date; isOverdue: boolean; supportingDocUrl: string | null;
-    paymentProofUrl: string | null; invoiceUrl: string | null;
+    brdUrl: string | null;
   }> = [];
 
   if (!type || type === "revenue") {
@@ -69,8 +69,7 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
         clientName: e.clientName, amount: e.amount,
         submittedAt: e.submittedAt ?? new Date(),
         isOverdue: (e.submittedAt ?? new Date()) < cutoff,
-        supportingDocUrl: null, paymentProofUrl: e.paymentProofUrl ?? null,
-        invoiceUrl: e.invoiceUrl ?? null,
+        supportingDocUrl: null, brdUrl: e.brdUrl ?? null,
       });
     }
   }

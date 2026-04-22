@@ -239,8 +239,6 @@ export const revenueEntriesTable = pgTable("revenue_entries", {
   verifiedAmount: integer("verified_amount"),
   paymentDate: text("payment_date").notNull(),
   status: entryStatusEnum("status").notNull().default("draft"),
-  paymentProofUrl: text("payment_proof_url"),
-  invoiceUrl: text("invoice_url"),
   brdUrl: text("brd_url"),
   testimonialUrl: text("testimonial_url"),
   adminNotes: text("admin_notes"),

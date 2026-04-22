@@ -58,7 +58,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `teamLeaveRequests` — Member-initiated leave requests requiring leader approval (status: pending/approved/declined)
 - `projects` — Business projects per team
 - `orderBookEntries` — Order book entries (draft→submitted→verified/rejected)
-- `revenueEntries` — Revenue received entries with payment proof
+- `revenueEntries` — Revenue received entries with BRD document
 - `milestones` — Team journey timeline (auto + manual)
 - `demoDayApplications` — Demo Day pitch applications
 - `notifications` — Per-user notifications

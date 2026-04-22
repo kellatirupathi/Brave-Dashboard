@@ -558,8 +558,6 @@ export default function ProjectDetail() {
                       </div>
                       <div className="flex flex-wrap gap-3 pt-1">
                         {docLink(entry.brdUrl, "BRD")}
-                        {docLink(entry.paymentProofUrl, "Payment proof")}
-                        {docLink(entry.invoiceUrl, "Invoice")}
                         {docLink(entry.testimonialUrl, "Testimonial")}
                       </div>
                       {entry.adminNotes && entry.status === "rejected" && (

@@ -145,16 +145,10 @@ export default function AdminQueue() {
                     testId={`button-view-doc-${item.id}`}
                   />
                   <DocumentLinkButton
-                    url={item.paymentProofUrl}
-                    label="Payment Proof"
-                    filename={`${item.teamName}-payment-proof`}
-                    testId={`button-view-proof-${item.id}`}
-                  />
-                  <DocumentLinkButton
-                    url={item.invoiceUrl}
-                    label="Invoice"
-                    filename={`${item.teamName}-invoice`}
-                    testId={`button-view-invoice-${item.id}`}
+                    url={item.brdUrl}
+                    label="BRD"
+                    filename={`${item.teamName}-brd`}
+                    testId={`button-view-brd-${item.id}`}
                   />
                 </div>
 

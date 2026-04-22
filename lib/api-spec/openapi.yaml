@@ -2314,10 +2314,6 @@ components:
         status:
           type: string
           enum: [draft, submitted, verified, rejected]
-        paymentProofUrl:
-          type: ["string", "null"]
-        invoiceUrl:
-          type: ["string", "null"]
         brdUrl:
           type: ["string", "null"]
         testimonialUrl:
@@ -2363,10 +2359,6 @@ components:
         paymentDate:
           type: string
           format: date
-        paymentProofUrl:
-          type: ["string", "null"]
-        invoiceUrl:
-          type: ["string", "null"]
         brdUrl:
           type: ["string", "null"]
         testimonialUrl:
@@ -2387,10 +2379,6 @@ components:
         paymentDate:
           type: string
           format: date
-        paymentProofUrl:
-          type: ["string", "null"]
-        invoiceUrl:
-          type: ["string", "null"]
         brdUrl:
           type: ["string", "null"]
         testimonialUrl:
@@ -2441,9 +2429,7 @@ components:
           type: boolean
         supportingDocUrl:
           type: ["string", "null"]
-        paymentProofUrl:
-          type: ["string", "null"]
-        invoiceUrl:
+        brdUrl:
           type: ["string", "null"]
       required:
         - id

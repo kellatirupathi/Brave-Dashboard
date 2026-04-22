@@ -21,7 +21,5 @@ export interface AdminReviewQueueItem {
   /** @nullable */
   supportingDocUrl?: string | null;
   /** @nullable */
-  paymentProofUrl?: string | null;
-  /** @nullable */
-  invoiceUrl?: string | null;
+  brdUrl?: string | null;
 }

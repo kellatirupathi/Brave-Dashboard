@@ -415,10 +415,6 @@ export interface RevenueEntry {
   paymentDate: string;
   status: RevenueEntryStatus;
   /** @nullable */
-  paymentProofUrl?: string | null;
-  /** @nullable */
-  invoiceUrl?: string | null;
-  /** @nullable */
   brdUrl?: string | null;
   /** @nullable */
   testimonialUrl?: string | null;
@@ -486,10 +482,6 @@ export interface CreateRevenueEntryBody {
   amount: number;
   paymentDate: string;
   /** @nullable */
-  paymentProofUrl?: string | null;
-  /** @nullable */
-  invoiceUrl?: string | null;
-  /** @nullable */
   brdUrl?: string | null;
   /** @nullable */
   testimonialUrl?: string | null;
@@ -499,10 +491,6 @@ export interface UpdateRevenueEntryBody {
   clientName?: string;
   amount?: number;
   paymentDate?: string;
-  /** @nullable */
-  paymentProofUrl?: string | null;
-  /** @nullable */
-  invoiceUrl?: string | null;
   /** @nullable */
   brdUrl?: string | null;
   /** @nullable */
@@ -540,9 +528,7 @@ export interface AdminReviewQueueItem {
   /** @nullable */
   supportingDocUrl?: string | null;
   /** @nullable */
-  paymentProofUrl?: string | null;
-  /** @nullable */
-  invoiceUrl?: string | null;
+  brdUrl?: string | null;
 }
 
 export interface AdminReviewQueueResponse {
