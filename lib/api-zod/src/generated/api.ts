@@ -27,7 +27,7 @@ export const GetCurrentAuthUserResponse = zod.object({
       firstName: zod.string(),
       lastName: zod.string(),
       profileImage: zod.string().nullable(),
-      role: zod.enum(["student", "coordinator", "admin", "superadmin"]),
+      role: zod.enum(["student", "coordinator", "admin"]),
       campusId: zod.number().nullable(),
       isOnRoster: zod.boolean().nullable(),
       teamId: zod.number().nullable(),
@@ -1738,7 +1738,7 @@ export const CreateAnnouncementBody = zod.object({
  * @summary List all users (admin)
  */
 export const ListUsersQueryParams = zod.object({
-  role: zod.enum(["student", "coordinator", "admin", "superadmin"]).optional(),
+  role: zod.enum(["student", "coordinator", "admin"]).optional(),
   campusId: zod.coerce.number().optional(),
   search: zod.coerce.string().optional(),
 });
@@ -1750,7 +1750,7 @@ export const ListUsersResponseItem = zod.object({
   firstName: zod.string(),
   lastName: zod.string(),
   profileImage: zod.string().nullish(),
-  role: zod.enum(["student", "coordinator", "admin", "superadmin"]),
+  role: zod.enum(["student", "coordinator", "admin"]),
   campusId: zod.number().nullish(),
   campusName: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -1768,12 +1768,6 @@ export const CreateUserBody = zod.object({
   role: zod.enum(["coordinator", "admin"]),
   campusId: zod.number().nullish(),
   password: zod.string(),
-  formsUserId: zod
-    .string()
-    .nullish()
-    .describe(
-      "Optional Forms SSO user_id used to link this account to its first SSO sign-in.",
-    ),
 });
 
 /**
@@ -1798,7 +1792,7 @@ export const UpdateUserResponse = zod.object({
   firstName: zod.string(),
   lastName: zod.string(),
   profileImage: zod.string().nullish(),
-  role: zod.enum(["student", "coordinator", "admin", "superadmin"]),
+  role: zod.enum(["student", "coordinator", "admin"]),
   campusId: zod.number().nullish(),
   campusName: zod.string().nullish(),
   isActive: zod.boolean(),

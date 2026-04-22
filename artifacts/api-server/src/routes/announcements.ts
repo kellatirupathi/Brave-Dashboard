@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, announcementsTable, usersTable, teamsTable, teamMembersTable } from "@workspace/db";
 import { CreateAnnouncementBody } from "@workspace/api-zod";
-import { isStaffRole } from "../lib/admin-guard.js";
 
 const router: IRouter = Router();
 
@@ -40,7 +39,7 @@ router.get("/announcements", async (req, res): Promise<void> => {
 });
 
 router.post("/announcements", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !isStaffRole(req.user.role)) {
+  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

@@ -12,5 +12,4 @@ export const AuthUserRole = {
   student: "student",
   coordinator: "coordinator",
   admin: "admin",
-  superadmin: "superadmin",
 } as const;

@@ -13,7 +13,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 // Enums
-export const userRoleEnum = pgEnum("user_role", ["student", "coordinator", "admin", "superadmin"]);
+export const userRoleEnum = pgEnum("user_role", ["student", "coordinator", "admin"]);
 export const teamStatusEnum = pgEnum("team_status", ["pending", "active", "rejected", "changes_requested"]);
 export const projectStatusEnum = pgEnum("project_status", ["active", "inactive"]);
 export const entryStatusEnum = pgEnum("entry_status", ["draft", "submitted", "verified", "rejected"]);

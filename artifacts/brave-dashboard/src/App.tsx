@@ -58,11 +58,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// Roles allowed on every "admin" route. Superadmin retains every admin
-// capability and only gets *additional* powers, so it must be in this list
-// alongside admin.
-const ADMIN_ROLES = ["admin", "superadmin"];
-
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType, allowedRoles: string[] }) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -86,7 +81,7 @@ function ProtectedRoute({ component: Component, allowedRoles }: { component: Rea
   if (!allowedRoles.includes(user.role || "")) {
     if (user.role === "student") return <Redirect to="/" />;
     if (user.role === "coordinator") return <Redirect to="/coordinator" />;
-    if ((user.role === "admin" || user.role === "superadmin")) return <Redirect to="/admin" />;
+    if (user.role === "admin") return <Redirect to="/admin" />;
     return <Redirect to="/login" />;
   }
 
@@ -127,7 +122,7 @@ function RootRedirect() {
   }
 
   if (user.role === "coordinator") return <Redirect to="/coordinator" />;
-  if ((user.role === "admin" || user.role === "superadmin")) return <Redirect to="/admin" />;
+  if (user.role === "admin") return <Redirect to="/admin" />;
 
   // Student dashboard - redirects to /get-started if no team
 
@@ -196,46 +191,46 @@ function Router() {
 
       {/* Admin Routes */}
       <Route path="/admin">
-        <ProtectedRoute component={AdminDashboard} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminDashboard} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/queue">
-        <ProtectedRoute component={AdminQueue} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminQueue} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/teams">
-        <ProtectedRoute component={AdminTeams} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminTeams} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/teams/:id">
-        <ProtectedRoute component={AdminTeamDetail} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminTeamDetail} allowedRoles={["admin"]} />
       </Route>
       <Route path="/teams/:id">
-        <ProtectedRoute component={AdminTeamDetail} allowedRoles={["student", "coordinator", ...ADMIN_ROLES]} />
+        <ProtectedRoute component={AdminTeamDetail} allowedRoles={["student", "coordinator", "admin"]} />
       </Route>
       <Route path="/admin/leaderboard">
-        <ProtectedRoute component={AdminLeaderboard} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminLeaderboard} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/demo-day">
-        <ProtectedRoute component={AdminDemoDay} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminDemoDay} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/users">
-        <ProtectedRoute component={AdminUsers} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminUsers} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/campuses">
-        <ProtectedRoute component={AdminCampuses} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminCampuses} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/campuses/:id">
-        <ProtectedRoute component={AdminCampusDetail} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminCampusDetail} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/config">
-        <ProtectedRoute component={AdminConfig} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/roster">
-        <ProtectedRoute component={AdminRoster} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminRoster} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/audit-log">
-        <ProtectedRoute component={AdminAuditLog} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminAuditLog} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/announcements">
-        <ProtectedRoute component={AdminAnnouncements} allowedRoles={ADMIN_ROLES} />
+        <ProtectedRoute component={AdminAnnouncements} allowedRoles={["admin"]} />
       </Route>
 
       <Route component={NotFound} />

@@ -15,9 +15,4 @@ export interface CreateUserBody {
   /** @nullable */
   campusId?: number | null;
   password: string;
-  /**
-   * Optional Forms SSO user_id used to link this account to its first SSO sign-in.
-   * @nullable
-   */
-  formsUserId?: string | null;
 }

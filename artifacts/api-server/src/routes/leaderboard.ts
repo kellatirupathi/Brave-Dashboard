@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import { isAdminRole } from "../lib/admin-guard";
 import { eq, and, sql, desc, ilike } from "drizzle-orm";
 import {
   db,
@@ -81,7 +80,7 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
   );
 
   // Filter
-  let filtered = results.filter(t => !t.isHidden || isAdminRole(req.user.role));
+  let filtered = results.filter(t => !t.isHidden || req.user.role === "admin");
   if (effectiveCampusId) {
     filtered = filtered.filter(t => t.campusId === effectiveCampusId);
   }

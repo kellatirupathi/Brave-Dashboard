@@ -53,7 +53,7 @@ export function Navbar() {
   if (!user) return null;
 
   const links: NavLink[] =
-    (user.role === "admin" || user.role === "superadmin")
+    user.role === "admin"
       ? ADMIN_LINKS
       : user.role === "coordinator"
       ? COORDINATOR_LINKS
