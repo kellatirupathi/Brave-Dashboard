@@ -38,7 +38,7 @@ import { ReasonPromptDialog } from "@/components/reason-prompt-dialog";
 export default function AdminTeams() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = (user?.role === "admin" || user?.role === "superadmin");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [rejectId, setRejectId] = useState<number | null>(null);

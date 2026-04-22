@@ -15,6 +15,7 @@ export const AuthUserRole = {
   student: "student",
   coordinator: "coordinator",
   admin: "admin",
+  superadmin: "superadmin",
 } as const;
 
 export interface AuthUser {
@@ -45,6 +46,7 @@ export const UserRole = {
   student: "student",
   coordinator: "coordinator",
   admin: "admin",
+  superadmin: "superadmin",
 } as const;
 
 export interface User {
@@ -81,6 +83,11 @@ export interface CreateUserBody {
   /** @nullable */
   campusId?: number | null;
   password: string;
+  /**
+   * Optional Forms SSO user_id used to link this account to its first SSO sign-in.
+   * @nullable
+   */
+  formsUserId?: string | null;
 }
 
 export type UpdateUserBodyRole =
@@ -1036,6 +1043,7 @@ export const ListUsersRole = {
   student: "student",
   coordinator: "coordinator",
   admin: "admin",
+  superadmin: "superadmin",
 } as const;
 
 export type GetAuditLogParams = {

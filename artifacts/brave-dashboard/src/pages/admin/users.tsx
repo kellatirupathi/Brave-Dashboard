@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Plus, Shield, Search, ShieldCheck, Mail, ShieldOff, Trash2, Pencil } from "lucide-react";
+import { Users, Plus, Shield, Search, ShieldCheck, Mail, ShieldOff, Trash2, Pencil, Crown, KeyRound } from "lucide-react";
 import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@workspace/replit-auth-web";
 
 const createUserSchema = z.object({
   email: z.string().email(),
@@ -23,14 +24,17 @@ const createUserSchema = z.object({
   role: z.enum(["admin", "coordinator"]),
   campusId: z.string().optional(),
   password: z.string().min(8),
+  formsUserId: z.string().optional(),
 });
+
+type StaffRole = "admin" | "coordinator" | "student" | "superadmin";
 
 type StaffUser = {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
-  role: "admin" | "coordinator" | "student";
+  role: StaffRole;
   campusId?: number | null;
   campusName?: string | null;
   isActive: boolean;
@@ -40,6 +44,8 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const { data: users, isLoading } = useListUsers({ search: search || undefined });
   const { data: campuses } = useListCampuses();
+  const { user: me } = useAuth();
+  const isSuperadmin = me?.role === "superadmin";
 
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
@@ -49,15 +55,17 @@ export default function AdminUsers() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<StaffUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StaffUser | null>(null);
+  const [transferTarget, setTransferTarget] = useState<StaffUser | null>(null);
   const [editCampusId, setEditCampusId] = useState<string>("");
   const [editRole, setEditRole] = useState<"admin" | "coordinator">("coordinator");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
 
   const form = useForm<z.infer<typeof createUserSchema>>({
     resolver: zodResolver(createUserSchema),
-    defaultValues: { email: "", firstName: "", lastName: "", role: "coordinator", password: "", campusId: "" },
+    defaultValues: { email: "", firstName: "", lastName: "", role: "coordinator", password: "", campusId: "", formsUserId: "" },
   });
   const role = form.watch("role");
 
@@ -69,10 +77,11 @@ export default function AdminUsers() {
     const payload = {
       ...values,
       campusId: values.campusId && values.role === "coordinator" ? parseInt(values.campusId) : undefined,
+      formsUserId: values.formsUserId?.trim() ? values.formsUserId.trim() : undefined,
     };
     createUser.mutate({ data: payload }, {
       onSuccess: () => {
-        toast({ title: "User created" });
+        toast({ title: "User created", description: "They will see this role on their next Forms SSO login." });
         refresh();
         setIsCreateOpen(false);
         form.reset();
@@ -134,7 +143,36 @@ export default function AdminUsers() {
     }
   };
 
+  const onConfirmTransfer = async () => {
+    if (!transferTarget) return;
+    setIsTransferring(true);
+    try {
+      const res = await fetch(`/api/admin/users/${transferTarget.id}/transfer-superadmin`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed (${res.status})`);
+      }
+      toast({
+        title: "Superadmin transferred",
+        description: `${transferTarget.firstName} ${transferTarget.lastName} is now the superadmin. You are now a regular admin.`,
+      });
+      refresh();
+      setTransferTarget(null);
+    } catch (e: any) {
+      toast({ title: "Transfer failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   const staff = (users ?? []).filter((u: any) => u.role !== "student") as StaffUser[];
+  staff.sort((a, b) => {
+    const order: Record<string, number> = { superadmin: 0, admin: 1, coordinator: 2 };
+    return (order[a.role] ?? 9) - (order[b.role] ?? 9);
+  });
 
   return (
     <div className="space-y-6">
@@ -186,9 +224,12 @@ export default function AdminUsers() {
                         <FormControl><SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="coordinator">Campus Coordinator</SelectItem>
-                          <SelectItem value="admin">Administrator</SelectItem>
+                          {isSuperadmin && <SelectItem value="admin">Administrator</SelectItem>}
                         </SelectContent>
                       </Select>
+                      {!isSuperadmin && (
+                        <p className="text-xs text-muted-foreground mt-1.5">Only the superadmin can add new administrators.</p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )} />
@@ -208,6 +249,16 @@ export default function AdminUsers() {
                       </FormItem>
                     )} />
                   )}
+                  <FormField control={form.control} name="formsUserId" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Forms SSO User ID <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                      <FormControl><Input placeholder="e.g. 12345" {...field} /></FormControl>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        If provided, this user's first Forms SSO login is linked to the account so they see the assigned role straight away.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                   <div className="flex justify-end pt-4">
                     <Button type="submit" disabled={createUser.isPending}>
                       {createUser.isPending && <Spinner className="w-4 h-4 mr-2" />} Create User
@@ -235,51 +286,87 @@ export default function AdminUsers() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staff.map((user) => (
-                <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell>
-                    <div className="font-semibold">{user.firstName} {user.lastName}</div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <Mail className="w-3 h-3" /> {user.email}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {user.role === "admin" ? (
-                      <Badge variant="default" className="bg-purple-100 text-purple-800 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-100 border-none"><ShieldCheck className="w-3 h-3 mr-1" /> Admin</Badge>
-                    ) : (
-                      <Badge variant="outline"><Shield className="w-3 h-3 mr-1" /> Coordinator</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{user.campusName || "-"}</TableCell>
-                  <TableCell>
-                    {user.isActive ? (
-                      <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">
-                        <span className="w-2 h-2 rounded-full bg-green-600"></span> Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
-                        <span className="w-2 h-2 rounded-full bg-muted-foreground"></span> Inactive
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(user)} data-testid={`button-edit-${user.id}`}>
-                        <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => setDeleteTarget(user)}
-                        data-testid={`button-delete-${user.id}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {staff.map((user) => {
+                const isSelf = user.id === me?.id;
+                const isTargetSuperadmin = user.role === "superadmin";
+                const isTargetAdmin = user.role === "admin";
+                // Edit allowed unless target is superadmin (only superadmin can edit themselves, no role change here).
+                const canEdit = !isTargetSuperadmin && (isSuperadmin || !isTargetAdmin);
+                // Delete: cannot delete self, cannot delete superadmin, only superadmin can delete admins.
+                const canDelete = !isSelf && !isTargetSuperadmin && (isSuperadmin || !isTargetAdmin);
+                // Transfer: I am superadmin AND target is admin/coordinator (not student, not me).
+                const canTransfer = isSuperadmin && !isSelf && (isTargetAdmin || user.role === "coordinator");
+                return (
+                  <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
+                    <TableCell>
+                      <div className="font-semibold">{user.firstName} {user.lastName}</div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Mail className="w-3 h-3" /> {user.email}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {isTargetSuperadmin ? (
+                        <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100 border-none">
+                          <Crown className="w-3 h-3 mr-1" /> Super Admin
+                        </Badge>
+                      ) : isTargetAdmin ? (
+                        <Badge variant="default" className="bg-purple-100 text-purple-800 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-100 border-none"><ShieldCheck className="w-3 h-3 mr-1" /> Admin</Badge>
+                      ) : (
+                        <Badge variant="outline"><Shield className="w-3 h-3 mr-1" /> Coordinator</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{user.campusName || "-"}</TableCell>
+                    <TableCell>
+                      {user.isActive ? (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">
+                          <span className="w-2 h-2 rounded-full bg-green-600"></span> Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
+                          <span className="w-2 h-2 rounded-full bg-muted-foreground"></span> Inactive
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex gap-1">
+                        {canTransfer && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-amber-700 hover:text-amber-800 dark:text-amber-300"
+                            onClick={() => setTransferTarget(user)}
+                            data-testid={`button-transfer-${user.id}`}
+                            title="Transfer Superadmin role to this user"
+                          >
+                            <KeyRound className="w-3.5 h-3.5 mr-1" /> Transfer
+                          </Button>
+                        )}
+                        {canEdit && (
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(user)} data-testid={`button-edit-${user.id}`}>
+                            <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(user)}
+                            data-testid={`button-delete-${user.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                          </Button>
+                        )}
+                        {isTargetSuperadmin && (
+                          <span className="text-xs text-muted-foreground italic px-2 py-1.5">
+                            Protected — transfer the role first to remove
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {staff.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
@@ -305,7 +392,9 @@ export default function AdminUsers() {
               <Select value={editRole} onValueChange={(v) => setEditRole(v as "admin" | "coordinator")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin"><span className="inline-flex items-center"><ShieldCheck className="w-3 h-3 mr-2" /> Administrator</span></SelectItem>
+                  {(isSuperadmin || editTarget?.role === "admin") && (
+                    <SelectItem value="admin"><span className="inline-flex items-center"><ShieldCheck className="w-3 h-3 mr-2" /> Administrator</span></SelectItem>
+                  )}
                   <SelectItem value="coordinator"><span className="inline-flex items-center"><Shield className="w-3 h-3 mr-2" /> Campus Coordinator</span></SelectItem>
                 </SelectContent>
               </Select>
@@ -313,6 +402,9 @@ export default function AdminUsers() {
                 <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
                   <ShieldOff className="w-3 h-3" /> Removes admin privileges from this user.
                 </p>
+              )}
+              {!isSuperadmin && (
+                <p className="text-xs text-muted-foreground mt-1.5">Only the superadmin can change admin roles.</p>
               )}
             </div>
             {editRole === "coordinator" && (
@@ -351,6 +443,34 @@ export default function AdminUsers() {
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={onConfirmDelete} disabled={isDeleting}>
               {isDeleting && <Spinner className="w-4 h-4 mr-2" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Superadmin confirmation */}
+      <Dialog open={!!transferTarget} onOpenChange={(open) => !open && setTransferTarget(null)}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-500" /> Transfer Superadmin role?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              <span className="font-semibold">{transferTarget?.firstName} {transferTarget?.lastName}</span> ({transferTarget?.email}) will become the new superadmin.
+            </p>
+            <p className="text-muted-foreground">
+              You will be demoted to a regular admin. Only the new superadmin will be able to add, modify, or delete other admins (including you).
+            </p>
+            <p className="text-muted-foreground">
+              There can only be one superadmin at a time. This action cannot be undone except by the new superadmin transferring the role back.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferTarget(null)}>Cancel</Button>
+            <Button onClick={onConfirmTransfer} disabled={isTransferring} className="bg-amber-600 hover:bg-amber-700">
+              {isTransferring && <Spinner className="w-4 h-4 mr-2" />} Transfer Superadmin
             </Button>
           </DialogFooter>
         </DialogContent>

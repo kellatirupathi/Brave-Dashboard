@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, sql } from "drizzle-orm";
+import { isAdminRole, isSuperadminRole } from "../lib/admin-guard";
+import { eq, ilike, and, or, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -37,7 +38,7 @@ let reseedInFlight = false;
 
 // Review Queue
 router.get("/admin/review-queue", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -85,7 +86,7 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
 
 // User Management
 router.get("/admin/users", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -115,7 +116,7 @@ router.get("/admin/users", async (req, res): Promise<void> => {
 });
 
 router.post("/admin/users", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -124,19 +125,43 @@ router.post("/admin/users", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { password, ...userData } = parsed.data;
+  // Only the superadmin can create new admins.
+  if (parsed.data.role === "admin" && !isSuperadminRole(req.user.role)) {
+    res.status(403).json({ error: "Only the superadmin can add new admins." });
+    return;
+  }
+  const { password, formsUserId, ...userData } = parsed.data;
   const passwordHash = await bcrypt.hash(password, 10);
-  const [user] = await db
-    .insert(usersTable)
-    .values({ ...userData, passwordHash })
-    .returning();
-  await logAudit(req.user.id, "create_user", "user", undefined, `Created ${user.role} ${user.id}: ${user.email}`);
-  const { passwordHash: _, ...safe } = user;
-  res.status(201).json({ ...safe, campusName: null });
+  try {
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        ...userData,
+        passwordHash,
+        formsUserId: formsUserId ?? null,
+      })
+      .returning();
+    await logAudit(
+      req.user.id,
+      "create_user",
+      "user",
+      undefined,
+      `Created ${user.role} ${user.id}: ${user.email}${formsUserId ? ` (formsUserId=${formsUserId})` : ""}`,
+    );
+    const { passwordHash: _, ...safe } = user;
+    res.status(201).json({ ...safe, campusName: null });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/duplicate key|unique/i.test(msg)) {
+      res.status(409).json({ error: "A user with that email or Forms ID already exists." });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.patch("/admin/users/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -149,6 +174,32 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  // The superadmin row is sacred: only the superadmin themselves can edit it,
+  // and even they cannot demote themselves here (they must transfer first).
+  if (target.role === "superadmin") {
+    if (!isSuperadminRole(req.user.role) || target.id !== req.user.id) {
+      res.status(403).json({ error: "The superadmin account cannot be modified by another user." });
+      return;
+    }
+    if (parsed.data.role && parsed.data.role !== "superadmin") {
+      res.status(400).json({ error: "Transfer the superadmin role first via /admin/users/:id/transfer-superadmin." });
+      return;
+    }
+  }
+  // Only the superadmin can change another user's role to or from admin.
+  if (parsed.data.role && parsed.data.role !== target.role) {
+    const promotingToAdmin = parsed.data.role === "admin";
+    const demotingFromAdmin = target.role === "admin";
+    if ((promotingToAdmin || demotingFromAdmin) && !isSuperadminRole(req.user.role)) {
+      res.status(403).json({ error: "Only the superadmin can change admin roles." });
+      return;
+    }
   }
   const [user] = await db
     .update(usersTable)
@@ -165,7 +216,7 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/admin/users/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -183,11 +234,20 @@ router.delete("/admin/users/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Use the roster tools to manage students." });
     return;
   }
+  if (target.role === "superadmin") {
+    res.status(400).json({ error: "The superadmin cannot be deleted. Transfer the role to another user first." });
+    return;
+  }
+  if (target.role === "admin" && !isSuperadminRole(req.user.role)) {
+    res.status(403).json({ error: "Only the superadmin can delete other admins." });
+    return;
+  }
   if (target.role === "admin") {
+    // Don't allow deleting the last admin (the superadmin counts as admin too).
     const [{ count: adminCount }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(usersTable)
-      .where(eq(usersTable.role, "admin"));
+      .where(or(eq(usersTable.role, "admin"), eq(usersTable.role, "superadmin")));
     if (Number(adminCount) <= 1) {
       res.status(400).json({ error: "Cannot delete the last remaining admin." });
       return;
@@ -196,6 +256,53 @@ router.delete("/admin/users/:id", async (req, res): Promise<void> => {
   await db.delete(usersTable).where(eq(usersTable.id, id));
   await logAudit(req.user.id, "delete_user", "user", undefined, `Deleted ${target.role} ${target.email}`);
   res.json({ ok: true });
+});
+
+// Transfer the superadmin role to another user. Only the current superadmin
+// can call this. The target must be an existing admin or coordinator. After
+// transfer, the previous superadmin becomes a regular admin and can then be
+// edited or removed by the new superadmin.
+router.post("/admin/users/:id/transfer-superadmin", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || !isSuperadminRole(req.user.role)) {
+    res.status(403).json({ error: "Only the current superadmin can transfer this role." });
+    return;
+  }
+  const targetId = String(req.params.id);
+  if (targetId === req.user.id) {
+    res.status(400).json({ error: "You are already the superadmin." });
+    return;
+  }
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, targetId));
+  if (!target) {
+    res.status(404).json({ error: "Target user not found." });
+    return;
+  }
+  if (target.role !== "admin" && target.role !== "coordinator") {
+    res.status(400).json({ error: "Superadmin can only be transferred to an existing admin or coordinator." });
+    return;
+  }
+  if (!target.isActive) {
+    res.status(400).json({ error: "Target user is inactive." });
+    return;
+  }
+  await db.transaction(async (tx) => {
+    await tx
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, req.user!.id));
+    await tx
+      .update(usersTable)
+      .set({ role: "superadmin", isActive: true })
+      .where(eq(usersTable.id, target.id));
+  });
+  await logAudit(
+    req.user.id,
+    "transfer_superadmin",
+    "user",
+    undefined,
+    `Transferred superadmin to ${target.email} (${target.id})`,
+  );
+  res.json({ ok: true, newSuperadminId: target.id });
 });
 
 // Programme Config
@@ -213,7 +320,7 @@ router.get("/admin/programme-config", async (req, res): Promise<void> => {
 });
 
 router.patch("/admin/programme-config", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -239,7 +346,7 @@ router.patch("/admin/programme-config", async (req, res): Promise<void> => {
 
 // Audit Log
 router.get("/admin/audit-log", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -265,7 +372,7 @@ router.get("/admin/audit-log", async (req, res): Promise<void> => {
 
 // Roster
 router.get("/admin/roster", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -282,7 +389,7 @@ router.get("/admin/roster", async (req, res): Promise<void> => {
 });
 
 router.post("/admin/roster", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -297,7 +404,7 @@ router.post("/admin/roster", async (req, res): Promise<void> => {
 
 // Bulk import roster from parsed Excel/CSV data
 router.post("/admin/roster/import", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -330,7 +437,7 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
 
 // Access Requests (admin)
 router.get("/admin/access-requests", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -342,7 +449,7 @@ router.get("/admin/access-requests", async (req, res): Promise<void> => {
 });
 
 router.patch("/admin/access-requests/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -371,7 +478,7 @@ router.post("/admin/dev/reseed", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

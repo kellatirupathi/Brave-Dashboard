@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { isAdminRole, isStaffRole } from "../lib/admin-guard";
 import { eq, and, ilike, sql, or, ne, inArray, notInArray } from "drizzle-orm";
 import {
   db,
@@ -208,7 +209,7 @@ router.post("/teams", async (req, res): Promise<void> => {
     return;
   }
   // Enforce campus = user's campus; reject if not assigned (admins may set campusId explicitly)
-  const campusId = req.user.role === "admin"
+  const campusId = isAdminRole(req.user.role)
     ? (req.user.campusId ?? parsed.data.campusId)
     : req.user.campusId;
   if (!campusId) {
@@ -479,7 +480,7 @@ router.get("/teams/:id", async (req, res): Promise<void> => {
     return;
   }
   // Strip invite code unless the requester is a member of this team or staff
-  const isStaff = ["admin", "coordinator"].includes(req.user.role ?? "");
+  const isStaff = isStaffRole(req.user.role);
   const isMember = teamDetail.members?.some?.((m: any) => m.userId === req.user.id) ?? false;
   if (!isStaff && !isMember) {
     (teamDetail as any).inviteCode = null;
@@ -532,7 +533,7 @@ router.patch("/teams/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Team not found" });
     return;
   }
-  if (req.user.role === "admin") {
+  if (isAdminRole(req.user.role)) {
     await logAudit(req.user.id, "update_team", "team", team.id, reason ?? JSON.stringify(updateData));
   }
   const teamData = await getTeamWithStats(team.id);
@@ -540,7 +541,7 @@ router.patch("/teams/:id", async (req, res): Promise<void> => {
 });
 
 router.post("/teams/:id/approve", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+  if (!req.isAuthenticated() || !isStaffRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -573,7 +574,7 @@ router.post("/teams/:id/approve", async (req, res): Promise<void> => {
 });
 
 router.post("/teams/:id/reject", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+  if (!req.isAuthenticated() || !isStaffRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -603,7 +604,7 @@ router.post("/teams/:id/reject", async (req, res): Promise<void> => {
 });
 
 router.post("/teams/:id/request-changes", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+  if (!req.isAuthenticated() || !isStaffRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -632,7 +633,7 @@ router.post("/teams/:id/request-changes", async (req, res): Promise<void> => {
 });
 
 router.post("/teams/:id/members", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Admin only — students must use the team invitation flow." });
     return;
   }
@@ -662,7 +663,7 @@ router.post("/teams/:id/members", async (req, res): Promise<void> => {
 });
 
 router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Admin only — students must use the leave-request flow." });
     return;
   }
@@ -721,7 +722,7 @@ router.get("/teams/:id/invitations", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await ensureTeamMember(params.data.id, req.user.id)) && req.user.role !== "admin") {
+  if (!(await ensureTeamMember(params.data.id, req.user.id)) && !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "You are not a member of this team" });
     return;
   }
@@ -974,7 +975,7 @@ router.get("/teams/:id/join-requests", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await ensureTeamMember(params.data.id, req.user.id)) && req.user.role !== "admin") {
+  if (!(await ensureTeamMember(params.data.id, req.user.id)) && !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "You are not a member of this team" });
     return;
   }
@@ -1199,7 +1200,7 @@ router.get("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Team not found" });
     return;
   }
-  if (team.leaderId !== req.user.id && req.user.role !== "admin") {
+  if (team.leaderId !== req.user.id && !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Only the team leader can view leave requests" });
     return;
   }
@@ -1291,7 +1292,7 @@ router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Team not found" });
     return;
   }
-  if (team.leaderId !== req.user.id && req.user.role !== "admin") {
+  if (team.leaderId !== req.user.id && !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Only the team leader can approve leave requests" });
     return;
   }
@@ -1340,7 +1341,7 @@ router.post("/leave-requests/:id/decline", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Team not found" });
     return;
   }
-  if (team.leaderId !== req.user.id && req.user.role !== "admin") {
+  if (team.leaderId !== req.user.id && !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Only the team leader can decline leave requests" });
     return;
   }

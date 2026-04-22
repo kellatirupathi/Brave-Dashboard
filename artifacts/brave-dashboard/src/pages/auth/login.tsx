@@ -11,7 +11,7 @@ export default function Login() {
     if (isAuthenticated && !isLoading && user) {
       if (user.role === "student") setLocation("/");
       else if (user.role === "coordinator") setLocation("/coordinator");
-      else if (user.role === "admin") setLocation("/admin");
+      else if ((user.role === "admin" || user.role === "superadmin")) setLocation("/admin");
     }
   }, [isAuthenticated, isLoading, user, setLocation]);
 

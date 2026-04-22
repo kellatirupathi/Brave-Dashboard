@@ -2,9 +2,11 @@ import { db, usersTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import { logger } from "./lib/logger";
 
-// Hardcoded primary administrator. This person is set as admin on every
-// startup, regardless of how they were originally created (Forms SSO,
-// manual insert, etc.). Matched by email.
+// Hardcoded primary super-administrator. There is exactly one superadmin at a
+// time. The superadmin has every admin permission plus exclusive rights to
+// add / modify / delete other admins. The superadmin row cannot be deleted;
+// to retire this account, transfer the role to another user via
+// POST /admin/users/:id/transfer-superadmin first.
 const PRIMARY_ADMIN = {
   email: "divyansh.mathur@nxtwave.co.in",
   firstName: "Divyansh",
@@ -30,10 +32,29 @@ export function getBootstrapAdminFormsIds(): string[] {
 }
 
 export async function bootstrapAdmins(): Promise<void> {
-  const emails = getBootstrapAdminEmails();
+  const emails = getBootstrapAdminEmails().filter(
+    (e) => e !== PRIMARY_ADMIN.email.toLowerCase(),
+  );
 
-  // 1. Upsert the primary admin by email so the row exists even before
-  //    they ever log in via Forms SSO.
+  // 1. Ensure exactly one superadmin exists, and it is PRIMARY_ADMIN.
+  //    Demote any other superadmins to admin first (defensive: should never happen).
+  const existingSuperadmins = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.role, "superadmin"));
+  for (const s of existingSuperadmins) {
+    if (s.email.toLowerCase() !== PRIMARY_ADMIN.email.toLowerCase()) {
+      await db
+        .update(usersTable)
+        .set({ role: "admin" })
+        .where(eq(usersTable.id, s.id));
+      logger.warn(
+        { email: s.email },
+        "Demoted unexpected superadmin to admin during bootstrap",
+      );
+    }
+  }
+
   const [existingPrimary] = await db
     .select()
     .from(usersTable)
@@ -42,28 +63,30 @@ export async function bootstrapAdmins(): Promise<void> {
   if (existingPrimary) {
     await db
       .update(usersTable)
-      .set({ role: "admin", isActive: true })
+      .set({ role: "superadmin", isActive: true })
       .where(eq(usersTable.id, existingPrimary.id));
   } else {
     await db.insert(usersTable).values({
       email: PRIMARY_ADMIN.email,
       firstName: PRIMARY_ADMIN.firstName,
       lastName: PRIMARY_ADMIN.lastName,
-      role: "admin",
+      role: "superadmin",
       isActive: true,
     });
   }
 
-  // 2. Promote any other rows whose email is in the bootstrap list.
+  // 2. Promote any other bootstrap-listed rows to plain admin (never superadmin).
+  let promoted = 0;
   if (emails.length > 0) {
     const updated = await db
       .update(usersTable)
       .set({ role: "admin", isActive: true })
       .where(inArray(usersTable.email, emails))
-      .returning({ id: usersTable.id, email: usersTable.email });
-    logger.info(
-      { promoted: updated.length, primary: PRIMARY_ADMIN.email },
-      "Bootstrap admins reconciled",
-    );
+      .returning({ id: usersTable.id });
+    promoted = updated.length;
   }
+  logger.info(
+    { promoted, superadmin: PRIMARY_ADMIN.email },
+    "Bootstrap admins reconciled",
+  );
 }

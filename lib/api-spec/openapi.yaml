@@ -1332,7 +1332,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [student, coordinator, admin]
+            enum: [student, coordinator, admin, superadmin]
         - name: campusId
           in: query
           schema:
@@ -1642,7 +1642,7 @@ components:
           type: ["string", "null"]
         role:
           type: string
-          enum: [student, coordinator, admin]
+          enum: [student, coordinator, admin, superadmin]
         campusId:
           type: ["integer", "null"]
         isOnRoster:
@@ -1678,7 +1678,7 @@ components:
           type: ["string", "null"]
         role:
           type: string
-          enum: [student, coordinator, admin]
+          enum: [student, coordinator, admin, superadmin]
         campusId:
           type: ["integer", "null"]
         campusName:
@@ -1713,6 +1713,9 @@ components:
           type: ["integer", "null"]
         password:
           type: string
+        formsUserId:
+          type: ["string", "null"]
+          description: Optional Forms SSO user_id used to link this account to its first SSO sign-in.
       required:
         - email
         - firstName

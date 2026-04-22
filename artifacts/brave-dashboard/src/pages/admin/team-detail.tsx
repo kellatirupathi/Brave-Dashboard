@@ -64,12 +64,12 @@ export default function AdminTeamDetail() {
   const teamId = Number(params.id);
   const { user } = useAuth();
   const backHref =
-    user?.role === "admin"
+    (user?.role === "admin" || user?.role === "superadmin")
       ? "/admin/teams"
       : user?.role === "coordinator"
         ? "/coordinator/leaderboard"
         : "/leaderboard";
-  const backLabel = user?.role === "admin" ? "Back to Teams" : "Back to Leaderboard";
+  const backLabel = (user?.role === "admin" || user?.role === "superadmin") ? "Back to Teams" : "Back to Leaderboard";
 
   const { data: team, isLoading: teamLoading } = useGetTeam(teamId, {
     query: { enabled: Number.isFinite(teamId) },
@@ -228,7 +228,7 @@ export default function AdminTeamDetail() {
         </Badge>
       </div>
 
-      {user?.role === "admin" && team.status === "pending" && (
+      {(user?.role === "admin" || user?.role === "superadmin") && team.status === "pending" && (
         <Card className="border-dashed">
           <CardContent className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>

@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { isAdminRole } from "../lib/admin-guard";
 import { and, eq, ilike, or, ne, inArray, sql, desc } from "drizzle-orm";
 import {
   db,
@@ -294,7 +295,7 @@ router.get("/teams/:id/invitations", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const memberOK = await isTeamMember(req.user.id, params.data.id);
-  if (!memberOK && req.user.role !== "admin") { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!memberOK && !isAdminRole(req.user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
   const invites = await db
     .select()
     .from(teamInvitationsTable)
@@ -413,7 +414,7 @@ router.get("/teams/:id/join-requests", async (req, res): Promise<void> => {
   const params = IdParam.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const memberOK = await isTeamMember(req.user.id, params.data.id);
-  if (!memberOK && req.user.role !== "admin") { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!memberOK && !isAdminRole(req.user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
   const reqs = await db
     .select()
     .from(teamJoinRequestsTable)
@@ -535,7 +536,7 @@ router.get("/teams/:id/leave-requests", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const team = await getTeamOrNull(params.data.id);
   if (!team) { res.status(404).json({ error: "Team not found" }); return; }
-  if (team.leaderId !== req.user.id && req.user.role !== "admin") {
+  if (team.leaderId !== req.user.id && !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Only the leader can view leave requests" }); return;
   }
   const reqs = await db
@@ -591,7 +592,7 @@ router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
   if (lr.status !== "pending") { res.status(400).json({ error: "Request is no longer pending" }); return; }
   const team = await getTeamOrNull(lr.teamId);
   if (!team) { res.status(404).json({ error: "Team no longer exists" }); return; }
-  if (team.leaderId !== req.user.id && req.user.role !== "admin") {
+  if (team.leaderId !== req.user.id && !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Only the leader can approve" }); return;
   }
   await db
@@ -614,7 +615,7 @@ router.post("/leave-requests/:id/decline", async (req, res): Promise<void> => {
   if (lr.status !== "pending") { res.status(400).json({ error: "Request is no longer pending" }); return; }
   const team = await getTeamOrNull(lr.teamId);
   if (!team) { res.status(404).json({ error: "Team no longer exists" }); return; }
-  if (team.leaderId !== req.user.id && req.user.role !== "admin") {
+  if (team.leaderId !== req.user.id && !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Only the leader can decline" }); return;
   }
   const [updated] = await db

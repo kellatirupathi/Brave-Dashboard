@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { isAdminRole } from "../lib/admin-guard";
 import { eq, sql } from "drizzle-orm";
 import {
   db,
@@ -78,7 +79,7 @@ router.patch("/demo-day/application", async (req, res): Promise<void> => {
     return;
   }
   let teamId: number | undefined;
-  if (req.user.role === "admin") {
+  if (isAdminRole(req.user.role)) {
     // Admin can update by team_id
     teamId = parsed.data.status !== undefined ? undefined : undefined;
   }
@@ -89,7 +90,7 @@ router.patch("/demo-day/application", async (req, res): Promise<void> => {
   }
   const { status, timeSlot, presentationOrder, ...rest } = parsed.data;
   const updateData: Record<string, unknown> = { ...rest };
-  if (req.user.role === "admin") {
+  if (isAdminRole(req.user.role)) {
     if (status) updateData.status = status;
     if (timeSlot !== undefined) updateData.timeSlot = timeSlot;
     if (presentationOrder !== undefined) updateData.presentationOrder = presentationOrder;
@@ -107,7 +108,7 @@ router.patch("/demo-day/application", async (req, res): Promise<void> => {
 });
 
 router.get("/admin/demo-day/applications", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

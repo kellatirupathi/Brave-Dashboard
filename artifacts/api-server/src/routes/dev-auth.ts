@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { isAdminRole } from "../lib/admin-guard";
 import { z } from "zod";
 import { and, eq, ilike, or, sql } from "drizzle-orm";
 import {
@@ -182,7 +183,7 @@ router.post("/dev/sign-in-as", async (req: Request, res: Response) => {
 
     let redirect = "/";
     if (dbUser.role === "coordinator") redirect = "/coordinator";
-    else if (dbUser.role === "admin") redirect = "/admin";
+    else if (dbUser.role === "admin" || dbUser.role === "superadmin") redirect = "/admin";
 
     res.json({ user: authUser, redirect });
   } catch (err) {

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { isAdminRole } from "../lib/admin-guard";
 import { eq, sql } from "drizzle-orm";
 import {
   db,
@@ -51,7 +52,7 @@ router.get("/campuses", async (req, res): Promise<void> => {
 });
 
 router.post("/campuses", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -108,7 +109,7 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/campuses/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

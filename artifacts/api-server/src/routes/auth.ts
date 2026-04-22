@@ -1,4 +1,5 @@
 import * as oidc from "openid-client";
+import { isAdminRole } from "../lib/admin-guard";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { GetCurrentAuthUserResponse } from "@workspace/api-zod";
@@ -175,7 +176,7 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
     let user = await createOrGetUserByFormsId(parsed.data.user_id);
     // Promote to admin if this Forms user_id is in the bootstrap list.
     const adminFormsIds = getBootstrapAdminFormsIds();
-    if (adminFormsIds.includes(parsed.data.user_id) && user.role !== "admin") {
+    if (adminFormsIds.includes(parsed.data.user_id) && user.role !== "admin" && user.role !== "superadmin") {
       const [updated] = await db
         .update(usersTable)
         .set({ role: "admin", isActive: true })
@@ -235,8 +236,13 @@ router.get("/auth/dev-login", async (req: Request, res: Response) => {
     return;
   }
   const email = typeof req.query.email === "string" ? req.query.email : "";
-  if (!email.endsWith("@brave.seed")) {
-    res.status(400).json({ error: "dev-login only works for seeded @brave.seed accounts" });
+  // Dev login is allowed for seeded @brave.seed accounts and for the bootstrap
+  // superadmin so the role-transfer flow is testable in development.
+  const allowed =
+    email.endsWith("@brave.seed") ||
+    email === "divyansh.mathur@nxtwave.co.in";
+  if (!allowed) {
+    res.status(400).json({ error: "dev-login only works for seeded @brave.seed accounts or the bootstrap superadmin" });
     return;
   }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));

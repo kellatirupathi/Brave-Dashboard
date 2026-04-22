@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { isAdminRole } from "../lib/admin-guard";
 import { eq, and, sql } from "drizzle-orm";
 import {
   db,
@@ -143,7 +144,7 @@ router.get("/order-book-entries/:id", async (req, res): Promise<void> => {
 });
 
 async function userCanModifyOBEntry(userId: string, role: string | null | undefined, teamId: number): Promise<boolean> {
-  if (role === "admin") return true;
+  if (isAdminRole(role)) return true;
   const memberships = await db
     .select({ teamId: teamMembersTable.teamId })
     .from(teamMembersTable)
@@ -338,7 +339,7 @@ router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
 });
 
 router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -398,7 +399,7 @@ router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
 });
 
 router.post("/revenue-entries/:id/reject", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated() || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
