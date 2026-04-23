@@ -3,9 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, ExternalLink } from "lucide-react";
+import { FileText } from "lucide-react";
 import { formatINR } from "@/lib/format";
-import { DocumentLinkButton } from "@/components/document-viewer";
 
 export default function AdminDemoDay() {
   const { data: applications, isLoading } = useListDemoDayApplications();
@@ -28,7 +27,6 @@ export default function AdminDemoDay() {
               <TableRow>
                 <TableHead>Team</TableHead>
                 <TableHead>Revenue</TableHead>
-                <TableHead>Links</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Submitted</TableHead>
               </TableRow>
@@ -38,28 +36,6 @@ export default function AdminDemoDay() {
                 <TableRow key={app.id}>
                   <TableCell className="font-semibold">{app.teamName}</TableCell>
                   <TableCell className="font-medium text-primary">{formatINR(app.totalRevenue)}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1 text-sm">
-                      <DocumentLinkButton
-                        url={app.demoUrl}
-                        label="Demo"
-                        filename={`${app.teamName}-demo`}
-                        variant="inline"
-                        className="flex items-center text-blue-500 hover:underline text-sm"
-                        icon={<ExternalLink className="w-3 h-3 mr-1" />}
-                        testId={`link-demo-${app.id}`}
-                      />
-                      <DocumentLinkButton
-                        url={app.pitchDeckUrl}
-                        label="Pitch Deck"
-                        filename={`${app.teamName}-pitch-deck`}
-                        variant="inline"
-                        className="flex items-center text-blue-500 hover:underline text-sm"
-                        icon={<ExternalLink className="w-3 h-3 mr-1" />}
-                        testId={`link-pitch-${app.id}`}
-                      />
-                    </div>
-                  </TableCell>
                   <TableCell>
                     <Badge variant={app.status === 'shortlisted' ? 'default' : 'secondary'} className="capitalize">
                       {app.status}
@@ -72,7 +48,7 @@ export default function AdminDemoDay() {
               ))}
               {applications?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                     <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     No applications submitted yet.
                   </TableCell>
