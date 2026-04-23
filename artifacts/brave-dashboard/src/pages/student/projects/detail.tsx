@@ -110,7 +110,7 @@ export default function ProjectDetail() {
         return (
           <Badge
             variant="secondary"
-            className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+            className="bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100 border-none"
           >
             <Clock className="w-3 h-3 mr-1" /> Pending Review
           </Badge>
