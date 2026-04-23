@@ -80,6 +80,9 @@ export default function DemoDay() {
       <div className="grid gap-4">
         {LEVELS.map((level) => {
           const cleared = revenue >= level.threshold;
+          const level1Threshold = LEVELS[0].threshold;
+          const level1Cleared = revenue >= level1Threshold;
+          const lockedBehindLevel1 = level.num !== 1 && !level1Cleared;
           const remaining = Math.max(level.threshold - revenue, 0);
           const progressPercent = Math.min(
             (revenue / level.threshold) * 100,
@@ -119,18 +122,26 @@ export default function DemoDay() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex justify-between text-sm mb-2 font-medium">
-                  <span>Verified Revenue: {formatINR(revenue)}</span>
-                  <span>Target: {formatINR(level.threshold)}</span>
-                </div>
-                <Progress value={progressPercent} className="h-3" />
-                <p className="text-sm text-muted-foreground mt-3 text-center">
-                  {cleared
-                    ? level.unlockedMessage
-                    : remaining > 0
-                      ? `${level.lockedMessage} ${formatINR(remaining)} to go.`
-                      : level.lockedMessage}
-                </p>
+                {lockedBehindLevel1 ? (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Clear Level 1 to unlock
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-sm mb-2 font-medium">
+                      <span>Verified Revenue: {formatINR(revenue)}</span>
+                      <span>Target: {formatINR(level.threshold)}</span>
+                    </div>
+                    <Progress value={progressPercent} className="h-3" />
+                    <p className="text-sm text-muted-foreground mt-3 text-center">
+                      {cleared
+                        ? level.unlockedMessage
+                        : remaining > 0
+                          ? `${level.lockedMessage} ${formatINR(remaining)} to go.`
+                          : level.lockedMessage}
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
           );
