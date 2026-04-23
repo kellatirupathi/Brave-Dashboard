@@ -207,7 +207,7 @@ export default function AdminQueue() {
 
                   <Dialog open={actionItem?.id === item.id && actionType === 'reject'} onOpenChange={(open) => { if(!open) resetAction(); else openAction(item, 'reject'); }}>
                     <DialogTrigger asChild>
-                      <Button variant="destructive" className="flex-1"><X className="w-4 h-4 mr-1" /> Reject</Button>
+                      <Button className="flex-1 bg-red-400 hover:bg-red-500 text-white"><X className="w-4 h-4 mr-1" /> Reject</Button>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
@@ -224,7 +224,7 @@ export default function AdminQueue() {
                           />
                         </div>
                         <div className="flex justify-end pt-4">
-                          <Button variant="destructive" onClick={handleAction} disabled={isPending || !adminNotes.trim()}>
+                          <Button className="bg-red-400 hover:bg-red-500 text-white" onClick={handleAction} disabled={isPending || !adminNotes.trim()}>
                             {isPending && <Spinner className="w-4 h-4 mr-2" />} Reject Entry
                           </Button>
                         </div>

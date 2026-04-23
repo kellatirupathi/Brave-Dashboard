@@ -236,6 +236,7 @@ export default function AdminTeamDetail() {
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white"
                 onClick={handleApprove}
                 disabled={approveTeam.isPending}
                 data-testid="button-approve-team"
@@ -252,7 +253,7 @@ export default function AdminTeamDetail() {
               </Button>
               <Button
                 size="sm"
-                variant="destructive"
+                className="bg-red-400 hover:bg-red-500 text-white"
                 onClick={() => setRejectOpen(true)}
                 data-testid="button-reject-team"
               >

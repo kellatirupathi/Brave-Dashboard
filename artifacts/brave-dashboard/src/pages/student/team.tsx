@@ -326,10 +326,10 @@ function TeamView({
                         {jr.message && <p className="text-sm mt-2 italic">"{jr.message}"</p>}
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleApproveJoin(jr.id)} disabled={approveJoin.isPending} data-testid={`button-approve-join-${jr.id}`}>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveJoin(jr.id)} disabled={approveJoin.isPending} data-testid={`button-approve-join-${jr.id}`}>
                           <Check className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDeclineJoin(jr.id)} disabled={declineJoin.isPending} data-testid={`button-decline-join-${jr.id}`}>
+                        <Button size="sm" className="bg-red-400 hover:bg-red-500 text-white" onClick={() => handleDeclineJoin(jr.id)} disabled={declineJoin.isPending} data-testid={`button-decline-join-${jr.id}`}>
                           <X className="w-4 h-4" />
                         </Button>
                       </div>
@@ -357,10 +357,10 @@ function TeamView({
                         {lr.reason && <p className="text-sm mt-2 italic">"{lr.reason}"</p>}
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleApproveLeave(lr.id)} disabled={approveLeave.isPending} data-testid={`button-approve-leave-${lr.id}`}>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveLeave(lr.id)} disabled={approveLeave.isPending} data-testid={`button-approve-leave-${lr.id}`}>
                           <Check className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDeclineLeave(lr.id)} disabled={declineLeave.isPending} data-testid={`button-decline-leave-${lr.id}`}>
+                        <Button size="sm" className="bg-red-400 hover:bg-red-500 text-white" onClick={() => handleDeclineLeave(lr.id)} disabled={declineLeave.isPending} data-testid={`button-decline-leave-${lr.id}`}>
                           <X className="w-4 h-4" />
                         </Button>
                       </div>

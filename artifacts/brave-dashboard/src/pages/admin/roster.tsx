@@ -333,8 +333,7 @@ export default function AdminRoster() {
                           <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="h-7 text-xs border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                              className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => handleApproveReject(req.id, "approved")}
                               disabled={updateRequest.isPending}
                             >
@@ -342,8 +341,7 @@ export default function AdminRoster() {
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="h-7 text-xs border-destructive text-destructive hover:bg-destructive/10"
+                              className="h-7 text-xs bg-red-400 hover:bg-red-500 text-white"
                               onClick={() => handleApproveReject(req.id, "rejected")}
                               disabled={updateRequest.isPending}
                             >

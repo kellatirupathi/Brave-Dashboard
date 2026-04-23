@@ -191,6 +191,7 @@ export default function AdminTeams() {
                         >
                           <Button
                             size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleApprove(team.id);
@@ -202,7 +203,7 @@ export default function AdminTeams() {
                           </Button>
                           <Button
                             size="sm"
-                            variant="destructive"
+                            className="bg-red-400 hover:bg-red-500 text-white"
                             onClick={(e) => {
                               e.stopPropagation();
                               setRejectId(team.id);

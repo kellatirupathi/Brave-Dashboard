@@ -151,6 +151,7 @@ export default function CoordinatorTeams() {
                 <div className="flex flex-wrap gap-2 ml-auto sm:ml-0">
                   <Button
                     size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
                     onClick={() => handleApprove(team.id)}
                     disabled={approveTeam.isPending}
                     data-testid={`button-approve-${team.id}`}
@@ -167,7 +168,7 @@ export default function CoordinatorTeams() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="destructive"
+                    className="bg-red-400 hover:bg-red-500 text-white"
                     onClick={() => setRejectId(team.id)}
                     data-testid={`button-reject-${team.id}`}
                   >
