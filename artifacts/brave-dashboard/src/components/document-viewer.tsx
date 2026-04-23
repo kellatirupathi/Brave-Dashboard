@@ -16,6 +16,8 @@ type PreviewKind = "pdf" | "image" | "unknown";
 
 function resolveStorageUrl(url: string): string {
   if (!url) return url;
+  if (url.startsWith("/objects/")) return `/api/storage${url}`;
+  if (url.startsWith("/public-objects/")) return `/api/storage${url}`;
   if (url.startsWith("/")) return `/api${url}`;
   return url;
 }
