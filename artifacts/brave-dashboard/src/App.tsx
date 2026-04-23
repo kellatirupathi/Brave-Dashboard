@@ -11,6 +11,9 @@ import Login from "@/pages/auth/login";
 import NotOnRoster from "@/pages/auth/not-on-roster";
 import DevLogin from "@/pages/auth/dev-login";
 
+// Marketing
+import Landing from "@/pages/marketing/landing";
+
 // Student
 import TeamDashboard from "@/pages/student/dashboard";
 import ProjectsList from "@/pages/student/projects/list";
@@ -113,7 +116,7 @@ function RootRedirect() {
   }
 
   if (!isAuthenticated || !user) {
-    return <Redirect to="/login" />;
+    return <Landing />;
   }
 
   // Students must be on the roster to access the dashboard

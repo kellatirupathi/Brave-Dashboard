@@ -1,7 +1,14 @@
 import { useAuth } from "@workspace/replit-auth-web";
 import { useEffect } from "react";
-import { useLocation } from "wouter";
-import { ArrowRight, TrendingUp, Trophy, Users, Calendar } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import {
+  ArrowRight,
+  ArrowLeft,
+  IndianRupee,
+  Users,
+  Trophy,
+  Sparkles,
+} from "lucide-react";
 
 export default function Login() {
   const { login, isAuthenticated, isLoading, user, error } = useAuth();
@@ -32,55 +39,62 @@ export default function Login() {
         <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-[hsl(0_85%_45%)]/15 blur-3xl" />
         <div className="absolute bottom-1/3 right-1/4 w-80 h-80 rounded-full bg-[hsl(45_95%_55%)]/10 blur-3xl" />
 
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[hsl(0_75%_45%)] flex items-center justify-center shadow-lg shadow-black/40">
-            <span className="text-[hsl(45_95%_60%)] font-black text-sm">N</span>
-          </div>
-          <span className="text-[hsl(45_80%_96%)]/85 font-semibold text-sm tracking-wide">
-            NIAT India
-          </span>
-          <span className="text-[hsl(45_80%_96%)]/25 mx-1">|</span>
-          <span className="text-[hsl(45_95%_60%)] font-bold text-sm tracking-widest uppercase">
-            BRAVE
-          </span>
+        <div className="relative z-10 flex items-center justify-between">
+          <Link
+            href="/"
+            data-testid="link-back-home"
+            className="flex items-center gap-3 hover-elevate rounded-lg px-2 py-1 -ml-2"
+          >
+            <div className="w-9 h-9 rounded-lg bg-[hsl(0_75%_45%)] flex items-center justify-center shadow-lg shadow-black/40">
+              <span className="text-[hsl(45_95%_60%)] font-black text-sm">N</span>
+            </div>
+            <span className="text-[hsl(45_80%_96%)]/85 font-semibold text-sm tracking-wide">
+              NIAT India
+            </span>
+            <span className="text-[hsl(45_80%_96%)]/25 mx-1">|</span>
+            <span className="text-[hsl(45_95%_60%)] font-bold text-sm tracking-widest uppercase">
+              BRAVE
+            </span>
+          </Link>
         </div>
 
         <div className="relative z-10 max-w-lg">
           <div className="inline-flex items-center gap-2 bg-[hsl(0_70%_18%)]/80 border border-[hsl(0_60%_38%)]/50 rounded-full px-4 py-1.5 mb-8">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             <span className="text-[hsl(45_90%_75%)] text-xs font-semibold tracking-wider uppercase">
-              BRAVE 2025 Programme — Live
+              BRAVE 2026 — Boost SME revenue
             </span>
           </div>
 
           <h1 className="text-5xl font-black text-[hsl(45_80%_96%)] leading-[1.1] mb-6">
-            Build Real
+            Boost real revenue
             <br />
+            for{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(0_85%_55%)] to-[hsl(45_95%_60%)]">
-              Ventures.
+              India's SMEs.
             </span>
-            <br />
-            Earn Real Revenue.
           </h1>
 
           <p className="text-[hsl(45_60%_92%)]/65 text-lg leading-relaxed mb-10">
-            Track your team's journey from idea to income. Log orders, verify revenue,
-            and compete on the national leaderboard across 20 NIAT campuses.
+            Sign in to track your team's progress, log SME orders, see verified
+            revenue, and climb the national leaderboard across 20 NIAT campuses.
           </p>
 
           <div className="flex flex-wrap gap-3">
             {[
-              { icon: TrendingUp, label: "Revenue Tracking" },
-              { icon: Trophy, label: "National Leaderboard" },
-              { icon: Users, label: "Team Management" },
-              { icon: Calendar, label: "Demo Day" },
+              { icon: Sparkles, label: "Build with AI" },
+              { icon: Users, label: "Real SME clients" },
+              { icon: IndianRupee, label: "Verified revenue" },
+              { icon: Trophy, label: "Demo Day finale" },
             ].map(({ icon: Icon, label }) => (
               <div
                 key={label}
                 className="flex items-center gap-2 bg-[hsl(0_60%_28%)]/40 border border-[hsl(45_70%_50%)]/20 rounded-full px-4 py-2"
               >
                 <Icon className="w-3.5 h-3.5 text-[hsl(45_95%_60%)]" />
-                <span className="text-[hsl(45_70%_92%)]/75 text-xs font-medium">{label}</span>
+                <span className="text-[hsl(45_70%_92%)]/75 text-xs font-medium">
+                  {label}
+                </span>
               </div>
             ))}
           </div>
@@ -88,9 +102,9 @@ export default function Login() {
 
         <div className="relative z-10 flex items-center gap-8">
           {[
-            { value: "7,500+", label: "Student Entrepreneurs" },
-            { value: "20", label: "NIAT Campuses" },
-            { value: "3", label: "Month Programme" },
+            { value: "7,500+", label: "NIAT Students" },
+            { value: "20", label: "Campuses" },
+            { value: "₹5 Cr", label: "Funding pool" },
           ].map(({ value, label }) => (
             <div key={label}>
               <p className="text-2xl font-black text-[hsl(45_80%_96%)]">{value}</p>
@@ -105,25 +119,41 @@ export default function Login() {
         <div className="absolute inset-0 bg-[hsl(0_70%_12%)] lg:border-l border-[hsl(0_50%_30%)]/40" />
 
         <div className="relative z-10 w-full max-w-sm">
+          <Link
+            href="/"
+            data-testid="link-back-marketing"
+            className="hidden lg:inline-flex items-center gap-1.5 text-[hsl(45_70%_92%)]/60 hover:text-[hsl(45_95%_60%)] text-xs font-medium mb-5"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to BRAVE
+          </Link>
+
           <div className="bg-[hsl(0_65%_16%)] border border-[hsl(0_50%_30%)]/50 rounded-2xl p-8 shadow-2xl shadow-black/60">
-            <div className="flex lg:hidden items-center gap-3 mb-8">
+            <Link
+              href="/"
+              data-testid="link-mobile-home"
+              className="flex lg:hidden items-center gap-3 mb-8 hover-elevate rounded-lg p-1 -m-1"
+            >
               <div className="w-9 h-9 rounded-lg bg-[hsl(0_75%_45%)] flex items-center justify-center">
                 <span className="text-[hsl(45_95%_60%)] font-black text-sm">N</span>
               </div>
               <div>
-                <p className="text-[hsl(45_80%_96%)] font-bold text-sm leading-none">NIAT India</p>
+                <p className="text-[hsl(45_80%_96%)] font-bold text-sm leading-none">
+                  NIAT India
+                </p>
                 <p className="text-[hsl(45_95%_60%)] text-xs font-semibold tracking-widest uppercase mt-0.5">
                   BRAVE
                 </p>
               </div>
-            </div>
+            </Link>
 
             <div className="mb-8">
               <h2 className="text-[hsl(45_80%_96%)] text-2xl font-black mb-2">
-                BRAVE Programme
+                Sign in to BRAVE
               </h2>
               <p className="text-[hsl(45_60%_92%)]/60 text-sm leading-relaxed">
-                Access your dashboard, track revenue, and view the national leaderboard for the BRAVE entrepreneurship programme.
+                Access your dashboard to log SME orders, see verified revenue,
+                and follow the national leaderboard.
               </p>
             </div>
 
@@ -157,12 +187,13 @@ export default function Login() {
             )}
 
             <p className="mt-5 text-xs text-[hsl(45_60%_88%)]/40 text-center leading-relaxed">
-              By signing in, you agree to the NIAT code of conduct and BRAVE programme terms.
+              By signing in, you agree to the NIAT code of conduct and BRAVE
+              program terms.
             </p>
           </div>
 
           <p className="text-center text-[hsl(45_60%_88%)]/35 text-xs mt-6">
-            NIAT India &mdash; BRAVE Entrepreneurship Programme
+            NIAT India · BRAVE — Boosting revenue for India's SMEs
           </p>
         </div>
       </div>
