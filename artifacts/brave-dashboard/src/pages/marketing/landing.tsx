@@ -314,9 +314,9 @@ function WhatIsBrave() {
             A program designed to boost revenues for SMEs.
           </h2>
           <p className="text-[hsl(45_60%_92%)]/70 text-lg leading-relaxed">
-            BRAVE pairs NIAT students with real small and medium businesses.
-            Teams build with AI, ship work that earns money for the SME, and
-            log verified revenue — all the way to a national Demo Day.
+            NIAT students find their own small and medium business partners,
+            build with AI, ship work that earns money for the SME, and log
+            verified revenue — all the way to a national Demo Day.
           </p>
         </div>
 
