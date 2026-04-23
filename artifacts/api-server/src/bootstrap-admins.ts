@@ -12,7 +12,7 @@ const PRIMARY_ADMIN = {
 };
 
 // Additional admin emails can be supplied via env (comma-separated).
-function getBootstrapAdminEmails(): string[] {
+export function getBootstrapAdminEmails(): string[] {
   const fromEnv = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())

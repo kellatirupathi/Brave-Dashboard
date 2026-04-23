@@ -25,7 +25,27 @@ import {
   ISSUER_URL,
   type SessionData,
 } from "../lib/auth";
-import { getBootstrapAdminFormsIds } from "../bootstrap-admins";
+import { getBootstrapAdminFormsIds, getBootstrapAdminEmails } from "../bootstrap-admins";
+
+// Returns a roster entry that resolves to a real campus for the given
+// formsUserId / email — used to decide whether SSO is allowed to provision
+// a brand new student row. Without this check the system would persist a
+// student with no campus, which Task #42 forbids.
+async function findUsableRosterMatch(opts: {
+  formsUserId?: string | null;
+  email?: string | null;
+}) {
+  const clauses = [] as ReturnType<typeof eq>[];
+  if (opts.formsUserId) clauses.push(eq(rosterTable.studentId, opts.formsUserId));
+  if (opts.email) clauses.push(eq(rosterTable.email, opts.email));
+  if (clauses.length === 0) return null;
+  const [match] = await db
+    .select()
+    .from(rosterTable)
+    .where(and(or(...clauses), eq(rosterTable.isWhitelisted, true)));
+  if (!match || match.campusId == null) return null;
+  return match;
+}
 
 const ExchangeMobileAuthorizationCodeBody = z.object({
   code: z.string(),
@@ -172,10 +192,37 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
   }
 
   try {
+    const adminFormsIds = getBootstrapAdminFormsIds();
+    const isBootstrapAdmin = adminFormsIds.includes(parsed.data.user_id);
+
+    // Refuse to provision a brand-new student row that has no campus we
+    // can resolve. Existing users (including current admins/coordinators)
+    // and bootstrap admins are exempt — they're either already valid or
+    // about to be promoted.
+    const [preExisting] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.formsUserId, parsed.data.user_id));
+    if (!preExisting && !isBootstrapAdmin) {
+      const rosterMatch = await findUsableRosterMatch({
+        formsUserId: parsed.data.user_id,
+      });
+      if (!rosterMatch) {
+        req.log.warn(
+          { formsUserId: parsed.data.user_id },
+          "Refusing Forms SSO token: no roster match with a campus",
+        );
+        res.status(403).json({
+          message:
+            "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
+        });
+        return;
+      }
+    }
+
     let user = await createOrGetUserByFormsId(parsed.data.user_id);
     // Promote to admin if this Forms user_id is in the bootstrap list.
-    const adminFormsIds = getBootstrapAdminFormsIds();
-    if (adminFormsIds.includes(parsed.data.user_id) && user.role !== "admin") {
+    if (isBootstrapAdmin && user.role !== "admin") {
       const [updated] = await db
         .update(usersTable)
         .set({ role: "admin", isActive: true, campusId: null })
@@ -205,6 +252,15 @@ router.post("/auth/validate-token", async (req: Request, res: Response) => {
       return;
     }
     const authUser = await buildAuthUser(dbUser);
+
+    if (authUser.role === "student" && authUser.campusId == null) {
+      req.log.warn({ userId: authUser.id, email: authUser.email }, "Blocking SSO login: student has no campus");
+      res.status(403).json({
+        message:
+          "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
+      });
+      return;
+    }
 
     const sessionData: SessionData = {
       user: authUser,
@@ -324,8 +380,44 @@ router.get("/callback", async (req: Request, res: Response) => {
     return;
   }
 
+  // If this is a brand-new replit user (no row yet) and we can't find a
+  // roster entry to give them a campus, don't persist a student row at all
+  // — that would violate the "no student/coordinator without a campus"
+  // invariant.
+  const replitId = (claims as Record<string, unknown>).sub as string | undefined;
+  const claimEmail = ((claims as Record<string, unknown>).email as string | undefined) ?? null;
+  const [preExistingByReplit] = replitId
+    ? await db.select().from(usersTable).where(eq(usersTable.replitId, replitId))
+    : [];
+  const [preExistingByEmail] = !preExistingByReplit && claimEmail
+    ? await db.select().from(usersTable).where(eq(usersTable.email, claimEmail))
+    : [];
+  const preExistingUser = preExistingByReplit ?? preExistingByEmail;
+  if (!preExistingUser) {
+    const adminEmails = getBootstrapAdminEmails();
+    const isBootstrapAdminEmail =
+      !!claimEmail && adminEmails.includes(claimEmail.toLowerCase());
+    const rosterMatch = isBootstrapAdminEmail
+      ? null
+      : await findUsableRosterMatch({ email: claimEmail });
+    if (!isBootstrapAdminEmail && !rosterMatch) {
+      req.log.warn(
+        { replitId, email: claimEmail },
+        "Refusing OIDC login: no existing user and no roster match with a campus",
+      );
+      res.redirect("/?error=no_campus");
+      return;
+    }
+  }
+
   const dbUser = await upsertUser(claims as unknown as Record<string, unknown>);
   const authUser = await buildAuthUser(dbUser);
+
+  if (authUser.role === "student" && authUser.campusId == null) {
+    req.log.warn({ userId: authUser.id, email: authUser.email }, "Blocking SSO login: student has no campus");
+    res.redirect("/?error=no_campus");
+    return;
+  }
 
   const now = Math.floor(Date.now() / 1000);
   const sessionData: SessionData = {
@@ -387,8 +479,46 @@ router.post(
         return;
       }
 
+      const replitId = (claims as Record<string, unknown>).sub as string | undefined;
+      const claimEmail = ((claims as Record<string, unknown>).email as string | undefined) ?? null;
+      const [preExistingByReplit] = replitId
+        ? await db.select().from(usersTable).where(eq(usersTable.replitId, replitId))
+        : [];
+      const [preExistingByEmail] = !preExistingByReplit && claimEmail
+        ? await db.select().from(usersTable).where(eq(usersTable.email, claimEmail))
+        : [];
+      const preExistingUser = preExistingByReplit ?? preExistingByEmail;
+      if (!preExistingUser) {
+        const adminEmails = getBootstrapAdminEmails();
+        const isBootstrapAdminEmail =
+          !!claimEmail && adminEmails.includes(claimEmail.toLowerCase());
+        const rosterMatch = isBootstrapAdminEmail
+          ? null
+          : await findUsableRosterMatch({ email: claimEmail });
+        if (!isBootstrapAdminEmail && !rosterMatch) {
+          req.log.warn(
+            { replitId, email: claimEmail },
+            "Refusing mobile OIDC login: no existing user and no roster match with a campus",
+          );
+          res.status(403).json({
+            error:
+              "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
+          });
+          return;
+        }
+      }
+
       const dbUser = await upsertUser(claims as unknown as Record<string, unknown>);
       const authUser = await buildAuthUser(dbUser);
+
+      if (authUser.role === "student" && authUser.campusId == null) {
+        req.log.warn({ userId: authUser.id, email: authUser.email }, "Blocking mobile SSO login: student has no campus");
+        res.status(403).json({
+          error:
+            "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
+        });
+        return;
+      }
 
       const now = Math.floor(Date.now() / 1000);
       const sessionData: SessionData = {

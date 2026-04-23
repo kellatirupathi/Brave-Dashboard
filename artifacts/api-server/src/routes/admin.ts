@@ -160,6 +160,9 @@ router.post("/admin/users", async (req, res): Promise<void> => {
   const { password, ...userData } = parsed.data;
   if (userData.role === "admin") {
     userData.campusId = null;
+  } else if (userData.role === "coordinator" && userData.campusId == null) {
+    res.status(400).json({ error: "A coordinator must be assigned to a campus." });
+    return;
   }
   const passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db
@@ -187,13 +190,22 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
     return;
   }
   const updates: typeof parsed.data = { ...parsed.data };
-  let finalRole: string | undefined = updates.role;
-  if (!finalRole) {
-    const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
-    finalRole = existing?.role;
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "User not found" });
+    return;
   }
+  const finalRole: string = updates.role ?? existing.role;
   if (finalRole === "admin") {
     updates.campusId = null;
+  } else if (finalRole === "coordinator" || finalRole === "student") {
+    const finalCampusId =
+      updates.campusId === undefined ? existing.campusId : updates.campusId;
+    if (finalCampusId == null) {
+      const label = finalRole === "coordinator" ? "coordinator" : "student";
+      res.status(400).json({ error: `A ${label} must be assigned to a campus.` });
+      return;
+    }
   }
   const [user] = await db
     .update(usersTable)

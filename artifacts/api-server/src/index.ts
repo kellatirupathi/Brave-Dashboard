@@ -1,9 +1,39 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
+import { and, inArray, isNull, sql } from "drizzle-orm";
 import { bootstrapCanonicalCampuses } from "./bootstrap-campuses";
 import { bootstrapAdmins } from "./bootstrap-admins";
+
+async function reportUsersWithoutCampus(): Promise<void> {
+  try {
+    const rows = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+        role: usersTable.role,
+      })
+      .from(usersTable)
+      .where(
+        and(
+          inArray(usersTable.role, ["student", "coordinator"]),
+          isNull(usersTable.campusId),
+        ),
+      );
+    if (rows.length === 0) {
+      logger.info("No students or coordinators are missing a campus.");
+      return;
+    }
+    logger.warn(
+      { count: rows.length, users: rows },
+      `Found ${rows.length} student/coordinator account(s) with no campus assigned. An admin should fix these.`,
+    );
+  } catch (err) {
+    logger.error({ err }, "Failed to scan for users without a campus");
+  }
+}
 
 async function backfillOrderBookEntries(): Promise<void> {
   try {
@@ -42,6 +72,7 @@ async function start(): Promise<void> {
   await bootstrapCanonicalCampuses();
   await bootstrapAdmins();
   await backfillOrderBookEntries();
+  await reportUsersWithoutCampus();
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");

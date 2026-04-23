@@ -77,7 +77,7 @@ export default function AdminUsers() {
         setIsCreateOpen(false);
         form.reset();
       },
-      onError: (e: any) => toast({ title: "Failed to create user", description: e.message, variant: "destructive" }),
+      onError: (e: any) => toast({ title: "Failed to create user", description: e?.data?.error ?? e?.message ?? "Something went wrong.", variant: "destructive" }),
     });
   };
 
@@ -107,7 +107,7 @@ export default function AdminUsers() {
           refresh();
           setEditTarget(null);
         },
-        onError: (e: any) => toast({ title: "Update failed", description: e.message, variant: "destructive" }),
+        onError: (e: any) => toast({ title: "Update failed", description: e?.data?.error ?? e?.message ?? "Something went wrong.", variant: "destructive" }),
       },
     );
   };
