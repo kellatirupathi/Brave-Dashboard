@@ -200,7 +200,7 @@ function Hero() {
             </span>
           </div>
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-[hsl(45_80%_96%)] leading-[1.05] mb-6">
-            Boost real revenue for{" "}
+            Boost revenue for{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[hsl(0_85%_60%)] to-[hsl(45_95%_60%)]">
               India's SMEs.
             </span>
