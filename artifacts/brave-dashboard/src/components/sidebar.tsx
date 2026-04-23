@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
+import { BraveLogo } from "./brave-logo";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -77,8 +78,8 @@ export function Sidebar() {
     <>
       <div className="w-64 bg-sidebar border-r border-sidebar-border h-screen sticky top-0 flex flex-col text-sidebar-foreground">
         <div className="p-6">
-          <h1 className="text-2xl font-bold tracking-tight text-sidebar-primary">BRAVE</h1>
-          <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-1">Dashboard</p>
+          <BraveLogo className="text-2xl" />
+          <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-2">Dashboard</p>
         </div>
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto py-4">

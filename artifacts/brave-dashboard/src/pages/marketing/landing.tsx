@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
+import { BraveLogo } from "@/components/brave-logo";
 import {
   ArrowRight,
   TrendingUp,
@@ -137,16 +138,8 @@ const FAQS = [
 
 function Logo() {
   return (
-    <Link href="/" data-testid="link-home" className="flex items-center gap-3">
-      <div className="w-9 h-9 rounded-lg bg-[hsl(0_75%_45%)] flex items-center justify-center shadow-lg shadow-black/40">
-        <span className="text-[hsl(45_95%_60%)] font-black text-sm">N</span>
-      </div>
-      <div className="leading-none">
-        <p className="text-[hsl(45_80%_96%)] font-bold text-sm">NIAT India</p>
-        <p className="text-[hsl(45_95%_60%)] text-[10px] font-bold tracking-[0.18em] uppercase mt-0.5">
-          BRAVE
-        </p>
-      </div>
+    <Link href="/" data-testid="link-home" className="flex items-center">
+      <BraveLogo className="text-2xl" />
     </Link>
   );
 }
@@ -512,18 +505,11 @@ function Footer() {
   return (
     <footer className="bg-[hsl(0_40%_8%)] border-t border-[hsl(0_50%_30%)]/40 py-10">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[hsl(0_75%_45%)] flex items-center justify-center">
-            <span className="text-[hsl(45_95%_60%)] font-black text-sm">N</span>
-          </div>
-          <div className="leading-none">
-            <p className="text-[hsl(45_80%_96%)] font-bold text-sm">
-              NIAT India · BRAVE
-            </p>
-            <p className="text-[hsl(45_60%_88%)]/55 text-xs mt-1">
-              Boosting real revenue for India's SMEs.
-            </p>
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <BraveLogo className="text-2xl" />
+          <p className="text-[hsl(45_60%_88%)]/55 text-xs">
+            Boosting real revenue for India's SMEs.
+          </p>
         </div>
         <p className="text-[hsl(45_60%_88%)]/40 text-xs">
           © {new Date().getFullYear()} NIAT India. All rights reserved.

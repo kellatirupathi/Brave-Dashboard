@@ -1,6 +1,7 @@
 import { useAuth } from "@workspace/replit-auth-web";
 import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
+import { BraveLogo } from "@/components/brave-logo";
 import {
   ArrowRight,
   ArrowLeft,
@@ -43,18 +44,9 @@ export default function Login() {
           <Link
             href="/"
             data-testid="link-back-home"
-            className="flex items-center gap-3 hover-elevate rounded-lg px-2 py-1 -ml-2"
+            className="flex items-center hover-elevate rounded-lg px-2 py-1 -ml-2"
           >
-            <div className="w-9 h-9 rounded-lg bg-[hsl(0_75%_45%)] flex items-center justify-center shadow-lg shadow-black/40">
-              <span className="text-[hsl(45_95%_60%)] font-black text-sm">N</span>
-            </div>
-            <span className="text-[hsl(45_80%_96%)]/85 font-semibold text-sm tracking-wide">
-              NIAT India
-            </span>
-            <span className="text-[hsl(45_80%_96%)]/25 mx-1">|</span>
-            <span className="text-[hsl(45_95%_60%)] font-bold text-sm tracking-widest uppercase">
-              BRAVE
-            </span>
+            <BraveLogo className="text-2xl" />
           </Link>
         </div>
 
@@ -132,19 +124,9 @@ export default function Login() {
             <Link
               href="/"
               data-testid="link-mobile-home"
-              className="flex lg:hidden items-center gap-3 mb-8 hover-elevate rounded-lg p-1 -m-1"
+              className="flex lg:hidden items-center mb-8 hover-elevate rounded-lg p-1 -m-1"
             >
-              <div className="w-9 h-9 rounded-lg bg-[hsl(0_75%_45%)] flex items-center justify-center">
-                <span className="text-[hsl(45_95%_60%)] font-black text-sm">N</span>
-              </div>
-              <div>
-                <p className="text-[hsl(45_80%_96%)] font-bold text-sm leading-none">
-                  NIAT India
-                </p>
-                <p className="text-[hsl(45_95%_60%)] text-xs font-semibold tracking-widest uppercase mt-0.5">
-                  BRAVE
-                </p>
-              </div>
+              <BraveLogo className="text-2xl" />
             </Link>
 
             <div className="mb-8">
