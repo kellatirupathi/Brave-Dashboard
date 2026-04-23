@@ -82,7 +82,12 @@ export default function DemoDay() {
           const cleared = revenue >= level.threshold;
           const level1Threshold = LEVELS[0].threshold;
           const level1Cleared = revenue >= level1Threshold;
-          const lockedBehindLevel1 = level.num !== 1 && !level1Cleared;
+          const level2Threshold = LEVELS[1].threshold;
+          const level2Cleared = revenue >= level2Threshold;
+          const lockedBehindPrevious =
+            (level.num === 2 && !level1Cleared) ||
+            (level.num === 3 && !level2Cleared);
+          const previousLevelToClear = level.num === 3 ? 2 : 1;
           const remaining = Math.max(level.threshold - revenue, 0);
           const progressPercent = Math.min(
             (revenue / level.threshold) * 100,
@@ -122,9 +127,9 @@ export default function DemoDay() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {lockedBehindLevel1 ? (
+                {lockedBehindPrevious ? (
                   <p className="text-sm text-muted-foreground text-center">
-                    Clear Level 1 to unlock
+                    Clear Level {previousLevelToClear} to unlock
                   </p>
                 ) : (
                   <>
