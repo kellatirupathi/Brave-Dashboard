@@ -111,7 +111,7 @@ export function DocumentViewer({
               <FileText className="w-4 h-4 shrink-0 text-muted-foreground" />
               <span className="truncate" data-testid="document-viewer-title">{displayTitle}</span>
             </DialogTitle>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 mr-8">
               <Button
                 size="sm"
                 variant="outline"
