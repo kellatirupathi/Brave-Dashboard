@@ -133,12 +133,16 @@ router.get("/admin/users", async (req, res): Promise<void> => {
     : await db.select().from(usersTable);
   const result = await Promise.all(users.map(async (u) => {
     let campusName: string | null = null;
-    if (u.campusId) {
+    if (u.role !== "admin" && u.campusId) {
       const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, u.campusId));
       campusName = campus?.name ?? null;
     }
     const { passwordHash, ...safe } = u;
-    return { ...safe, campusName };
+    return {
+      ...safe,
+      campusId: u.role === "admin" ? null : safe.campusId,
+      campusName,
+    };
   }));
   res.json(result);
 });
@@ -154,6 +158,9 @@ router.post("/admin/users", async (req, res): Promise<void> => {
     return;
   }
   const { password, ...userData } = parsed.data;
+  if (userData.role === "admin") {
+    userData.campusId = null;
+  }
   const passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db
     .insert(usersTable)
@@ -179,16 +186,25 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const updates: typeof parsed.data = { ...parsed.data };
+  let finalRole: string | undefined = updates.role;
+  if (!finalRole) {
+    const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
+    finalRole = existing?.role;
+  }
+  if (finalRole === "admin") {
+    updates.campusId = null;
+  }
   const [user] = await db
     .update(usersTable)
-    .set(parsed.data)
+    .set(updates)
     .where(eq(usersTable.id, params.data.id))
     .returning();
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  await logAudit(req.user.id, "update_user", "user", undefined, `${user.id} ${JSON.stringify(parsed.data)}`);
+  await logAudit(req.user.id, "update_user", "user", undefined, `${user.id} ${JSON.stringify(updates)}`);
   const { passwordHash, ...safe } = user;
   res.json({ ...safe, campusName: null });
 });

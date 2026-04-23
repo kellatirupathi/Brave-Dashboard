@@ -1,5 +1,5 @@
 import { db, usersTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, isNotNull } from "drizzle-orm";
 import { logger } from "./lib/logger";
 
 // Hardcoded primary administrator. This person is set as admin on every
@@ -42,7 +42,7 @@ export async function bootstrapAdmins(): Promise<void> {
   if (existingPrimary) {
     await db
       .update(usersTable)
-      .set({ role: "admin", isActive: true })
+      .set({ role: "admin", isActive: true, campusId: null })
       .where(eq(usersTable.id, existingPrimary.id));
   } else {
     await db.insert(usersTable).values({
@@ -51,6 +51,7 @@ export async function bootstrapAdmins(): Promise<void> {
       lastName: PRIMARY_ADMIN.lastName,
       role: "admin",
       isActive: true,
+      campusId: null,
     });
   }
 
@@ -58,12 +59,25 @@ export async function bootstrapAdmins(): Promise<void> {
   if (emails.length > 0) {
     const updated = await db
       .update(usersTable)
-      .set({ role: "admin", isActive: true })
+      .set({ role: "admin", isActive: true, campusId: null })
       .where(inArray(usersTable.email, emails))
       .returning({ id: usersTable.id, email: usersTable.email });
     logger.info(
       { promoted: updated.length, primary: PRIMARY_ADMIN.email },
       "Bootstrap admins reconciled",
+    );
+  }
+
+  // 3. Defensive cleanup: any admin still tied to a campus has it cleared.
+  const cleared = await db
+    .update(usersTable)
+    .set({ campusId: null })
+    .where(and(eq(usersTable.role, "admin"), isNotNull(usersTable.campusId)))
+    .returning({ id: usersTable.id, email: usersTable.email });
+  if (cleared.length > 0) {
+    logger.info(
+      { cleared: cleared.length },
+      "Cleared campus assignment for existing admin users",
     );
   }
 }

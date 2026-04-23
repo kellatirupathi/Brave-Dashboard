@@ -250,7 +250,7 @@ export default function AdminUsers() {
                       <Badge variant="outline"><Shield className="w-3 h-3 mr-1" /> Coordinator</Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{user.campusName || "-"}</TableCell>
+                  <TableCell className="text-muted-foreground">{user.role === "admin" ? "—" : (user.campusName || "—")}</TableCell>
                   <TableCell>
                     {user.isActive ? (
                       <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">
@@ -302,7 +302,11 @@ export default function AdminUsers() {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-1.5 block">Role</label>
-              <Select value={editRole} onValueChange={(v) => setEditRole(v as "admin" | "coordinator")}>
+              <Select value={editRole} onValueChange={(v) => {
+                const next = v as "admin" | "coordinator";
+                setEditRole(next);
+                if (next === "admin") setEditCampusId("");
+              }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin"><span className="inline-flex items-center"><ShieldCheck className="w-3 h-3 mr-2" /> Administrator</span></SelectItem>

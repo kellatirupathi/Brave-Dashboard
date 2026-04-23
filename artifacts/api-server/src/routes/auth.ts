@@ -178,7 +178,7 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
     if (adminFormsIds.includes(parsed.data.user_id) && user.role !== "admin") {
       const [updated] = await db
         .update(usersTable)
-        .set({ role: "admin", isActive: true })
+        .set({ role: "admin", isActive: true, campusId: null })
         .where(eq(usersTable.id, user.id))
         .returning();
       if (updated) user = updated;
