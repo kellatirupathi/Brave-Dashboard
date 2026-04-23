@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "xemq6RZbAft_qsT6RsPJB"
+uri = "file://.local/qa-report.md"
+type = "text"
+title = "BRAVE Dashboard – Full Platform QA Report"
