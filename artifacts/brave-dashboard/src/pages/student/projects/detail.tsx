@@ -59,6 +59,22 @@ import { useQueryClient } from "@tanstack/react-query";
 
 type UploadField = "supportingDoc" | "brd";
 
+function extractUploadErrorMessage(err: unknown): string {
+  if (
+    err &&
+    typeof err === "object" &&
+    "data" in err &&
+    err.data &&
+    typeof err.data === "object" &&
+    "error" in err.data &&
+    typeof (err.data as { error: unknown }).error === "string"
+  ) {
+    return (err.data as { error: string }).error;
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return "Please try again";
+}
+
 export default function ProjectDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
@@ -151,9 +167,10 @@ export default function ProjectDetail() {
       else setBrdUrl(url);
       toast({ title: "File uploaded" });
     } catch (err) {
+      const description = extractUploadErrorMessage(err);
       toast({
         title: "Upload failed",
-        description: err instanceof Error ? err.message : "Please try again",
+        description,
         variant: "destructive",
       });
     } finally {

@@ -118,6 +118,21 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `/admin/audit-log` — Action audit trail
 - `/admin/announcements` — Post announcements
 
+## Upload Limits
+
+Enforced before signing an upload URL in `artifacts/api-server/src/routes/storage.ts`
+(POST `/storage/uploads/request-url`). Adjust the constants in that file to change the
+limits:
+
+- **Max file size**: 25 MB (`MAX_UPLOAD_SIZE_BYTES`) — returns `413` when exceeded.
+- **Allowed mime types** (`ALLOWED_UPLOAD_MIME_TYPES`) — returns `415` for anything else:
+  - `application/pdf`
+  - `image/jpeg`, `image/png`, `image/gif`, `image/webp`
+  - `application/msword` (.doc)
+  - `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (.docx)
+
+The dashboard surfaces the server's `error` string in a destructive toast on rejection.
+
 ## Business Logic
 
 - **Revenue verification**: Only `verified_amount` from `revenue_entries` with `status='verified'` counts for leaderboard ranking and Demo Day eligibility

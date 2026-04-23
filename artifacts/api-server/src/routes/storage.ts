@@ -21,6 +21,30 @@ import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage"
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
+/**
+ * Upload limits enforced by POST /storage/uploads/request-url.
+ *
+ * Keep in sync with the documented limits in `replit.md`. Adjust here to
+ * relax/tighten what the platform will accept before signing an upload URL.
+ */
+export const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+
+export const ALLOWED_UPLOAD_MIME_TYPES: readonly string[] = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
 async function getStoredFileMetadata(objectPath: string) {
   const rows = await db
     .select()
@@ -53,8 +77,29 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
     return;
   }
 
+  const { name, size, contentType } = parsed.data;
+
+  if (!Number.isFinite(size) || size <= 0) {
+    res.status(400).json({ error: "File size must be a positive number." });
+    return;
+  }
+
+  if (size > MAX_UPLOAD_SIZE_BYTES) {
+    res.status(413).json({
+      error: `File is too large. Maximum allowed size is ${formatBytes(MAX_UPLOAD_SIZE_BYTES)}.`,
+    });
+    return;
+  }
+
+  const normalizedType = contentType.trim().toLowerCase();
+  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(normalizedType)) {
+    res.status(415).json({
+      error: `Unsupported file type "${contentType}". Allowed types: PDF, JPEG, PNG, GIF, WEBP, DOC, DOCX.`,
+    });
+    return;
+  }
+
   try {
-    const { name, size, contentType } = parsed.data;
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);

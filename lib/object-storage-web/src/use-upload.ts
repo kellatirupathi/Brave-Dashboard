@@ -75,12 +75,19 @@ export function useUpload(options: UseUploadOptions = {}) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to get upload URL");
+        const message =
+          (errorData && typeof errorData.error === "string" && errorData.error) ||
+          (response.status === 413
+            ? "File is too large to upload."
+            : response.status === 415
+              ? "This file type is not supported."
+              : "Failed to get upload URL");
+        throw new Error(message);
       }
 
       return response.json();
     },
-    []
+    [basePath]
   );
 
   const uploadToPresignedUrl = useCallback(
@@ -149,7 +156,15 @@ export function useUpload(options: UseUploadOptions = {}) {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get upload URL");
+        const errorData = await response.json().catch(() => ({}));
+        const message =
+          (errorData && typeof errorData.error === "string" && errorData.error) ||
+          (response.status === 413
+            ? "File is too large to upload."
+            : response.status === 415
+              ? "This file type is not supported."
+              : "Failed to get upload URL");
+        throw new Error(message);
       }
 
       const data = await response.json();
