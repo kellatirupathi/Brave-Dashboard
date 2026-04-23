@@ -147,7 +147,11 @@ export default function CoordinatorTeams() {
             <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
               <Badge
                 variant={team.status === "active" ? "default" : "secondary"}
-                className="capitalize"
+                className={
+                  team.status === "active"
+                    ? "capitalize bg-green-600 hover:bg-green-600 text-white dark:bg-green-500 dark:hover:bg-green-500 dark:text-white"
+                    : "capitalize"
+                }
               >
                 {team.status.replace("_", " ")}
               </Badge>
