@@ -247,6 +247,14 @@ export default function ProjectDetail() {
   const handleAddRevenue = (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || !paymentDate) return;
+    if (!brdUrl) {
+      toast({
+        title: "BRD document required",
+        description: "Please upload a BRD before saving this revenue entry.",
+        variant: "destructive",
+      });
+      return;
+    }
     createRevenue.mutate(
       {
         data: {
@@ -254,7 +262,7 @@ export default function ProjectDetail() {
           clientName,
           amount: Number(amount),
           paymentDate,
-          brdUrl: brdUrl ?? undefined,
+          brdUrl,
         },
       },
       {
@@ -468,7 +476,7 @@ export default function ProjectDetail() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-medium">
-                        BRD document (PDF)
+                        BRD document (PDF) <span className="text-destructive">*</span>
                       </label>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -516,7 +524,9 @@ export default function ProjectDetail() {
                     <Button
                       type="submit"
                       disabled={
-                        createRevenue.isPending || uploadingField !== null
+                        createRevenue.isPending ||
+                        uploadingField !== null ||
+                        !brdUrl
                       }
                     >
                       {createRevenue.isPending && (
@@ -572,8 +582,9 @@ export default function ProjectDetail() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={submitRevenue.isPending}
+                          disabled={submitRevenue.isPending || !entry.brdUrl}
                           onClick={() => handleSubmitRevenue(entry.id)}
+                          title={!entry.brdUrl ? "Upload a BRD before submitting" : undefined}
                         >
                           <Send className="w-3 h-3 mr-1" /> Submit for
                           verification

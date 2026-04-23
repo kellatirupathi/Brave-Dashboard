@@ -249,6 +249,10 @@ router.post("/revenue-entries", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  if (!parsed.data.brdUrl || parsed.data.brdUrl.trim() === "") {
+    res.status(400).json({ error: "BRD document is required for every revenue entry." });
+    return;
+  }
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, parsed.data.projectId));
   if (!project) {
     res.status(404).json({ error: "Project not found" });
@@ -323,6 +327,18 @@ router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
   const params = SubmitRevenueEntryParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [existing] = await db
+    .select()
+    .from(revenueEntriesTable)
+    .where(eq(revenueEntriesTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  if (!existing.brdUrl || existing.brdUrl.trim() === "") {
+    res.status(400).json({ error: "Upload a BRD document before submitting this entry for verification." });
     return;
   }
   const [entry] = await db

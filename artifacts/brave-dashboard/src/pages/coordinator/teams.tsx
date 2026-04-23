@@ -7,6 +7,7 @@ import {
   type ErrorType,
 } from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export default function CoordinatorTeams() {
   const { toast } = useToast();
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [changesId, setChangesId] = useState<number | null>(null);
+  const [, setLocation] = useLocation();
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
@@ -124,7 +126,9 @@ export default function CoordinatorTeams() {
         {teams?.map((team) => (
           <Card
             key={team.id}
-            className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+            className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer hover-elevate active-elevate-2"
+            onClick={() => setLocation(`/teams/${team.id}`)}
+            data-testid={`row-team-${team.id}`}
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold">
@@ -148,7 +152,10 @@ export default function CoordinatorTeams() {
                 {team.status.replace("_", " ")}
               </Badge>
               {isCoordinator && team.status === "pending" && (
-                <div className="flex flex-wrap gap-2 ml-auto sm:ml-0">
+                <div
+                  className="flex flex-wrap gap-2 ml-auto sm:ml-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Button
                     size="sm"
                     className="bg-green-600 hover:bg-green-700 text-white"
