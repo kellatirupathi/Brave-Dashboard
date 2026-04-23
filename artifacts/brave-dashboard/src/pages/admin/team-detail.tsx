@@ -48,7 +48,6 @@ function docLink(url: string | null | undefined, label: string, key: string) {
       key={key}
       url={url}
       label={label}
-      filename={label}
       variant="inline"
       testId={`attachment-${key}`}
     />

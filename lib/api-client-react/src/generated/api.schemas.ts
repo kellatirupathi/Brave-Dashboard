@@ -885,6 +885,13 @@ export interface RequestUploadUrlResponse {
   objectPath: string;
 }
 
+export interface UploadedFileMetadata {
+  objectPath: string;
+  filename: string;
+  size: number;
+  contentType: string;
+}
+
 export interface SuccessResponse {
   success: boolean;
 }
@@ -1029,4 +1036,11 @@ export type ListRosterEntriesParams = {
 
 export type ListAccessRequestsParams = {
   status?: string;
+};
+
+export type GetUploadedFileMetadataParams = {
+  /**
+   * Storage object path (e.g. "/objects/<id>")
+   */
+  path: string;
 };

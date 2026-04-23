@@ -4,6 +4,7 @@ import { eq, or } from "drizzle-orm";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
+  GetUploadedFileMetadataResponse,
 } from "@workspace/api-zod";
 import {
   db,
@@ -13,12 +14,33 @@ import {
   teamsTable,
   milestonesTable,
   teamMembersTable,
+  uploadedFilesTable,
 } from "@workspace/db";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
+async function getStoredFileMetadata(objectPath: string) {
+  const rows = await db
+    .select()
+    .from(uploadedFilesTable)
+    .where(eq(uploadedFilesTable.objectPath, objectPath))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * POST /storage/uploads/request-url
+ *
+ * Request a presigned URL for file upload.
+ * The client sends JSON metadata (name, size, contentType) — NOT the file.
+ * Then uploads the file directly to the returned presigned URL.
+ *
+ * The original filename, size, and content type are persisted alongside the
+ * generated object path so downstream viewers/downloads can use the real name
+ * instead of the random UUID stored in object storage.
+ */
 router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
@@ -37,6 +59,32 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
+    try {
+      await db
+        .insert(uploadedFilesTable)
+        .values({
+          objectPath,
+          filename: name,
+          size,
+          contentType,
+          uploadedById: req.user?.id ?? null,
+        })
+        .onConflictDoUpdate({
+          target: uploadedFilesTable.objectPath,
+          set: {
+            filename: name,
+            size,
+            contentType,
+            uploadedById: req.user?.id ?? null,
+          },
+        });
+    } catch (err) {
+      // Don't fail the upload request just because the metadata insert failed;
+      // the upload itself can still succeed and the viewer will fall back to
+      // generic labels.
+      req.log.warn({ err, objectPath }, "Failed to record uploaded file metadata");
+    }
+
     res.json(
       RequestUploadUrlResponse.parse({
         uploadURL,
@@ -50,6 +98,69 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
   }
 });
 
+/**
+ * GET /storage/uploads/metadata?path=/objects/<id>
+ *
+ * Return the original filename / mime type / size for an uploaded object so the
+ * viewer can show real names and pick the right preview type. Access is gated
+ * the same way as /storage/objects/* — only users who can see the underlying
+ * file can see its metadata.
+ */
+router.get("/storage/uploads/metadata", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const path = req.query.path;
+  if (typeof path !== "string" || path.length === 0) {
+    res.status(400).json({ error: "Missing 'path' query parameter" });
+    return;
+  }
+
+  try {
+    if (path.startsWith("/objects/")) {
+      const owningTeamId = await findOwningTeamId(path);
+      if (owningTeamId === null) {
+        if (req.user.role !== "admin") {
+          res.status(404).json({ error: "No metadata recorded for this object" });
+          return;
+        }
+      } else {
+        const allowed = await userCanAccessTeamDocument(req.user, owningTeamId);
+        if (!allowed) {
+          res.status(403).json({ error: "Forbidden" });
+          return;
+        }
+      }
+    }
+
+    const meta = await getStoredFileMetadata(path);
+    if (!meta) {
+      res.status(404).json({ error: "No metadata recorded for this object" });
+      return;
+    }
+    res.json(
+      GetUploadedFileMetadataResponse.parse({
+        objectPath: meta.objectPath,
+        filename: meta.filename,
+        size: meta.size,
+        contentType: meta.contentType,
+      }),
+    );
+  } catch (error) {
+    req.log.error({ err: error }, "Error reading uploaded file metadata");
+    res.status(500).json({ error: "Failed to read uploaded file metadata" });
+  }
+});
+
+/**
+ * GET /storage/public-objects/*
+ *
+ * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS.
+ * These are unconditionally public — no authentication or ACL checks.
+ * IMPORTANT: Always provide this endpoint when object storage is set up.
+ */
 router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
   try {
     const raw = req.params.filePath;
@@ -64,14 +175,14 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
     const isDownload =
       downloadFlag === "1" || downloadFlag === "true" || downloadFlag === "";
     const filenameParam = req.query.filename;
-    const filename =
+    const explicitFilename =
       typeof filenameParam === "string" && filenameParam.length > 0
         ? filenameParam
         : undefined;
 
     const response = await objectStorageService.downloadObject(file, 3600, {
       disposition: isDownload ? "attachment" : "inline",
-      filename,
+      filename: explicitFilename,
     });
 
     res.status(response.status);
@@ -200,10 +311,13 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const isDownload =
       downloadFlag === "1" || downloadFlag === "true" || downloadFlag === "";
     const filenameParam = req.query.filename;
-    const filename =
+    const explicitFilename =
       typeof filenameParam === "string" && filenameParam.length > 0
         ? filenameParam
         : undefined;
+
+    const storedMeta = await getStoredFileMetadata(objectPath).catch(() => null);
+    const filename = explicitFilename ?? storedMeta?.filename;
 
     const response = await objectStorageService.downloadObject(objectFile, 3600, {
       disposition: isDownload ? "attachment" : "inline",

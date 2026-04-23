@@ -42,6 +42,7 @@ import type {
   GetAuditLogParams,
   GetCurrentAuthUserResponse,
   GetLeaderboardParams,
+  GetUploadedFileMetadataParams,
   HealthStatus,
   JoinByCodeBody,
   LeaderboardEntry,
@@ -89,6 +90,7 @@ import type {
   UpdateRevenueEntryBody,
   UpdateTeamBody,
   UpdateUserBody,
+  UploadedFileMetadata,
   User,
   VerifyEntryBody,
 } from "./api.schemas";
@@ -6714,6 +6716,112 @@ export const useRequestUploadUrl = <
 > => {
   return useMutation(getRequestUploadUrlMutationOptions(options));
 };
+
+/**
+ * @summary Get original filename / mime type / size for an uploaded object
+ */
+export const getGetUploadedFileMetadataUrl = (
+  params: GetUploadedFileMetadataParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/storage/uploads/metadata?${stringifiedParams}`
+    : `/api/storage/uploads/metadata`;
+};
+
+export const getUploadedFileMetadata = async (
+  params: GetUploadedFileMetadataParams,
+  options?: RequestInit,
+): Promise<UploadedFileMetadata> => {
+  return customFetch<UploadedFileMetadata>(
+    getGetUploadedFileMetadataUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetUploadedFileMetadataQueryKey = (
+  params?: GetUploadedFileMetadataParams,
+) => {
+  return [
+    `/api/storage/uploads/metadata`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetUploadedFileMetadataQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUploadedFileMetadata>>,
+  TError = ErrorType<void>,
+>(
+  params: GetUploadedFileMetadataParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUploadedFileMetadata>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUploadedFileMetadataQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUploadedFileMetadata>>
+  > = ({ signal }) =>
+    getUploadedFileMetadata(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUploadedFileMetadata>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUploadedFileMetadataQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUploadedFileMetadata>>
+>;
+export type GetUploadedFileMetadataQueryError = ErrorType<void>;
+
+/**
+ * @summary Get original filename / mime type / size for an uploaded object
+ */
+
+export function useGetUploadedFileMetadata<
+  TData = Awaited<ReturnType<typeof getUploadedFileMetadata>>,
+  TError = ErrorType<void>,
+>(
+  params: GetUploadedFileMetadataParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUploadedFileMetadata>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUploadedFileMetadataQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get a stored object

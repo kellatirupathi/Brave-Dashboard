@@ -340,6 +340,20 @@ export const insertProgrammeConfigSchema = createInsertSchema(programmeConfigTab
 export type InsertProgrammeConfig = z.infer<typeof insertProgrammeConfigSchema>;
 export type ProgrammeConfig = typeof programmeConfigTable.$inferSelect;
 
+// Uploaded files metadata (filename / mime / size for objects in storage)
+export const uploadedFilesTable = pgTable("uploaded_files", {
+  objectPath: text("object_path").primaryKey(),
+  filename: text("filename").notNull(),
+  size: integer("size").notNull(),
+  contentType: text("content_type").notNull(),
+  uploadedById: text("uploaded_by_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertUploadedFileSchema = createInsertSchema(uploadedFilesTable).omit({ createdAt: true });
+export type InsertUploadedFile = z.infer<typeof insertUploadedFileSchema>;
+export type UploadedFile = typeof uploadedFilesTable.$inferSelect;
+
 // Audit Log
 export const auditLogTable = pgTable("audit_log", {
   id: serial("id").primaryKey(),

@@ -1598,6 +1598,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/RequestUploadUrlResponse"
 
+  /storage/uploads/metadata:
+    get:
+      operationId: getUploadedFileMetadata
+      tags: [storage]
+      summary: Get original filename / mime type / size for an uploaded object
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: Storage object path (e.g. "/objects/<id>")
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Uploaded file metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadedFileMetadata"
+        "404":
+          description: No metadata recorded for this object
+
   /storage/objects/{objectPath}:
     get:
       operationId: getStorageObject
@@ -3070,6 +3092,23 @@ components:
       required:
         - uploadURL
         - objectPath
+
+    UploadedFileMetadata:
+      type: object
+      properties:
+        objectPath:
+          type: string
+        filename:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required:
+        - objectPath
+        - filename
+        - size
+        - contentType
 
     SuccessResponse:
       type: object

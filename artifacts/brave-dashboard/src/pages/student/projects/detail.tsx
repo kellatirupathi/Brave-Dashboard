@@ -309,7 +309,6 @@ export default function ProjectDetail() {
       <DocumentLinkButton
         url={url}
         label={label}
-        filename={label}
         variant="inline"
       />
     );

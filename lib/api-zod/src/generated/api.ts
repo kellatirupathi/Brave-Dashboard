@@ -1965,6 +1965,22 @@ export const RequestUploadUrlResponse = zod.object({
 });
 
 /**
+ * @summary Get original filename / mime type / size for an uploaded object
+ */
+export const GetUploadedFileMetadataQueryParams = zod.object({
+  path: zod.coerce
+    .string()
+    .describe('Storage object path (e.g. \"\/objects\/<id>\")'),
+});
+
+export const GetUploadedFileMetadataResponse = zod.object({
+  objectPath: zod.string(),
+  filename: zod.string(),
+  size: zod.number(),
+  contentType: zod.string(),
+});
+
+/**
  * @summary Get a stored object
  */
 export const GetStorageObjectParams = zod.object({

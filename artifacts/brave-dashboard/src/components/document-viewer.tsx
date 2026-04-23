@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, ExternalLink, FileText, FileWarning, Paperclip } from "lucide-react";
+import {
+  useGetUploadedFileMetadata,
+  getGetUploadedFileMetadataQueryKey,
+} from "@workspace/api-client-react";
 
 export type DocumentViewerProps = {
   open: boolean;
@@ -52,21 +56,40 @@ export function DocumentViewer({
 }: DocumentViewerProps) {
   const resolved = useMemo(() => (url ? resolveStorageUrl(url) : ""), [url]);
   const isStorage = useMemo(() => (url ? isStorageUrl(url) : false), [url]);
-  const initialKind = useMemo(
-    () => (url ? inferKind(url, mimeType) : "unknown"),
-    [url, mimeType],
+
+  // Look up the original filename / mime type recorded at upload time so the
+  // viewer shows real names instead of the random UUID object id.
+  const metadataQuery = useGetUploadedFileMetadata(
+    { path: url ?? "" },
+    {
+      query: {
+        queryKey: getGetUploadedFileMetadataQueryKey({ path: url ?? "" }),
+        enabled: open && !!url && isStorage,
+        staleTime: 5 * 60 * 1000,
+        retry: false,
+      },
+    },
   );
-  const [detectedMime, setDetectedMime] = useState<string | undefined>(mimeType);
+  const storedMeta = metadataQuery.data;
+  const effectiveFilename = filename || storedMeta?.filename;
+  const effectiveMime = mimeType || storedMeta?.contentType;
+
+  const initialKind = useMemo(
+    () => (url ? inferKind(url, effectiveMime) : "unknown"),
+    [url, effectiveMime],
+  );
+  const [detectedMime, setDetectedMime] = useState<string | undefined>(effectiveMime);
   const [probing, setProbing] = useState(false);
 
   useEffect(() => {
-    setDetectedMime(mimeType);
-  }, [mimeType, url]);
+    setDetectedMime(effectiveMime);
+  }, [effectiveMime, url]);
 
   useEffect(() => {
     if (!open || !url || !isStorage) return;
     if (initialKind !== "unknown") return;
     if (detectedMime) return;
+    if (metadataQuery.isLoading) return;
     let cancelled = false;
     setProbing(true);
     fetch(resolved, { method: "HEAD" })
@@ -82,7 +105,7 @@ export function DocumentViewer({
     return () => {
       cancelled = true;
     };
-  }, [open, url, isStorage, initialKind, detectedMime, resolved]);
+  }, [open, url, isStorage, initialKind, detectedMime, resolved, metadataQuery.isLoading]);
 
   const kind: PreviewKind = useMemo(() => {
     if (!url) return "unknown";
@@ -95,12 +118,12 @@ export function DocumentViewer({
   const downloadUrl = isStorage
     ? withQuery(resolved, {
         download: "1",
-        ...(filename ? { filename } : {}),
+        ...(effectiveFilename ? { filename: effectiveFilename } : {}),
       })
     : resolved;
   const openUrl = resolved;
 
-  const displayTitle = title || filename || "Document";
+  const displayTitle = title || effectiveFilename || "Document";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -246,7 +269,7 @@ export function DocumentLinkButton({
         open={open}
         onOpenChange={setOpen}
         url={url}
-        filename={filename || label}
+        filename={filename}
         mimeType={mimeType}
         title={label}
       />
