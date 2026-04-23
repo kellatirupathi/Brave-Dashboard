@@ -67,22 +67,52 @@ const STEPS = [
 
 const CASE_STUDIES = [
   {
-    sme: "Sample SME · Hyderabad",
-    outcome: "+₹1.8L revenue in 6 weeks",
-    summary:
-      "A neighbourhood bakery doubled online orders after a student team built them a WhatsApp ordering flow.",
+    team: "Gooooo",
+    sector: "Interior Designs and Architecture",
+    score: 93,
+    revenue: null as string | null,
+    highlights: [
+      "MVP Product",
+      "High Scale & Replicability",
+      "Excellent Pitch",
+      "Advance Received",
+    ],
   },
   {
-    sme: "Sample SME · Bengaluru",
-    outcome: "+₹2.4L revenue in 8 weeks",
-    summary:
-      "A boutique fitness studio filled empty slots using an AI-assisted retention and reminder system.",
+    team: "BusinessGrp-1",
+    sector: "Vasantha Lakshmi Women's PG Interior Designing",
+    score: 85,
+    revenue: "₹5,000",
+    highlights: [
+      "MVP Product",
+      "Medium Scale",
+      "Good Pitch",
+      "Advance Received",
+    ],
   },
   {
-    sme: "Sample SME · Pune",
-    outcome: "+₹3.1L revenue in 10 weeks",
-    summary:
-      "A regional D2C brand cleared dead inventory with an AI-generated campaign and storefront refresh.",
+    team: "Chaloo Bharath",
+    sector: "Conversations Into Clinical Care",
+    score: 95,
+    revenue: "₹40,000",
+    highlights: [
+      "MVP Product",
+      "High Scale & Replicability",
+      "Excellent Pitch",
+      "Advance Received",
+    ],
+  },
+  {
+    team: "Let Make It Happen",
+    sector: "Farmers Group Of India",
+    score: 95,
+    revenue: "₹1,75,000",
+    highlights: [
+      "MVP Product",
+      "High Scale & Replicability",
+      "Excellent Pitch",
+      "Advance Received",
+    ],
   },
 ];
 
@@ -255,45 +285,59 @@ function CaseStudies() {
               Real SMEs. Real revenue. Real students.
             </h2>
             <p className="text-[hsl(45_60%_92%)]/65">
-              The cards below are illustrative placeholders. Real BRAVE 2026
-              cohort stories will land here once Demo Day wraps.
+              Gold-tier teams from the BRAVE cohort that won SME approval and
+              advance payment.
             </p>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {CASE_STUDIES.map((c, i) => (
             <article
               key={i}
               data-testid={`case-study-${i}`}
-              className="group relative rounded-2xl bg-[hsl(0_30%_12%)] border border-[hsl(0_25%_22%)] p-6 hover-elevate"
+              className="group relative flex flex-col rounded-2xl bg-[hsl(0_30%_12%)] border border-[hsl(45_70%_50%)]/30 p-6 hover-elevate"
             >
               <div className="flex items-center justify-between mb-5">
-                <div className="w-12 h-12 rounded-xl bg-[hsl(0_60%_28%)]/60 border border-[hsl(45_70%_50%)]/20 flex items-center justify-center text-[hsl(45_95%_60%)] font-black">
-                  SME
-                </div>
-                <span className="text-[10px] font-bold tracking-widest uppercase text-[hsl(45_60%_88%)]/40">
-                  Placeholder
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(45_95%_55%)]/15 border border-[hsl(45_95%_55%)]/40 px-2.5 py-1 text-[10px] font-bold tracking-widest uppercase text-[hsl(45_95%_70%)]">
+                  Gold Tier
                 </span>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[hsl(45_60%_88%)]/50">
+                    Score
+                  </p>
+                  <p className="text-[hsl(45_95%_60%)] font-black text-xl leading-none mt-0.5">
+                    {c.score}
+                    <span className="text-xs font-bold text-[hsl(45_60%_92%)]/50">
+                      /100
+                    </span>
+                  </p>
+                </div>
               </div>
-              <h3 className="text-[hsl(45_80%_96%)] font-bold text-base mb-1">
-                {c.sme}
+              <h3 className="text-[hsl(45_80%_96%)] font-bold text-lg mb-1">
+                {c.team}
               </h3>
-              <p className="text-[hsl(45_95%_60%)] font-bold text-lg mb-3">
-                {c.outcome}
+              <p className="text-[hsl(45_60%_92%)]/65 text-sm mb-4">
+                {c.sector}
               </p>
-              <p className="text-[hsl(45_60%_92%)]/65 text-sm leading-relaxed mb-5">
-                {c.summary}
+              <p className="text-[hsl(45_60%_88%)]/80 text-xs font-semibold mb-3">
+                Approval + Advance Payment
               </p>
-              <a
-                href="#case-studies"
-                aria-disabled="true"
-                data-testid={`case-study-${i}-link`}
-                className="inline-flex items-center gap-1 text-sm font-semibold text-[hsl(45_95%_60%)] hover:text-[hsl(45_95%_70%)]"
-              >
-                Read story
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-              </a>
+              {c.revenue && (
+                <p className="text-[hsl(45_95%_60%)] font-bold text-base mb-4">
+                  Revenue earned: {c.revenue}
+                </p>
+              )}
+              <ul className="mt-auto flex flex-wrap gap-1.5">
+                {c.highlights.map((h) => (
+                  <li
+                    key={h}
+                    className="rounded-full bg-[hsl(0_60%_28%)]/50 border border-[hsl(0_50%_40%)]/40 px-2.5 py-1 text-[11px] font-medium text-[hsl(45_80%_92%)]/85"
+                  >
+                    {h}
+                  </li>
+                ))}
+              </ul>
             </article>
           ))}
         </div>
