@@ -207,7 +207,8 @@ function Hero() {
           </h1>
           <p className="text-lg md:text-xl text-[hsl(45_60%_92%)]/70 leading-relaxed mb-10 max-w-2xl">
             BRAVE is a NIAT program where students partner with small and medium
-            businesses, boost their revenue and help them become ready for AI era.
+            businesses to boost their revenue and help them become ready for the
+            AI era.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Link
