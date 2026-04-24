@@ -777,6 +777,19 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
   await db
     .delete(teamMembersTable)
     .where(and(eq(teamMembersTable.teamId, params.data.id), eq(teamMembersTable.userId, params.data.userId)));
+  const [removedUser] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.userId));
+  await logAudit(
+    req.user.id,
+    "team_member_removed",
+    "team",
+    team.id,
+    JSON.stringify({
+      removedUserId: params.data.userId,
+      removedUserEmail: removedUser?.email ?? null,
+      removedUserName: fullName(removedUser),
+      removedBy: isAdmin ? "admin" : "leader",
+    }),
+  );
   await createNotification(
     params.data.userId,
     "Removed from team",
@@ -829,6 +842,19 @@ router.post("/teams/:id/transfer-leadership", async (req, res): Promise<void> =>
     .update(teamsTable)
     .set({ leaderId: parsed.data.newLeaderId })
     .where(eq(teamsTable.id, params.data.id));
+  const [newLeaderUser] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.newLeaderId));
+  await logAudit(
+    previousLeaderId,
+    "team_leader_transferred",
+    "team",
+    team.id,
+    JSON.stringify({
+      previousLeaderId,
+      newLeaderId: parsed.data.newLeaderId,
+      newLeaderEmail: newLeaderUser?.email ?? null,
+      newLeaderName: fullName(newLeaderUser),
+    }),
+  );
   await createNotification(
     parsed.data.newLeaderId,
     "You're now the team leader",
