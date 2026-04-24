@@ -195,30 +195,31 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
     const adminFormsIds = getBootstrapAdminFormsIds();
     const isBootstrapAdmin = adminFormsIds.includes(parsed.data.user_id);
 
-    // Refuse to provision a brand-new student row that has no campus we
-    // can resolve. Existing users (including current admins/coordinators)
-    // and bootstrap admins are exempt — they're either already valid or
-    // about to be promoted.
-    const [preExisting] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.formsUserId, parsed.data.user_id));
-    if (!preExisting && !isBootstrapAdmin) {
-      const rosterMatch = await findUsableRosterMatch({
-        formsUserId: parsed.data.user_id,
-      });
-      if (!rosterMatch) {
-        req.log.warn(
-          { formsUserId: parsed.data.user_id },
-          "Refusing Forms SSO token: no roster match with a campus",
-        );
-        res.status(403).json({
-          message:
-            "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
-        });
-        return;
-      }
-    }
+    // TEMPORARILY DISABLED: roster/campus gating for student SSO sign-in.
+    // Originally we refused to provision a brand-new student row unless we
+    // could match them to a roster entry with a campus. That check is
+    // commented out so any Forms-authenticated user can access the
+    // dashboard. Bootstrap admins continue to be promoted below.
+    // const [preExisting] = await db
+    //   .select()
+    //   .from(usersTable)
+    //   .where(eq(usersTable.formsUserId, parsed.data.user_id));
+    // if (!preExisting && !isBootstrapAdmin) {
+    //   const rosterMatch = await findUsableRosterMatch({
+    //     formsUserId: parsed.data.user_id,
+    //   });
+    //   if (!rosterMatch) {
+    //     req.log.warn(
+    //       { formsUserId: parsed.data.user_id },
+    //       "Refusing Forms SSO token: no roster match with a campus",
+    //     );
+    //     res.status(403).json({
+    //       message:
+    //         "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
+    //     });
+    //     return;
+    //   }
+    // }
 
     let user = await createOrGetUserByFormsId(parsed.data.user_id);
     // Promote to admin if this Forms user_id is in the bootstrap list.
@@ -253,14 +254,18 @@ router.post("/auth/validate-token", async (req: Request, res: Response) => {
     }
     const authUser = await buildAuthUser(dbUser);
 
-    if (authUser.role === "student" && authUser.campusId == null) {
-      req.log.warn({ userId: authUser.id, email: authUser.email }, "Blocking SSO login: student has no campus");
-      res.status(403).json({
-        message:
-          "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
-      });
-      return;
-    }
+    // TEMPORARILY DISABLED: campus-required gate for student sessions.
+    // Previously we blocked any student session whose user row had no
+    // campusId. Commented out so SSO-authenticated users can reach the
+    // dashboard even without a roster/campus match.
+    // if (authUser.role === "student" && authUser.campusId == null) {
+    //   req.log.warn({ userId: authUser.id, email: authUser.email }, "Blocking SSO login: student has no campus");
+    //   res.status(403).json({
+    //     message:
+    //       "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
+    //   });
+    //   return;
+    // }
 
     const sessionData: SessionData = {
       user: authUser,

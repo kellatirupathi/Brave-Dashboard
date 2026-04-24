@@ -76,10 +76,11 @@ function ProtectedRoute({ component: Component, allowedRoles }: { component: Rea
     return <Redirect to="/login" />;
   }
 
-  // Students must be on the roster to access the dashboard
-  if (user.role === "student" && !user.isOnRoster) {
-    return <Redirect to="/not-on-roster" />;
-  }
+  // TEMPORARILY DISABLED: roster gate for student dashboard access.
+  // Any Forms-authenticated user is allowed in for now.
+  // if (user.role === "student" && !user.isOnRoster) {
+  //   return <Redirect to="/not-on-roster" />;
+  // }
 
   if (!allowedRoles.includes(user.role || "")) {
     if (user.role === "student") return <Redirect to="/" />;
@@ -119,10 +120,11 @@ function RootRedirect() {
     return <Landing />;
   }
 
-  // Students must be on the roster to access the dashboard
-  if (user.role === "student" && !user.isOnRoster) {
-    return <Redirect to="/not-on-roster" />;
-  }
+  // TEMPORARILY DISABLED: roster gate for student dashboard access.
+  // Any Forms-authenticated user is allowed in for now.
+  // if (user.role === "student" && !user.isOnRoster) {
+  //   return <Redirect to="/not-on-roster" />;
+  // }
 
   if (user.role === "coordinator") return <Redirect to="/coordinator" />;
   if (user.role === "admin") return <Redirect to="/admin" />;
