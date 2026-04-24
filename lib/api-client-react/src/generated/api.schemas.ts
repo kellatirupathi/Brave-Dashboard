@@ -240,6 +240,10 @@ export interface AddTeamMemberBody {
   email: string;
 }
 
+export interface TransferTeamLeadershipBody {
+  newLeaderId: string;
+}
+
 export interface CampusStudent {
   id: string;
   firstName: string;

@@ -341,7 +341,7 @@ paths:
     delete:
       operationId: removeTeamMember
       tags: [teams]
-      summary: Remove a member from a team
+      summary: Remove a member from a team (admin or current team leader)
       parameters:
         - name: id
           in: path
@@ -356,6 +356,31 @@ paths:
       responses:
         "200":
           description: Member removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamDetail"
+
+  /teams/{id}/transfer-leadership:
+    post:
+      operationId: transferTeamLeadership
+      tags: [teams]
+      summary: Transfer team leadership to another current member (current leader only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferTeamLeadershipBody"
+      responses:
+        "200":
+          description: Leadership transferred
           content:
             application/json:
               schema:
@@ -1988,6 +2013,14 @@ components:
           type: string
       required:
         - email
+
+    TransferTeamLeadershipBody:
+      type: object
+      properties:
+        newLeaderId:
+          type: string
+      required:
+        - newLeaderId
 
     CampusStudent:
       type: object

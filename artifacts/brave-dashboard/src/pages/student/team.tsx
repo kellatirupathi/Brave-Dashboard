@@ -14,6 +14,8 @@ import {
   useRequestToLeaveTeam,
   useApproveLeaveRequest,
   useDeclineLeaveRequest,
+  useRemoveTeamMember,
+  useTransferTeamLeadership,
   getListTeamInvitationsQueryKey,
   getListTeamJoinRequestsQueryKey,
   getListTeamLeaveRequestsQueryKey,
@@ -25,7 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
-import { CalendarDays, Flag, Plus, Copy, UserPlus, Check, X, LogOut, Users, KeyRound } from "lucide-react";
+import { CalendarDays, Flag, Plus, Copy, UserPlus, Check, X, LogOut, Users, KeyRound, MoreVertical, Crown, UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +35,13 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
 
@@ -73,11 +82,15 @@ function TeamView({
   const requestLeave = useRequestToLeaveTeam();
   const approveLeave = useApproveLeaveRequest();
   const declineLeave = useDeclineLeaveRequest();
+  const removeMember = useRemoveTeamMember();
+  const transferLeadership = useTransferTeamLeadership();
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveReason, setLeaveReason] = useState("");
+  const [removeTarget, setRemoveTarget] = useState<{ userId: string; name: string } | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{ userId: string; name: string } | null>(null);
 
   const pendingInvitations = sentInvitations?.filter((i) => i.status === "pending") ?? [];
   const pendingJoins = joinRequests?.filter((j) => j.status === "pending") ?? [];
@@ -146,6 +159,40 @@ function TeamView({
     onSuccess: () => { toast({ title: "Leave declined" }); invalidateAll(); },
     onError: (err: unknown) => toast({ title: "Failed", description: (err as { message?: string })?.message, variant: "destructive" }),
   });
+
+  const handleConfirmRemove = () => {
+    if (!removeTarget) return;
+    const name = removeTarget.name;
+    removeMember.mutate({ id: team.id, userId: removeTarget.userId }, {
+      onSuccess: () => {
+        toast({ title: "Member removed", description: `${name} is no longer on the team.` });
+        setRemoveTarget(null);
+        invalidateAll();
+      },
+      onError: (err: unknown) => toast({
+        title: "Could not remove member",
+        description: (err as { message?: string })?.message ?? "Try again.",
+        variant: "destructive",
+      }),
+    });
+  };
+
+  const handleConfirmTransfer = () => {
+    if (!transferTarget) return;
+    const name = transferTarget.name;
+    transferLeadership.mutate({ id: team.id, data: { newLeaderId: transferTarget.userId } }, {
+      onSuccess: () => {
+        toast({ title: "Leadership transferred", description: `${name} is now the team leader.` });
+        setTransferTarget(null);
+        invalidateAll();
+      },
+      onError: (err: unknown) => toast({
+        title: "Could not transfer leadership",
+        description: (err as { message?: string })?.message ?? "Try again.",
+        variant: "destructive",
+      }),
+    });
+  };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -246,19 +293,53 @@ function TeamView({
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {team.members.map((member) => (
-                  <div key={member.userId} className="flex items-center gap-3" data-testid={`member-${member.userId}`}>
-                    <Avatar>
-                      <AvatarImage src={member.profileImage || undefined} />
-                      <AvatarFallback>{member.firstName[0]}{member.lastName[0]}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 overflow-hidden">
-                      <p className="text-sm font-medium truncate">{member.firstName} {member.lastName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                {team.members.map((member) => {
+                  const memberName = `${member.firstName} ${member.lastName}`.trim() || member.email;
+                  const showLeaderMenu = isLeader && !member.isLeader;
+                  return (
+                    <div key={member.userId} className="flex items-center gap-3" data-testid={`member-${member.userId}`}>
+                      <Avatar>
+                        <AvatarImage src={member.profileImage || undefined} />
+                        <AvatarFallback>{member.firstName[0]}{member.lastName[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-sm font-medium truncate">{memberName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                      </div>
+                      {member.isLeader && <Badge variant="secondary" className="text-[10px] px-1.5 h-5">Leader</Badge>}
+                      {showLeaderMenu && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              data-testid={`button-member-menu-${member.userId}`}
+                              aria-label={`Manage ${memberName}`}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() => setTransferTarget({ userId: member.userId, name: memberName })}
+                              data-testid={`menu-make-leader-${member.userId}`}
+                            >
+                              <Crown className="w-4 h-4 mr-2" /> Make leader
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => setRemoveTarget({ userId: member.userId, name: memberName })}
+                              className="text-destructive focus:text-destructive"
+                              data-testid={`menu-remove-${member.userId}`}
+                            >
+                              <UserMinus className="w-4 h-4 mr-2" /> Remove from team
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
-                    {member.isLeader && <Badge variant="secondary" className="text-[10px] px-1.5 h-5">Leader</Badge>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {!isLeader && !myLeaveRequest && (
@@ -410,6 +491,56 @@ function TeamView({
         </div>
       </div>
       <Link href="/browse-teams" className="hidden">browse</Link>
+
+      <AlertDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}
+      >
+        <AlertDialogContent data-testid="dialog-confirm-remove-member">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {removeTarget?.name} from the team?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They'll lose access to this team immediately and will be notified that they were removed. This can't be undone — they'd need a new invite to come back.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-remove-member">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmRemove(); }}
+              disabled={removeMember.isPending}
+              data-testid="button-confirm-remove-member"
+            >
+              {removeMember.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={transferTarget !== null}
+        onOpenChange={(open) => { if (!open) setTransferTarget(null); }}
+      >
+        <AlertDialogContent data-testid="dialog-confirm-transfer-leader">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Make {transferTarget?.name} the new team leader?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {transferTarget?.name} will take over leadership immediately and gain leader-only controls. You'll become a regular member. Both of you will be notified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-transfer-leader">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmTransfer(); }}
+              disabled={transferLeadership.isPending}
+              data-testid="button-confirm-transfer-leader"
+            >
+              {transferLeadership.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Transfer leadership
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

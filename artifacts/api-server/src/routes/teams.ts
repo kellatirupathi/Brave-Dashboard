@@ -29,6 +29,8 @@ import {
   AddTeamMemberParams,
   AddTeamMemberBody,
   RemoveTeamMemberParams,
+  TransferTeamLeadershipParams,
+  TransferTeamLeadershipBody,
   SearchCampusStudentsQueryParams,
   JoinTeamByCodeBody,
   ListTeamInvitationsParams,
@@ -733,8 +735,8 @@ router.post("/teams/:id/members", async (req, res): Promise<void> => {
 });
 
 router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Admin only — students must use the leave-request flow." });
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
     return;
   }
   const params = RemoveTeamMemberParams.safeParse(req.params);
@@ -742,15 +744,105 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  // Prevent removing the team leader
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
-  if (team && team.leaderId === params.data.userId) {
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
+  const isAdmin = req.user.role === "admin";
+  const isLeader = team.leaderId === req.user.id;
+  if (!isAdmin && !isLeader) {
+    res.status(403).json({ error: "Only the team leader or an admin can remove members." });
+    return;
+  }
+  // A leader cannot remove themselves through this endpoint
+  if (isLeader && !isAdmin && params.data.userId === req.user.id) {
+    res.status(400).json({ error: "You cannot remove yourself. Transfer leadership first." });
+    return;
+  }
+  // Prevent removing the team leader
+  if (team.leaderId === params.data.userId) {
     res.status(400).json({ error: "Cannot remove the team leader. Transfer leadership first." });
+    return;
+  }
+  // Confirm the target is actually a member of this team
+  const [membership] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(and(eq(teamMembersTable.teamId, params.data.id), eq(teamMembersTable.userId, params.data.userId)));
+  if (!membership) {
+    res.status(404).json({ error: "That user is not a member of this team." });
     return;
   }
   await db
     .delete(teamMembersTable)
     .where(and(eq(teamMembersTable.teamId, params.data.id), eq(teamMembersTable.userId, params.data.userId)));
+  await createNotification(
+    params.data.userId,
+    "Removed from team",
+    `You were removed from "${team.name}".`,
+    "team_member_removed",
+    "/",
+  );
+  const teamDetail = await getTeamWithStats(params.data.id);
+  res.json({ ...teamDetail, projects: [] });
+});
+
+router.post("/teams/:id/transfer-leadership", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const params = TransferTeamLeadershipParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = TransferTeamLeadershipBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
+  if (team.leaderId !== req.user.id) {
+    res.status(403).json({ error: "Only the current team leader can transfer leadership." });
+    return;
+  }
+  if (parsed.data.newLeaderId === team.leaderId) {
+    res.status(400).json({ error: "That member is already the team leader." });
+    return;
+  }
+  const [target] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(and(eq(teamMembersTable.teamId, params.data.id), eq(teamMembersTable.userId, parsed.data.newLeaderId)));
+  if (!target) {
+    res.status(400).json({ error: "The new leader must be a current member of this team." });
+    return;
+  }
+  const previousLeaderId = team.leaderId;
+  await db
+    .update(teamsTable)
+    .set({ leaderId: parsed.data.newLeaderId })
+    .where(eq(teamsTable.id, params.data.id));
+  await createNotification(
+    parsed.data.newLeaderId,
+    "You're now the team leader",
+    `You are the new leader of "${team.name}".`,
+    "team_leadership_received",
+    "/team",
+  );
+  await createNotification(
+    previousLeaderId,
+    "Leadership transferred",
+    `You transferred leadership of "${team.name}" to a teammate.`,
+    "team_leadership_transferred",
+    "/team",
+  );
   const teamDetail = await getTeamWithStats(params.data.id);
   res.json({ ...teamDetail, projects: [] });
 });

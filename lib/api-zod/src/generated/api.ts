@@ -424,7 +424,7 @@ export const AddTeamMemberBody = zod.object({
 });
 
 /**
- * @summary Remove a member from a team
+ * @summary Remove a member from a team (admin or current team leader)
  */
 export const RemoveTeamMemberParams = zod.object({
   id: zod.coerce.number(),
@@ -432,6 +432,71 @@ export const RemoveTeamMemberParams = zod.object({
 });
 
 export const RemoveTeamMemberResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    campusId: zod.number(),
+    campusName: zod.string(),
+    leaderId: zod.string(),
+    leaderName: zod.string(),
+    status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
+    tagline: zod.string().nullish(),
+    photoUrl: zod.string().nullish(),
+    inviteCode: zod.string().nullable(),
+    rejectionReason: zod.string().nullish(),
+    coordinatorComment: zod.string().nullish(),
+    isHidden: zod.boolean(),
+    isFeatured: zod.boolean(),
+    memberCount: zod.number(),
+    projectCount: zod.number(),
+    totalRevenue: zod.number(),
+    totalOrderBook: zod.number(),
+    nationalRank: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      members: zod.array(
+        zod.object({
+          userId: zod.string(),
+          email: zod.string(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          profileImage: zod.string().nullish(),
+          role: zod.string().nullish(),
+          isLeader: zod.boolean(),
+        }),
+      ),
+      projects: zod.array(
+        zod.object({
+          id: zod.number(),
+          teamId: zod.number(),
+          teamName: zod.string(),
+          title: zod.string(),
+          description: zod.string(),
+          status: zod.enum(["active", "inactive"]),
+          verifiedOrderBook: zod.number(),
+          verifiedRevenue: zod.number(),
+          clientCount: zod.number(),
+          createdAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Transfer team leadership to another current member (current leader only)
+ */
+export const TransferTeamLeadershipParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const TransferTeamLeadershipBody = zod.object({
+  newLeaderId: zod.string(),
+});
+
+export const TransferTeamLeadershipResponse = zod
   .object({
     id: zod.number(),
     name: zod.string(),

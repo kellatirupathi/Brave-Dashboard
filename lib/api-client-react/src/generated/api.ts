@@ -80,6 +80,7 @@ import type {
   TeamInvitation,
   TeamJoinRequest,
   TeamLeaveRequest,
+  TransferTeamLeadershipBody,
   UpdateAccessRequestBody,
   UpdateCampusBody,
   UpdateDemoDayApplicationBody,
@@ -1343,7 +1344,7 @@ export const useAddTeamMember = <
 };
 
 /**
- * @summary Remove a member from a team
+ * @summary Remove a member from a team (admin or current team leader)
  */
 export const getRemoveTeamMemberUrl = (id: number, userId: string) => {
   return `/api/teams/${id}/members/${userId}`;
@@ -1405,7 +1406,7 @@ export type RemoveTeamMemberMutationResult = NonNullable<
 export type RemoveTeamMemberMutationError = ErrorType<unknown>;
 
 /**
- * @summary Remove a member from a team
+ * @summary Remove a member from a team (admin or current team leader)
  */
 export const useRemoveTeamMember = <
   TError = ErrorType<unknown>,
@@ -1425,6 +1426,94 @@ export const useRemoveTeamMember = <
   TContext
 > => {
   return useMutation(getRemoveTeamMemberMutationOptions(options));
+};
+
+/**
+ * @summary Transfer team leadership to another current member (current leader only)
+ */
+export const getTransferTeamLeadershipUrl = (id: number) => {
+  return `/api/teams/${id}/transfer-leadership`;
+};
+
+export const transferTeamLeadership = async (
+  id: number,
+  transferTeamLeadershipBody: TransferTeamLeadershipBody,
+  options?: RequestInit,
+): Promise<TeamDetail> => {
+  return customFetch<TeamDetail>(getTransferTeamLeadershipUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(transferTeamLeadershipBody),
+  });
+};
+
+export const getTransferTeamLeadershipMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof transferTeamLeadership>>,
+    TError,
+    { id: number; data: BodyType<TransferTeamLeadershipBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof transferTeamLeadership>>,
+  TError,
+  { id: number; data: BodyType<TransferTeamLeadershipBody> },
+  TContext
+> => {
+  const mutationKey = ["transferTeamLeadership"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof transferTeamLeadership>>,
+    { id: number; data: BodyType<TransferTeamLeadershipBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return transferTeamLeadership(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TransferTeamLeadershipMutationResult = NonNullable<
+  Awaited<ReturnType<typeof transferTeamLeadership>>
+>;
+export type TransferTeamLeadershipMutationBody =
+  BodyType<TransferTeamLeadershipBody>;
+export type TransferTeamLeadershipMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Transfer team leadership to another current member (current leader only)
+ */
+export const useTransferTeamLeadership = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof transferTeamLeadership>>,
+    TError,
+    { id: number; data: BodyType<TransferTeamLeadershipBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof transferTeamLeadership>>,
+  TError,
+  { id: number; data: BodyType<TransferTeamLeadershipBody> },
+  TContext
+> => {
+  return useMutation(getTransferTeamLeadershipMutationOptions(options));
 };
 
 /**

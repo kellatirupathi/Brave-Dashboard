@@ -98,6 +98,7 @@ export * from "./teamLeaveRequest";
 export * from "./teamLeaveRequestStatus";
 export * from "./teamMember";
 export * from "./teamStatus";
+export * from "./transferTeamLeadershipBody";
 export * from "./updateAccessRequestBody";
 export * from "./updateAccessRequestBodyStatus";
 export * from "./updateCampusBody";
