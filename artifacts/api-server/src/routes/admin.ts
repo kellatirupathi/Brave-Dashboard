@@ -116,10 +116,11 @@ router.get("/admin/users", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { role, campusId, search } = queryParams.data;
+  const { role, campusId, search, provisionedVia } = queryParams.data;
   let conditions: ReturnType<typeof and>[] = [];
   if (role) conditions.push(eq(usersTable.role, role));
   if (campusId) conditions.push(eq(usersTable.campusId, campusId));
+  if (provisionedVia) conditions.push(eq(usersTable.provisionedVia, provisionedVia));
   if (search) {
     const pattern = `%${search}%`;
     const orFilter = or(
@@ -197,6 +198,7 @@ router.post("/admin/users", async (req, res): Promise<void> => {
     campusId: resolvedCampusId ?? null,
     passwordHash,
     formsUserId: formsUserId ?? null,
+    provisionedVia: "manual",
   };
 
   let user;
@@ -403,6 +405,7 @@ router.post("/admin/users/import-csv", async (req, res): Promise<void> => {
             role: role as "admin" | "coordinator" | "student",
             campusId,
             isActive: true,
+            provisionedVia: "csv_import",
           })
           .where(eq(usersTable.id, existing.id));
         updated++;
@@ -415,6 +418,7 @@ router.post("/admin/users/import-csv", async (req, res): Promise<void> => {
           role: role as "admin" | "coordinator" | "student",
           campusId,
           isActive: true,
+          provisionedVia: "csv_import",
         });
         created++;
       }

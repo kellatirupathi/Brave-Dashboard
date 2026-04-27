@@ -1088,7 +1088,7 @@ export const useUpdateTeam = <
 };
 
 /**
- * @summary Delete a team (admin only). Cascades to members, projects, order book entries, revenue entries, milestones, demo-day applications, invitations, join/leave requests.
+ * @summary Delete a team (leader or admin). Blocked when the team has any submitted or verified revenue or order-book entries. On success, cascades to members, projects, draft entries, milestones, demo-day applications, invitations, and join/leave requests.
  */
 export const getDeleteTeamUrl = (id: number) => {
   return `/api/teams/${id}`;
@@ -1105,7 +1105,7 @@ export const deleteTeam = async (
 };
 
 export const getDeleteTeamMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1146,13 +1146,13 @@ export type DeleteTeamMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteTeam>>
 >;
 
-export type DeleteTeamMutationError = ErrorType<unknown>;
+export type DeleteTeamMutationError = ErrorType<void>;
 
 /**
- * @summary Delete a team (admin only). Cascades to members, projects, order book entries, revenue entries, milestones, demo-day applications, invitations, join/leave requests.
+ * @summary Delete a team (leader or admin). Blocked when the team has any submitted or verified revenue or order-book entries. On success, cascades to members, projects, draft entries, milestones, demo-day applications, invitations, and join/leave requests.
  */
 export const useDeleteTeam = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -3405,6 +3405,90 @@ export const useUpdateProject = <
   TContext
 > => {
   return useMutation(getUpdateProjectMutationOptions(options));
+};
+
+/**
+ * @summary Delete a project (team member or admin/coordinator). Blocked when submitted/verified entries exist.
+ */
+export const getDeleteProjectUrl = (id: number) => {
+  return `/api/projects/${id}`;
+};
+
+export const deleteProject = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteProjectUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteProjectMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteProject>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteProject>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteProject"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteProject>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteProject(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteProjectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteProject>>
+>;
+
+export type DeleteProjectMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete a project (team member or admin/coordinator). Blocked when submitted/verified entries exist.
+ */
+export const useDeleteProject = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteProject>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteProject>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteProjectMutationOptions(options));
 };
 
 /**

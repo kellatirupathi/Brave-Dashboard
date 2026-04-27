@@ -7,12 +7,13 @@ const TOKEN_TTL_MS = 5 * 60 * 1000;
 
 export async function createOrGetUserByFormsId(
   formsUserId: string,
-): Promise<User> {
+  opts: { provisionedVia?: "roster" | "csv_import" | "manual" | "auto_forms_sso" } = {},
+): Promise<{ user: User; created: boolean }> {
   const [existing] = await db
     .select()
     .from(usersTable)
     .where(eq(usersTable.formsUserId, formsUserId));
-  if (existing) return existing;
+  if (existing) return { user: existing, created: false };
 
   const email = `sso_${formsUserId}@forms.local`;
   const [created] = await db
@@ -21,13 +22,18 @@ export async function createOrGetUserByFormsId(
       formsUserId,
       email,
       role: "student",
+      provisionedVia: opts.provisionedVia ?? "auto_forms_sso",
     })
     .onConflictDoUpdate({
       target: usersTable.formsUserId,
       set: { updatedAt: new Date() },
     })
     .returning();
-  return created;
+  // We already confirmed no row matched above, so reaching here means we
+  // either inserted (common case) or lost a benign race with another
+  // concurrent first-login (rare). Treat as created either way; the audit
+  // log entry on a duplicate first-login is harmless.
+  return { user: created, created: true };
 }
 
 export async function generateAuthToken(userId: string): Promise<string> {

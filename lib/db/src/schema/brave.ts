@@ -14,6 +14,7 @@ import { z } from "zod/v4";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["student", "coordinator", "admin"]);
+export const provisionedViaEnum = pgEnum("provisioned_via", ["roster", "csv_import", "manual", "auto_forms_sso"]);
 export const teamStatusEnum = pgEnum("team_status", ["pending", "active", "rejected", "changes_requested"]);
 export const projectStatusEnum = pgEnum("project_status", ["active", "inactive"]);
 export const entryStatusEnum = pgEnum("entry_status", ["draft", "submitted", "verified", "rejected"]);
@@ -53,6 +54,7 @@ export const usersTable = pgTable("users", {
   campusId: integer("campus_id"),
   passwordHash: text("password_hash"),
   isActive: boolean("is_active").notNull().default(true),
+  provisionedVia: provisionedViaEnum("provisioned_via").notNull().default("manual"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

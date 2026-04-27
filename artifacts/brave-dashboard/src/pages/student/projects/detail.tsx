@@ -6,8 +6,12 @@ import {
   useCreateRevenueEntry,
   useSubmitRevenueEntry,
   useRequestUploadUrl,
+  useUpdateProject,
+  useDeleteProject,
   getGetProjectQueryKey,
+  getListProjectsQueryKey,
 } from "@workspace/api-client-react";
+import { useLocation } from "wouter";
 import { formatINR, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,13 +90,20 @@ export default function ProjectDetail() {
   const createRevenue = useCreateRevenueEntry();
   const submitRevenue = useSubmitRevenueEntry();
   const requestUpload = useRequestUploadUrl();
+  const updateProject = useUpdateProject();
+  const deleteProject = useDeleteProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const [isOrderOpen, setIsOrderOpen] = useState(false);
   const [isRevenueOpen, setIsRevenueOpen] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
+  const [isDeleteProjectOpen, setIsDeleteProjectOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   // Form states
   const [clientName, setClientName] = useState("");
@@ -311,6 +322,58 @@ export default function ProjectDetail() {
     );
   };
 
+  const openEditProject = () => {
+    setEditTitle(project.title);
+    setEditDescription(project.description);
+    setIsEditProjectOpen(true);
+  };
+
+  const handleSaveProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = editTitle.trim();
+    const description = editDescription.trim();
+    if (title.length < 3 || description.length < 10) {
+      toast({ title: "Please fill in title and description", variant: "destructive" });
+      return;
+    }
+    updateProject.mutate(
+      { id, data: { title, description } },
+      {
+        onSuccess: () => {
+          toast({ title: "Project updated" });
+          refresh();
+          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+          setIsEditProjectOpen(false);
+        },
+        onError: (err: unknown) => {
+          const e = err as { data?: { error?: string }; message?: string };
+          toast({ title: "Could not update project", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  const handleDeleteProject = () => {
+    deleteProject.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          toast({ title: "Project deleted" });
+          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+          setIsDeleteProjectOpen(false);
+          setLocation("/projects");
+        },
+        onError: (err: unknown) => {
+          const e = err as { status?: number; data?: { error?: string }; message?: string };
+          const desc = e?.status === 409
+            ? (e?.data?.error || "Project has submitted or verified entries — clear them first.")
+            : (e?.data?.error || e?.message || "Try again.");
+          toast({ title: "Could not delete project", description: desc, variant: "destructive" });
+        },
+      },
+    );
+  };
+
   const resetForms = () => {
     setClientName("");
     setAmount("");
@@ -374,15 +437,29 @@ export default function ProjectDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 mb-2">
+      <div className="flex items-start gap-4 mb-2">
         <Link href="/projects">
           <Button variant="ghost" size="icon" className="rounded-full">
             <ArrowLeft className="w-5 h-5" />
           </Button>
         </Link>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{project.title}</h1>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-project-title">{project.title}</h1>
           <p className="text-muted-foreground">{project.description}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={openEditProject} data-testid="button-edit-project">
+            <Pencil className="w-4 h-4 mr-2" /> Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setIsDeleteProjectOpen(true)}
+            data-testid="button-delete-project"
+          >
+            <Trash2 className="w-4 h-4 mr-2" /> Delete
+          </Button>
         </div>
       </div>
 
@@ -840,6 +917,71 @@ export default function ProjectDetail() {
                 <Spinner className="w-4 h-4 mr-2" />
               )}{" "}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={isEditProjectOpen} onOpenChange={setIsEditProjectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit project</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveProject} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Title</label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                maxLength={80}
+                required
+                data-testid="input-edit-project-title"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                maxLength={500}
+                rows={4}
+                required
+                data-testid="input-edit-project-description"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditProjectOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateProject.isPending} data-testid="button-save-project">
+                {updateProject.isPending && <Spinner className="w-4 h-4 mr-2" />} Save changes
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={isDeleteProjectOpen} onOpenChange={setIsDeleteProjectOpen}>
+        <AlertDialogContent data-testid="dialog-confirm-delete-project">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {project.title}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the project and any draft revenue or order book entries. If the project has any submitted or verified entries, the request will be blocked.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-project">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteProject();
+              }}
+              disabled={deleteProject.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90"
+              data-testid="button-confirm-delete-project"
+            >
+              {deleteProject.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Delete project
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

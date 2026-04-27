@@ -47,6 +47,16 @@ export const UserRole = {
   admin: "admin",
 } as const;
 
+export type UserProvisionedVia =
+  (typeof UserProvisionedVia)[keyof typeof UserProvisionedVia];
+
+export const UserProvisionedVia = {
+  roster: "roster",
+  csv_import: "csv_import",
+  manual: "manual",
+  auto_forms_sso: "auto_forms_sso",
+} as const;
+
 export interface User {
   id: string;
   /** @nullable */
@@ -62,6 +72,7 @@ export interface User {
   /** @nullable */
   campusName?: string | null;
   isActive: boolean;
+  provisionedVia: UserProvisionedVia;
   createdAt: string;
 }
 
@@ -1097,6 +1108,7 @@ export type ListUsersParams = {
   role?: ListUsersRole;
   campusId?: number;
   search?: string;
+  provisionedVia?: ListUsersProvisionedVia;
 };
 
 export type ListUsersRole = (typeof ListUsersRole)[keyof typeof ListUsersRole];
@@ -1105,6 +1117,16 @@ export const ListUsersRole = {
   student: "student",
   coordinator: "coordinator",
   admin: "admin",
+} as const;
+
+export type ListUsersProvisionedVia =
+  (typeof ListUsersProvisionedVia)[keyof typeof ListUsersProvisionedVia];
+
+export const ListUsersProvisionedVia = {
+  roster: "roster",
+  csv_import: "csv_import",
+  manual: "manual",
+  auto_forms_sso: "auto_forms_sso",
 } as const;
 
 export type GetAuditLogParams = {

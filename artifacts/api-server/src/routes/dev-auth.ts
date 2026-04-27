@@ -158,7 +158,8 @@ router.post("/dev/sign-in-as", async (req: Request, res: Response) => {
       // if the forms id is in the bootstrap list (mirrors the real SSO flow).
       const { createOrGetUserByFormsId } = await import("@workspace/db");
       const { ensureAdminForFormsId } = await import("../bootstrap-admins");
-      dbUser = await createOrGetUserByFormsId(parsed.data.formsUserId);
+      const result = await createOrGetUserByFormsId(parsed.data.formsUserId);
+      dbUser = result.user;
       const promoted = await ensureAdminForFormsId(parsed.data.formsUserId);
       if (promoted) {
         // Re-read so the session reflects the promoted role.

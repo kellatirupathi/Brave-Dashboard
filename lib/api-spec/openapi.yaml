@@ -260,7 +260,7 @@ paths:
     delete:
       operationId: deleteTeam
       tags: [teams]
-      summary: Delete a team (admin only). Cascades to members, projects, order book entries, revenue entries, milestones, demo-day applications, invitations, join/leave requests.
+      summary: Delete a team (leader or admin). Blocked when the team has any submitted or verified revenue or order-book entries. On success, cascades to members, projects, draft entries, milestones, demo-day applications, invitations, and join/leave requests.
       parameters:
         - name: id
           in: path
@@ -270,6 +270,12 @@ paths:
       responses:
         "204":
           description: Team deleted
+        "403":
+          description: Caller is not the team leader or an admin
+        "404":
+          description: Team not found
+        "409":
+          description: Team has submitted or verified financial entries and cannot be deleted
 
   /teams/{id}/approve:
     post:
@@ -818,6 +824,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete a project (team member or admin/coordinator). Blocked when submitted/verified entries exist.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Caller is not a team member or staff
+        "404":
+          description: Project not found
+        "409":
+          description: Project has submitted or verified financial entries
 
   # Order Book Entries
   /order-book-entries:
@@ -1465,6 +1490,11 @@ paths:
           in: query
           schema:
             type: string
+        - name: provisionedVia
+          in: query
+          schema:
+            type: string
+            enum: [roster, csv_import, manual, auto_forms_sso]
       responses:
         "200":
           description: Users list
@@ -1896,6 +1926,9 @@ components:
           type: ["string", "null"]
         isActive:
           type: boolean
+        provisionedVia:
+          type: string
+          enum: [roster, csv_import, manual, auto_forms_sso]
         createdAt:
           type: string
           format: date-time
@@ -1906,6 +1939,7 @@ components:
         - lastName
         - role
         - isActive
+        - provisionedVia
         - createdAt
 
     CreateUserBody:

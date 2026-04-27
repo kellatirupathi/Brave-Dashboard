@@ -322,7 +322,7 @@ export const UpdateTeamResponse = zod.object({
 });
 
 /**
- * @summary Delete a team (admin only). Cascades to members, projects, order book entries, revenue entries, milestones, demo-day applications, invitations, join/leave requests.
+ * @summary Delete a team (leader or admin). Blocked when the team has any submitted or verified revenue or order-book entries. On success, cascades to members, projects, draft entries, milestones, demo-day applications, invitations, and join/leave requests.
  */
 export const DeleteTeamParams = zod.object({
   id: zod.coerce.number(),
@@ -1097,6 +1097,13 @@ export const UpdateProjectResponse = zod.object({
 });
 
 /**
+ * @summary Delete a project (team member or admin/coordinator). Blocked when submitted/verified entries exist.
+ */
+export const DeleteProjectParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List order book entries
  */
 export const ListOrderBookEntriesQueryParams = zod.object({
@@ -1860,6 +1867,9 @@ export const ListUsersQueryParams = zod.object({
   role: zod.enum(["student", "coordinator", "admin"]).optional(),
   campusId: zod.coerce.number().optional(),
   search: zod.coerce.string().optional(),
+  provisionedVia: zod
+    .enum(["roster", "csv_import", "manual", "auto_forms_sso"])
+    .optional(),
 });
 
 export const ListUsersResponseItem = zod.object({
@@ -1873,6 +1883,12 @@ export const ListUsersResponseItem = zod.object({
   campusId: zod.number().nullish(),
   campusName: zod.string().nullish(),
   isActive: zod.boolean(),
+  provisionedVia: zod.enum([
+    "roster",
+    "csv_import",
+    "manual",
+    "auto_forms_sso",
+  ]),
   createdAt: zod.coerce.date(),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);
@@ -1919,6 +1935,12 @@ export const UpdateUserResponse = zod.object({
   campusId: zod.number().nullish(),
   campusName: zod.string().nullish(),
   isActive: zod.boolean(),
+  provisionedVia: zod.enum([
+    "roster",
+    "csv_import",
+    "manual",
+    "auto_forms_sso",
+  ]),
   createdAt: zod.coerce.date(),
 });
 

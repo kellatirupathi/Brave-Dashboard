@@ -26,6 +26,7 @@ import {
   type SessionData,
 } from "../lib/auth";
 import { getBootstrapAdminFormsIds, getBootstrapAdminEmails } from "../bootstrap-admins";
+import { logAudit } from "../lib/audit";
 
 // Returns a roster entry that resolves to a real campus for the given
 // formsUserId / email — used to decide whether SSO is allowed to provision
@@ -195,35 +196,30 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
     const adminFormsIds = getBootstrapAdminFormsIds();
     const isBootstrapAdmin = adminFormsIds.includes(parsed.data.user_id);
 
-    // Whitelist gate: only Forms users present in our `users` table (or in the
-    // bootstrap admin allowlist) are allowed to sign in. Admins must
-    // pre-provision real users via /admin/users CSV import or the roster
-    // before anyone else can log in.
+    // Soft-onboarding policy: any authenticated Forms user is allowed in.
+    // - Bootstrap admins are promoted to "admin" on first login.
+    // - Roster matches keep "roster" provenance (so admins can see they came
+    //   from the trusted roster import).
+    // - Everyone else auto-provisions as a student tagged
+    //   "auto_forms_sso" so admins can review or remove unexpected sign-ins.
     const [preExisting] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.formsUserId, parsed.data.user_id));
+
+    let provenance: "roster" | "auto_forms_sso" = "auto_forms_sso";
     if (!preExisting && !isBootstrapAdmin) {
-      // Fallback: also accept anyone present on the whitelisted roster (e.g.
-      // imported via the XLSX upload) — this links them to the campus and
-      // promotes them to a real user row on first login.
       const rosterMatch = await findUsableRosterMatch({
         formsUserId: parsed.data.user_id,
       });
-      if (!rosterMatch) {
-        req.log.warn(
-          { formsUserId: parsed.data.user_id },
-          "Refusing Forms SSO token: user is not whitelisted",
-        );
-        res.status(403).json({
-          message:
-            "You are not authorized to access this dashboard. Please contact your campus coordinator to be added to the roster.",
-        });
-        return;
-      }
+      if (rosterMatch) provenance = "roster";
     }
 
-    let user = await createOrGetUserByFormsId(parsed.data.user_id);
+    const { user: provisioned, created } = await createOrGetUserByFormsId(
+      parsed.data.user_id,
+      { provisionedVia: provenance },
+    );
+    let user = provisioned;
     // Promote to admin if this Forms user_id is in the bootstrap list.
     if (isBootstrapAdmin && user.role !== "admin") {
       const [updated] = await db
@@ -233,6 +229,24 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
         .returning();
       if (updated) user = updated;
     }
+
+    if (created && !isBootstrapAdmin && provenance === "auto_forms_sso") {
+      try {
+        await logAudit(
+          user.id,
+          "auto_provisioned_student",
+          "user",
+          undefined,
+          JSON.stringify({
+            formsUserId: parsed.data.user_id,
+            userId: user.id,
+          }),
+        );
+      } catch (auditErr) {
+        req.log.warn({ err: auditErr }, "Failed to write auto-provision audit");
+      }
+    }
+
     const auth_token = await generateAuthToken(user.id);
     res.json({ auth_token });
   } catch (err) {

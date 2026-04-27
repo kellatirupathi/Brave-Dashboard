@@ -5,6 +5,7 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserProvisionedVia } from "./userProvisionedVia";
 import type { UserRole } from "./userRole";
 
 export interface User {
@@ -22,5 +23,6 @@ export interface User {
   /** @nullable */
   campusName?: string | null;
   isActive: boolean;
+  provisionedVia: UserProvisionedVia;
   createdAt: Date;
 }

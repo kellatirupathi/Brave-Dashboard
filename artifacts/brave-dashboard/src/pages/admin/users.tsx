@@ -27,6 +27,8 @@ const createUserSchema = z.object({
   batchSectionName: z.string().optional(),
 });
 
+type ProvisionedVia = "roster" | "csv_import" | "manual" | "auto_forms_sso";
+
 type AnyUser = {
   id: string;
   formsUserId?: string | null;
@@ -37,9 +39,18 @@ type AnyUser = {
   campusId?: number | null;
   campusName?: string | null;
   isActive: boolean;
+  provisionedVia: ProvisionedVia;
 };
 
 type RoleFilter = "all" | "admin" | "coordinator" | "student";
+type SourceFilter = "all" | ProvisionedVia;
+
+const SOURCE_LABEL: Record<ProvisionedVia, string> = {
+  roster: "Roster",
+  csv_import: "CSV import",
+  manual: "Manual",
+  auto_forms_sso: "Auto (Forms SSO)",
+};
 
 // Tiny CSV parser that handles quoted fields and commas inside quotes.
 // Returns an array of row objects keyed by the header row.
@@ -111,9 +122,11 @@ const TEMPLATE_CSV =
 export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const { data: users, isLoading } = useListUsers({
     search: search || undefined,
     role: roleFilter === "all" ? undefined : roleFilter,
+    provisionedVia: sourceFilter === "all" ? undefined : sourceFilter,
   });
   const { data: campuses } = useListCampuses();
 
@@ -299,12 +312,23 @@ export default function AdminUsers() {
           </div>
 
           <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as RoleFilter)}>
-            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[160px]" data-testid="select-role-filter"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All roles</SelectItem>
               <SelectItem value="admin">Admins</SelectItem>
               <SelectItem value="coordinator">Coordinators</SelectItem>
               <SelectItem value="student">Students</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
+            <SelectTrigger className="w-[180px]" data-testid="select-source-filter"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sources</SelectItem>
+              <SelectItem value="roster">Roster</SelectItem>
+              <SelectItem value="csv_import">CSV import</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="auto_forms_sso">Auto (Forms SSO)</SelectItem>
             </SelectContent>
           </Select>
 
@@ -415,6 +439,7 @@ export default function AdminUsers() {
                 <TableHead>Forms User ID</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Campus</TableHead>
+                <TableHead>Source</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -431,6 +456,9 @@ export default function AdminUsers() {
                   <TableCell className="font-mono text-xs text-muted-foreground">{user.formsUserId ?? "—"}</TableCell>
                   <TableCell>{renderRoleBadge(user.role)}</TableCell>
                   <TableCell className="text-muted-foreground">{user.role === "admin" ? "—" : (user.campusName || "—")}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" data-testid={`badge-source-${user.id}`}>{SOURCE_LABEL[user.provisionedVia] ?? user.provisionedVia}</Badge>
+                  </TableCell>
                   <TableCell>
                     {user.isActive ? (
                       <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">
@@ -462,7 +490,7 @@ export default function AdminUsers() {
               ))}
               {allUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                     <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     No users found.
                   </TableCell>

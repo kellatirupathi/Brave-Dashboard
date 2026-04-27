@@ -16,6 +16,7 @@ import {
   useDeclineLeaveRequest,
   useRemoveTeamMember,
   useTransferTeamLeadership,
+  useDeleteTeam,
   getListTeamInvitationsQueryKey,
   getListTeamJoinRequestsQueryKey,
   getListTeamLeaveRequestsQueryKey,
@@ -27,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
-import { CalendarDays, Flag, Plus, Copy, UserPlus, Check, X, LogOut, Users, KeyRound, MoreVertical, Crown, UserMinus } from "lucide-react";
+import { CalendarDays, Flag, Plus, Copy, UserPlus, Check, X, LogOut, Users, KeyRound, MoreVertical, Crown, UserMinus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,6 +85,7 @@ function TeamView({
   const declineLeave = useDeclineLeaveRequest();
   const removeMember = useRemoveTeamMember();
   const transferLeadership = useTransferTeamLeadership();
+  const deleteTeam = useDeleteTeam();
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -91,6 +93,7 @@ function TeamView({
   const [leaveReason, setLeaveReason] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{ userId: string; name: string } | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ userId: string; name: string } | null>(null);
+  const [deleteTeamOpen, setDeleteTeamOpen] = useState(false);
 
   const pendingInvitations = sentInvitations?.filter((i) => i.status === "pending") ?? [];
   const pendingJoins = joinRequests?.filter((j) => j.status === "pending") ?? [];
@@ -174,6 +177,24 @@ function TeamView({
         description: (err as { message?: string })?.message ?? "Try again.",
         variant: "destructive",
       }),
+    });
+  };
+
+  const handleDeleteTeam = () => {
+    deleteTeam.mutate({ id: team.id }, {
+      onSuccess: () => {
+        toast({ title: "Team deleted", description: `${team.name} and its drafts were removed.` });
+        setDeleteTeamOpen(false);
+        queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+        setLocation("/get-started");
+      },
+      onError: (err: unknown) => {
+        const e = err as { status?: number; data?: { error?: string }; message?: string };
+        const desc = e?.status === 409
+          ? (e?.data?.error || "Team has submitted or verified entries — clear them first.")
+          : (e?.data?.error || e?.message || "Try again.");
+        toast({ title: "Could not delete team", description: desc, variant: "destructive" });
+      },
     });
   };
 
@@ -368,6 +389,30 @@ function TeamView({
               )}
             </CardContent>
           </Card>
+
+          {isLeader && (
+            <Card className="border-destructive/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-destructive flex items-center gap-2">
+                  <Trash2 className="w-4 h-4" /> Danger zone
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Deleting the team removes all members, drafts, and the invite code. You can only delete a team that has no submitted or verified revenue or order book entries.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setDeleteTeamOpen(true)}
+                  data-testid="button-open-delete-team"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete team
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="w-full md:w-2/3 space-y-6">
@@ -537,6 +582,29 @@ function TeamView({
             >
               {transferLeadership.isPending && <Spinner className="w-4 h-4 mr-2" />}
               Transfer leadership
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteTeamOpen} onOpenChange={setDeleteTeamOpen}>
+        <AlertDialogContent data-testid="dialog-confirm-delete-team">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {team.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the team, its invite code, all members, and any draft revenue or order book entries. This cannot be undone. If the team has any submitted or verified entries, the request will be blocked.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-team">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteTeam(); }}
+              disabled={deleteTeam.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90"
+              data-testid="button-confirm-delete-team"
+            >
+              {deleteTeam.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Delete team
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

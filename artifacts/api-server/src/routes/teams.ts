@@ -597,6 +597,25 @@ router.patch("/teams/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Authorization: admins/coordinators can edit any team; otherwise only the
+  // current team leader may edit their own team. Previously this endpoint
+  // accepted any authenticated user, which let regular members rename or
+  // change the photo of teams they were not even on.
+  const [existingTeam] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, params.data.id));
+  if (!existingTeam) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
+  const isStaff = req.user.role === "admin" || req.user.role === "coordinator";
+  const isLeader = existingTeam.leaderId === req.user.id;
+  if (!isStaff && !isLeader) {
+    res.status(403).json({ error: "Only the team leader, a coordinator, or an admin can edit this team." });
+    return;
+  }
+
   const { reason, ...updateData } = parsed.data;
   const [team] = await db
     .update(teamsTable)
@@ -615,8 +634,8 @@ router.patch("/teams/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/teams/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
     return;
   }
   // Reuse GetTeamParams – same shape (id: integer path param) and avoids minting a new schema.
@@ -634,6 +653,7 @@ router.delete("/teams/:id", async (req, res): Promise<void> => {
   // team down — eliminating the race window of orphaned rows in this no-FK
   // schema.
   let teamName: string | null = null;
+  let blockedReason: string | null = null;
   try {
     teamName = await db.transaction(async (tx) => {
       const [team] = await tx
@@ -643,6 +663,49 @@ router.delete("/teams/:id", async (req, res): Promise<void> => {
         .for("update");
 
       if (!team) return null;
+
+      // Authorization inside the lock so we authorize against the
+      // post-lock leader and so leaders can delete their own team.
+      const isAdmin = req.user.role === "admin";
+      const isLeader = team.leaderId === userId;
+      if (!isAdmin && !isLeader) {
+        blockedReason = "forbidden";
+        return null;
+      }
+
+      // Leaders may only delete a team that has no submitted/verified entries
+      // — preserves auditable financial history. Admins keep their wider
+      // override (cascade everything).
+      if (!isAdmin) {
+        const [revHit] = await tx
+          .select({ id: revenueEntriesTable.id })
+          .from(revenueEntriesTable)
+          .where(
+            and(
+              eq(revenueEntriesTable.teamId, teamId),
+              sql`status in ('submitted', 'verified')`,
+            ),
+          )
+          .limit(1);
+        if (revHit) {
+          blockedReason = "has_revenue";
+          return null;
+        }
+        const [obHit] = await tx
+          .select({ id: orderBookEntriesTable.id })
+          .from(orderBookEntriesTable)
+          .where(
+            and(
+              eq(orderBookEntriesTable.teamId, teamId),
+              sql`status in ('submitted', 'verified')`,
+            ),
+          )
+          .limit(1);
+        if (obHit) {
+          blockedReason = "has_orderbook";
+          return null;
+        }
+      }
 
       await tx.delete(orderBookEntriesTable).where(eq(orderBookEntriesTable.teamId, teamId));
       await tx.delete(revenueEntriesTable).where(eq(revenueEntriesTable.teamId, teamId));
@@ -670,6 +733,24 @@ router.delete("/teams/:id", async (req, res): Promise<void> => {
   }
 
   if (teamName === null) {
+    if (blockedReason === "forbidden") {
+      res.status(403).json({ error: "Only the team leader or an admin can delete this team." });
+      return;
+    }
+    if (blockedReason === "has_revenue") {
+      res.status(409).json({
+        error:
+          "This team has submitted or verified revenue entries. Only an admin can delete a team with reviewed revenue.",
+      });
+      return;
+    }
+    if (blockedReason === "has_orderbook") {
+      res.status(409).json({
+        error:
+          "This team has submitted or verified order book entries. Only an admin can delete a team with reviewed orders.",
+      });
+      return;
+    }
     res.status(404).json({ error: "Team not found" });
     return;
   }

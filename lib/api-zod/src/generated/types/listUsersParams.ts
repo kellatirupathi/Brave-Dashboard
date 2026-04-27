@@ -5,10 +5,12 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListUsersProvisionedVia } from "./listUsersProvisionedVia";
 import type { ListUsersRole } from "./listUsersRole";
 
 export type ListUsersParams = {
   role?: ListUsersRole;
   campusId?: number;
   search?: string;
+  provisionedVia?: ListUsersProvisionedVia;
 };
