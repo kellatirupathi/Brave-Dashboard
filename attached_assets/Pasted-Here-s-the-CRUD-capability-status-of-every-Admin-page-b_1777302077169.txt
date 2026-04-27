@@ -1,0 +1,31 @@
+Here's the CRUD capability status of every Admin page based on what the API currently exposes (from artifacts/api-server/src/routes/*):
+
+Admin Pages × CRUD Matrix
+#	Page	Create	Read	Update	Delete	Extra Actions	Status
+1	Dashboard /admin	—	✅	—	—	—	Read-only (stats)
+2	Review Queue /admin/queue	—	✅	—	—	Verify / Reject revenue + order book	Action page, no CRUD
+3	Teams /admin/teams	—	✅	✅	❌	Approve / Reject / Request-changes / Add-Remove member / Transfer leadership	Missing DELETE team
+4	Team Detail /admin/teams/:id	—	✅	✅	❌	same as above	Same gap
+5	Leaderboard /admin/leaderboard	—	✅	—	—	—	Read-only
+6	Demo Day /admin/demo-day	—	✅	❌	❌	—	Read-only — no admin status update / approve / reject
+7	Users /admin/users	✅	✅	✅	✅	CSV import	Full CRUD ✅
+8	Campuses /admin/campuses	✅	✅	✅	❌	—	Missing DELETE campus
+9	Campus Detail /admin/campuses/:id	—	✅	✅	❌	—	Same gap
+10	Config /admin/config	—	✅	✅	—	—	Singleton — Read + Update only (correct as-is)
+11	Roster /admin/roster	✅	✅	✅	✅	Bulk Excel import	Full CRUD ✅
+12	Audit Log /admin/audit-log	—	✅	—	—	—	Read-only (correct as-is)
+13	Announcements /admin/announcements	✅	✅	❌	❌	—	Missing UPDATE + DELETE
+Pages That Are Already Fully CRUD-Capable Like Users
+/admin/users ✅
+/admin/roster ✅
+Pages Missing CRUD Operations (gaps to fill in Replit)
+Page	What's missing	Suggested API endpoint
+Teams	DELETE /teams/:id — admin can't delete a team	Add admin-only DELETE route + UI button
+Campuses	DELETE /campuses/:id — admin can't remove a campus	Add admin-only DELETE route + confirmation (block if teams exist)
+Announcements	PATCH /announcements/:id, DELETE /announcements/:id	Add edit + delete routes + UI
+Demo Day	PATCH /admin/demo-day/applications/:id — no way to change status (approve/reject/shortlist)	Add PATCH route + UI status controls
+Pages Where CRUD Is Intentionally Limited (don't add)
+Dashboard / Leaderboard / Audit Log — these are reports; they should stay read-only.
+Review Queue — already exposes the right actions (verify / reject); no need for create/delete.
+Config — it's a single global settings row; only update makes sense.
+So if you want to bring every admin page up to the same CRUD level as Users, the four pages to enhance in Replit are: Teams, Campuses, Announcements, Demo Day.
