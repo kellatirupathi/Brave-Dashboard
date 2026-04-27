@@ -1,0 +1,49 @@
+Implement client-side chunked roster import in the BRAVE Dashboard so the admin can upload Excel/CSV files of any size (50 to 10,000+ rows) without hitting HTTP 413 or timeouts. Today the entire students array is sent in one POST /api/admin/roster/import call, which exceeds the Express default 100 KB JSON body limit and causes "Import failed". Fix this by batching the array on the frontend; do not raise server body limits or change the backend.
+
+File: artifacts/brave-dashboard/src/pages/admin/roster.tsx — only this file changes.
+
+Replace handleFileImport with a chunked version that:
+
+Parses the Excel/CSV with the existing XLSX logic to build the students array.
+Slices students into chunks of CHUNK_SIZE = 500.
+Sends each chunk sequentially (for ... of with await) via the existing useBulkImportRoster mutation, accumulating inserted and skipped counts across chunks.
+Shows live progress with toast({ ... }):
+On start: "Importing roster" / "0 / N students…".
+After each chunk: update the same toast (use a stable toast id from useToast()) → "Imported X / N…".
+On final success: "Import complete — {inserted} added, {skipped} skipped".
+If a chunk fails, stop the loop, show "Import stopped at row X — {inserted} added, {failedChunkSize} not attempted" as a destructive toast, but keep the rows that already succeeded (do not roll back).
+Disables the Import Excel button (isImporting || bulkImport.isPending) for the whole duration of the chunked run, not just the first chunk. Use a local setIsImporting(true) at the start and setIsImporting(false) in a finally.
+Invalidates getListRosterEntriesQueryKey() and getListUsersQueryKey() once after the loop finishes (success or partial failure), not after every chunk — avoids a flicker storm.
+Resets the file input value at the end so the same file can be re-selected.
+Use bulkImport.mutateAsync (not mutate) so each chunk can be await-ed:
+
+
+const CHUNK_SIZE = 500;
+let inserted = 0;
+let skipped = 0;
+const total = students.length;
+
+for (let i = 0; i < total; i += CHUNK_SIZE) {
+  const chunk = students.slice(i, i + CHUNK_SIZE);
+  const result = await bulkImport.mutateAsync({ data: { students: chunk } });
+  inserted += result.inserted;
+  skipped  += result.skipped;
+  // update progress toast with `${Math.min(i + CHUNK_SIZE, total)} / ${total}`
+}
+Wrap the loop in try / catch / finally so a thrown chunk error is reported with row range (rows ${i+1}–${i+chunk.length}) and setIsImporting(false) always runs.
+
+Constraints
+
+Do not modify artifacts/api-server/src/app.ts or any backend file.
+Do not modify the OpenAPI spec or regenerate the client.
+Do not change the existing single-row Add Student flow, the bulk-delete flow, the edit flow, the access-requests tab, or the CAMPUSES constant.
+Keep all existing data-testid attributes intact.
+Keep the existing parsing logic exactly as-is — only the send phase changes.
+Run pnpm run typecheck and ensure it passes.
+Acceptance
+
+Upload a 50-row file → one chunk, finishes in <2s, shows "Import complete — 50 added, 0 skipped". No 413.
+Upload a 7,500-row file → 15 chunks of 500, progress toast updates as it advances (Imported 500 / 7500…, 1000 / 7500…, …), final toast shows totals. No 413, no timeout.
+If chunk #4 fails (e.g. backend returns 500), the loop stops, a destructive toast names the row range, and the first 3 chunks remain inserted in the database. The Roster table reflects exactly the rows that did land.
+The Import Excel button stays disabled for the entire duration of a multi-chunk run, then re-enables, and selecting the same file again works.
+The Roster table refreshes once after the run completes (no per-chunk re-renders).
