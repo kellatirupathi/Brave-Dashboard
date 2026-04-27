@@ -1,0 +1,66 @@
+so first we need to upload the admin and coordinator and students User id;s data from the csv file data from to read this csv file to upload database and next while forms.gamma login link way to check that user id;s from the database then login through throught that admin or coordinator or student dashbaor dpages roles access ways 
+
+
+first tell me what iam expecting tell me only
+3:20 PM
+
+You’re expecting this login system to work like this:
+
+First, import a CSV into the database with the user records for admins, coordinators, and students.
+That CSV should contain the identity key used by forms.gamma login, mainly the Forms user ID, and enough data to assign role and campus.
+When someone logs in through the forms.gamma link, the app should receive that user’s Forms user ID.
+The backend should look up that Forms user ID in the database.
+If the user exists, the app should identify their role:
+admin
+coordinator
+student
+Based on that role, the app should create the session and send them to the correct dashboard:
+admin -> admin dashboard
+coordinator -> coordinator dashboard
+student -> student dashboard
+If the Forms user ID is not found in the database, login should be blocked, or handled as “not authorized / not registered”.
+So your expectation is:
+
+CSV upload -> database stores user ids + roles -> forms.gamma login returns user id -> backend matches it -> role-based dashboard access
+
+That is the model you are describing.
+
+
+
+
+
+3:21 PM
+in the admin user page /admin/users is there so in this import csv file button and crud operations also and next in the /admin/roster page we need crud operations in this page data so these in this roster data is all data is users roles so these roster data must be in role is student role === "student" automatically this roster data user create user role student and these users roster data must be displayed in the admn/users page data disply all data likr admin and students and coordinator so give me what is expecting tell me first only
+3:54 PM
+
+
+You’re expecting these behaviors:
+
+/admin/users
+This page should manage all actual app users.
+It should support full CRUD:
+create user
+edit user
+delete user
+view/list users
+It should also support CSV import from the “Import CSV” button.
+The data shown here should include every role:
+admin
+coordinator
+student
+/admin/roster
+This page should also support CRUD for roster records.
+The roster is your bulk student source data.
+Relationship between roster and users
+Roster data should represent student records.
+When a roster entry is created/imported, that person should effectively become a user with:
+role === "student"
+Those student users should then also appear in /admin/users alongside admins and coordinators.
+So your expected model is:
+
+roster = student master list / import source
+every roster record becomes or maps to a users record with role student
+/admin/users = combined user management screen for all roles
+/admin/roster = dedicated student roster management screen
+CSV import on /admin/users should help populate user data, and roster-origin students should also be visible there
+In one line: you want roster-managed students to automatically exist as student users, and /admin/users to show the complete unified user list across admin, coordinator, and student roles.
