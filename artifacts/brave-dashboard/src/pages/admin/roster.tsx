@@ -8,10 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClipboardList, Plus, Upload, CheckCircle, XCircle, Clock, Pencil, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import * as XLSX from "xlsx";
 
 const CAMPUSES = [
@@ -73,6 +74,11 @@ export default function AdminRoster() {
   const [editTarget, setEditTarget] = useState<RosterRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RosterRow | null>(null);
   const [isDeletingRoster, setIsDeletingRoster] = useState(false);
+
+  // Bulk-select state for the roster table
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [editStudentId, setEditStudentId] = useState("");
   const [editFullName, setEditFullName] = useState("");
   const [editEmail, setEditEmail] = useState("");
@@ -137,6 +143,81 @@ export default function AdminRoster() {
         onError: (e: any) => toast({ title: "Update failed", description: e?.data?.error ?? e?.message ?? "Server error", variant: "destructive" }),
       },
     );
+  };
+
+  // ---- Bulk select / bulk delete ----
+  const visibleIds = roster?.map(r => r.id) ?? [];
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
+  const someVisibleSelected = visibleIds.some(id => selectedIds.has(id));
+  const headerCheckboxState: boolean | "indeterminate" =
+    allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false;
+
+  const toggleRow = (id: number, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleAllVisible = (checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        for (const id of visibleIds) next.add(id);
+      } else {
+        for (const id of visibleIds) next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  // Drop selections that no longer exist in the latest roster snapshot so the
+  // header checkbox / counter never references stale ids (e.g. after another
+  // admin deletes rows or after a bulk delete completes).
+  useEffect(() => {
+    if (!roster) return;
+    const present = new Set(roster.map(r => r.id));
+    setSelectedIds(prev => {
+      let changed = false;
+      const next = new Set<number>();
+      for (const id of prev) {
+        if (present.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [roster]);
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const results = await Promise.allSettled(
+        ids.map(id =>
+          fetch(`/api/admin/roster/${id}`, { method: "DELETE", credentials: "include" }).then(res => {
+            if (!res.ok) throw new Error(`Failed for id ${id} (${res.status})`);
+            return id;
+          }),
+        ),
+      );
+      const succeeded = results.filter(r => r.status === "fulfilled").length;
+      const failed = results.length - succeeded;
+      if (failed === 0) {
+        toast({ title: `Deleted ${succeeded} student${succeeded === 1 ? "" : "s"}` });
+      } else if (succeeded === 0) {
+        toast({ title: "Bulk delete failed", description: `All ${failed} delete${failed === 1 ? "" : "s"} failed.`, variant: "destructive" });
+      } else {
+        toast({ title: "Partial delete", description: `${succeeded} deleted, ${failed} failed.`, variant: "destructive" });
+      }
+      setIsBulkDeleteOpen(false);
+      setSelectedIds(new Set());
+      refreshAll();
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -252,6 +333,17 @@ export default function AdminRoster() {
             onChange={handleFileImport}
             className="hidden"
           />
+          {selectedIds.size > 0 && (
+            <Button
+              variant="destructive"
+              onClick={() => setIsBulkDeleteOpen(true)}
+              data-testid="button-bulk-delete-roster"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete selected ({selectedIds.size})
+            </Button>
+          )}
+
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
@@ -335,6 +427,14 @@ export default function AdminRoster() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10 px-2">
+                      <Checkbox
+                        checked={headerCheckboxState}
+                        onCheckedChange={(c) => toggleAllVisible(c === true)}
+                        aria-label="Select all rows"
+                        data-testid="checkbox-select-all-roster"
+                      />
+                    </TableHead>
                     <TableHead>Student User ID</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>NIAT ID</TableHead>
@@ -347,7 +447,15 @@ export default function AdminRoster() {
                 </TableHeader>
                 <TableBody>
                   {roster?.map(entry => (
-                    <TableRow key={entry.id}>
+                    <TableRow key={entry.id} data-state={selectedIds.has(entry.id) ? "selected" : undefined}>
+                      <TableCell className="w-10 px-2">
+                        <Checkbox
+                          checked={selectedIds.has(entry.id)}
+                          onCheckedChange={(c) => toggleRow(entry.id, c === true)}
+                          aria-label={`Select ${entry.fullName}`}
+                          data-testid={`checkbox-roster-${entry.id}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{entry.studentId || "—"}</TableCell>
                       <TableCell className="font-medium">{entry.fullName}</TableCell>
                       <TableCell className="font-mono text-xs">{entry.niatId || "—"}</TableCell>
@@ -384,7 +492,7 @@ export default function AdminRoster() {
                   ))}
                   {roster?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                         <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         No students on roster. Use "Import Excel" or "Add Student" to populate it.
                       </TableCell>
@@ -551,6 +659,30 @@ export default function AdminRoster() {
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeletingRoster}>
               {isDeletingRoster && <Spinner className="w-4 h-4 mr-2" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={isBulkDeleteOpen} onOpenChange={(open) => !isBulkDeleting && setIsBulkDeleteOpen(open)}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Delete {selectedIds.size} roster {selectedIds.size === 1 ? "entry" : "entries"}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will permanently remove the selected {selectedIds.size === 1 ? "student" : "students"} from the roster
+            <span className="block mt-1">and also delete the linked student user accounts, so they will no longer be able to sign in.</span>
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkDeleteOpen(false)} disabled={isBulkDeleting}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting || selectedIds.size === 0}
+              data-testid="button-confirm-bulk-delete"
+            >
+              {isBulkDeleting && <Spinner className="w-4 h-4 mr-2" />} Delete {selectedIds.size}
             </Button>
           </DialogFooter>
         </DialogContent>
