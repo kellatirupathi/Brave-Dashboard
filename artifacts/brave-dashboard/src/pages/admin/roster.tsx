@@ -1,13 +1,52 @@
-import { useListRosterEntries, useAddRosterEntry, getListRosterEntriesQueryKey, useListAccessRequests, useUpdateAccessRequest, getListAccessRequestsQueryKey, useBulkImportRoster, useUpdateRosterEntry, getListUsersQueryKey } from "@workspace/api-client-react";
+import {
+  useListRosterEntries,
+  useAddRosterEntry,
+  getListRosterEntriesQueryKey,
+  useListAccessRequests,
+  useUpdateAccessRequest,
+  getListAccessRequestsQueryKey,
+  useBulkImportRoster,
+  useUpdateRosterEntry,
+  getListUsersQueryKey,
+} from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClipboardList, Plus, Upload, CheckCircle, XCircle, Clock, Pencil, Trash2 } from "lucide-react";
+import {
+  ClipboardList,
+  Plus,
+  Upload,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +76,8 @@ const CAMPUSES = [
   "Yenepoya University",
 ];
 
+const IMPORT_CHUNK_SIZE = 300;
+
 type RosterRow = {
   id: number;
   studentId: string;
@@ -48,9 +89,19 @@ type RosterRow = {
   isWhitelisted: boolean;
 };
 
+type ImportStudent = {
+  studentUserId: string;
+  studentName: string;
+  niatId: string;
+  instituteName: string;
+  batchSectionName: string;
+  email?: string;
+};
+
 export default function AdminRoster() {
   const { data: roster, isLoading } = useListRosterEntries({});
-  const { data: accessRequests, isLoading: requestsLoading } = useListAccessRequests({});
+  const { data: accessRequests, isLoading: requestsLoading } =
+    useListAccessRequests({});
   const addEntry = useAddRosterEntry();
   const bulkImport = useBulkImportRoster();
   const updateEntry = useUpdateRosterEntry();
@@ -95,16 +146,35 @@ export default function AdminRoster() {
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     addEntry.mutate(
-      { data: { studentId, fullName, email: email || undefined as unknown as string, campusName, niatId: niatId || null, batchSectionName: batchSectionName || null } },
+      {
+        data: {
+          studentId,
+          fullName,
+          email: email || (undefined as unknown as string),
+          campusName,
+          niatId: niatId || null,
+          batchSectionName: batchSectionName || null,
+        },
+      },
       {
         onSuccess: () => {
           toast({ title: "Student added to roster" });
           refreshAll();
           setIsAddOpen(false);
-          setStudentId(""); setFullName(""); setEmail(""); setCampusName(""); setNiatId(""); setBatchSectionName("");
+          setStudentId("");
+          setFullName("");
+          setEmail("");
+          setCampusName("");
+          setNiatId("");
+          setBatchSectionName("");
         },
-        onError: (e: any) => toast({ title: "Failed to add student", description: e?.data?.error ?? e?.message ?? "Server error", variant: "destructive" }),
-      }
+        onError: (e: any) =>
+          toast({
+            title: "Failed to add student",
+            description: e?.data?.error ?? e?.message ?? "Server error",
+            variant: "destructive",
+          }),
+      },
     );
   };
 
@@ -140,20 +210,29 @@ export default function AdminRoster() {
           refreshAll();
           setEditTarget(null);
         },
-        onError: (e: any) => toast({ title: "Update failed", description: e?.data?.error ?? e?.message ?? "Server error", variant: "destructive" }),
+        onError: (e: any) =>
+          toast({
+            title: "Update failed",
+            description: e?.data?.error ?? e?.message ?? "Server error",
+            variant: "destructive",
+          }),
       },
     );
   };
 
   // ---- Bulk select / bulk delete ----
-  const visibleIds = roster?.map(r => r.id) ?? [];
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
-  const someVisibleSelected = visibleIds.some(id => selectedIds.has(id));
-  const headerCheckboxState: boolean | "indeterminate" =
-    allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false;
+  const visibleIds = roster?.map((r) => r.id) ?? [];
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
+  const headerCheckboxState: boolean | "indeterminate" = allVisibleSelected
+    ? true
+    : someVisibleSelected
+      ? "indeterminate"
+      : false;
 
   const toggleRow = (id: number, checked: boolean) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (checked) next.add(id);
       else next.delete(id);
@@ -162,7 +241,7 @@ export default function AdminRoster() {
   };
 
   const toggleAllVisible = (checked: boolean) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (checked) {
         for (const id of visibleIds) next.add(id);
@@ -173,13 +252,10 @@ export default function AdminRoster() {
     });
   };
 
-  // Drop selections that no longer exist in the latest roster snapshot so the
-  // header checkbox / counter never references stale ids (e.g. after another
-  // admin deletes rows or after a bulk delete completes).
   useEffect(() => {
     if (!roster) return;
-    const present = new Set(roster.map(r => r.id));
-    setSelectedIds(prev => {
+    const present = new Set(roster.map((r) => r.id));
+    setSelectedIds((prev) => {
       let changed = false;
       const next = new Set<number>();
       for (const id of prev) {
@@ -196,21 +272,34 @@ export default function AdminRoster() {
     try {
       const ids = Array.from(selectedIds);
       const results = await Promise.allSettled(
-        ids.map(id =>
-          fetch(`/api/admin/roster/${id}`, { method: "DELETE", credentials: "include" }).then(res => {
+        ids.map((id) =>
+          fetch(`/api/admin/roster/${id}`, {
+            method: "DELETE",
+            credentials: "include",
+          }).then((res) => {
             if (!res.ok) throw new Error(`Failed for id ${id} (${res.status})`);
             return id;
           }),
         ),
       );
-      const succeeded = results.filter(r => r.status === "fulfilled").length;
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.length - succeeded;
       if (failed === 0) {
-        toast({ title: `Deleted ${succeeded} student${succeeded === 1 ? "" : "s"}` });
+        toast({
+          title: `Deleted ${succeeded} student${succeeded === 1 ? "" : "s"}`,
+        });
       } else if (succeeded === 0) {
-        toast({ title: "Bulk delete failed", description: `All ${failed} delete${failed === 1 ? "" : "s"} failed.`, variant: "destructive" });
+        toast({
+          title: "Bulk delete failed",
+          description: `All ${failed} delete${failed === 1 ? "" : "s"} failed.`,
+          variant: "destructive",
+        });
       } else {
-        toast({ title: "Partial delete", description: `${succeeded} deleted, ${failed} failed.`, variant: "destructive" });
+        toast({
+          title: "Partial delete",
+          description: `${succeeded} deleted, ${failed} failed.`,
+          variant: "destructive",
+        });
       }
       setIsBulkDeleteOpen(false);
       setSelectedIds(new Set());
@@ -236,7 +325,11 @@ export default function AdminRoster() {
       refreshAll();
       setDeleteTarget(null);
     } catch (e: any) {
-      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+      toast({
+        title: "Delete failed",
+        description: e.message,
+        variant: "destructive",
+      });
     } finally {
       setIsDeletingRoster(false);
     }
@@ -244,62 +337,132 @@ export default function AdminRoster() {
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    const inputEl = e.target;
     if (!file) return;
     setIsImporting(true);
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
+      let progressToast: ReturnType<typeof toast> | null = null;
+
       try {
         const data = evt.target?.result;
         const workbook = XLSX.read(data, { type: "binary" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, {
+          defval: "",
+        });
 
-        const students = rows
-          .filter(row => row["Student Name"] || row["studentName"])
-          .map(row => {
-            const email = String(row["Email"] || row["email"] || "").trim();
+        const students: ImportStudent[] = rows
+          .filter((row) => row["Student Name"] || row["studentName"])
+          .map((row) => {
+            const emailValue = String(
+              row["Email"] || row["email"] || "",
+            ).trim();
             return {
-              studentUserId: String(row["Student User ID"] || row["studentUserId"] || ""),
-              studentName: String(row["Student Name"] || row["studentName"] || ""),
+              studentUserId: String(
+                row["Student User ID"] || row["studentUserId"] || "",
+              ),
+              studentName: String(
+                row["Student Name"] || row["studentName"] || "",
+              ),
               niatId: String(row["NIAT ID"] || row["niatId"] || ""),
-              instituteName: String(row["Institute Name"] || row["instituteName"] || ""),
-              batchSectionName: String(row["Batch Section Name"] || row["batchSectionName"] || ""),
-              ...(email ? { email } : {}),
+              instituteName: String(
+                row["Institute Name"] || row["instituteName"] || "",
+              ),
+              batchSectionName: String(
+                row["Batch Section Name"] || row["batchSectionName"] || "",
+              ),
+              ...(emailValue ? { email: emailValue } : {}),
             };
           })
-          .filter(s => s.studentName && s.instituteName);
+          .filter((s) => s.studentName && s.instituteName);
 
         if (students.length === 0) {
-          toast({ title: "No valid rows found in the file", description: "Expected columns: Student User ID, Student Name, NIAT ID, Institute Name, Batch Section Name, Email", variant: "destructive" });
-          setIsImporting(false);
+          toast({
+            title: "No valid rows found in the file",
+            description:
+              "Expected columns: Student User ID, Student Name, NIAT ID, Institute Name, Batch Section Name, Email",
+            variant: "destructive",
+          });
           return;
         }
 
-        bulkImport.mutate(
-          { data: { students } },
-          {
-            onSuccess: (result) => {
-              toast({
-                title: `Import complete`,
-                description: `${result.inserted} students added, ${result.skipped} skipped (duplicates).`,
-              });
-              queryClient.invalidateQueries({ queryKey: getListRosterEntriesQueryKey() });
-              setIsImporting(false);
-            },
-            onError: () => {
-              toast({ title: "Import failed", variant: "destructive" });
-              setIsImporting(false);
-            },
+        const total = students.length;
+        let inserted = 0;
+        let skipped = 0;
+        let processed = 0;
+
+        progressToast = toast({
+          title: "Importing roster",
+          description: `0 / ${total} students…`,
+        });
+
+        for (let i = 0; i < total; i += IMPORT_CHUNK_SIZE) {
+          const chunk = students.slice(i, i + IMPORT_CHUNK_SIZE);
+          try {
+            const result = await bulkImport.mutateAsync({
+              data: { students: chunk },
+            });
+            inserted += result.inserted;
+            skipped += result.skipped;
+            processed += chunk.length;
+
+            progressToast.update({
+              id: progressToast.id,
+              title: "Importing roster",
+              description: `${processed} / ${total} students…`,
+            });
+          } catch (chunkErr) {
+            const fromRow = i + 1;
+            const toRow = i + chunk.length;
+            progressToast.update({
+              id: progressToast.id,
+              title: "Import stopped",
+              description: `Failed at rows ${fromRow}–${toRow}. ${inserted} added, ${skipped} skipped before the error. ${total - processed - chunk.length} not attempted.`,
+              variant: "destructive",
+            });
+            return;
           }
-        );
+        }
+
+        progressToast.update({
+          id: progressToast.id,
+          title: "Import complete",
+          description: `${inserted} students added, ${skipped} skipped (duplicates).`,
+        });
       } catch {
-        toast({ title: "Failed to read file", description: "Make sure it is a valid .xlsx or .csv file", variant: "destructive" });
+        if (progressToast) {
+          progressToast.update({
+            id: progressToast.id,
+            title: "Failed to read file",
+            description: "Make sure it is a valid .xlsx or .csv file",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Failed to read file",
+            description: "Make sure it is a valid .xlsx or .csv file",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        queryClient.invalidateQueries({
+          queryKey: getListRosterEntriesQueryKey(),
+        });
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
         setIsImporting(false);
+        inputEl.value = "";
       }
     };
+
+    reader.onerror = () => {
+      toast({ title: "Failed to read file", variant: "destructive" });
+      setIsImporting(false);
+      inputEl.value = "";
+    };
+
     reader.readAsBinaryString(file);
-    e.target.value = "";
   };
 
   const handleApproveReject = (id: number, status: "approved" | "rejected") => {
@@ -307,22 +470,31 @@ export default function AdminRoster() {
       { id, data: { status } },
       {
         onSuccess: () => {
-          toast({ title: status === "approved" ? "Request approved" : "Request rejected" });
-          queryClient.invalidateQueries({ queryKey: getListAccessRequestsQueryKey() });
+          toast({
+            title:
+              status === "approved" ? "Request approved" : "Request rejected",
+          });
+          queryClient.invalidateQueries({
+            queryKey: getListAccessRequestsQueryKey(),
+          });
         },
-        onError: () => toast({ title: "Failed to update request", variant: "destructive" }),
-      }
+        onError: () =>
+          toast({ title: "Failed to update request", variant: "destructive" }),
+      },
     );
   };
 
-  const pendingCount = accessRequests?.filter(r => r.status === "pending").length ?? 0;
+  const pendingCount =
+    accessRequests?.filter((r) => r.status === "pending").length ?? 0;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Student Roster</h1>
-          <p className="text-muted-foreground">Manage the master list of enrolled students</p>
+          <p className="text-muted-foreground">
+            Manage the master list of enrolled students
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -347,17 +519,21 @@ export default function AdminRoster() {
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting || bulkImport.isPending}
+            disabled={isImporting}
           >
-            {isImporting || bulkImport.isPending
-              ? <Spinner className="w-4 h-4 mr-2" />
-              : <Upload className="w-4 h-4 mr-2" />}
+            {isImporting ? (
+              <Spinner className="w-4 h-4 mr-2" />
+            ) : (
+              <Upload className="w-4 h-4 mr-2" />
+            )}
             Import Excel
           </Button>
 
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="w-4 h-4 mr-2" /> Add Student</Button>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" /> Add Student
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -366,38 +542,71 @@ export default function AdminRoster() {
               <form onSubmit={handleAdd} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Student User ID</label>
-                    <Input value={studentId} onChange={e => setStudentId(e.target.value)} required />
+                    <label className="text-sm font-medium">
+                      Student User ID
+                    </label>
+                    <Input
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">NIAT ID</label>
-                    <Input value={niatId} onChange={e => setNiatId(e.target.value)} />
+                    <Input
+                      value={niatId}
+                      onChange={(e) => setNiatId(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Full Name</label>
-                  <Input value={fullName} onChange={e => setFullName(e.target.value)} required />
+                  <Input
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Email (optional)</label>
-                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                  <label className="text-sm font-medium">
+                    Email (optional)
+                  </label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Campus</label>
-                  <Select value={campusName} onValueChange={setCampusName} required>
-                    <SelectTrigger><SelectValue placeholder="Select campus" /></SelectTrigger>
+                  <Select
+                    value={campusName}
+                    onValueChange={setCampusName}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select campus" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {CAMPUSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {CAMPUSES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Batch / Section</label>
-                  <Input value={batchSectionName} onChange={e => setBatchSectionName(e.target.value)} />
+                  <Input
+                    value={batchSectionName}
+                    onChange={(e) => setBatchSectionName(e.target.value)}
+                  />
                 </div>
                 <div className="flex justify-end pt-2">
                   <Button type="submit" disabled={addEntry.isPending}>
-                    {addEntry.isPending && <Spinner className="w-4 h-4 mr-2" />} Save
+                    {addEntry.isPending && <Spinner className="w-4 h-4 mr-2" />}{" "}
+                    Save
                   </Button>
                 </div>
               </form>
@@ -414,7 +623,9 @@ export default function AdminRoster() {
           <TabsTrigger value="requests">
             Access Requests
             {pendingCount > 0 && (
-              <Badge className="ml-2 bg-amber-500 text-white text-xs px-1.5 py-0">{pendingCount}</Badge>
+              <Badge className="ml-2 bg-amber-500 text-white text-xs px-1.5 py-0">
+                {pendingCount}
+              </Badge>
             )}
           </TabsTrigger>
         </TabsList>
@@ -422,7 +633,9 @@ export default function AdminRoster() {
         <TabsContent value="roster" className="mt-4">
           <Card>
             {isLoading ? (
-              <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
+              <div className="flex h-64 items-center justify-center">
+                <Spinner size="lg" />
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -446,26 +659,49 @@ export default function AdminRoster() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {roster?.map(entry => (
-                    <TableRow key={entry.id} data-state={selectedIds.has(entry.id) ? "selected" : undefined}>
+                  {roster?.map((entry) => (
+                    <TableRow
+                      key={entry.id}
+                      data-state={
+                        selectedIds.has(entry.id) ? "selected" : undefined
+                      }
+                    >
                       <TableCell className="w-10 px-2">
                         <Checkbox
                           checked={selectedIds.has(entry.id)}
-                          onCheckedChange={(c) => toggleRow(entry.id, c === true)}
+                          onCheckedChange={(c) =>
+                            toggleRow(entry.id, c === true)
+                          }
                           aria-label={`Select ${entry.fullName}`}
                           data-testid={`checkbox-roster-${entry.id}`}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{entry.studentId || "—"}</TableCell>
-                      <TableCell className="font-medium">{entry.fullName}</TableCell>
-                      <TableCell className="font-mono text-xs">{entry.niatId || "—"}</TableCell>
-                      <TableCell className="text-sm">{entry.campusName}</TableCell>
-                      <TableCell className="text-sm">{entry.batchSectionName || "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{entry.email || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {entry.studentId || "—"}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {entry.fullName}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {entry.niatId || "—"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {entry.campusName}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {entry.batchSectionName || "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {entry.email || "—"}
+                      </TableCell>
                       <TableCell>
-                        {entry.isWhitelisted
-                          ? <Badge className="bg-green-500 hover:bg-green-600">Active</Badge>
-                          : <Badge variant="secondary">Inactive</Badge>}
+                        {entry.isWhitelisted ? (
+                          <Badge className="bg-green-500 hover:bg-green-600">
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Inactive</Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="inline-flex gap-1">
@@ -492,9 +728,13 @@ export default function AdminRoster() {
                   ))}
                   {roster?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                      <TableCell
+                        colSpan={9}
+                        className="h-24 text-center text-muted-foreground"
+                      >
                         <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        No students on roster. Use "Import Excel" or "Add Student" to populate it.
+                        No students on roster. Use "Import Excel" or "Add
+                        Student" to populate it.
                       </TableCell>
                     </TableRow>
                   )}
@@ -507,7 +747,9 @@ export default function AdminRoster() {
         <TabsContent value="requests" className="mt-4">
           <Card>
             {requestsLoading ? (
-              <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
+              <div className="flex h-64 items-center justify-center">
+                <Spinner size="lg" />
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -523,19 +765,33 @@ export default function AdminRoster() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {accessRequests?.map(req => (
+                  {accessRequests?.map((req) => (
                     <TableRow key={req.id}>
-                      <TableCell className="font-medium">{req.fullName}</TableCell>
+                      <TableCell className="font-medium">
+                        {req.fullName}
+                      </TableCell>
                       <TableCell className="text-sm">{req.email}</TableCell>
-                      <TableCell className="font-mono text-xs">{req.niatId || "—"}</TableCell>
-                      <TableCell className="text-sm">{req.campusName}</TableCell>
-                      <TableCell className="text-sm">{req.batch || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {req.niatId || "—"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {req.campusName}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {req.batch || "—"}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                        {new Date(req.createdAt).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                        })}
                       </TableCell>
                       <TableCell>
                         {req.status === "pending" && (
-                          <Badge variant="outline" className="border-amber-500 text-amber-600 gap-1">
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500 text-amber-600 gap-1"
+                          >
                             <Clock className="w-3 h-3" /> Pending
                           </Badge>
                         )}
@@ -556,7 +812,9 @@ export default function AdminRoster() {
                             <Button
                               size="sm"
                               className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() => handleApproveReject(req.id, "approved")}
+                              onClick={() =>
+                                handleApproveReject(req.id, "approved")
+                              }
                               disabled={updateRequest.isPending}
                             >
                               Approve
@@ -564,7 +822,9 @@ export default function AdminRoster() {
                             <Button
                               size="sm"
                               className="h-7 text-xs bg-red-400 hover:bg-red-500 text-white"
-                              onClick={() => handleApproveReject(req.id, "rejected")}
+                              onClick={() =>
+                                handleApproveReject(req.id, "rejected")
+                              }
                               disabled={updateRequest.isPending}
                             >
                               Reject
@@ -576,7 +836,10 @@ export default function AdminRoster() {
                   ))}
                   {accessRequests?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      <TableCell
+                        colSpan={8}
+                        className="h-24 text-center text-muted-foreground"
+                      >
                         No access requests yet
                       </TableCell>
                     </TableRow>
@@ -589,7 +852,10 @@ export default function AdminRoster() {
       </Tabs>
 
       {/* Edit roster dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+      <Dialog
+        open={!!editTarget}
+        onOpenChange={(open) => !open && setEditTarget(null)}
+      >
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>Edit roster entry</DialogTitle>
@@ -598,66 +864,109 @@ export default function AdminRoster() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Student User ID</label>
-                <Input value={editStudentId} onChange={e => setEditStudentId(e.target.value)} />
+                <Input
+                  value={editStudentId}
+                  onChange={(e) => setEditStudentId(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">NIAT ID</label>
-                <Input value={editNiatId} onChange={e => setEditNiatId(e.target.value)} />
+                <Input
+                  value={editNiatId}
+                  onChange={(e) => setEditNiatId(e.target.value)}
+                />
               </div>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Full Name</label>
-              <Input value={editFullName} onChange={e => setEditFullName(e.target.value)} />
+              <Input
+                value={editFullName}
+                onChange={(e) => setEditFullName(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Email</label>
-              <Input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} />
+              <Input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Campus</label>
               <Select value={editCampusName} onValueChange={setEditCampusName}>
-                <SelectTrigger><SelectValue placeholder="Select campus" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select campus" />
+                </SelectTrigger>
                 <SelectContent>
-                  {CAMPUSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {CAMPUSES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Batch / Section</label>
-              <Input value={editBatchSection} onChange={e => setEditBatchSection(e.target.value)} />
+              <Input
+                value={editBatchSection}
+                onChange={(e) => setEditBatchSection(e.target.value)}
+              />
             </div>
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 id="edit-active"
                 checked={editIsWhitelisted}
-                onChange={e => setEditIsWhitelisted(e.target.checked)}
+                onChange={(e) => setEditIsWhitelisted(e.target.checked)}
               />
-              <label htmlFor="edit-active" className="text-sm">Active (whitelisted for sign-in)</label>
+              <label htmlFor="edit-active" className="text-sm">
+                Active (whitelisted for sign-in)
+              </label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>
+              Cancel
+            </Button>
             <Button onClick={handleSaveEdit} disabled={updateEntry.isPending}>
-              {updateEntry.isPending && <Spinner className="w-4 h-4 mr-2" />} Save changes
+              {updateEntry.isPending && <Spinner className="w-4 h-4 mr-2" />}{" "}
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete roster confirmation */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle>Delete roster entry?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will permanently remove <span className="font-semibold text-foreground">{deleteTarget?.fullName}</span> from the roster
-            <span className="block mt-1">and also delete their student user account, so they will no longer be able to sign in.</span>
+            This will permanently remove{" "}
+            <span className="font-semibold text-foreground">
+              {deleteTarget?.fullName}
+            </span>{" "}
+            from the roster
+            <span className="block mt-1">
+              and also delete their student user account, so they will no longer
+              be able to sign in.
+            </span>
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeletingRoster}>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeletingRoster}
+            >
               {isDeletingRoster && <Spinner className="w-4 h-4 mr-2" />} Delete
             </Button>
           </DialogFooter>
@@ -665,24 +974,41 @@ export default function AdminRoster() {
       </Dialog>
 
       {/* Bulk delete confirmation */}
-      <Dialog open={isBulkDeleteOpen} onOpenChange={(open) => !isBulkDeleting && setIsBulkDeleteOpen(open)}>
+      <Dialog
+        open={isBulkDeleteOpen}
+        onOpenChange={(open) => !isBulkDeleting && setIsBulkDeleteOpen(open)}
+      >
         <DialogContent className="sm:max-w-[460px]">
           <DialogHeader>
-            <DialogTitle>Delete {selectedIds.size} roster {selectedIds.size === 1 ? "entry" : "entries"}?</DialogTitle>
+            <DialogTitle>
+              Delete {selectedIds.size} roster{" "}
+              {selectedIds.size === 1 ? "entry" : "entries"}?
+            </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will permanently remove the selected {selectedIds.size === 1 ? "student" : "students"} from the roster
-            <span className="block mt-1">and also delete the linked student user accounts, so they will no longer be able to sign in.</span>
+            This will permanently remove the selected{" "}
+            {selectedIds.size === 1 ? "student" : "students"} from the roster
+            <span className="block mt-1">
+              and also delete the linked student user accounts, so they will no
+              longer be able to sign in.
+            </span>
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsBulkDeleteOpen(false)} disabled={isBulkDeleting}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkDeleteOpen(false)}
+              disabled={isBulkDeleting}
+            >
+              Cancel
+            </Button>
             <Button
               variant="destructive"
               onClick={handleBulkDelete}
               disabled={isBulkDeleting || selectedIds.size === 0}
               data-testid="button-confirm-bulk-delete"
             >
-              {isBulkDeleting && <Spinner className="w-4 h-4 mr-2" />} Delete {selectedIds.size}
+              {isBulkDeleting && <Spinner className="w-4 h-4 mr-2" />} Delete{" "}
+              {selectedIds.size}
             </Button>
           </DialogFooter>
         </DialogContent>
