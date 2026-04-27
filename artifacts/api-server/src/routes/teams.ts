@@ -268,7 +268,7 @@ router.post("/teams", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  // Students can only create a team for their own campus
+  // Students can only create a team for their own campus (when one is already set)
   if (req.user.role === "student" && req.user.campusId && parsed.data.campusId !== req.user.campusId) {
     res.status(403).json({ error: "You can only create a team at your own campus" });
     return;
@@ -282,13 +282,32 @@ router.post("/teams", async (req, res): Promise<void> => {
     res.status(400).json({ error: "You are already a member of a team" });
     return;
   }
-  // Enforce campus = user's campus; reject if not assigned (admins may set campusId explicitly)
-  const campusId = req.user.role === "admin"
-    ? (req.user.campusId ?? parsed.data.campusId)
-    : req.user.campusId;
+  // Resolve effective campus. Admins may pick any campus. Coordinators must be
+  // pre-assigned to one. Students use their own when assigned; if a student has
+  // no campus yet (auto-provisioned Forms SSO user), let them pick one during
+  // team creation and persist it onto their user row.
+  let campusId: number | undefined;
+  if (req.user.role === "admin") {
+    campusId = req.user.campusId ?? parsed.data.campusId;
+  } else if (req.user.role === "student") {
+    campusId = req.user.campusId ?? parsed.data.campusId;
+  } else {
+    // coordinator (or any other role) must already have a campus assigned
+    campusId = req.user.campusId;
+  }
   if (!campusId) {
-    res.status(400).json({ error: "Your account has no campus assigned. Please contact your coordinator." });
+    res.status(400).json({ error: "Please choose a campus for your team." });
     return;
+  }
+  // Validate the campus exists before we touch the user row.
+  const [campusRow] = await db.select({ id: campusesTable.id }).from(campusesTable).where(eq(campusesTable.id, campusId));
+  if (!campusRow) {
+    res.status(400).json({ error: "Selected campus does not exist." });
+    return;
+  }
+  // Persist campus onto the user row when they didn't have one yet.
+  if (!req.user.campusId && req.user.role === "student") {
+    await db.update(usersTable).set({ campusId }).where(eq(usersTable.id, req.user.id));
   }
   const inviteCode = await generateUniqueInviteCode();
   const teamData = {

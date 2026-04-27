@@ -5,6 +5,7 @@ import {
   useGetMyTeam,
   useCreateTeam,
   useListMyInvitations,
+  useListCampuses,
   getGetMyTeamQueryKey,
   getListMyInvitationsQueryKey,
 } from "@workspace/api-client-react";
@@ -15,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, KeyRound, Search, ArrowRight, Mail } from "lucide-react";
@@ -28,8 +30,10 @@ export default function GetStarted() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const createTeam = useCreateTeam();
+  const { data: campuses, isLoading: campusesLoading } = useListCampuses();
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
+  const [campusId, setCampusId] = useState<string>("");
   const [showCreate, setShowCreate] = useState(false);
 
   if (teamLoading) {
@@ -42,15 +46,18 @@ export default function GetStarted() {
 
   const pendingInvitations = invitations?.filter((i) => i.status === "pending") ?? [];
 
+  const effectiveCampusId = user?.campusId ?? (campusId ? Number(campusId) : undefined);
+  const needsCampusPick = !user?.campusId;
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    if (!user?.campusId) {
-      toast({ title: "Missing campus", description: "Your account is not associated with a campus.", variant: "destructive" });
+    if (!effectiveCampusId) {
+      toast({ title: "Choose a campus", description: "Pick the campus your team belongs to.", variant: "destructive" });
       return;
     }
     createTeam.mutate(
-      { data: { name: name.trim(), tagline: tagline.trim() || undefined, campusId: user.campusId } },
+      { data: { name: name.trim(), tagline: tagline.trim() || undefined, campusId: effectiveCampusId } },
       {
         onSuccess: () => {
           toast({ title: "Team created", description: "Share your invite code with teammates." });
@@ -126,11 +133,29 @@ export default function GetStarted() {
                 <Label htmlFor="team-name">Team name</Label>
                 <Input id="team-name" data-testid="input-team-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
               </div>
+              {needsCampusPick && (
+                <div className="space-y-2">
+                  <Label htmlFor="team-campus">Campus</Label>
+                  <Select value={campusId} onValueChange={setCampusId}>
+                    <SelectTrigger id="team-campus" data-testid="select-team-campus">
+                      <SelectValue placeholder={campusesLoading ? "Loading campuses…" : "Select your campus"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(campuses ?? []).map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)} data-testid={`option-campus-${c.id}`}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">We'll save this campus to your profile so future teammates show up correctly.</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="team-tagline">Tagline (optional)</Label>
                 <Textarea id="team-tagline" data-testid="input-team-tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={120} rows={2} />
               </div>
-              <Button type="submit" disabled={createTeam.isPending || !name.trim()} data-testid="button-submit-create">
+              <Button type="submit" disabled={createTeam.isPending || !name.trim() || !effectiveCampusId} data-testid="button-submit-create">
                 {createTeam.isPending ? <Spinner className="mr-2 size-4" /> : null}
                 Create team
               </Button>
