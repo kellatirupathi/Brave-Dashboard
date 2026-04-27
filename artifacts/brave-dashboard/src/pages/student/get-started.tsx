@@ -132,27 +132,34 @@ export default function GetStarted() {
             <CardDescription>You'll be the team leader. Share the invite code with teammates afterwards.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleCreate} className="space-y-4 max-w-md">
-              <div className="space-y-2">
-                <Label htmlFor="team-name">Team name</Label>
-                <Input id="team-name" data-testid="input-team-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
-              </div>
-              {needsCampusPick && (
-                <div className="space-y-2">
-                  <Label htmlFor="team-campus">Campus</Label>
-                  <Select value={campusId} onValueChange={setCampusId}>
-                    <SelectTrigger id="team-campus" data-testid="select-team-campus">
-                      <SelectValue placeholder={campusesLoading ? "Loading campuses…" : "Select your campus"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(campuses ?? []).map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)} data-testid={`option-campus-${c.id}`}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">We'll save this campus to your profile so future teammates show up correctly.</p>
+            <form onSubmit={handleCreate} className="space-y-4 max-w-2xl">
+              {needsCampusPick ? (
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="team-name">Team name</Label>
+                    <Input id="team-name" data-testid="input-team-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
+                  </div>
+                  <div className="space-y-2 md:col-span-3">
+                    <Label htmlFor="team-campus">Campus</Label>
+                    <Select value={campusId} onValueChange={setCampusId}>
+                      <SelectTrigger id="team-campus" data-testid="select-team-campus" className="w-full">
+                        <SelectValue placeholder={campusesLoading ? "Loading campuses…" : "Select your campus"} />
+                      </SelectTrigger>
+                      <SelectContent style={{ maxHeight: "18rem" }} className="overflow-y-auto">
+                        {(campuses ?? []).map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)} data-testid={`option-campus-${c.id}`}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">We'll save this campus to your profile so future teammates show up correctly.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 max-w-md">
+                  <Label htmlFor="team-name">Team name</Label>
+                  <Input id="team-name" data-testid="input-team-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
                 </div>
               )}
               <div className="space-y-2">
