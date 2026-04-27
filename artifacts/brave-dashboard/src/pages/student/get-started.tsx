@@ -23,7 +23,7 @@ import { Plus, KeyRound, Search, ArrowRight, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function GetStarted() {
-  const { user } = useAuth();
+  const { user, refresh: refreshAuth } = useAuth();
   const [, setLocation] = useLocation();
   const { data: team, isLoading: teamLoading } = useGetMyTeam({ query: { retry: false } });
   const { data: invitations } = useListMyInvitations();
@@ -59,9 +59,13 @@ export default function GetStarted() {
     createTeam.mutate(
       { data: { name: name.trim(), tagline: tagline.trim() || undefined, campusId: effectiveCampusId } },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           toast({ title: "Team created", description: "Share your invite code with teammates." });
           queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+          // Refresh the auth user so the sidebar (which depends on user.teamId)
+          // shows the full student nav (Dashboard, Projects, Leaderboard,
+          // My Team, Demo Day) immediately — no page reload needed.
+          await refreshAuth();
           setLocation("/team");
         },
         onError: (err: unknown) => {
