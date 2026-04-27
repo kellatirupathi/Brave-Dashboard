@@ -1,7 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, announcementsTable, usersTable, teamsTable, teamMembersTable } from "@workspace/db";
-import { CreateAnnouncementBody } from "@workspace/api-zod";
+import {
+  CreateAnnouncementBody,
+  UpdateAnnouncementBody,
+  UpdateAnnouncementParams,
+  DeleteAnnouncementParams,
+} from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -54,6 +59,73 @@ router.post("/announcements", async (req, res): Promise<void> => {
     .returning();
   const [author] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
   res.status(201).json({ ...announcement, authorName: author ? `${author.firstName} ${author.lastName}` : "Admin" });
+});
+
+router.patch("/announcements/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const params = UpdateAnnouncementParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = UpdateAnnouncementBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(announcementsTable)
+    .where(eq(announcementsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Announcement not found" });
+    return;
+  }
+  // Coordinators may only edit their own announcements; admins can edit any.
+  if (req.user.role !== "admin" && existing.authorId !== req.user.id) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const [announcement] = await db
+    .update(announcementsTable)
+    .set(parsed.data as Partial<typeof announcementsTable.$inferInsert>)
+    .where(eq(announcementsTable.id, params.data.id))
+    .returning();
+  const [author] = await db.select().from(usersTable).where(eq(usersTable.id, announcement.authorId));
+  res.json({ ...announcement, authorName: author ? `${author.firstName} ${author.lastName}` : "Admin" });
+});
+
+router.delete("/announcements/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const params = DeleteAnnouncementParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(announcementsTable)
+    .where(eq(announcementsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Announcement not found" });
+    return;
+  }
+  if (req.user.role !== "admin" && existing.authorId !== req.user.id) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  await db.delete(announcementsTable).where(eq(announcementsTable.id, params.data.id));
+  res.status(204).end();
 });
 
 export default router;

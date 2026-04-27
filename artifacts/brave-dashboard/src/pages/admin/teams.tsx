@@ -2,6 +2,7 @@ import {
   useListTeams,
   useApproveTeam,
   useRejectTeam,
+  useDeleteTeam,
   getListTeamsQueryKey,
   type ErrorType,
   type ListTeamsStatus,
@@ -14,7 +15,7 @@ import { formatINR } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Search, Filter, Check, X } from "lucide-react";
+import { Search, Filter, Check, X, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -34,6 +35,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ReasonPromptDialog } from "@/components/reason-prompt-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function AdminTeams() {
   const [, setLocation] = useLocation();
@@ -42,6 +53,7 @@ export default function AdminTeams() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [rejectId, setRejectId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
 
   const { data: teams, isLoading } = useListTeams({
     search: search || undefined,
@@ -52,6 +64,7 @@ export default function AdminTeams() {
   const { toast } = useToast();
   const approveTeam = useApproveTeam();
   const rejectTeam = useRejectTeam();
+  const deleteTeam = useDeleteTeam();
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
@@ -70,6 +83,28 @@ export default function AdminTeams() {
             description: err instanceof Error ? err.message : "Please try again.",
             variant: "destructive",
           }),
+      },
+    );
+  };
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteTeam.mutate(
+      { id: deleteTarget.id },
+      {
+        onSuccess: () => {
+          toast({ title: `Team "${deleteTarget.name}" deleted` });
+          refresh();
+          setDeleteTarget(null);
+        },
+        onError: (err: ErrorType<unknown>) => {
+          toast({
+            title: "Delete failed",
+            description: err instanceof Error ? err.message : "Please try again.",
+            variant: "destructive",
+          });
+          setDeleteTarget(null);
+        },
       },
     );
   };
@@ -188,40 +223,63 @@ export default function AdminTeams() {
                     </TableCell>
                     <TableCell className="text-right">{team.memberCount}</TableCell>
                     <TableCell className="text-right">
-                      {isAdmin && isPending ? (
-                        <div
-                          className="flex items-center justify-end gap-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white"
+                      <div
+                        className="flex items-center justify-end gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {isAdmin && isPending ? (
+                          <>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApprove(team.id);
+                              }}
+                              disabled={approveTeam.isPending}
+                              data-testid={`button-approve-${team.id}`}
+                            >
+                              <Check className="w-4 h-4 mr-1" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="bg-red-400 hover:bg-red-500 text-white"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRejectId(team.id);
+                              }}
+                              data-testid={`button-reject-${team.id}`}
+                            >
+                              <X className="w-4 h-4 mr-1" /> Reject
+                            </Button>
+                          </>
+                        ) : (
+                          <span
+                            className="text-primary text-sm font-medium hover:underline cursor-pointer"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleApprove(team.id);
+                              setLocation(`/teams/${team.id}`);
                             }}
-                            disabled={approveTeam.isPending}
-                            data-testid={`button-approve-${team.id}`}
                           >
-                            <Check className="w-4 h-4 mr-1" /> Approve
-                          </Button>
+                            View
+                          </span>
+                        )}
+                        {isAdmin && (
                           <Button
-                            size="sm"
-                            className="bg-red-400 hover:bg-red-500 text-white"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setRejectId(team.id);
+                              setDeleteTarget({ id: team.id, name: team.name });
                             }}
-                            data-testid={`button-reject-${team.id}`}
+                            data-testid={`button-delete-team-${team.id}`}
+                            aria-label="Delete team"
                           >
-                            <X className="w-4 h-4 mr-1" /> Reject
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                        </div>
-                      ) : (
-                        <span className="text-primary text-sm font-medium hover:underline">
-                          View
-                        </span>
-                      )}
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -255,6 +313,44 @@ export default function AdminTeams() {
         isSubmitting={rejectTeam.isPending}
         onSubmit={handleReject}
       />
+
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete team "{deleteTarget?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the team and ALL associated data —
+              members, projects, revenue entries, order book entries, milestones,
+              demo day applications, invitations and join/leave requests.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-team">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={deleteTeam.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-team"
+            >
+              {deleteTeam.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Delete team
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

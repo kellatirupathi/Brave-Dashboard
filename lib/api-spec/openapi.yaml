@@ -140,6 +140,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Campus"
+    delete:
+      operationId: deleteCampus
+      tags: [campuses]
+      summary: Delete a campus (admin only). Blocked when teams still belong to the campus.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Campus deleted
+        "409":
+          description: Campus still has teams and cannot be deleted
 
   # Teams
   /teams:
@@ -242,6 +257,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Team"
+    delete:
+      operationId: deleteTeam
+      tags: [teams]
+      summary: Delete a team (admin only). Cascades to members, projects, order book entries, revenue entries, milestones, demo-day applications, invitations, join/leave requests.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Team deleted
 
   /teams/{id}/approve:
     post:
@@ -1268,6 +1296,31 @@ paths:
                 items:
                   $ref: "#/components/schemas/DemoDayApplication"
 
+  /admin/demo-day/applications/{id}:
+    patch:
+      operationId: updateDemoDayApplicationAdmin
+      tags: [demoday]
+      summary: Update any demo day application by id (admin only — approve / reject / shortlist / set time slot)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDemoDayApplicationBody"
+      responses:
+        "200":
+          description: Updated application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoDayApplication"
+
   # Notifications
   /notifications:
     get:
@@ -1353,6 +1406,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Announcement"
+
+  /announcements/{id}:
+    patch:
+      operationId: updateAnnouncement
+      tags: [announcements]
+      summary: Edit an announcement (admin/coordinator, author only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAnnouncementBody"
+      responses:
+        "200":
+          description: Updated announcement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+    delete:
+      operationId: deleteAnnouncement
+      tags: [announcements]
+      summary: Delete an announcement (admin/coordinator, author only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Announcement deleted
 
   # User management (admin)
   /admin/users:
@@ -2927,6 +3018,21 @@ components:
         - target
         - title
         - body
+
+    UpdateAnnouncementBody:
+      type: object
+      properties:
+        target:
+          type: string
+          enum: [all, campus, team]
+        campusId:
+          type: ["integer", "null"]
+        teamId:
+          type: ["integer", "null"]
+        title:
+          type: string
+        body:
+          type: string
 
     ProgrammeConfig:
       type: object

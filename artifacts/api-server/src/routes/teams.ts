@@ -13,6 +13,8 @@ import {
   teamInvitationsTable,
   teamJoinRequestsTable,
   teamLeaveRequestsTable,
+  demoDayApplicationsTable,
+  announcementsTable,
   rosterTable,
 } from "@workspace/db";
 import {
@@ -610,6 +612,70 @@ router.patch("/teams/:id", async (req, res): Promise<void> => {
   }
   const teamData = await getTeamWithStats(team.id);
   res.json(teamData);
+});
+
+router.delete("/teams/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  // Reuse GetTeamParams – same shape (id: integer path param) and avoids minting a new schema.
+  const params = GetTeamParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const teamId = params.data.id;
+  const userId = req.user.id;
+
+  // Wrap the entire cascade in a single transaction so a mid-sequence failure
+  // rolls back cleanly. We also lock the team row up-front (FOR UPDATE) so
+  // concurrent writers cannot insert new child rows while we are tearing the
+  // team down — eliminating the race window of orphaned rows in this no-FK
+  // schema.
+  let teamName: string | null = null;
+  try {
+    teamName = await db.transaction(async (tx) => {
+      const [team] = await tx
+        .select()
+        .from(teamsTable)
+        .where(eq(teamsTable.id, teamId))
+        .for("update");
+
+      if (!team) return null;
+
+      await tx.delete(orderBookEntriesTable).where(eq(orderBookEntriesTable.teamId, teamId));
+      await tx.delete(revenueEntriesTable).where(eq(revenueEntriesTable.teamId, teamId));
+      await tx.delete(projectsTable).where(eq(projectsTable.teamId, teamId));
+      await tx.delete(milestonesTable).where(eq(milestonesTable.teamId, teamId));
+      await tx.delete(demoDayApplicationsTable).where(eq(demoDayApplicationsTable.teamId, teamId));
+      await tx.delete(teamInvitationsTable).where(eq(teamInvitationsTable.teamId, teamId));
+      await tx.delete(teamJoinRequestsTable).where(eq(teamJoinRequestsTable.teamId, teamId));
+      await tx.delete(teamLeaveRequestsTable).where(eq(teamLeaveRequestsTable.teamId, teamId));
+      await tx.delete(teamMembersTable).where(eq(teamMembersTable.teamId, teamId));
+      await tx
+        .delete(announcementsTable)
+        .where(and(eq(announcementsTable.target, "team"), eq(announcementsTable.teamId, teamId)));
+
+      await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
+
+      return team.name;
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: "Failed to delete team",
+      detail: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  if (teamName === null) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
+
+  await logAudit(userId, "delete_team", "team", teamId, teamName);
+  res.status(204).end();
 });
 
 router.post("/teams/:id/approve", async (req, res): Promise<void> => {

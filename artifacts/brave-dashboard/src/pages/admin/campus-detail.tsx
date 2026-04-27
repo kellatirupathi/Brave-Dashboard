@@ -1,9 +1,14 @@
 import { Link, useLocation, useParams } from "wouter";
+import { useState } from "react";
 import {
   useGetCampus,
   useListTeams,
   useGetAuditLog,
+  useDeleteCampus,
+  getListCampusesQueryKey,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,12 +23,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft,
   Building2,
   Users,
   IndianRupee,
   ListChecks,
   UserCog,
+  Trash2,
 } from "lucide-react";
 
 export default function AdminCampusDetail() {
@@ -31,6 +47,36 @@ export default function AdminCampusDetail() {
   const campusId = Number(params.id);
   const enabled = Number.isFinite(campusId);
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const deleteCampus = useDeleteCampus();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const handleDelete = () => {
+    deleteCampus.mutate(
+      { id: campusId },
+      {
+        onSuccess: () => {
+          toast({ title: "Campus deleted" });
+          queryClient.invalidateQueries({ queryKey: getListCampusesQueryKey() });
+          setDeleteOpen(false);
+          setLocation("/admin/campuses");
+        },
+        onError: (err) => {
+          const data = (err as { data?: unknown }).data;
+          let message = err instanceof Error ? err.message : "Please try again.";
+          if (data && typeof data === "object" && "error" in data && typeof (data as { error: unknown }).error === "string") {
+            message = (data as { error: string }).error;
+          }
+          toast({
+            title: "Cannot delete campus",
+            description: message,
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
 
   const {
     data: campus,
@@ -129,14 +175,55 @@ export default function AdminCampusDetail() {
             {campus.city}, {campus.state}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <UserCog className="w-4 h-4 text-muted-foreground" />
-          <span className="text-muted-foreground">Coordinator:</span>
-          <span className="font-medium" data-testid="text-coordinator-name">
-            {campus.coordinatorName || "Unassigned"}
-          </span>
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex items-center gap-2 text-sm">
+            <UserCog className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Coordinator:</span>
+            <span className="font-medium" data-testid="text-coordinator-name">
+              {campus.coordinatorName || "Unassigned"}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-destructive hover:text-destructive border-destructive/40"
+            onClick={() => setDeleteOpen(true)}
+            data-testid="button-delete-campus-detail"
+          >
+            <Trash2 className="w-4 h-4 mr-1" /> Delete campus
+          </Button>
         </div>
       </div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete campus "{campus.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The campus can only be deleted if it has no teams. Any users
+              currently attached to this campus will be detached. This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-campus-detail">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={deleteCampus.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-campus-detail"
+            >
+              {deleteCampus.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Delete campus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard

@@ -1,6 +1,7 @@
 import { useParams } from "wouter";
 import { useState } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useLocation } from "wouter";
 import {
   useGetTeam,
   useListOrderBookEntries,
@@ -8,6 +9,7 @@ import {
   useApproveTeam,
   useRejectTeam,
   useRequestTeamChanges,
+  useDeleteTeam,
   getGetTeamQueryKey,
   getListTeamsQueryKey,
   type ErrorType,
@@ -38,8 +40,19 @@ import {
   Check,
   X,
   MessageSquareWarning,
+  Trash2,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function docLink(url: string | null | undefined, label: string, key: string) {
   if (!url) return null;
@@ -80,11 +93,37 @@ export default function AdminTeamDetail() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const approveTeam = useApproveTeam();
   const rejectTeam = useRejectTeam();
   const requestChanges = useRequestTeamChanges();
+  const deleteTeam = useDeleteTeam();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const isAdmin = user?.role === "admin";
+
+  const handleDelete = () => {
+    deleteTeam.mutate(
+      { id: teamId },
+      {
+        onSuccess: () => {
+          toast({ title: "Team deleted" });
+          queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
+          setDeleteOpen(false);
+          setLocation("/admin/teams");
+        },
+        onError: (err: ErrorType<unknown>) => {
+          toast({
+            title: "Delete failed",
+            description: err instanceof Error ? err.message : "Please try again.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
 
   const refreshTeam = () => {
     queryClient.invalidateQueries({ queryKey: getGetTeamQueryKey(teamId) });
@@ -218,9 +257,22 @@ export default function AdminTeamDetail() {
             {team.tagline || "—"} · {team.campusName}
           </p>
         </div>
-        <Badge variant={statusVariant as any} className="text-xs uppercase tracking-wide">
-          {team.status}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={statusVariant as any} className="text-xs uppercase tracking-wide">
+            {team.status}
+          </Badge>
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive hover:text-destructive border-destructive/40"
+              onClick={() => setDeleteOpen(true)}
+              data-testid="button-delete-team"
+            >
+              <Trash2 className="w-4 h-4 mr-1" /> Delete team
+            </Button>
+          )}
+        </div>
       </div>
 
       {user?.role === "admin" && team.status === "pending" && (
@@ -287,6 +339,37 @@ export default function AdminTeamDetail() {
         isSubmitting={requestChanges.isPending}
         onSubmit={handleRequestChanges}
       />
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete team "{team.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the team and ALL associated data —
+              members, projects, revenue entries, order book entries, milestones,
+              demo day applications, invitations and join/leave requests.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-team-detail">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={deleteTeam.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-team-detail"
+            >
+              {deleteTeam.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Delete team
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard

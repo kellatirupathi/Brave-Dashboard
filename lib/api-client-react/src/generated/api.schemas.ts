@@ -776,6 +776,25 @@ export interface CreateAnnouncementBody {
   body: string;
 }
 
+export type UpdateAnnouncementBodyTarget =
+  (typeof UpdateAnnouncementBodyTarget)[keyof typeof UpdateAnnouncementBodyTarget];
+
+export const UpdateAnnouncementBodyTarget = {
+  all: "all",
+  campus: "campus",
+  team: "team",
+} as const;
+
+export interface UpdateAnnouncementBody {
+  target?: UpdateAnnouncementBodyTarget;
+  /** @nullable */
+  campusId?: number | null;
+  /** @nullable */
+  teamId?: number | null;
+  title?: string;
+  body?: string;
+}
+
 export interface ProgrammeConfig {
   id: number;
   startDate: string;

@@ -85,6 +85,7 @@ import type {
   TeamLeaveRequest,
   TransferTeamLeadershipBody,
   UpdateAccessRequestBody,
+  UpdateAnnouncementBody,
   UpdateCampusBody,
   UpdateDemoDayApplicationBody,
   UpdateMilestoneBody,
@@ -594,6 +595,90 @@ export const useUpdateCampus = <
 };
 
 /**
+ * @summary Delete a campus (admin only). Blocked when teams still belong to the campus.
+ */
+export const getDeleteCampusUrl = (id: number) => {
+  return `/api/campuses/${id}`;
+};
+
+export const deleteCampus = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCampusUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCampusMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCampus>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCampus>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCampus"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCampus>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteCampus(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCampusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCampus>>
+>;
+
+export type DeleteCampusMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete a campus (admin only). Blocked when teams still belong to the campus.
+ */
+export const useDeleteCampus = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCampus>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCampus>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteCampusMutationOptions(options));
+};
+
+/**
  * @summary List teams (filtered by role)
  */
 export const getListTeamsUrl = (params?: ListTeamsParams) => {
@@ -1000,6 +1085,90 @@ export const useUpdateTeam = <
   TContext
 > => {
   return useMutation(getUpdateTeamMutationOptions(options));
+};
+
+/**
+ * @summary Delete a team (admin only). Cascades to members, projects, order book entries, revenue entries, milestones, demo-day applications, invitations, join/leave requests.
+ */
+export const getDeleteTeamUrl = (id: number) => {
+  return `/api/teams/${id}`;
+};
+
+export const deleteTeam = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteTeamUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteTeamMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTeam>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTeam>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTeam"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTeam>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteTeam(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteTeamMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTeam>>
+>;
+
+export type DeleteTeamMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a team (admin only). Cascades to members, projects, order book entries, revenue entries, milestones, demo-day applications, invitations, join/leave requests.
+ */
+export const useDeleteTeam = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTeam>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTeam>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteTeamMutationOptions(options));
 };
 
 /**
@@ -5240,6 +5409,97 @@ export function useListDemoDayApplications<
 }
 
 /**
+ * @summary Update any demo day application by id (admin only — approve / reject / shortlist / set time slot)
+ */
+export const getUpdateDemoDayApplicationAdminUrl = (id: number) => {
+  return `/api/admin/demo-day/applications/${id}`;
+};
+
+export const updateDemoDayApplicationAdmin = async (
+  id: number,
+  updateDemoDayApplicationBody: UpdateDemoDayApplicationBody,
+  options?: RequestInit,
+): Promise<DemoDayApplication> => {
+  return customFetch<DemoDayApplication>(
+    getUpdateDemoDayApplicationAdminUrl(id),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateDemoDayApplicationBody),
+    },
+  );
+};
+
+export const getUpdateDemoDayApplicationAdminMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDemoDayApplicationAdmin>>,
+    TError,
+    { id: number; data: BodyType<UpdateDemoDayApplicationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateDemoDayApplicationAdmin>>,
+  TError,
+  { id: number; data: BodyType<UpdateDemoDayApplicationBody> },
+  TContext
+> => {
+  const mutationKey = ["updateDemoDayApplicationAdmin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateDemoDayApplicationAdmin>>,
+    { id: number; data: BodyType<UpdateDemoDayApplicationBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateDemoDayApplicationAdmin(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateDemoDayApplicationAdminMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateDemoDayApplicationAdmin>>
+>;
+export type UpdateDemoDayApplicationAdminMutationBody =
+  BodyType<UpdateDemoDayApplicationBody>;
+export type UpdateDemoDayApplicationAdminMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update any demo day application by id (admin only — approve / reject / shortlist / set time slot)
+ */
+export const useUpdateDemoDayApplicationAdmin = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDemoDayApplicationAdmin>>,
+    TError,
+    { id: number; data: BodyType<UpdateDemoDayApplicationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateDemoDayApplicationAdmin>>,
+  TError,
+  { id: number; data: BodyType<UpdateDemoDayApplicationBody> },
+  TContext
+> => {
+  return useMutation(getUpdateDemoDayApplicationAdminMutationOptions(options));
+};
+
+/**
  * @summary List user's notifications
  */
 export const getListNotificationsUrl = (params?: ListNotificationsParams) => {
@@ -5660,6 +5920,177 @@ export const useCreateAnnouncement = <
   TContext
 > => {
   return useMutation(getCreateAnnouncementMutationOptions(options));
+};
+
+/**
+ * @summary Edit an announcement (admin/coordinator, author only)
+ */
+export const getUpdateAnnouncementUrl = (id: number) => {
+  return `/api/announcements/${id}`;
+};
+
+export const updateAnnouncement = async (
+  id: number,
+  updateAnnouncementBody: UpdateAnnouncementBody,
+  options?: RequestInit,
+): Promise<Announcement> => {
+  return customFetch<Announcement>(getUpdateAnnouncementUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateAnnouncementBody),
+  });
+};
+
+export const getUpdateAnnouncementMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAnnouncement>>,
+    TError,
+    { id: number; data: BodyType<UpdateAnnouncementBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAnnouncement>>,
+  TError,
+  { id: number; data: BodyType<UpdateAnnouncementBody> },
+  TContext
+> => {
+  const mutationKey = ["updateAnnouncement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAnnouncement>>,
+    { id: number; data: BodyType<UpdateAnnouncementBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateAnnouncement(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAnnouncementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAnnouncement>>
+>;
+export type UpdateAnnouncementMutationBody = BodyType<UpdateAnnouncementBody>;
+export type UpdateAnnouncementMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edit an announcement (admin/coordinator, author only)
+ */
+export const useUpdateAnnouncement = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAnnouncement>>,
+    TError,
+    { id: number; data: BodyType<UpdateAnnouncementBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAnnouncement>>,
+  TError,
+  { id: number; data: BodyType<UpdateAnnouncementBody> },
+  TContext
+> => {
+  return useMutation(getUpdateAnnouncementMutationOptions(options));
+};
+
+/**
+ * @summary Delete an announcement (admin/coordinator, author only)
+ */
+export const getDeleteAnnouncementUrl = (id: number) => {
+  return `/api/announcements/${id}`;
+};
+
+export const deleteAnnouncement = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteAnnouncementUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteAnnouncementMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAnnouncement>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteAnnouncement>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteAnnouncement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteAnnouncement>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteAnnouncement(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteAnnouncementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAnnouncement>>
+>;
+
+export type DeleteAnnouncementMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete an announcement (admin/coordinator, author only)
+ */
+export const useDeleteAnnouncement = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAnnouncement>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAnnouncement>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteAnnouncementMutationOptions(options));
 };
 
 /**

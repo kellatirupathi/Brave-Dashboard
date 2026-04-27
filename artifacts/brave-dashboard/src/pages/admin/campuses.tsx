@@ -1,11 +1,26 @@
-import { useListCampuses, useCreateCampus, getListCampusesQueryKey } from "@workspace/api-client-react";
+import {
+  useListCampuses,
+  useCreateCampus,
+  useDeleteCampus,
+  getListCampusesQueryKey,
+} from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building2, Plus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Building2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +30,7 @@ import { Link, useLocation } from "wouter";
 export default function AdminCampuses() {
   const { data: campuses, isLoading } = useListCampuses();
   const createCampus = useCreateCampus();
+  const deleteCampus = useDeleteCampus();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -23,6 +39,7 @@ export default function AdminCampuses() {
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +53,33 @@ export default function AdminCampuses() {
         setState("");
       }
     });
+  };
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteCampus.mutate(
+      { id: deleteTarget.id },
+      {
+        onSuccess: () => {
+          toast({ title: `Campus "${deleteTarget.name}" deleted` });
+          queryClient.invalidateQueries({ queryKey: getListCampusesQueryKey() });
+          setDeleteTarget(null);
+        },
+        onError: (err) => {
+          const data = (err as { data?: unknown }).data;
+          let message = err instanceof Error ? err.message : "Please try again.";
+          if (data && typeof data === "object" && "error" in data && typeof (data as { error: unknown }).error === "string") {
+            message = (data as { error: string }).error;
+          }
+          toast({
+            title: "Cannot delete campus",
+            description: message,
+            variant: "destructive",
+          });
+          setDeleteTarget(null);
+        },
+      },
+    );
   };
 
   return (
@@ -90,6 +134,7 @@ export default function AdminCampuses() {
                 <TableHead className="text-right">Teams (Active)</TableHead>
                 <TableHead className="text-right">Total Revenue</TableHead>
                 <TableHead className="text-right">Coordinator</TableHead>
+                <TableHead className="text-right w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -114,11 +159,26 @@ export default function AdminCampuses() {
                   <TableCell className="text-right">{c.activeTeams} / {c.totalTeams}</TableCell>
                   <TableCell className="text-right font-medium text-primary">{formatINR(c.totalRevenue)}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{c.coordinatorName || "Unassigned"}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget({ id: c.id, name: c.name });
+                      }}
+                      data-testid={`button-delete-campus-${c.id}`}
+                      aria-label="Delete campus"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
               {campuses?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     <Building2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     No campuses found
                   </TableCell>
@@ -128,6 +188,43 @@ export default function AdminCampuses() {
           </Table>
         )}
       </Card>
+
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete campus "{deleteTarget?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The campus can only be deleted if it has no teams. Any users
+              currently attached to this campus will be detached. This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-campus">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              disabled={deleteCampus.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-campus"
+            >
+              {deleteCampus.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Delete campus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

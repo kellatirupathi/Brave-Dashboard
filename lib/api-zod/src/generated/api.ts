@@ -111,6 +111,13 @@ export const UpdateCampusResponse = zod.object({
 });
 
 /**
+ * @summary Delete a campus (admin only). Blocked when teams still belong to the campus.
+ */
+export const DeleteCampusParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List teams (filtered by role)
  */
 export const ListTeamsQueryParams = zod.object({
@@ -312,6 +319,13 @@ export const UpdateTeamResponse = zod.object({
   totalOrderBook: zod.number(),
   nationalRank: zod.number().nullish(),
   createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a team (admin only). Cascades to members, projects, order book entries, revenue entries, milestones, demo-day applications, invitations, join/leave requests.
+ */
+export const DeleteTeamParams = zod.object({
+  id: zod.coerce.number(),
 });
 
 /**
@@ -1698,6 +1712,39 @@ export const ListDemoDayApplicationsResponse = zod.array(
 );
 
 /**
+ * @summary Update any demo day application by id (admin only — approve / reject / shortlist / set time slot)
+ */
+export const UpdateDemoDayApplicationAdminParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateDemoDayApplicationAdminBody = zod.object({
+  demoUrl: zod.string().nullish(),
+  pitchDeckUrl: zod.string().nullish(),
+  growthPlan: zod.string().nullish(),
+  status: zod
+    .enum(["draft", "submitted", "shortlisted", "rejected"])
+    .optional(),
+  timeSlot: zod.string().nullish(),
+  presentationOrder: zod.number().nullish(),
+});
+
+export const UpdateDemoDayApplicationAdminResponse = zod.object({
+  id: zod.number(),
+  teamId: zod.number(),
+  teamName: zod.string(),
+  demoUrl: zod.string().nullish(),
+  pitchDeckUrl: zod.string().nullish(),
+  growthPlan: zod.string().nullish(),
+  status: zod.enum(["draft", "submitted", "shortlisted", "rejected"]),
+  timeSlot: zod.string().nullish(),
+  presentationOrder: zod.number().nullish(),
+  totalRevenue: zod.number(),
+  submittedAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * @summary List user's notifications
  */
 export const ListNotificationsQueryParams = zod.object({
@@ -1770,6 +1817,40 @@ export const CreateAnnouncementBody = zod.object({
   teamId: zod.number().nullish(),
   title: zod.string(),
   body: zod.string(),
+});
+
+/**
+ * @summary Edit an announcement (admin/coordinator, author only)
+ */
+export const UpdateAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateAnnouncementBody = zod.object({
+  target: zod.enum(["all", "campus", "team"]).optional(),
+  campusId: zod.number().nullish(),
+  teamId: zod.number().nullish(),
+  title: zod.string().optional(),
+  body: zod.string().optional(),
+});
+
+export const UpdateAnnouncementResponse = zod.object({
+  id: zod.number(),
+  authorId: zod.string(),
+  authorName: zod.string(),
+  target: zod.enum(["all", "campus", "team"]),
+  campusId: zod.number().nullish(),
+  teamId: zod.number().nullish(),
+  title: zod.string(),
+  body: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete an announcement (admin/coordinator, author only)
+ */
+export const DeleteAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
 });
 
 /**

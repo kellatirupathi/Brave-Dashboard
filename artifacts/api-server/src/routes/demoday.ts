@@ -10,7 +10,10 @@ import {
 import {
   SubmitDemoDayApplicationBody,
   UpdateDemoDayApplicationBody,
+  UpdateDemoDayApplicationAdminBody,
+  UpdateDemoDayApplicationAdminParams,
 } from "@workspace/api-zod";
+import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
@@ -114,6 +117,47 @@ router.get("/admin/demo-day/applications", async (req, res): Promise<void> => {
   const apps = await db.select().from(demoDayApplicationsTable);
   const result = await Promise.all(apps.map(enrichApplication));
   res.json(result);
+});
+
+router.patch("/admin/demo-day/applications/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const params = UpdateDemoDayApplicationAdminParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = UpdateDemoDayApplicationAdminBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(demoDayApplicationsTable)
+    .where(eq(demoDayApplicationsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Application not found" });
+    return;
+  }
+
+  const [app] = await db
+    .update(demoDayApplicationsTable)
+    .set(parsed.data as Partial<typeof demoDayApplicationsTable.$inferInsert>)
+    .where(eq(demoDayApplicationsTable.id, params.data.id))
+    .returning();
+
+  await logAudit(
+    req.user.id,
+    "update_demo_day_application",
+    "demo_day_application",
+    app.id,
+    JSON.stringify(parsed.data),
+  );
+  res.json(await enrichApplication(app));
 });
 
 export default router;

@@ -106,6 +106,8 @@ export * from "./teamStatus";
 export * from "./transferTeamLeadershipBody";
 export * from "./updateAccessRequestBody";
 export * from "./updateAccessRequestBodyStatus";
+export * from "./updateAnnouncementBody";
+export * from "./updateAnnouncementBodyTarget";
 export * from "./updateCampusBody";
 export * from "./updateDemoDayApplicationBody";
 export * from "./updateDemoDayApplicationBodyStatus";
