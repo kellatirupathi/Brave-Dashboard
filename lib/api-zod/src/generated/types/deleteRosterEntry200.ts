@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface BulkImportRosterResponse {
-  inserted: number;
-  skipped?: number;
-  total?: number;
-}
+export type DeleteRosterEntry200 = {
+  ok: boolean;
+};

@@ -154,9 +154,18 @@ router.post("/dev/sign-in-as", async (req: Request, res: Response) => {
     if (parsed.data.userId) {
       [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.userId));
     } else if (parsed.data.formsUserId) {
-      // Auto-provision via the same path Forms SSO uses.
+      // Auto-provision via the same path Forms SSO uses, and promote to admin
+      // if the forms id is in the bootstrap list (mirrors the real SSO flow).
       const { createOrGetUserByFormsId } = await import("@workspace/db");
+      const { ensureAdminForFormsId } = await import("../bootstrap-admins");
       dbUser = await createOrGetUserByFormsId(parsed.data.formsUserId);
+      const promoted = await ensureAdminForFormsId(parsed.data.formsUserId);
+      if (promoted) {
+        // Re-read so the session reflects the promoted role.
+        const { db, usersTable } = await import("@workspace/db");
+        const { eq } = await import("drizzle-orm");
+        [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, dbUser.id));
+      }
     }
     if (!dbUser) {
       res.status(404).json({ error: "User not found" });

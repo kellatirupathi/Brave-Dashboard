@@ -195,31 +195,33 @@ router.post("/auth/generate-token", async (req: Request, res: Response) => {
     const adminFormsIds = getBootstrapAdminFormsIds();
     const isBootstrapAdmin = adminFormsIds.includes(parsed.data.user_id);
 
-    // TEMPORARILY DISABLED: roster/campus gating for student SSO sign-in.
-    // Originally we refused to provision a brand-new student row unless we
-    // could match them to a roster entry with a campus. That check is
-    // commented out so any Forms-authenticated user can access the
-    // dashboard. Bootstrap admins continue to be promoted below.
-    // const [preExisting] = await db
-    //   .select()
-    //   .from(usersTable)
-    //   .where(eq(usersTable.formsUserId, parsed.data.user_id));
-    // if (!preExisting && !isBootstrapAdmin) {
-    //   const rosterMatch = await findUsableRosterMatch({
-    //     formsUserId: parsed.data.user_id,
-    //   });
-    //   if (!rosterMatch) {
-    //     req.log.warn(
-    //       { formsUserId: parsed.data.user_id },
-    //       "Refusing Forms SSO token: no roster match with a campus",
-    //     );
-    //     res.status(403).json({
-    //       message:
-    //         "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
-    //     });
-    //     return;
-    //   }
-    // }
+    // Whitelist gate: only Forms users present in our `users` table (or in the
+    // bootstrap admin allowlist) are allowed to sign in. Admins must
+    // pre-provision real users via /admin/users CSV import or the roster
+    // before anyone else can log in.
+    const [preExisting] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.formsUserId, parsed.data.user_id));
+    if (!preExisting && !isBootstrapAdmin) {
+      // Fallback: also accept anyone present on the whitelisted roster (e.g.
+      // imported via the XLSX upload) — this links them to the campus and
+      // promotes them to a real user row on first login.
+      const rosterMatch = await findUsableRosterMatch({
+        formsUserId: parsed.data.user_id,
+      });
+      if (!rosterMatch) {
+        req.log.warn(
+          { formsUserId: parsed.data.user_id },
+          "Refusing Forms SSO token: user is not whitelisted",
+        );
+        res.status(403).json({
+          message:
+            "You are not authorized to access this dashboard. Please contact your campus coordinator to be added to the roster.",
+        });
+        return;
+      }
+    }
 
     let user = await createOrGetUserByFormsId(parsed.data.user_id);
     // Promote to admin if this Forms user_id is in the bootstrap list.

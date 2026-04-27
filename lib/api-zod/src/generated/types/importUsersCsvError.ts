@@ -6,8 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface BulkImportRosterResponse {
-  inserted: number;
-  skipped?: number;
-  total?: number;
+export interface ImportUsersCsvError {
+  rowNumber: number;
+  /** @nullable */
+  forms_user_id?: string | null;
+  message: string;
 }

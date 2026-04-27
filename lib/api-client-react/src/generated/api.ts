@@ -37,6 +37,7 @@ import type {
   CreateTeamBody,
   CreateUserBody,
   DashboardSummary,
+  DeleteRosterEntry200,
   DemoDayApplication,
   GetAdminReviewQueueParams,
   GetAuditLogParams,
@@ -44,6 +45,8 @@ import type {
   GetLeaderboardParams,
   GetUploadedFileMetadataParams,
   HealthStatus,
+  ImportUsersCsvBody,
+  ImportUsersCsvResponse,
   JoinByCodeBody,
   LeaderboardEntry,
   ListAccessRequestsParams,
@@ -89,6 +92,7 @@ import type {
   UpdateProgrammeConfigBody,
   UpdateProjectBody,
   UpdateRevenueEntryBody,
+  UpdateRosterEntryBody,
   UpdateTeamBody,
   UpdateUserBody,
   UploadedFileMetadata,
@@ -5926,6 +5930,92 @@ export const useUpdateUser = <
 };
 
 /**
+ * @summary Bulk import/upsert users from a parsed CSV (admin only)
+ */
+export const getImportUsersCsvUrl = () => {
+  return `/api/admin/users/import-csv`;
+};
+
+export const importUsersCsv = async (
+  importUsersCsvBody: ImportUsersCsvBody,
+  options?: RequestInit,
+): Promise<ImportUsersCsvResponse> => {
+  return customFetch<ImportUsersCsvResponse>(getImportUsersCsvUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(importUsersCsvBody),
+  });
+};
+
+export const getImportUsersCsvMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importUsersCsv>>,
+    TError,
+    { data: BodyType<ImportUsersCsvBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importUsersCsv>>,
+  TError,
+  { data: BodyType<ImportUsersCsvBody> },
+  TContext
+> => {
+  const mutationKey = ["importUsersCsv"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importUsersCsv>>,
+    { data: BodyType<ImportUsersCsvBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return importUsersCsv(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportUsersCsvMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importUsersCsv>>
+>;
+export type ImportUsersCsvMutationBody = BodyType<ImportUsersCsvBody>;
+export type ImportUsersCsvMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Bulk import/upsert users from a parsed CSV (admin only)
+ */
+export const useImportUsersCsv = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importUsersCsv>>,
+    TError,
+    { data: BodyType<ImportUsersCsvBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof importUsersCsv>>,
+  TError,
+  { data: BodyType<ImportUsersCsvBody> },
+  TContext
+> => {
+  return useMutation(getImportUsersCsvMutationOptions(options));
+};
+
+/**
  * @summary Get programme configuration
  */
 export const getGetProgrammeConfigUrl = () => {
@@ -6448,6 +6538,177 @@ export const useBulkImportRoster = <
   TContext
 > => {
   return useMutation(getBulkImportRosterMutationOptions(options));
+};
+
+/**
+ * @summary Update a single roster entry (admin)
+ */
+export const getUpdateRosterEntryUrl = (id: number) => {
+  return `/api/admin/roster/${id}`;
+};
+
+export const updateRosterEntry = async (
+  id: number,
+  updateRosterEntryBody: UpdateRosterEntryBody,
+  options?: RequestInit,
+): Promise<RosterEntry> => {
+  return customFetch<RosterEntry>(getUpdateRosterEntryUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateRosterEntryBody),
+  });
+};
+
+export const getUpdateRosterEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRosterEntry>>,
+    TError,
+    { id: number; data: BodyType<UpdateRosterEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRosterEntry>>,
+  TError,
+  { id: number; data: BodyType<UpdateRosterEntryBody> },
+  TContext
+> => {
+  const mutationKey = ["updateRosterEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRosterEntry>>,
+    { id: number; data: BodyType<UpdateRosterEntryBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateRosterEntry(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRosterEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRosterEntry>>
+>;
+export type UpdateRosterEntryMutationBody = BodyType<UpdateRosterEntryBody>;
+export type UpdateRosterEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a single roster entry (admin)
+ */
+export const useUpdateRosterEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRosterEntry>>,
+    TError,
+    { id: number; data: BodyType<UpdateRosterEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRosterEntry>>,
+  TError,
+  { id: number; data: BodyType<UpdateRosterEntryBody> },
+  TContext
+> => {
+  return useMutation(getUpdateRosterEntryMutationOptions(options));
+};
+
+/**
+ * @summary Delete a roster entry (admin)
+ */
+export const getDeleteRosterEntryUrl = (id: number) => {
+  return `/api/admin/roster/${id}`;
+};
+
+export const deleteRosterEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteRosterEntry200> => {
+  return customFetch<DeleteRosterEntry200>(getDeleteRosterEntryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRosterEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRosterEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRosterEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteRosterEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRosterEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteRosterEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRosterEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRosterEntry>>
+>;
+
+export type DeleteRosterEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a roster entry (admin)
+ */
+export const useDeleteRosterEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRosterEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRosterEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteRosterEntryMutationOptions(options));
 };
 
 /**

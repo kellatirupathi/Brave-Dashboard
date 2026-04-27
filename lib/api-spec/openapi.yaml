@@ -1426,6 +1426,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /admin/users/import-csv:
+    post:
+      operationId: importUsersCsv
+      tags: [admin]
+      summary: Bulk import/upsert users from a parsed CSV (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportUsersCsvBody"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportUsersCsvResponse"
+
   # Programme config
   /admin/programme-config:
     get:
@@ -1538,6 +1557,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BulkImportRosterResponse"
+
+  /admin/roster/{id}:
+    patch:
+      operationId: updateRosterEntry
+      tags: [roster]
+      summary: Update a single roster entry (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRosterEntryBody"
+      responses:
+        "200":
+          description: Updated roster entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RosterEntry"
+    delete:
+      operationId: deleteRosterEntry
+      tags: [roster]
+      summary: Delete a roster entry (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
 
   /admin/access-requests:
     get:
@@ -1763,17 +1828,24 @@ components:
           type: string
         role:
           type: string
-          enum: [coordinator, admin]
+          enum: [student, coordinator, admin]
         campusId:
           type: ["integer", "null"]
+        campusName:
+          type: ["string", "null"]
+        formsUserId:
+          type: ["string", "null"]
+        niatId:
+          type: ["string", "null"]
+        batchSectionName:
+          type: ["string", "null"]
         password:
-          type: string
+          type: ["string", "null"]
       required:
         - email
         - firstName
         - lastName
         - role
-        - password
 
     UpdateUserBody:
       type: object
@@ -3039,8 +3111,92 @@ components:
           type: integer
       required:
         - inserted
-        - skipped
+
+    UpdateRosterEntryBody:
+      type: object
+      properties:
+        studentId:
+          type: ["string", "null"]
+        fullName:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        campusName:
+          type: ["string", "null"]
+        niatId:
+          type: ["string", "null"]
+        batchSectionName:
+          type: ["string", "null"]
+        isWhitelisted:
+          type: ["boolean", "null"]
+
+    ImportUsersCsvRow:
+      type: object
+      properties:
+        forms_user_id:
+          type: string
+        role:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        campus_name:
+          type: ["string", "null"]
+        niat_id:
+          type: ["string", "null"]
+        batch_section:
+          type: ["string", "null"]
+      required:
+        - forms_user_id
+        - role
+        - name
+        - email
+
+    ImportUsersCsvBody:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportUsersCsvRow"
+      required:
+        - rows
+
+    ImportUsersCsvError:
+      type: object
+      properties:
+        rowNumber:
+          type: integer
+        forms_user_id:
+          type: ["string", "null"]
+        message:
+          type: string
+      required:
+        - rowNumber
+        - message
+
+    ImportUsersCsvResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+        created:
+          type: integer
+        updated:
+          type: integer
+        failed:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportUsersCsvError"
+      required:
         - total
+        - created
+        - updated
+        - failed
+        - errors
 
     AccessRequest:
       type: object

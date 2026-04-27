@@ -54,6 +54,6 @@ channel = "stable-25_05"
 
 [userenv.shared]
 VITE_FORMS_LOGIN_URL = "https://forms-gamma.earlywave.in/mid/brave-dashboard"
+BOOTSTRAP_ADMIN_FORMS_IDS = "853cac17-6251-4d40-8ccf-1ec1bce6e949"
 
 [userenv.production]
-BOOTSTRAP_ADMIN_FORMS_IDS = "853cac17-6251-4d40-8ccf-1ec1bce6e949"

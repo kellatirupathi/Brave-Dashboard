@@ -10,6 +10,7 @@ export type CreateUserBodyRole =
   (typeof CreateUserBodyRole)[keyof typeof CreateUserBodyRole];
 
 export const CreateUserBodyRole = {
+  student: "student",
   coordinator: "coordinator",
   admin: "admin",
 } as const;

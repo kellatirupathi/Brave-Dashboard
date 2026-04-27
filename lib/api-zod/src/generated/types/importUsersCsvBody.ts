@@ -5,9 +5,8 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { ImportUsersCsvRow } from "./importUsersCsvRow";
 
-export interface BulkImportRosterResponse {
-  inserted: number;
-  skipped?: number;
-  total?: number;
+export interface ImportUsersCsvBody {
+  rows: ImportUsersCsvRow[];
 }

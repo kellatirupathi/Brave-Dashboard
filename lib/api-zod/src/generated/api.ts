@@ -1803,9 +1803,13 @@ export const CreateUserBody = zod.object({
   email: zod.string(),
   firstName: zod.string(),
   lastName: zod.string(),
-  role: zod.enum(["coordinator", "admin"]),
+  role: zod.enum(["student", "coordinator", "admin"]),
   campusId: zod.number().nullish(),
-  password: zod.string(),
+  campusName: zod.string().nullish(),
+  formsUserId: zod.string().nullish(),
+  niatId: zod.string().nullish(),
+  batchSectionName: zod.string().nullish(),
+  password: zod.string().nullish(),
 });
 
 /**
@@ -1835,6 +1839,37 @@ export const UpdateUserResponse = zod.object({
   campusName: zod.string().nullish(),
   isActive: zod.boolean(),
   createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Bulk import/upsert users from a parsed CSV (admin only)
+ */
+export const ImportUsersCsvBody = zod.object({
+  rows: zod.array(
+    zod.object({
+      forms_user_id: zod.string(),
+      role: zod.string(),
+      name: zod.string(),
+      email: zod.string(),
+      campus_name: zod.string().nullish(),
+      niat_id: zod.string().nullish(),
+      batch_section: zod.string().nullish(),
+    }),
+  ),
+});
+
+export const ImportUsersCsvResponse = zod.object({
+  total: zod.number(),
+  created: zod.number(),
+  updated: zod.number(),
+  failed: zod.number(),
+  errors: zod.array(
+    zod.object({
+      rowNumber: zod.number(),
+      forms_user_id: zod.string().nullish(),
+      message: zod.string(),
+    }),
+  ),
 });
 
 /**
@@ -1954,8 +1989,49 @@ export const BulkImportRosterBody = zod.object({
 
 export const BulkImportRosterResponse = zod.object({
   inserted: zod.number(),
-  skipped: zod.number(),
-  total: zod.number(),
+  skipped: zod.number().optional(),
+  total: zod.number().optional(),
+});
+
+/**
+ * @summary Update a single roster entry (admin)
+ */
+export const UpdateRosterEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateRosterEntryBody = zod.object({
+  studentId: zod.string().nullish(),
+  fullName: zod.string().nullish(),
+  email: zod.string().nullish(),
+  campusName: zod.string().nullish(),
+  niatId: zod.string().nullish(),
+  batchSectionName: zod.string().nullish(),
+  isWhitelisted: zod.boolean().nullish(),
+});
+
+export const UpdateRosterEntryResponse = zod.object({
+  id: zod.number(),
+  studentId: zod.string(),
+  fullName: zod.string(),
+  email: zod.string(),
+  campusName: zod.string(),
+  campusId: zod.number().nullish(),
+  niatId: zod.string().nullish(),
+  batchSectionName: zod.string().nullish(),
+  isWhitelisted: zod.boolean(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a roster entry (admin)
+ */
+export const DeleteRosterEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteRosterEntryResponse = zod.object({
+  ok: zod.boolean(),
 });
 
 /**

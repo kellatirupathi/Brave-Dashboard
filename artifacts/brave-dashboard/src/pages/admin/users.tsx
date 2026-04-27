@@ -1,11 +1,11 @@
-import { useListUsers, useCreateUser, useUpdateUser, getListUsersQueryKey, useListCampuses } from "@workspace/api-client-react";
+import { useListUsers, useCreateUser, useUpdateUser, getListUsersQueryKey, useListCampuses, useImportUsersCsv, type ImportUsersCsvResponse } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Plus, Shield, Search, ShieldCheck, Mail, ShieldOff, Trash2, Pencil } from "lucide-react";
-import { useState } from "react";
+import { Users, Plus, Shield, Search, ShieldCheck, Mail, Trash2, Pencil, Upload, GraduationCap, Download } from "lucide-react";
+import { useRef, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -17,16 +17,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 const createUserSchema = z.object({
+  formsUserId: z.string().optional(),
   email: z.string().email(),
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  role: z.enum(["admin", "coordinator"]),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  role: z.enum(["admin", "coordinator", "student"]),
   campusId: z.string().optional(),
-  password: z.string().min(8),
+  niatId: z.string().optional(),
+  batchSectionName: z.string().optional(),
 });
 
-type StaffUser = {
+type AnyUser = {
   id: string;
+  formsUserId?: string | null;
   email: string;
   firstName: string;
   lastName: string;
@@ -36,39 +39,122 @@ type StaffUser = {
   isActive: boolean;
 };
 
+type RoleFilter = "all" | "admin" | "coordinator" | "student";
+
+// Tiny CSV parser that handles quoted fields and commas inside quotes.
+// Returns an array of row objects keyed by the header row.
+function parseCSV(text: string): Record<string, string>[] {
+  const lines: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"' && text[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        cell += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        row.push(cell);
+        cell = "";
+      } else if (ch === "\n") {
+        row.push(cell);
+        lines.push(row);
+        row = [];
+        cell = "";
+      } else if (ch === "\r") {
+        // ignore
+      } else {
+        cell += ch;
+      }
+    }
+  }
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    lines.push(row);
+  }
+  if (lines.length === 0) return [];
+  const header = lines[0].map(h => h.trim());
+  return lines.slice(1)
+    .filter(r => r.some(c => c && c.trim()))
+    .map(r => {
+      const obj: Record<string, string> = {};
+      header.forEach((h, idx) => { obj[h] = (r[idx] ?? "").trim(); });
+      return obj;
+    });
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const TEMPLATE_CSV =
+  "forms_user_id,role,name,email,campus_name,niat_id,batch_section\n" +
+  "853cac17-6251-4d40-8ccf-1ec1bce6e949,admin,Divyansh Mathur,divyansh.mathur@nxtwave.co.in,,,\n" +
+  "00000000-0000-0000-0000-000000000001,coordinator,Coordinator Name,coord@example.com,NIAT - Chevella,,\n" +
+  "00000000-0000-0000-0000-000000000002,student,Student Name,student@example.com,NIAT - Chevella,NIAT123,Section A\n";
+
 export default function AdminUsers() {
   const [search, setSearch] = useState("");
-  const { data: users, isLoading } = useListUsers({ search: search || undefined });
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const { data: users, isLoading } = useListUsers({
+    search: search || undefined,
+    role: roleFilter === "all" ? undefined : roleFilter,
+  });
   const { data: campuses } = useListCampuses();
 
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const importCsv = useImportUsersCsv();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<StaffUser | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<StaffUser | null>(null);
+  const [editTarget, setEditTarget] = useState<AnyUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AnyUser | null>(null);
   const [editCampusId, setEditCampusId] = useState<string>("");
-  const [editRole, setEditRole] = useState<"admin" | "coordinator">("coordinator");
+  const [editRole, setEditRole] = useState<"admin" | "coordinator" | "student">("coordinator");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportUsersCsvResponse | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
 
   const form = useForm<z.infer<typeof createUserSchema>>({
     resolver: zodResolver(createUserSchema),
-    defaultValues: { email: "", firstName: "", lastName: "", role: "coordinator", password: "", campusId: "" },
+    defaultValues: { formsUserId: "", email: "", firstName: "", lastName: "", role: "student", campusId: "", niatId: "", batchSectionName: "" },
   });
   const role = form.watch("role");
 
   const onCreate = (values: z.infer<typeof createUserSchema>) => {
-    if (values.role === "coordinator" && !values.campusId) {
-      toast({ title: "Pick a campus for the coordinator", variant: "destructive" });
+    if ((values.role === "coordinator" || values.role === "student") && !values.campusId) {
+      toast({ title: `Pick a campus for the ${values.role}`, variant: "destructive" });
       return;
     }
     const payload = {
-      ...values,
-      campusId: values.campusId && values.role === "coordinator" ? parseInt(values.campusId) : undefined,
+      formsUserId: values.formsUserId?.trim() || null,
+      email: values.email,
+      firstName: values.firstName,
+      lastName: values.lastName,
+      role: values.role,
+      campusId: values.role === "admin" ? null : (values.campusId ? parseInt(values.campusId) : null),
+      niatId: values.niatId?.trim() || null,
+      batchSectionName: values.batchSectionName?.trim() || null,
+      password: null,
     };
     createUser.mutate({ data: payload }, {
       onSuccess: () => {
@@ -81,16 +167,16 @@ export default function AdminUsers() {
     });
   };
 
-  const openEdit = (u: StaffUser) => {
+  const openEdit = (u: AnyUser) => {
     setEditTarget(u);
-    setEditRole(u.role === "admin" ? "admin" : "coordinator");
+    setEditRole(u.role);
     setEditCampusId(u.campusId ? String(u.campusId) : "");
   };
 
   const onSaveEdit = () => {
     if (!editTarget) return;
-    if (editRole === "coordinator" && !editCampusId) {
-      toast({ title: "Pick a campus for the coordinator", variant: "destructive" });
+    if ((editRole === "coordinator" || editRole === "student") && !editCampusId) {
+      toast({ title: `Pick a campus for the ${editRole}`, variant: "destructive" });
       return;
     }
     updateUser.mutate(
@@ -98,7 +184,7 @@ export default function AdminUsers() {
         id: editTarget.id,
         data: {
           role: editRole,
-          campusId: editRole === "coordinator" ? parseInt(editCampusId) : null,
+          campusId: editRole === "admin" ? null : parseInt(editCampusId),
         },
       },
       {
@@ -134,17 +220,74 @@ export default function AdminUsers() {
     }
   };
 
-  const staff = (users ?? []).filter((u: any) => u.role !== "student") as StaffUser[];
+  const onPickCsv = () => fileInputRef.current?.click();
+
+  const onCsvFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const text = await file.text();
+    let rows: Record<string, string>[];
+    try {
+      rows = parseCSV(text);
+    } catch (err) {
+      toast({ title: "Could not parse CSV", description: String(err), variant: "destructive" });
+      return;
+    }
+    if (rows.length === 0) {
+      toast({ title: "No data rows found in the CSV", variant: "destructive" });
+      return;
+    }
+    importCsv.mutate(
+      { data: { rows: rows as any } },
+      {
+        onSuccess: (result) => {
+          setImportResult(result);
+          refresh();
+        },
+        onError: (err: any) => {
+          toast({ title: "Import failed", description: err?.data?.error ?? err?.message ?? "Server error", variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  const downloadErrorReport = () => {
+    if (!importResult || importResult.errors.length === 0) return;
+    const lines = ["row_number,forms_user_id,error"];
+    for (const e of importResult.errors) {
+      const safe = (s: string) => `"${(s ?? "").replace(/"/g, '""')}"`;
+      lines.push(`${e.rowNumber},${safe(e.forms_user_id ?? "")},${safe(e.message)}`);
+    }
+    downloadCsv("import-errors.csv", lines.join("\n"));
+  };
+
+  const allUsers = (users ?? []) as AnyUser[];
+
+  const counts = {
+    total: allUsers.length,
+    admin: allUsers.filter(u => u.role === "admin").length,
+    coordinator: allUsers.filter(u => u.role === "coordinator").length,
+    student: allUsers.filter(u => u.role === "student").length,
+  };
+
+  const renderRoleBadge = (r: AnyUser["role"]) => {
+    if (r === "admin") return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-100 border-none"><ShieldCheck className="w-3 h-3 mr-1" /> Admin</Badge>;
+    if (r === "coordinator") return <Badge variant="outline"><Shield className="w-3 h-3 mr-1" /> Coordinator</Badge>;
+    return <Badge variant="secondary"><GraduationCap className="w-3 h-3 mr-1" /> Student</Badge>;
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Staff Users</h1>
-          <p className="text-muted-foreground">Manage administrators and campus coordinators</p>
+          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
+          <p className="text-muted-foreground">
+            All users: {counts.total} ({counts.admin} admin · {counts.coordinator} coordinator · {counts.student} student)
+          </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -155,16 +298,49 @@ export default function AdminUsers() {
             />
           </div>
 
+          <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as RoleFilter)}>
+            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All roles</SelectItem>
+              <SelectItem value="admin">Admins</SelectItem>
+              <SelectItem value="coordinator">Coordinators</SelectItem>
+              <SelectItem value="student">Students</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={onCsvFile}
+            className="hidden"
+            data-testid="input-csv-file"
+          />
+          <Button variant="outline" onClick={onPickCsv} disabled={importCsv.isPending} data-testid="button-import-csv">
+            {importCsv.isPending ? <Spinner className="w-4 h-4 mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+            Import CSV
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => downloadCsv("users-template.csv", TEMPLATE_CSV)} title="Download CSV template">
+            <Download className="w-4 h-4 mr-1" /> Template
+          </Button>
+
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-staff"><Plus className="w-4 h-4 mr-2" /> Add Staff</Button>
+              <Button data-testid="button-add-user"><Plus className="w-4 h-4 mr-2" /> Add User</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[480px]">
               <DialogHeader>
-                <DialogTitle>Add Staff Member</DialogTitle>
+                <DialogTitle>Add User</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onCreate)} className="space-y-4">
+                  <FormField control={form.control} name="formsUserId" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Forms User ID (UUID)</FormLabel>
+                      <FormControl><Input placeholder="00000000-0000-0000-0000-000000000000" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="firstName" render={({ field }) => (
                       <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -176,15 +352,13 @@ export default function AdminUsers() {
                   <FormField control={form.control} name="email" render={({ field }) => (
                     <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="password" render={({ field }) => (
-                    <FormItem><FormLabel>Temporary Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
                   <FormField control={form.control} name="role" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Role</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger></FormControl>
                         <SelectContent>
+                          <SelectItem value="student">Student</SelectItem>
                           <SelectItem value="coordinator">Campus Coordinator</SelectItem>
                           <SelectItem value="admin">Administrator</SelectItem>
                         </SelectContent>
@@ -192,7 +366,7 @@ export default function AdminUsers() {
                       <FormMessage />
                     </FormItem>
                   )} />
-                  {role === "coordinator" && campuses && (
+                  {role !== "admin" && campuses && (
                     <FormField control={form.control} name="campusId" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Assigned Campus</FormLabel>
@@ -207,6 +381,16 @@ export default function AdminUsers() {
                         <FormMessage />
                       </FormItem>
                     )} />
+                  )}
+                  {role === "student" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="niatId" render={({ field }) => (
+                        <FormItem><FormLabel>NIAT ID</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                      )} />
+                      <FormField control={form.control} name="batchSectionName" render={({ field }) => (
+                        <FormItem><FormLabel>Batch / Section</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                      )} />
+                    </div>
                   )}
                   <div className="flex justify-end pt-4">
                     <Button type="submit" disabled={createUser.isPending}>
@@ -228,6 +412,7 @@ export default function AdminUsers() {
             <TableHeader>
               <TableRow>
                 <TableHead>User</TableHead>
+                <TableHead>Forms User ID</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Campus</TableHead>
                 <TableHead>Status</TableHead>
@@ -235,7 +420,7 @@ export default function AdminUsers() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staff.map((user) => (
+              {allUsers.map((user) => (
                 <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell>
                     <div className="font-semibold">{user.firstName} {user.lastName}</div>
@@ -243,13 +428,8 @@ export default function AdminUsers() {
                       <Mail className="w-3 h-3" /> {user.email}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    {user.role === "admin" ? (
-                      <Badge variant="default" className="bg-purple-100 text-purple-800 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-100 border-none"><ShieldCheck className="w-3 h-3 mr-1" /> Admin</Badge>
-                    ) : (
-                      <Badge variant="outline"><Shield className="w-3 h-3 mr-1" /> Coordinator</Badge>
-                    )}
-                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{user.formsUserId ?? "—"}</TableCell>
+                  <TableCell>{renderRoleBadge(user.role)}</TableCell>
                   <TableCell className="text-muted-foreground">{user.role === "admin" ? "—" : (user.campusName || "—")}</TableCell>
                   <TableCell>
                     {user.isActive ? (
@@ -280,11 +460,11 @@ export default function AdminUsers() {
                   </TableCell>
                 </TableRow>
               ))}
-              {staff.length === 0 && (
+              {allUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    No staff users found.
+                    No users found.
                   </TableCell>
                 </TableRow>
               )}
@@ -303,23 +483,19 @@ export default function AdminUsers() {
             <div>
               <label className="text-sm font-medium mb-1.5 block">Role</label>
               <Select value={editRole} onValueChange={(v) => {
-                const next = v as "admin" | "coordinator";
+                const next = v as "admin" | "coordinator" | "student";
                 setEditRole(next);
                 if (next === "admin") setEditCampusId("");
               }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin"><span className="inline-flex items-center"><ShieldCheck className="w-3 h-3 mr-2" /> Administrator</span></SelectItem>
-                  <SelectItem value="coordinator"><span className="inline-flex items-center"><Shield className="w-3 h-3 mr-2" /> Campus Coordinator</span></SelectItem>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                  <SelectItem value="coordinator">Campus Coordinator</SelectItem>
+                  <SelectItem value="student">Student</SelectItem>
                 </SelectContent>
               </Select>
-              {editTarget?.role === "admin" && editRole === "coordinator" && (
-                <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
-                  <ShieldOff className="w-3 h-3" /> Removes admin privileges from this user.
-                </p>
-              )}
             </div>
-            {editRole === "coordinator" && (
+            {editRole !== "admin" && (
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Assigned Campus</label>
                 <Select value={editCampusId} onValueChange={setEditCampusId}>
@@ -349,13 +525,55 @@ export default function AdminUsers() {
             <DialogTitle>Delete user?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will permanently remove <span className="font-semibold text-foreground">{deleteTarget?.firstName} {deleteTarget?.lastName}</span> ({deleteTarget?.email}) from the system. This cannot be undone.
+            This will permanently remove <span className="font-semibold text-foreground">{deleteTarget?.firstName} {deleteTarget?.lastName}</span> ({deleteTarget?.email}) from the system. They will no longer be able to sign in. This cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={onConfirmDelete} disabled={isDeleting}>
               {isDeleting && <Spinner className="w-4 h-4 mr-2" />} Delete
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import result dialog */}
+      <Dialog open={!!importResult} onOpenChange={(open) => !open && setImportResult(null)}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>CSV import complete</DialogTitle>
+          </DialogHeader>
+          {importResult && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="rounded-md border p-3"><div className="text-2xl font-bold">{importResult.total}</div><div className="text-xs text-muted-foreground">Total</div></div>
+                <div className="rounded-md border p-3 bg-green-50 dark:bg-green-950"><div className="text-2xl font-bold text-green-700 dark:text-green-300">{importResult.created}</div><div className="text-xs text-muted-foreground">Created</div></div>
+                <div className="rounded-md border p-3 bg-blue-50 dark:bg-blue-950"><div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{importResult.updated}</div><div className="text-xs text-muted-foreground">Updated</div></div>
+                <div className="rounded-md border p-3 bg-red-50 dark:bg-red-950"><div className="text-2xl font-bold text-red-700 dark:text-red-300">{importResult.failed}</div><div className="text-xs text-muted-foreground">Failed</div></div>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">First errors:</div>
+                  <div className="max-h-48 overflow-y-auto border rounded-md text-xs">
+                    {importResult.errors.slice(0, 25).map((e, i) => (
+                      <div key={i} className="px-3 py-2 border-b last:border-b-0">
+                        <span className="font-mono text-muted-foreground">row {e.rowNumber}</span>{" "}
+                        {e.forms_user_id ? <span className="font-mono text-muted-foreground">({e.forms_user_id})</span> : null}{" "}
+                        — <span className="text-destructive">{e.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {importResult.errors.length > 25 && <div className="text-xs text-muted-foreground">… and {importResult.errors.length - 25} more</div>}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            {importResult && importResult.errors.length > 0 && (
+              <Button variant="outline" onClick={downloadErrorReport}>
+                <Download className="w-4 h-4 mr-2" /> Download errors
+              </Button>
+            )}
+            <Button onClick={() => setImportResult(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

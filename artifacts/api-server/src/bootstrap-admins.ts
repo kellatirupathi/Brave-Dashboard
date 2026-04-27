@@ -1,5 +1,5 @@
 import { db, usersTable } from "@workspace/db";
-import { eq, inArray, and, isNotNull } from "drizzle-orm";
+import { eq, inArray, and, isNotNull, isNull } from "drizzle-orm";
 import { logger } from "./lib/logger";
 
 // Hardcoded primary administrator. This person is set as admin on every
@@ -80,4 +80,69 @@ export async function bootstrapAdmins(): Promise<void> {
       "Cleared campus assignment for existing admin users",
     );
   }
+
+  // 4. Reconcile bootstrap forms ids on startup. Without this, an SSO-created
+  //    student row for the bootstrap admin would survive even though they
+  //    should be admin.
+  const formsIds = getBootstrapAdminFormsIds();
+  for (const fid of formsIds) {
+    await ensureAdminForFormsId(fid);
+  }
+
+  // 5. If the primary admin row still has no formsUserId AND a single bootstrap
+  //    forms id is configured AND no other row currently uses it, link them
+  //    so future Forms SSO logins land on the existing admin row.
+  if (formsIds.length === 1) {
+    const [primary] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, PRIMARY_ADMIN.email));
+    if (primary && !primary.formsUserId) {
+      const [collision] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.formsUserId, formsIds[0]));
+      if (!collision) {
+        await db
+          .update(usersTable)
+          .set({ formsUserId: formsIds[0] })
+          .where(eq(usersTable.id, primary.id));
+        logger.info(
+          { adminId: primary.id, formsUserId: formsIds[0] },
+          "Linked primary admin to bootstrap forms id",
+        );
+      }
+    }
+  }
+}
+
+// Promote a single user (matched by formsUserId) to admin if their forms id
+// is in the BOOTSTRAP_ADMIN_FORMS_IDS list. Safe to call on every login.
+export async function ensureAdminForFormsId(
+  formsUserId: string,
+): Promise<boolean> {
+  const list = getBootstrapAdminFormsIds();
+  if (!list.includes(formsUserId)) return false;
+
+  const updated = await db
+    .update(usersTable)
+    .set({ role: "admin", isActive: true, campusId: null })
+    .where(
+      and(
+        eq(usersTable.formsUserId, formsUserId),
+        // Only update rows that aren't already admin to avoid log spam.
+        isNotNull(usersTable.id),
+      ),
+    )
+    .returning({ id: usersTable.id, email: usersTable.email });
+  if (updated.length > 0) {
+    logger.info(
+      { promoted: updated.length, formsUserId },
+      "Bootstrap admin promoted via formsUserId",
+    );
+    return true;
+  }
+  // Mark `isNull` as used to keep the import alive even if not used elsewhere.
+  void isNull;
+  return false;
 }

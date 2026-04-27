@@ -5,23 +5,20 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateUserBodyRole } from "./createUserBodyRole";
 
-export interface CreateUserBody {
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: CreateUserBodyRole;
+export interface UpdateRosterEntryBody {
   /** @nullable */
-  campusId?: number | null;
+  studentId?: string | null;
+  /** @nullable */
+  fullName?: string | null;
+  /** @nullable */
+  email?: string | null;
   /** @nullable */
   campusName?: string | null;
-  /** @nullable */
-  formsUserId?: string | null;
   /** @nullable */
   niatId?: string | null;
   /** @nullable */
   batchSectionName?: string | null;
   /** @nullable */
-  password?: string | null;
+  isWhitelisted?: boolean | null;
 }

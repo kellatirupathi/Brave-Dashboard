@@ -69,6 +69,7 @@ export type CreateUserBodyRole =
   (typeof CreateUserBodyRole)[keyof typeof CreateUserBodyRole];
 
 export const CreateUserBodyRole = {
+  student: "student",
   coordinator: "coordinator",
   admin: "admin",
 } as const;
@@ -80,7 +81,16 @@ export interface CreateUserBody {
   role: CreateUserBodyRole;
   /** @nullable */
   campusId?: number | null;
-  password: string;
+  /** @nullable */
+  campusName?: string | null;
+  /** @nullable */
+  formsUserId?: string | null;
+  /** @nullable */
+  niatId?: string | null;
+  /** @nullable */
+  batchSectionName?: string | null;
+  /** @nullable */
+  password?: string | null;
 }
 
 export type UpdateUserBodyRole =
@@ -838,8 +848,57 @@ export interface BulkImportRosterBody {
 
 export interface BulkImportRosterResponse {
   inserted: number;
-  skipped: number;
+  skipped?: number;
+  total?: number;
+}
+
+export interface UpdateRosterEntryBody {
+  /** @nullable */
+  studentId?: string | null;
+  /** @nullable */
+  fullName?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  campusName?: string | null;
+  /** @nullable */
+  niatId?: string | null;
+  /** @nullable */
+  batchSectionName?: string | null;
+  /** @nullable */
+  isWhitelisted?: boolean | null;
+}
+
+export interface ImportUsersCsvRow {
+  forms_user_id: string;
+  role: string;
+  name: string;
+  email: string;
+  /** @nullable */
+  campus_name?: string | null;
+  /** @nullable */
+  niat_id?: string | null;
+  /** @nullable */
+  batch_section?: string | null;
+}
+
+export interface ImportUsersCsvBody {
+  rows: ImportUsersCsvRow[];
+}
+
+export interface ImportUsersCsvError {
+  rowNumber: number;
+  /** @nullable */
+  forms_user_id?: string | null;
+  message: string;
+}
+
+export interface ImportUsersCsvResponse {
   total: number;
+  created: number;
+  updated: number;
+  failed: number;
+  errors: ImportUsersCsvError[];
 }
 
 export interface AccessRequest {
@@ -1036,6 +1095,10 @@ export type GetAuditLogParams = {
 
 export type ListRosterEntriesParams = {
   campusId?: number;
+};
+
+export type DeleteRosterEntry200 = {
+  ok: boolean;
 };
 
 export type ListAccessRequestsParams = {

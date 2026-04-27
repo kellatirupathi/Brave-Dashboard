@@ -1,13 +1,13 @@
-import { useListRosterEntries, useAddRosterEntry, getListRosterEntriesQueryKey, useListAccessRequests, useUpdateAccessRequest, getListAccessRequestsQueryKey, useBulkImportRoster } from "@workspace/api-client-react";
+import { useListRosterEntries, useAddRosterEntry, getListRosterEntriesQueryKey, useListAccessRequests, useUpdateAccessRequest, getListAccessRequestsQueryKey, useBulkImportRoster, useUpdateRosterEntry, getListUsersQueryKey } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ClipboardList, Plus, Upload, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ClipboardList, Plus, Upload, CheckCircle, XCircle, Clock, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -36,11 +36,23 @@ const CAMPUSES = [
   "Yenepoya University",
 ];
 
+type RosterRow = {
+  id: number;
+  studentId: string;
+  fullName: string;
+  email?: string | null;
+  campusName: string;
+  niatId?: string | null;
+  batchSectionName?: string | null;
+  isWhitelisted: boolean;
+};
+
 export default function AdminRoster() {
   const { data: roster, isLoading } = useListRosterEntries({});
   const { data: accessRequests, isLoading: requestsLoading } = useListAccessRequests({});
   const addEntry = useAddRosterEntry();
   const bulkImport = useBulkImportRoster();
+  const updateEntry = useUpdateRosterEntry();
   const updateRequest = useUpdateAccessRequest();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -57,6 +69,23 @@ export default function AdminRoster() {
   const [niatId, setNiatId] = useState("");
   const [batchSectionName, setBatchSectionName] = useState("");
 
+  // Edit / delete state
+  const [editTarget, setEditTarget] = useState<RosterRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RosterRow | null>(null);
+  const [isDeletingRoster, setIsDeletingRoster] = useState(false);
+  const [editStudentId, setEditStudentId] = useState("");
+  const [editFullName, setEditFullName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editCampusName, setEditCampusName] = useState("");
+  const [editNiatId, setEditNiatId] = useState("");
+  const [editBatchSection, setEditBatchSection] = useState("");
+  const [editIsWhitelisted, setEditIsWhitelisted] = useState(true);
+
+  const refreshAll = () => {
+    queryClient.invalidateQueries({ queryKey: getListRosterEntriesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+  };
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     addEntry.mutate(
@@ -64,13 +93,72 @@ export default function AdminRoster() {
       {
         onSuccess: () => {
           toast({ title: "Student added to roster" });
-          queryClient.invalidateQueries({ queryKey: getListRosterEntriesQueryKey() });
+          refreshAll();
           setIsAddOpen(false);
           setStudentId(""); setFullName(""); setEmail(""); setCampusName(""); setNiatId(""); setBatchSectionName("");
         },
-        onError: () => toast({ title: "Failed to add student", variant: "destructive" }),
+        onError: (e: any) => toast({ title: "Failed to add student", description: e?.data?.error ?? e?.message ?? "Server error", variant: "destructive" }),
       }
     );
+  };
+
+  const openEdit = (r: RosterRow) => {
+    setEditTarget(r);
+    setEditStudentId(r.studentId ?? "");
+    setEditFullName(r.fullName ?? "");
+    setEditEmail(r.email ?? "");
+    setEditCampusName(r.campusName ?? "");
+    setEditNiatId(r.niatId ?? "");
+    setEditBatchSection(r.batchSectionName ?? "");
+    setEditIsWhitelisted(r.isWhitelisted);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editTarget) return;
+    updateEntry.mutate(
+      {
+        id: editTarget.id,
+        data: {
+          studentId: editStudentId,
+          fullName: editFullName,
+          email: editEmail || null,
+          campusName: editCampusName,
+          niatId: editNiatId || null,
+          batchSectionName: editBatchSection || null,
+          isWhitelisted: editIsWhitelisted,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Roster entry updated" });
+          refreshAll();
+          setEditTarget(null);
+        },
+        onError: (e: any) => toast({ title: "Update failed", description: e?.data?.error ?? e?.message ?? "Server error", variant: "destructive" }),
+      },
+    );
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeletingRoster(true);
+    try {
+      const res = await fetch(`/api/admin/roster/${deleteTarget.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed (${res.status})`);
+      }
+      toast({ title: "Roster entry deleted" });
+      refreshAll();
+      setDeleteTarget(null);
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsDeletingRoster(false);
+    }
   };
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -250,6 +338,7 @@ export default function AdminRoster() {
                     <TableHead>Batch / Section</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -266,13 +355,34 @@ export default function AdminRoster() {
                           ? <Badge className="bg-green-500 hover:bg-green-600">Active</Badge>
                           : <Badge variant="secondary">Inactive</Badge>}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <div className="inline-flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEdit(entry as RosterRow)}
+                            data-testid={`button-edit-roster-${entry.id}`}
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(entry as RosterRow)}
+                            data-testid={`button-delete-roster-${entry.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {roster?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        No students on roster. Use "Import Excel" to bulk-add students.
+                        No students on roster. Use "Import Excel" or "Add Student" to populate it.
                       </TableCell>
                     </TableRow>
                   )}
@@ -365,6 +475,82 @@ export default function AdminRoster() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit roster dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Edit roster entry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Student User ID</label>
+                <Input value={editStudentId} onChange={e => setEditStudentId(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">NIAT ID</label>
+                <Input value={editNiatId} onChange={e => setEditNiatId(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Full Name</label>
+              <Input value={editFullName} onChange={e => setEditFullName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
+              <Input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Campus</label>
+              <Select value={editCampusName} onValueChange={setEditCampusName}>
+                <SelectTrigger><SelectValue placeholder="Select campus" /></SelectTrigger>
+                <SelectContent>
+                  {CAMPUSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Batch / Section</label>
+              <Input value={editBatchSection} onChange={e => setEditBatchSection(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="edit-active"
+                checked={editIsWhitelisted}
+                onChange={e => setEditIsWhitelisted(e.target.checked)}
+              />
+              <label htmlFor="edit-active" className="text-sm">Active (whitelisted for sign-in)</label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={updateEntry.isPending}>
+              {updateEntry.isPending && <Spinner className="w-4 h-4 mr-2" />} Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete roster confirmation */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete roster entry?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will permanently remove <span className="font-semibold text-foreground">{deleteTarget?.fullName}</span> from the roster
+            <span className="block mt-1">and also delete their student user account, so they will no longer be able to sign in.</span>
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeletingRoster}>
+              {isDeletingRoster && <Spinner className="w-4 h-4 mr-2" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
