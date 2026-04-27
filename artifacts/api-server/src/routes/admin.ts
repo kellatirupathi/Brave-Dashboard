@@ -758,15 +758,47 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
         skipped++;
         continue;
       }
+      const email = s.email?.trim() ? s.email.trim().toLowerCase() : null;
       await db.insert(rosterTable).values({
         studentId: s.studentUserId ?? "",
         fullName: s.studentName,
+        email,
         campusName: campus.name,
         campusId: campus.id,
         niatId: s.niatId ?? null,
         batchSectionName: s.batchSectionName ?? null,
         isWhitelisted: true,
       }).onConflictDoNothing();
+
+      // Mirror email onto a linked user row, if one exists. We resolve a
+      // single user (formsUserId first, then email) so we never accidentally
+      // touch unrelated rows that share an email with another student.
+      if (email) {
+        let linkedUserId: string | undefined;
+        if (s.studentUserId) {
+          const [hit] = await db
+            .select({ id: usersTable.id })
+            .from(usersTable)
+            .where(eq(usersTable.formsUserId, s.studentUserId))
+            .limit(1);
+          linkedUserId = hit?.id;
+        }
+        if (!linkedUserId) {
+          const [hit] = await db
+            .select({ id: usersTable.id })
+            .from(usersTable)
+            .where(eq(usersTable.email, email))
+            .limit(1);
+          linkedUserId = hit?.id;
+        }
+        if (linkedUserId) {
+          await db
+            .update(usersTable)
+            .set({ email })
+            .where(eq(usersTable.id, linkedUserId));
+        }
+      }
+
       inserted++;
     } catch {
       skipped++;

@@ -2086,6 +2086,7 @@ export const BulkImportRosterBody = zod.object({
       niatId: zod.string().optional(),
       instituteName: zod.string(),
       batchSectionName: zod.string().optional(),
+      email: zod.string().email().optional(),
     }),
   ),
 });

@@ -12,4 +12,5 @@ export type BulkImportRosterBodyStudentsItem = {
   niatId?: string;
   instituteName: string;
   batchSectionName?: string;
+  email?: string;
 };

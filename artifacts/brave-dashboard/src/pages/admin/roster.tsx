@@ -176,17 +176,21 @@ export default function AdminRoster() {
 
         const students = rows
           .filter(row => row["Student Name"] || row["studentName"])
-          .map(row => ({
-            studentUserId: String(row["Student User ID"] || row["studentUserId"] || ""),
-            studentName: String(row["Student Name"] || row["studentName"] || ""),
-            niatId: String(row["NIAT ID"] || row["niatId"] || ""),
-            instituteName: String(row["Institute Name"] || row["instituteName"] || ""),
-            batchSectionName: String(row["Batch Section Name"] || row["batchSectionName"] || ""),
-          }))
+          .map(row => {
+            const email = String(row["Email"] || row["email"] || "").trim();
+            return {
+              studentUserId: String(row["Student User ID"] || row["studentUserId"] || ""),
+              studentName: String(row["Student Name"] || row["studentName"] || ""),
+              niatId: String(row["NIAT ID"] || row["niatId"] || ""),
+              instituteName: String(row["Institute Name"] || row["instituteName"] || ""),
+              batchSectionName: String(row["Batch Section Name"] || row["batchSectionName"] || ""),
+              ...(email ? { email } : {}),
+            };
+          })
           .filter(s => s.studentName && s.instituteName);
 
         if (students.length === 0) {
-          toast({ title: "No valid rows found in the file", description: "Expected columns: Student User ID, Student Name, NIAT ID, Institute Name, Batch Section Name", variant: "destructive" });
+          toast({ title: "No valid rows found in the file", description: "Expected columns: Student User ID, Student Name, NIAT ID, Institute Name, Batch Section Name, Email", variant: "destructive" });
           setIsImporting(false);
           return;
         }

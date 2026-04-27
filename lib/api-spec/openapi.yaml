@@ -3234,6 +3234,9 @@ components:
                 type: string
               batchSectionName:
                 type: string
+              email:
+                type: string
+                format: email
             required:
               - studentName
               - instituteName
