@@ -39,10 +39,14 @@ export function Sidebar() {
   // membership mutation (create, join, leave, etc.), so the sidebar
   // updates instantly without needing a logout/login round-trip.
   // Skipped for non-students to avoid an unnecessary 404 request.
-  const { data: myTeam } = useGetMyTeam({
+  // While the live query is loading (e.g. on page reload) we fall back
+  // to user.teamId from the auth cache so the menu doesn't flash from
+  // "Get started" to the full student menu for users who already have
+  // a team.
+  const { data: myTeam, isLoading: teamLoading } = useGetMyTeam({
     query: { retry: false, enabled: user?.role === "student" },
   });
-  const hasTeam = !!myTeam;
+  const hasTeam = teamLoading ? !!user?.teamId : !!myTeam;
 
   if (!user) return null;
 
