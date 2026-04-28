@@ -369,19 +369,48 @@ export default function AdminUsers() {
             className="hidden"
             data-testid="input-csv-file"
           />
-          <Button variant="outline" onClick={onPickCsv} disabled={importCsv.isPending} data-testid="button-import-csv">
-            {importCsv.isPending ? <Spinner className="w-4 h-4 mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-            Import CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportUsers}
-            disabled={allUsers.length === 0}
-            title="Download the listed users as an Excel file"
-            data-testid="button-export-users"
-          >
-            <Download className="w-4 h-4 mr-2" /> Export
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                title="More actions"
+                aria-label="More actions"
+                data-testid="button-users-more-actions"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  if (!importCsv.isPending) onPickCsv();
+                }}
+                disabled={importCsv.isPending}
+                data-testid="menu-item-import-csv"
+              >
+                {importCsv.isPending ? (
+                  <Spinner className="w-4 h-4 mr-2" />
+                ) : (
+                  <Upload className="w-4 h-4 mr-2" />
+                )}
+                Import CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  if (allUsers.length > 0) handleExportUsers();
+                }}
+                disabled={allUsers.length === 0}
+                data-testid="menu-item-export-users"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
