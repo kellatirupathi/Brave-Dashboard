@@ -1,4 +1,5 @@
 import { useAuth } from "@workspace/replit-auth-web";
+import { useGetMyTeam } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { 
@@ -33,13 +34,22 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  // Source of truth for "does this student have a team?" is the live
+  // useGetMyTeam query — it's already invalidated after every team
+  // membership mutation (create, join, leave, etc.), so the sidebar
+  // updates instantly without needing a logout/login round-trip.
+  // Skipped for non-students to avoid an unnecessary 404 request.
+  const { data: myTeam } = useGetMyTeam({
+    query: { retry: false, enabled: user?.role === "student" },
+  });
+  const hasTeam = !!myTeam;
 
   if (!user) return null;
 
   const role = user.role;
 
   const navItems = {
-    student: user.teamId
+    student: hasTeam
       ? [
           { name: "Dashboard", href: "/", icon: LayoutDashboard },
           { name: "Projects", href: "/projects", icon: FolderKanban },

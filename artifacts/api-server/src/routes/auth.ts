@@ -297,12 +297,29 @@ router.post("/auth/validate-token", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/auth/user", (req: Request, res: Response) => {
-  res.json(
-    GetCurrentAuthUserResponse.parse({
-      user: req.isAuthenticated() ? req.user : null,
-    }),
-  );
+router.get("/auth/user", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.json(GetCurrentAuthUserResponse.parse({ user: null }));
+    return;
+  }
+  // Always re-derive the auth user from the DB so fields that can change
+  // mid-session (e.g. teamId after a student creates or joins a team) are
+  // live, not snapshotted at login. Falls back to the session-cached value
+  // if the DB lookup fails for any reason.
+  try {
+    const [dbUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user.id));
+    if (dbUser) {
+      const fresh = await buildAuthUser(dbUser);
+      res.json(GetCurrentAuthUserResponse.parse({ user: fresh }));
+      return;
+    }
+  } catch (err) {
+    req.log.warn({ err }, "auth/user live rebuild failed; using session cache");
+  }
+  res.json(GetCurrentAuthUserResponse.parse({ user: req.user }));
 });
 
 // Dev-only login shortcut for seeded users. Disabled in production.
