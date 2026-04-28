@@ -17,10 +17,6 @@ import {
   useRemoveTeamMember,
   useTransferTeamLeadership,
   useDeleteTeam,
-  getListTeamInvitationsQueryKey,
-  getListTeamJoinRequestsQueryKey,
-  getListTeamLeaveRequestsQueryKey,
-  getGetMyTeamQueryKey,
 } from "@workspace/api-client-react";
 import type { TeamDetail } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -76,6 +72,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/format";
+import { invalidateMembershipQueries } from "@/lib/queries";
 import { useToast } from "@/hooks/use-toast";
 
 export default function TeamProfile() {
@@ -204,19 +201,14 @@ function TeamView({
   );
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({
-      queryKey: getListTeamInvitationsQueryKey(team.id),
-    });
-    queryClient.invalidateQueries({
-      queryKey: getListTeamJoinRequestsQueryKey(team.id),
-    });
-    queryClient.invalidateQueries({
-      queryKey: getListTeamLeaveRequestsQueryKey(team.id),
-    });
-    queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+    invalidateMembershipQueries(queryClient, { teamId: team.id });
   };
 
   const copyInviteCode = async () => {
+    if (!team.inviteCode) {
+      toast({ title: "No invite code on this team", variant: "destructive" });
+      return;
+    }
     try {
       await navigator.clipboard.writeText(team.inviteCode);
       toast({ title: "Invite code copied", description: team.inviteCode });
@@ -225,9 +217,23 @@ function TeamView({
     }
   };
 
-  const handleInvite = (inviteeId: string, name: string) => {
+  const handleInvite = (
+    target: { inviteeId?: string | null; rosterId?: number | null },
+    name: string,
+  ) => {
+    const data: { inviteeId?: string; rosterId?: number } = {};
+    if (target.inviteeId) data.inviteeId = target.inviteeId;
+    else if (target.rosterId != null) data.rosterId = target.rosterId;
+    else {
+      toast({
+        title: "Could not invite",
+        description: "Missing student identifier.",
+        variant: "destructive",
+      });
+      return;
+    }
     sendInvite.mutate(
-      { id: team.id, data: { inviteeId } },
+      { id: team.id, data },
       {
         onSuccess: () => {
           toast({
@@ -370,7 +376,7 @@ function TeamView({
             description: `${team.name} and its drafts were removed.`,
           });
           setDeleteTeamOpen(false);
-          queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+          invalidateMembershipQueries(queryClient, { teamId: team.id });
           setLocation("/get-started");
         },
         onError: (err: unknown) => {
@@ -625,14 +631,17 @@ function TeamView({
                         </p>
                       ) : (
                         students.map((s) => {
-                          const alreadyInvited = pendingInvitations.some(
-                            (i) => i.inviteeId === s.id,
-                          );
+                          const alreadyInvited =
+                            !!s.id &&
+                            pendingInvitations.some(
+                              (i) => i.inviteeId === s.id,
+                            );
+                          const rowKey = s.id ?? `roster-${s.rosterId}`;
                           return (
                             <div
-                              key={s.id}
+                              key={rowKey}
                               className="flex items-center gap-3 p-2 rounded hover:bg-muted/50"
-                              data-testid={`student-${s.id}`}
+                              data-testid={`student-${rowKey}`}
                             >
                               <Avatar className="w-8 h-8">
                                 <AvatarImage
@@ -666,12 +675,12 @@ function TeamView({
                                   size="sm"
                                   onClick={() =>
                                     handleInvite(
-                                      s.id,
+                                      { inviteeId: s.id, rosterId: s.rosterId },
                                       `${s.firstName} ${s.lastName}`,
                                     )
                                   }
                                   disabled={sendInvite.isPending}
-                                  data-testid={`button-invite-${s.id}`}
+                                  data-testid={`button-invite-${rowKey}`}
                                 >
                                   Invite
                                 </Button>

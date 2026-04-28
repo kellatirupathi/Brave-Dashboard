@@ -266,7 +266,13 @@ export interface TransferTeamLeadershipBody {
 }
 
 export interface CampusStudent {
-  id: string;
+  /**
+   * User id when the roster entry already has a linked user account; null otherwise.
+   * @nullable
+   */
+  id?: string | null;
+  /** Roster row id (always present — search results come from the roster). */
+  rosterId: number;
   firstName: string;
   lastName: string;
   email: string;
@@ -280,8 +286,12 @@ export interface JoinByCodeBody {
   code: string;
 }
 
+/**
+ * Send an invitation by user id (existing account) or roster id (auto-provisions a placeholder user).
+ */
 export interface SendInvitationBody {
-  inviteeId: string;
+  inviteeId?: string;
+  rosterId?: number;
 }
 
 export interface RequestToJoinBody {

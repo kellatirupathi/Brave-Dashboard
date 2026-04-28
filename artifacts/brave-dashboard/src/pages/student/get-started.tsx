@@ -6,10 +6,9 @@ import {
   useCreateTeam,
   useListMyInvitations,
   useListCampuses,
-  getGetMyTeamQueryKey,
-  getListMyInvitationsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateMembershipQueries } from "@/lib/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,13 +58,13 @@ export default function GetStarted() {
     createTeam.mutate(
       { data: { name: name.trim(), tagline: tagline.trim() || undefined, campusId: effectiveCampusId } },
       {
-        onSuccess: async () => {
+        onSuccess: async (created) => {
           toast({ title: "Team created", description: "Share your invite code with teammates." });
-          queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
           // Refresh the auth user so the sidebar (which depends on user.teamId)
           // shows the full student nav (Dashboard, Projects, Leaderboard,
           // My Team, Demo Day) immediately — no page reload needed.
           await refreshAuth();
+          invalidateMembershipQueries(queryClient, { teamId: created?.id ?? null });
           setLocation("/team");
         },
         onError: (err: unknown) => {

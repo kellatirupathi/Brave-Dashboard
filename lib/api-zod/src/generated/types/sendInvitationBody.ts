@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Send an invitation by user id (existing account) or roster id (auto-provisions a placeholder user).
+ */
 export interface SendInvitationBody {
-  inviteeId: string;
+  inviteeId?: string;
+  rosterId?: number;
 }

@@ -391,63 +391,82 @@ router.get("/teams/students/search", async (req, res): Promise<void> => {
     res.json([]);
     return;
   }
-  // Users on same campus, role student. Not on any team. Match by name OR niat id (via roster).
-  const onTeamSubquery = db.select({ uid: teamMembersTable.userId }).from(teamMembersTable);
 
-  // Find roster entries matching by niatId/studentId prefix
-  const rosterMatches = await db
+  // Bug 1 fix: Search ROSTER table only, widening the OR-match to include
+  // email + studentId (in addition to fullName + niatId). The roster is the
+  // source of truth for who is allowed on the platform — students who haven't
+  // logged in yet still appear here, and we can invite them by rosterId.
+  const like = `%${q}%`;
+  const rosterRows = await db
     .select()
     .from(rosterTable)
     .where(
       and(
         eq(rosterTable.campusId, req.user.campusId),
+        eq(rosterTable.isWhitelisted, true),
         or(
-          ilike(rosterTable.niatId, `${q}%`),
-          ilike(rosterTable.studentId, `${q}%`)
-        )
-      )
-    );
-  const rosterEmails = rosterMatches.map((r) => r.email).filter((e): e is string => !!e);
-  const rosterStudentIds = rosterMatches.map((r) => r.studentId).filter((s): s is string => !!s);
+          ilike(rosterTable.fullName, like),
+          ilike(rosterTable.niatId, like),
+          ilike(rosterTable.email, like),
+          ilike(rosterTable.studentId, like),
+        ),
+      ),
+    )
+    .limit(50);
 
-  const conditions = [
-    eq(usersTable.campusId, req.user.campusId),
-    eq(usersTable.role, "student"),
-    ne(usersTable.id, req.user.id),
-    notInArray(usersTable.id, onTeamSubquery),
-  ];
+  // Resolve linked user (if any) for each roster entry, and exclude
+  // requester / students already on a team.
+  const result: Array<{
+    id: string | null;
+    rosterId: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+    niatId: string | null;
+    profileImage: string | null;
+  }> = [];
 
-  const orParts = [
-    ilike(usersTable.firstName, `%${q}%`),
-    ilike(usersTable.lastName, `%${q}%`),
-    ilike(sql`(${usersTable.firstName} || ' ' || ${usersTable.lastName})`, `%${q}%`),
-    ilike(usersTable.email, `${q}%`),
-  ];
-  if (rosterEmails.length > 0) orParts.push(inArray(usersTable.email, rosterEmails));
-  if (rosterStudentIds.length > 0) orParts.push(inArray(usersTable.formsUserId, rosterStudentIds));
+  for (const r of rosterRows) {
+    const matchClauses = [] as Array<ReturnType<typeof eq>>;
+    if (r.studentId) matchClauses.push(eq(usersTable.formsUserId, r.studentId));
+    if (r.email) matchClauses.push(eq(usersTable.email, r.email));
+    let linkedUser: typeof usersTable.$inferSelect | undefined;
+    if (matchClauses.length > 0) {
+      [linkedUser] = await db
+        .select()
+        .from(usersTable)
+        .where(or(...matchClauses)!)
+        .limit(1);
+    }
 
-  const rows = await db
-    .select()
-    .from(usersTable)
-    .where(and(...conditions, or(...orParts)))
-    .limit(20);
+    if (linkedUser) {
+      if (linkedUser.id === req.user.id) continue;
+      const [m] = await db
+        .select()
+        .from(teamMembersTable)
+        .where(eq(teamMembersTable.userId, linkedUser.id))
+        .limit(1);
+      if (m) continue;
+    }
 
-  // Look up niat ids for matched users
-  const result = await Promise.all(
-    rows.map(async (u) => {
-      const matchClauses = [eq(rosterTable.email, u.email)];
-      if (u.formsUserId) matchClauses.push(eq(rosterTable.studentId, u.formsUserId));
-      const [r] = await db.select().from(rosterTable).where(or(...matchClauses));
-      return {
-        id: u.id,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        email: u.email,
-        niatId: r?.niatId ?? null,
-        profileImage: u.profileImage ?? null,
-      };
-    })
-  );
+    const parts = (r.fullName ?? "").trim().split(/\s+/);
+    const fnFromRoster = parts[0] ?? "";
+    const lnFromRoster = parts.slice(1).join(" ");
+
+    result.push({
+      id: linkedUser?.id ?? null,
+      rosterId: r.id,
+      firstName: linkedUser?.firstName || fnFromRoster,
+      lastName: linkedUser?.lastName || lnFromRoster,
+      email: linkedUser?.email || r.email || "",
+      niatId: r.niatId ?? null,
+      profileImage: linkedUser?.profileImage ?? null,
+    });
+    if (result.length >= 25) break;
+  }
+
+  // Suppress unused-import warnings for symbols we no longer need on this hot path.
+  void inArray; void notInArray; void ne;
   res.json(result);
 });
 
@@ -1111,6 +1130,13 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
+    return;
+  }
+  // Note: this route is shadowed by the version in team-flow.ts which
+  // additionally accepts a rosterId. Kept here for back-compat; rosterId-only
+  // payloads should be routed through the team-flow handler.
+  if (!parsed.data.inviteeId) {
+    res.status(400).json({ error: "inviteeId is required on this endpoint" });
     return;
   }
   const [invitee] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.inviteeId));

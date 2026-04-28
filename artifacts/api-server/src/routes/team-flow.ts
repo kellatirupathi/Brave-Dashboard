@@ -10,6 +10,7 @@ import {
   usersTable,
   campusesTable,
   rosterTable,
+  createOrGetUserByFormsId,
 } from "@workspace/db";
 import {
   SendTeamInvitationBody as CreateTeamInvitationBody,
@@ -260,16 +261,54 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Bug 2 fix: trim + uppercase server-side too (defence in depth — frontend
+  // already does this, but the API is the source of truth for normalization).
   const code = parsed.data.code.trim().toUpperCase();
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.inviteCode, code));
   if (!team) {
     res.status(404).json({ error: "Invalid invite code" });
     return;
   }
-  if (!req.user.campusId || team.campusId !== req.user.campusId) {
+
+  // Bug 2 fix: backfill req.user.campusId from the user's roster row when null.
+  // Without this, brand-new SSO users hit a spurious 403 "different campus"
+  // even when the team is at their actual campus.
+  let userCampusId = req.user.campusId ?? null;
+  if (userCampusId == null) {
+    const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+    if (dbUser) {
+      const matchClauses = [eq(rosterTable.email, dbUser.email)];
+      if (dbUser.formsUserId) {
+        matchClauses.push(eq(rosterTable.studentId, dbUser.formsUserId));
+      }
+      const [rosterEntry] = await db
+        .select()
+        .from(rosterTable)
+        .where(and(or(...matchClauses)!, eq(rosterTable.isWhitelisted, true)));
+      if (rosterEntry?.campusId != null) {
+        userCampusId = rosterEntry.campusId;
+        await db
+          .update(usersTable)
+          .set({ campusId: userCampusId, updatedAt: new Date() })
+          .where(eq(usersTable.id, req.user.id));
+        // Refresh in-memory session user so subsequent requests see it.
+        req.user.campusId = userCampusId;
+      }
+    }
+  }
+
+  // Bug 2 fix: distinct error messages for "no campus" vs "different campus".
+  if (userCampusId == null) {
+    res.status(403).json({
+      error: "Your account has no campus assigned yet. Ask your campus coordinator to add you to the roster, then try again.",
+    });
+    return;
+  }
+  if (team.campusId !== userCampusId) {
     res.status(403).json({ error: "This team belongs to a different campus" });
     return;
   }
+
   const existing = await getMembership(req.user.id);
   if (existing) {
     res.status(400).json({ error: "You are already on a team" });
@@ -315,7 +354,67 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
   const memberOK = await isTeamMember(req.user.id, team.id);
   if (!memberOK) { res.status(403).json({ error: "Only team members can send invites" }); return; }
 
-  const [invitee] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.inviteeId));
+  // Bug 1 fix: accept either `inviteeId` (existing user) OR `rosterId`
+  // (auto-provision a placeholder user from the roster row so the invite
+  // is stored against the invited student even if they haven't logged in).
+  const body = parsed.data as { inviteeId?: string | null; rosterId?: number | null };
+  let inviteeUserId: string | null = body.inviteeId ?? null;
+  if (!inviteeUserId && body.rosterId != null) {
+    const [rosterRow] = await db
+      .select()
+      .from(rosterTable)
+      .where(eq(rosterTable.id, body.rosterId));
+    if (!rosterRow) {
+      res.status(404).json({ error: "Roster entry not found" });
+      return;
+    }
+    if (!rosterRow.isWhitelisted) {
+      res.status(403).json({ error: "Student is not whitelisted to join the program yet" });
+      return;
+    }
+    if (rosterRow.campusId && rosterRow.campusId !== team.campusId) {
+      res.status(403).json({ error: "Invitee is on a different campus" });
+      return;
+    }
+    // Try to find an existing linked user first.
+    const orClauses = [] as Array<ReturnType<typeof eq>>;
+    if (rosterRow.studentId) orClauses.push(eq(usersTable.formsUserId, rosterRow.studentId));
+    if (rosterRow.email) orClauses.push(eq(usersTable.email, rosterRow.email));
+    let existing: typeof usersTable.$inferSelect | undefined;
+    if (orClauses.length > 0) {
+      [existing] = await db.select().from(usersTable).where(or(...orClauses)!).limit(1);
+    }
+    if (existing) {
+      inviteeUserId = existing.id;
+    } else {
+      // Provision a placeholder users row keyed off the roster studentId
+      // so subsequent SSO logins reconcile to the same account.
+      if (!rosterRow.studentId) {
+        res.status(400).json({ error: "Roster entry is missing a student id; cannot create placeholder account" });
+        return;
+      }
+      const { user: placeholder } = await createOrGetUserByFormsId(
+        rosterRow.studentId,
+        { provisionedVia: "roster" },
+      );
+      // Backfill name/campus from roster onto the placeholder.
+      const updates: Partial<typeof usersTable.$inferInsert> = {};
+      const parts = (rosterRow.fullName ?? "").trim().split(/\s+/);
+      if (!placeholder.firstName && parts[0]) updates.firstName = parts[0];
+      if (!placeholder.lastName && parts.slice(1).length > 0) updates.lastName = parts.slice(1).join(" ");
+      if (!placeholder.campusId && rosterRow.campusId) updates.campusId = rosterRow.campusId;
+      if (Object.keys(updates).length > 0) {
+        await db.update(usersTable).set({ ...updates, updatedAt: new Date() }).where(eq(usersTable.id, placeholder.id));
+      }
+      inviteeUserId = placeholder.id;
+    }
+  }
+  if (!inviteeUserId) {
+    res.status(400).json({ error: "Provide inviteeId or rosterId" });
+    return;
+  }
+
+  const [invitee] = await db.select().from(usersTable).where(eq(usersTable.id, inviteeUserId));
   if (!invitee) { res.status(404).json({ error: "User not found" }); return; }
   if (invitee.id === req.user.id) { res.status(400).json({ error: "You cannot invite yourself" }); return; }
 

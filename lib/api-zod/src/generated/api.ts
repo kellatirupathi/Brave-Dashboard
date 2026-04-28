@@ -601,7 +601,17 @@ export const SearchCampusStudentsQueryParams = zod.object({
 });
 
 export const SearchCampusStudentsResponseItem = zod.object({
-  id: zod.string(),
+  id: zod
+    .string()
+    .nullish()
+    .describe(
+      "User id when the roster entry already has a linked user account; null otherwise.",
+    ),
+  rosterId: zod
+    .number()
+    .describe(
+      "Roster row id (always present — search results come from the roster).",
+    ),
   firstName: zod.string(),
   lastName: zod.string(),
   email: zod.string(),
@@ -705,9 +715,14 @@ export const SendTeamInvitationParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const SendTeamInvitationBody = zod.object({
-  inviteeId: zod.string(),
-});
+export const SendTeamInvitationBody = zod
+  .object({
+    inviteeId: zod.string().optional(),
+    rosterId: zod.number().optional(),
+  })
+  .describe(
+    "Send an invitation by user id (existing account) or roster id (auto-provisions a placeholder user).",
+  );
 
 /**
  * @summary List the current user's pending invitations

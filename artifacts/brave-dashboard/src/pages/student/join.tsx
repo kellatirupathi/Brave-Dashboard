@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { useJoinTeamByCode, getGetMyTeamQueryKey } from "@workspace/api-client-react";
+import { useJoinTeamByCode } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@workspace/replit-auth-web";
+import { invalidateMembershipQueries } from "@/lib/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,23 +16,32 @@ export default function JoinByCode() {
   const [code, setCode] = useState("");
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { refresh: refreshAuth } = useAuth();
   const { toast } = useToast();
   const join = useJoinTeamByCode();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Bug 2 fix: trim + uppercase before sending. The input already uppercases
+    // on change, but a paste with whitespace would otherwise slip through.
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
     join.mutate({ data: { code: trimmed } }, {
-      onSuccess: (team) => {
+      onSuccess: async (team) => {
         toast({ title: "Joined team!", description: `Welcome to ${team.name}.` });
-        queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+        await refreshAuth();
+        invalidateMembershipQueries(queryClient, { teamId: team.id });
         setLocation("/team");
       },
       onError: (err: unknown) => {
+        const e = err as {
+          status?: number;
+          data?: { error?: string };
+          message?: string;
+        };
         toast({
           title: "Could not join team",
-          description: (err as { message?: string })?.message ?? "Check your code and try again.",
+          description: e?.data?.error ?? e?.message ?? "Check your code and try again.",
           variant: "destructive",
         });
       },

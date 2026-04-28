@@ -1,0 +1,83 @@
+Add leader-only CRUD authorization to the BRAVE Dashboard. The "transfer leadership" feature already exists end-to-end (teams.leaderId, POST /teams/:id/transfer-leadership, useTransferTeamLeadership hook, isLeader flag in team.tsx). Do NOT rebuild it. Only restrict who can mutate what, and make sure the UI flips correctly after a transfer.
+
+────────────────────────────
+SERVER — gate writes by leaderId, not just team membership
+────────────────────────────
+
+Files to change:
+  - artifacts/api-server/src/routes/projects.ts
+  - artifacts/api-server/src/routes/financials.ts
+  - artifacts/api-server/src/routes/teams.ts (PATCH /teams/:id)
+
+1. Add a helper in artifacts/api-server/src/lib/auth.ts (or wherever requireAuth lives):
+     async function requireTeamLeader(req, res, teamId): Promise<boolean>
+   Returns true if req.user.role is 'admin' OR req.user.id === team.leaderId. Otherwise responds 403 "Only the team leader can perform this action." and returns false. Coordinators do NOT pass — only admin override.
+
+2. In projects.ts, replace the membership-based isMember check (around lines 36-40) with leader+admin gating for ALL mutating routes:
+     - POST /projects                       → requireTeamLeader(team)
+     - PATCH /projects/:id                  → requireTeamLeader(project.teamId)
+     - DELETE /projects/:id                 → requireTeamLeader(project.teamId)
+   GET routes stay membership-based (any member can VIEW).
+
+3. In financials.ts, apply the same rule to ALL mutating routes:
+     - POST  /order-book-entries                  → leader only
+     - PATCH /order-book-entries/:id              → leader only
+     - DELETE /order-book-entries/:id             → leader only
+     - POST  /order-book-entries/:id/submit       → leader only
+     - POST  /revenue-entries                     → leader only
+     - PATCH /revenue-entries/:id                 → leader only
+     - DELETE /revenue-entries/:id                → leader only
+     - POST  /revenue-entries/:id/submit          → leader only
+   Verify/reject endpoints remain admin-only as today.
+   GET routes stay membership-based.
+
+4. In teams.ts PATCH /teams/:id, ensure team profile edits (name, tagline, logo, etc.) require leader (admin override). Member removal already checks isLeader at lines 919-920 — keep as is.
+
+5. After leadership transfer succeeds, no further server change is needed: the next request from the old leader will fail leader-only checks, and the new leader's requests will pass. Add an audit_log entry on every blocked mutation? No — only on successful mutations, as today.
+
+────────────────────────────
+FRONTEND — hide write controls from non-leaders
+────────────────────────────
+
+Files:
+  - artifacts/brave-dashboard/src/pages/student/team.tsx  (already has `isLeader` — re-use)
+  - artifacts/brave-dashboard/src/pages/student/projects/list.tsx (or wherever the project list lives)
+  - artifacts/brave-dashboard/src/pages/student/projects/detail.tsx
+
+1. Compute `isLeader` once in each page from useGetMyTeam(): `const isLeader = String(team?.leaderId) === String(user?.id);`. Re-use the same expression already in team.tsx:160.
+
+2. team.tsx:
+   - "Edit team profile", "Remove member", "Transfer leadership", "Approve/decline join request", "Approve/decline leave request" sections: keep gated by isLeader (already are).
+   - For non-leaders, show a small read-only "You are a member" badge under the team name and hide all the action buttons.
+
+3. projects list page:
+   - "Create project" button → render only if isLeader.
+   - Each project row's "Edit" / "Delete" actions → render only if isLeader.
+
+4. projects/detail.tsx:
+   - "Add order book entry", "Add revenue entry", "Edit", "Delete", "Submit" buttons → render only if isLeader.
+   - For non-leaders, show project info, order book list, revenue list as READ-ONLY tables (no row actions, no add buttons). Add a one-line note "Only the team leader can add or edit entries — ask your leader to update this page."
+
+5. After transfer-leadership mutation succeeds (already wired in team.tsx around line 400):
+   - In onSuccess, invalidate: useGetMyTeam, useListTeamMembers, useListProjects, dashboard, notifications. Use the same invalidateMembershipQueries util from Bug 3 if it exists, otherwise call queryClient.invalidateQueries() per key.
+   - Do NOT navigate away — both old and new leader stay on /team and just see their controls flip.
+
+────────────────────────────
+TESTS (Vitest)
+────────────────────────────
+
+- Leader A can POST/PATCH/DELETE projects and financials → 200/204.
+- Member B (same team, not leader) calls the same endpoints → 403 with "Only the team leader can perform this action."
+- After A transfers leadership to C, A's next mutation → 403, C's next mutation → 200.
+- Admin can mutate any team's projects and financials regardless of leader.
+- GET endpoints unaffected: B and C can still read everything.
+
+────────────────────────────
+Acceptance
+────────────────────────────
+
+Manually verify in dev:
+  - Log in as A (leader): see all create/edit/delete buttons on /team, /projects, /projects/:id.
+  - Log in as B (member): same pages render but buttons are gone; tables are read-only.
+  - As A, transfer leadership to C; without reload, A's buttons disappear and (if C is logged in another browser) C's buttons appear after the cache invalidates.
+  - No 500s, no broken pages for either role.

@@ -7,7 +7,13 @@
  */
 
 export interface CampusStudent {
-  id: string;
+  /**
+   * User id when the roster entry already has a linked user account; null otherwise.
+   * @nullable
+   */
+  id?: string | null;
+  /** Roster row id (always present — search results come from the roster). */
+  rosterId: number;
   firstName: string;
   lastName: string;
   email: string;

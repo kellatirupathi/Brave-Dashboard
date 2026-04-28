@@ -2236,7 +2236,11 @@ components:
       type: object
       properties:
         id:
-          type: string
+          type: ["string", "null"]
+          description: User id when the roster entry already has a linked user account; null otherwise.
+        rosterId:
+          type: integer
+          description: Roster row id (always present — search results come from the roster).
         firstName:
           type: string
         lastName:
@@ -2248,7 +2252,7 @@ components:
         profileImage:
           type: ["string", "null"]
       required:
-        - id
+        - rosterId
         - firstName
         - lastName
         - email
@@ -2263,11 +2267,12 @@ components:
 
     SendInvitationBody:
       type: object
+      description: Send an invitation by user id (existing account) or roster id (auto-provisions a placeholder user).
       properties:
         inviteeId:
           type: string
-      required:
-        - inviteeId
+        rosterId:
+          type: integer
 
     RequestToJoinBody:
       type: object
