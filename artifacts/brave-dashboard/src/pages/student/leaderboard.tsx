@@ -22,6 +22,8 @@ export default function Leaderboard() {
   const [, setLocation] = useLocation();
   const [view, setView] = useState<"national" | "campus">("national");
   const [search, setSearch] = useState("");
+  const canOpenTeam =
+    user?.role === "admin" || user?.role === "coordinator";
 
   const { data: leaderboard, isLoading } = useGetLeaderboard({
     view,
@@ -76,14 +78,19 @@ export default function Leaderboard() {
             return (
               <Card
                 key={entry.teamId}
-                onClick={() => setLocation(`/teams/${entry.teamId}`)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") setLocation(`/teams/${entry.teamId}`);
-                }}
+                {...(canOpenTeam
+                  ? {
+                      onClick: () => setLocation(`/teams/${entry.teamId}`),
+                      role: "button",
+                      tabIndex: 0,
+                      onKeyDown: (e: React.KeyboardEvent) => {
+                        if (e.key === "Enter")
+                          setLocation(`/teams/${entry.teamId}`);
+                      },
+                    }
+                  : {})}
                 data-testid={`leaderboard-row-${entry.teamId}`}
-                className={`p-4 flex flex-col sm:flex-row items-center gap-4 transition-all hover-elevate cursor-pointer ${isCurrentUserTeam ? "border-primary shadow-sm bg-primary/5" : ""}`}
+                className={`p-4 flex flex-col sm:flex-row items-center gap-4 transition-all ${canOpenTeam ? "hover-elevate cursor-pointer" : ""} ${isCurrentUserTeam ? "border-primary shadow-sm bg-primary/5" : ""}`}
               >
                 <div className="flex items-center justify-center w-12 h-12 shrink-0">
                   {entry.rank === 1 ? (
