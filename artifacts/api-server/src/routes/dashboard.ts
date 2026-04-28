@@ -15,6 +15,8 @@ import {
   revenueEntriesTable as re,
   auditLogTable,
   usersTable,
+  demoDayApplicationsTable,
+  accessRequestsTable,
 } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -39,15 +41,21 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     .select({ count: sql<number>`count(*)` })
     .from(teamsTable)
     .where(eq(teamsTable.status, "active"));
-  const [pendingTeams] = await db
-    .select({ count: sql<number>`count(*)` })
+  const [pendingTeamsAgg] = await db
+    .select({
+      count: sql<number>`count(*)`,
+      oldestAt: sql<string | null>`min(created_at)`,
+    })
     .from(teamsTable)
     .where(eq(teamsTable.status, "pending"));
   const [totalCampuses] = await db
     .select({ count: sql<number>`count(*)` })
     .from(campusesTable);
-  const [pendingRevReview] = await db
-    .select({ count: sql<number>`count(*)` })
+  const [pendingRevReviewAgg] = await db
+    .select({
+      count: sql<number>`count(*)`,
+      oldestAt: sql<string | null>`min(submitted_at)`,
+    })
     .from(revenueEntriesTable)
     .where(sql`status = 'submitted'`);
   // Match the Review Queue's 48-hour overdue cutoff
@@ -56,6 +64,20 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     .select({ count: sql<number>`count(*)` })
     .from(revenueEntriesTable)
     .where(sql`status = 'submitted' and submitted_at < ${overdueCutoff}`);
+  const [pendingDemoDayAgg] = await db
+    .select({
+      count: sql<number>`count(*)`,
+      oldestAt: sql<string | null>`min(submitted_at)`,
+    })
+    .from(demoDayApplicationsTable)
+    .where(sql`status = 'submitted'`);
+  const [pendingAccessReqAgg] = await db
+    .select({
+      count: sql<number>`count(*)`,
+      oldestAt: sql<string | null>`min(created_at)`,
+    })
+    .from(accessRequestsTable)
+    .where(sql`status = 'pending'`);
 
   // Demo eligible teams
   const teams = await db.select().from(teamsTable).where(eq(teamsTable.status, "active"));
@@ -102,14 +124,25 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     return { ...log, actorName: actor ? `${actor.firstName} ${actor.lastName}` : "System" };
   }));
 
+  const toIso = (v: string | Date | null | undefined): string | null => {
+    if (!v) return null;
+    return v instanceof Date ? v.toISOString() : new Date(v).toISOString();
+  };
+
   res.json({
     totalVerifiedRevenue: Number(totalRevenue?.total ?? 0),
     totalOrderBook: Number(totalOB?.total ?? 0),
     activeTeams: Number(activeTeams?.count ?? 0),
-    pendingTeams: Number(pendingTeams?.count ?? 0),
+    pendingTeams: Number(pendingTeamsAgg?.count ?? 0),
+    pendingTeamsOldestAt: toIso(pendingTeamsAgg?.oldestAt),
     demoEligibleTeams: demoEligible,
-    pendingReviewCount: Number(pendingRevReview?.count ?? 0),
+    pendingReviewCount: Number(pendingRevReviewAgg?.count ?? 0),
     overdueReviewCount: Number(overdueRevReview?.count ?? 0),
+    pendingReviewOldestAt: toIso(pendingRevReviewAgg?.oldestAt),
+    pendingDemoDayCount: Number(pendingDemoDayAgg?.count ?? 0),
+    pendingDemoDayOldestAt: toIso(pendingDemoDayAgg?.oldestAt),
+    pendingAccessRequestCount: Number(pendingAccessReqAgg?.count ?? 0),
+    pendingAccessRequestOldestAt: toIso(pendingAccessReqAgg?.oldestAt),
     totalCampuses: Number(totalCampuses?.count ?? 0),
     topCampuses: campusStats.slice(0, 5),
     recentActivity,

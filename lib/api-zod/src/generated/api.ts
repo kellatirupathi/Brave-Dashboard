@@ -1520,9 +1520,15 @@ export const GetDashboardSummaryResponse = zod.object({
   totalOrderBook: zod.number(),
   activeTeams: zod.number(),
   pendingTeams: zod.number(),
+  pendingTeamsOldestAt: zod.coerce.date().nullable(),
   demoEligibleTeams: zod.number(),
   pendingReviewCount: zod.number(),
   overdueReviewCount: zod.number(),
+  pendingReviewOldestAt: zod.coerce.date().nullable(),
+  pendingDemoDayCount: zod.number(),
+  pendingDemoDayOldestAt: zod.coerce.date().nullable(),
+  pendingAccessRequestCount: zod.number(),
+  pendingAccessRequestOldestAt: zod.coerce.date().nullable(),
   totalCampuses: zod.number(),
   topCampuses: zod.array(
     zod.object({

@@ -13,9 +13,15 @@ export interface DashboardSummary {
   totalOrderBook: number;
   activeTeams: number;
   pendingTeams: number;
+  pendingTeamsOldestAt: Date | null;
   demoEligibleTeams: number;
   pendingReviewCount: number;
   overdueReviewCount: number;
+  pendingReviewOldestAt: Date | null;
+  pendingDemoDayCount: number;
+  pendingDemoDayOldestAt: Date | null;
+  pendingAccessRequestCount: number;
+  pendingAccessRequestOldestAt: Date | null;
   totalCampuses: number;
   topCampuses: Campus[];
   recentActivity: AuditLogEntry[];

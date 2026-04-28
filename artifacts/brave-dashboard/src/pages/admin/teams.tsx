@@ -7,7 +7,7 @@ import {
   type ErrorType,
   type ListTeamsStatus,
 } from "@workspace/api-client-react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -50,10 +50,19 @@ import {
 
 export default function AdminTeams() {
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<string>("all");
+  const initialStatus = (() => {
+    const params = new URLSearchParams(searchString);
+    const fromUrl = params.get("status");
+    return fromUrl &&
+      ["pending", "active", "rejected", "suspended"].includes(fromUrl)
+      ? fromUrl
+      : "all";
+  })();
+  const [status, setStatus] = useState<string>(initialStatus);
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);

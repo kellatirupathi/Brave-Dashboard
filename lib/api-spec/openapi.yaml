@@ -2889,12 +2889,32 @@ components:
           type: integer
         pendingTeams:
           type: integer
+        pendingTeamsOldestAt:
+          type: string
+          format: date-time
+          nullable: true
         demoEligibleTeams:
           type: integer
         pendingReviewCount:
           type: integer
         overdueReviewCount:
           type: integer
+        pendingReviewOldestAt:
+          type: string
+          format: date-time
+          nullable: true
+        pendingDemoDayCount:
+          type: integer
+        pendingDemoDayOldestAt:
+          type: string
+          format: date-time
+          nullable: true
+        pendingAccessRequestCount:
+          type: integer
+        pendingAccessRequestOldestAt:
+          type: string
+          format: date-time
+          nullable: true
         totalCampuses:
           type: integer
         topCampuses:
@@ -2910,9 +2930,15 @@ components:
         - totalOrderBook
         - activeTeams
         - pendingTeams
+        - pendingTeamsOldestAt
         - demoEligibleTeams
         - pendingReviewCount
         - overdueReviewCount
+        - pendingReviewOldestAt
+        - pendingDemoDayCount
+        - pendingDemoDayOldestAt
+        - pendingAccessRequestCount
+        - pendingAccessRequestOldestAt
         - totalCampuses
         - topCampuses
         - recentActivity

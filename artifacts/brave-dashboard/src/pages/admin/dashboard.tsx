@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Trophy, Users, CheckCircle, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
+import { ActionCenter } from "./components/ActionCenter";
 
 export default function AdminDashboard() {
   const { data: summary, isLoading } = useGetDashboardSummary();
@@ -105,26 +106,42 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1">
-              {summary.recentActivity.map((log) => (
-                <Link
-                  key={log.id}
-                  href="/admin/audit-log"
-                  className="block text-sm border-b last:border-0 rounded-md p-2 -mx-2 hover-elevate active-elevate-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  data-testid={`link-recent-activity-${log.id}`}
-                >
-                  <span className="font-semibold">{log.actorName}</span> {log.action} <span className="font-medium">{log.targetType}</span>
-                  <div className="text-xs text-muted-foreground mt-1">{new Date(log.createdAt).toLocaleString()}</div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <ActionCenter
+          items={[
+            {
+              key: "teams",
+              label: "Teams pending approval",
+              count: summary.pendingTeams,
+              oldestAt: summary.pendingTeamsOldestAt,
+              href: "/admin/teams?status=pending",
+              color: "amber",
+            },
+            {
+              key: "revenue",
+              label: "Revenue entries to verify",
+              count: summary.pendingReviewCount,
+              oldestAt: summary.pendingReviewOldestAt,
+              href: "/admin/queue",
+              color: "orange",
+            },
+            {
+              key: "demoday",
+              label: "Demo Day applications",
+              count: summary.pendingDemoDayCount,
+              oldestAt: summary.pendingDemoDayOldestAt,
+              href: "/admin/demo-day",
+              color: "violet",
+            },
+            {
+              key: "roster",
+              label: "Roster join requests",
+              count: summary.pendingAccessRequestCount,
+              oldestAt: summary.pendingAccessRequestOldestAt,
+              href: "/admin/roster",
+              color: "rose",
+            },
+          ]}
+        />
       </div>
     </div>
   );
