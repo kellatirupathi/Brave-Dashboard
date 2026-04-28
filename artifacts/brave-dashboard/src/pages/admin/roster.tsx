@@ -694,12 +694,12 @@ export default function AdminRoster() {
                         data-testid="checkbox-select-all-roster"
                       />
                     </TableHead>
-                    <TableHead>Student User ID</TableHead>
+                    <TableHead className="min-w-[280px]">Student User ID</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>NIAT ID</TableHead>
                     <TableHead>Campus</TableHead>
                     <TableHead>Batch / Section</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead className="w-[180px]">Email</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -722,7 +722,7 @@ export default function AdminRoster() {
                           data-testid={`checkbox-roster-${entry.id}`}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-xs">
+                      <TableCell className="font-mono text-xs whitespace-nowrap">
                         {entry.studentId || "—"}
                       </TableCell>
                       <TableCell className="font-medium">
@@ -737,7 +737,10 @@ export default function AdminRoster() {
                       <TableCell className="text-sm">
                         {entry.batchSectionName || "—"}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell
+                        className="text-sm text-muted-foreground max-w-[180px] truncate"
+                        title={entry.email ?? undefined}
+                      >
                         {entry.email || "—"}
                       </TableCell>
                       <TableCell>
