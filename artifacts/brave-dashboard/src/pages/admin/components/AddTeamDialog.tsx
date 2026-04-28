@@ -258,7 +258,7 @@ export function AddTeamDialog({
               <SelectTrigger data-testid="select-campus">
                 <SelectValue placeholder="Select a campus…" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-72 overflow-y-auto">
                 {campuses.map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>
                     {c.name}
@@ -367,9 +367,7 @@ export function AddTeamDialog({
             disabled={!canSubmit}
             data-testid="button-submit-add-team"
           >
-            {adminCreateTeam.isPending && (
-              <Spinner className="w-4 h-4 mr-2" />
-            )}
+            {adminCreateTeam.isPending && <Spinner className="w-4 h-4 mr-2" />}
             Create team
           </Button>
         </DialogFooter>
