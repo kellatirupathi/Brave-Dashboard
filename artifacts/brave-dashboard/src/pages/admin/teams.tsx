@@ -15,7 +15,9 @@ import { formatINR } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Search, Filter, Check, X, Trash2 } from "lucide-react";
+import { Search, Filter, Check, X, Trash2, UserPlus, Upload } from "lucide-react";
+import { AddTeamDialog } from "./components/AddTeamDialog";
+import { ImportTeamsDialog } from "./components/ImportTeamsDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -54,6 +56,8 @@ export default function AdminTeams() {
   const [status, setStatus] = useState<string>("all");
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: teams, isLoading } = useListTeams({
     search: search || undefined,
@@ -144,7 +148,26 @@ export default function AdminTeams() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setAddOpen(true)}
+                data-testid="button-open-add-team"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Add Team
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setImportOpen(true)}
+                data-testid="button-open-import-teams"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Import CSV
+              </Button>
+            </div>
+          )}
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -351,6 +374,9 @@ export default function AdminTeams() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AddTeamDialog open={addOpen} onOpenChange={setAddOpen} />
+      <ImportTeamsDialog open={importOpen} onOpenChange={setImportOpen} />
     </div>
   );
 }

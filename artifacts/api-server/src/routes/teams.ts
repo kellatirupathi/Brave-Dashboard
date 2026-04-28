@@ -53,27 +53,9 @@ import {
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
 import { createNotification } from "../lib/notifications";
+import { generateUniqueInviteCode } from "../lib/team-helpers";
 
 const router: IRouter = Router();
-
-function generateInviteCode(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 8; i++) {
-    out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-  return out;
-}
-
-async function generateUniqueInviteCode(): Promise<string> {
-  for (let i = 0; i < 8; i++) {
-    const code = generateInviteCode();
-    const [existing] = await db.select().from(teamsTable).where(eq(teamsTable.inviteCode, code));
-    if (!existing) return code;
-  }
-  // Extremely unlikely; fall back to longer
-  return generateInviteCode() + generateInviteCode().slice(0, 4);
-}
 
 function fullName(u: { firstName?: string | null; lastName?: string | null } | undefined | null): string {
   if (!u) return "";
@@ -378,13 +360,19 @@ router.get("/teams/students/search", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  if (!req.user.campusId) {
-    res.status(400).json({ error: "Your account has no campus assigned" });
-    return;
-  }
   const queryParams = SearchCampusStudentsQueryParams.safeParse(req.query);
   if (!queryParams.success) {
     res.status(400).json({ error: queryParams.error.message });
+    return;
+  }
+  // Admins may pass campusId to scope the search to any campus; everyone else
+  // is forced to their own campus.
+  const effectiveCampusId =
+    req.user.role === "admin" && queryParams.data.campusId
+      ? queryParams.data.campusId
+      : req.user.campusId;
+  if (!effectiveCampusId) {
+    res.status(400).json({ error: "Your account has no campus assigned" });
     return;
   }
   const q = queryParams.data.q.trim();
@@ -403,7 +391,7 @@ router.get("/teams/students/search", async (req, res): Promise<void> => {
     .from(rosterTable)
     .where(
       and(
-        eq(rosterTable.campusId, req.user.campusId),
+        eq(rosterTable.campusId, effectiveCampusId),
         eq(rosterTable.isWhitelisted, true),
         or(
           ilike(rosterTable.fullName, like),

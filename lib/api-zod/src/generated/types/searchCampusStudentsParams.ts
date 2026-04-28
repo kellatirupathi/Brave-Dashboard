@@ -8,4 +8,8 @@
 
 export type SearchCampusStudentsParams = {
   q: string;
+  /**
+   * Override campus to search in (admin only). Ignored for non-admins.
+   */
+  campusId?: number;
 };

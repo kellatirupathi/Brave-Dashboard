@@ -446,6 +446,12 @@ paths:
           required: true
           schema:
             type: string
+        - name: campusId
+          in: query
+          required: false
+          description: Override campus to search in (admin only). Ignored for non-admins.
+          schema:
+            type: integer
       responses:
         "200":
           description: Matching students
@@ -1565,6 +1571,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImportUsersCsvResponse"
+
+  /admin/teams:
+    post:
+      operationId: adminCreateTeam
+      tags: [admin]
+      summary: Create an active team on behalf of students (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateTeamBody"
+      responses:
+        "201":
+          description: Created team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  /admin/teams/bulk-import:
+    post:
+      operationId: adminBulkImportTeams
+      tags: [admin]
+      summary: Bulk-create active teams from a parsed CSV (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminBulkImportTeamsBody"
+      responses:
+        "200":
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminBulkImportTeamsResponse"
 
   # Programme config
   /admin/programme-config:
@@ -3427,6 +3471,112 @@ components:
         - updated
         - failed
         - errors
+
+    AdminCreateTeamBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        campusId:
+          type: integer
+        leaderUserId:
+          type: string
+        memberUserIds:
+          type: array
+          maxItems: 4
+          items:
+            type: string
+          default: []
+      required:
+        - name
+        - campusId
+        - leaderUserId
+
+    AdminBulkImportTeamRow:
+      type: object
+      properties:
+        rowNumber:
+          type: integer
+        universityName:
+          type: string
+        teamName:
+          type: string
+        leaderUserId:
+          type: string
+        memberUserIds:
+          type: array
+          items:
+            type: string
+      required:
+        - rowNumber
+        - universityName
+        - teamName
+        - leaderUserId
+        - memberUserIds
+
+    AdminBulkImportTeamsBody:
+      type: object
+      properties:
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminBulkImportTeamRow"
+      required:
+        - teams
+
+    AdminBulkImportInsertedRow:
+      type: object
+      properties:
+        rowNumber:
+          type: integer
+        teamId:
+          type: integer
+        teamName:
+          type: string
+      required:
+        - rowNumber
+        - teamId
+        - teamName
+
+    AdminBulkImportSkippedRow:
+      type: object
+      properties:
+        rowNumber:
+          type: integer
+        teamName:
+          type: string
+        reason:
+          type: string
+      required:
+        - rowNumber
+        - teamName
+        - reason
+
+    AdminBulkImportTeamsResponse:
+      type: object
+      properties:
+        totalRows:
+          type: integer
+        insertedCount:
+          type: integer
+        skippedCount:
+          type: integer
+        inserted:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminBulkImportInsertedRow"
+        skipped:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminBulkImportSkippedRow"
+      required:
+        - totalRows
+        - insertedCount
+        - skippedCount
+        - inserted
+        - skipped
 
     AccessRequest:
       type: object

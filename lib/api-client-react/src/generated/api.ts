@@ -20,6 +20,9 @@ import type {
   AccessRequest,
   AddRosterEntryBody,
   AddTeamMemberBody,
+  AdminBulkImportTeamsBody,
+  AdminBulkImportTeamsResponse,
+  AdminCreateTeamBody,
   AdminReviewQueueResponse,
   Announcement,
   AuditLogEntry,
@@ -6531,6 +6534,182 @@ export const useImportUsersCsv = <
   TContext
 > => {
   return useMutation(getImportUsersCsvMutationOptions(options));
+};
+
+/**
+ * @summary Create an active team on behalf of students (admin only)
+ */
+export const getAdminCreateTeamUrl = () => {
+  return `/api/admin/teams`;
+};
+
+export const adminCreateTeam = async (
+  adminCreateTeamBody: AdminCreateTeamBody,
+  options?: RequestInit,
+): Promise<Team> => {
+  return customFetch<Team>(getAdminCreateTeamUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminCreateTeamBody),
+  });
+};
+
+export const getAdminCreateTeamMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCreateTeam>>,
+    TError,
+    { data: BodyType<AdminCreateTeamBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCreateTeam>>,
+  TError,
+  { data: BodyType<AdminCreateTeamBody> },
+  TContext
+> => {
+  const mutationKey = ["adminCreateTeam"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCreateTeam>>,
+    { data: BodyType<AdminCreateTeamBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminCreateTeam(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCreateTeamMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCreateTeam>>
+>;
+export type AdminCreateTeamMutationBody = BodyType<AdminCreateTeamBody>;
+export type AdminCreateTeamMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create an active team on behalf of students (admin only)
+ */
+export const useAdminCreateTeam = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCreateTeam>>,
+    TError,
+    { data: BodyType<AdminCreateTeamBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminCreateTeam>>,
+  TError,
+  { data: BodyType<AdminCreateTeamBody> },
+  TContext
+> => {
+  return useMutation(getAdminCreateTeamMutationOptions(options));
+};
+
+/**
+ * @summary Bulk-create active teams from a parsed CSV (admin only)
+ */
+export const getAdminBulkImportTeamsUrl = () => {
+  return `/api/admin/teams/bulk-import`;
+};
+
+export const adminBulkImportTeams = async (
+  adminBulkImportTeamsBody: AdminBulkImportTeamsBody,
+  options?: RequestInit,
+): Promise<AdminBulkImportTeamsResponse> => {
+  return customFetch<AdminBulkImportTeamsResponse>(
+    getAdminBulkImportTeamsUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(adminBulkImportTeamsBody),
+    },
+  );
+};
+
+export const getAdminBulkImportTeamsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminBulkImportTeams>>,
+    TError,
+    { data: BodyType<AdminBulkImportTeamsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminBulkImportTeams>>,
+  TError,
+  { data: BodyType<AdminBulkImportTeamsBody> },
+  TContext
+> => {
+  const mutationKey = ["adminBulkImportTeams"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminBulkImportTeams>>,
+    { data: BodyType<AdminBulkImportTeamsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminBulkImportTeams(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminBulkImportTeamsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminBulkImportTeams>>
+>;
+export type AdminBulkImportTeamsMutationBody =
+  BodyType<AdminBulkImportTeamsBody>;
+export type AdminBulkImportTeamsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Bulk-create active teams from a parsed CSV (admin only)
+ */
+export const useAdminBulkImportTeams = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminBulkImportTeams>>,
+    TError,
+    { data: BodyType<AdminBulkImportTeamsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminBulkImportTeams>>,
+  TError,
+  { data: BodyType<AdminBulkImportTeamsBody> },
+  TContext
+> => {
+  return useMutation(getAdminBulkImportTeamsMutationOptions(options));
 };
 
 /**

@@ -603,6 +603,12 @@ export const BrowseCampusTeamsResponse = zod.array(
  */
 export const SearchCampusStudentsQueryParams = zod.object({
   q: zod.coerce.string(),
+  campusId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Override campus to search in (admin only). Ignored for non-admins.",
+    ),
 });
 
 export const SearchCampusStudentsResponseItem = zod.object({
@@ -2000,6 +2006,59 @@ export const ImportUsersCsvResponse = zod.object({
       rowNumber: zod.number(),
       forms_user_id: zod.string().nullish(),
       message: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create an active team on behalf of students (admin only)
+ */
+export const adminCreateTeamBodyNameMax = 60;
+
+export const adminCreateTeamBodyMemberUserIdsDefault = [];
+export const adminCreateTeamBodyMemberUserIdsMax = 4;
+
+export const AdminCreateTeamBody = zod.object({
+  name: zod.string().min(1).max(adminCreateTeamBodyNameMax),
+  campusId: zod.number(),
+  leaderUserId: zod.string(),
+  memberUserIds: zod
+    .array(zod.string())
+    .max(adminCreateTeamBodyMemberUserIdsMax)
+    .default(adminCreateTeamBodyMemberUserIdsDefault),
+});
+
+/**
+ * @summary Bulk-create active teams from a parsed CSV (admin only)
+ */
+export const AdminBulkImportTeamsBody = zod.object({
+  teams: zod.array(
+    zod.object({
+      rowNumber: zod.number(),
+      universityName: zod.string(),
+      teamName: zod.string(),
+      leaderUserId: zod.string(),
+      memberUserIds: zod.array(zod.string()),
+    }),
+  ),
+});
+
+export const AdminBulkImportTeamsResponse = zod.object({
+  totalRows: zod.number(),
+  insertedCount: zod.number(),
+  skippedCount: zod.number(),
+  inserted: zod.array(
+    zod.object({
+      rowNumber: zod.number(),
+      teamId: zod.number(),
+      teamName: zod.string(),
+    }),
+  ),
+  skipped: zod.array(
+    zod.object({
+      rowNumber: zod.number(),
+      teamName: zod.string(),
+      reason: zod.string(),
     }),
   ),
 });

@@ -961,6 +961,50 @@ export interface ImportUsersCsvResponse {
   errors: ImportUsersCsvError[];
 }
 
+export interface AdminCreateTeamBody {
+  /**
+   * @minLength 1
+   * @maxLength 60
+   */
+  name: string;
+  campusId: number;
+  leaderUserId: string;
+  /** @maxItems 4 */
+  memberUserIds?: string[];
+}
+
+export interface AdminBulkImportTeamRow {
+  rowNumber: number;
+  universityName: string;
+  teamName: string;
+  leaderUserId: string;
+  memberUserIds: string[];
+}
+
+export interface AdminBulkImportTeamsBody {
+  teams: AdminBulkImportTeamRow[];
+}
+
+export interface AdminBulkImportInsertedRow {
+  rowNumber: number;
+  teamId: number;
+  teamName: string;
+}
+
+export interface AdminBulkImportSkippedRow {
+  rowNumber: number;
+  teamName: string;
+  reason: string;
+}
+
+export interface AdminBulkImportTeamsResponse {
+  totalRows: number;
+  insertedCount: number;
+  skippedCount: number;
+  inserted: AdminBulkImportInsertedRow[];
+  skipped: AdminBulkImportSkippedRow[];
+}
+
 export interface AccessRequest {
   id: number;
   fullName: string;
@@ -1043,6 +1087,10 @@ export const ListTeamsStatus = {
 
 export type SearchCampusStudentsParams = {
   q: string;
+  /**
+   * Override campus to search in (admin only). Ignored for non-admins.
+   */
+  campusId?: number;
 };
 
 export type ListProjectsParams = {

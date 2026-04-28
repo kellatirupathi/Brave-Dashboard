@@ -15,6 +15,7 @@ import demoDayRouter from "./demoday";
 import notificationsRouter from "./notifications";
 import announcementsRouter from "./announcements";
 import adminRouter from "./admin";
+import adminTeamsRouter from "./admin-teams";
 
 const router: IRouter = Router();
 
@@ -37,5 +38,6 @@ router.use(demoDayRouter);
 router.use(notificationsRouter);
 router.use(announcementsRouter);
 router.use(adminRouter);
+router.use(adminTeamsRouter);
 
 export default router;
