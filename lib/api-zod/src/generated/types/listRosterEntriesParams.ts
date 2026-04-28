@@ -8,4 +8,14 @@
 
 export type ListRosterEntriesParams = {
   campusId?: number;
+  q?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 10000
+   */
+  pageSize?: number;
 };

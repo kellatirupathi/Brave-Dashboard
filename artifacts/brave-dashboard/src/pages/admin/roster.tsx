@@ -1,5 +1,6 @@
 import {
   useListRosterEntries,
+  listRosterEntries,
   useAddRosterEntry,
   getListRosterEntriesQueryKey,
   useListAccessRequests,
@@ -8,6 +9,7 @@ import {
   useBulkImportRoster,
   useUpdateRosterEntry,
   getListUsersQueryKey,
+  useListCampuses,
 } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,9 @@ import {
   Pencil,
   Trash2,
   MoreVertical,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -106,8 +111,49 @@ type ImportStudent = {
   email?: string;
 };
 
+const PAGE_SIZE = 100;
+const ALL_CAMPUSES = "__all__";
+
 export default function AdminRoster() {
-  const { data: roster, isLoading } = useListRosterEntries({});
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+  const [campusFilter, setCampusFilter] = useState<string>(ALL_CAMPUSES);
+  const [page, setPage] = useState(1);
+
+  // Debounce the search input so we aren't firing a request on every keystroke.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSearchQ(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
+  const campusIdParam =
+    campusFilter === ALL_CAMPUSES ? undefined : Number(campusFilter);
+
+  const { data: campusOptions = [] } = useListCampuses();
+
+  const { data: roster, isLoading } = useListRosterEntries({
+    q: searchQ || undefined,
+    campusId: campusIdParam,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+
+  // After the server responds, if the current page is now past the last page
+  // (e.g. filters narrowed the result set while the user was deep in pagination),
+  // clamp back to the last valid page so we never show "Showing 401–500 of 12".
+  useEffect(() => {
+    if (!roster) return;
+    if (roster.total === 0) {
+      if (page !== 1) setPage(1);
+      return;
+    }
+    const maxPage = Math.max(1, Math.ceil(roster.total / roster.pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [roster, page]);
+
   const { data: accessRequests, isLoading: requestsLoading } =
     useListAccessRequests({});
   const addEntry = useAddRosterEntry();
@@ -229,7 +275,7 @@ export default function AdminRoster() {
   };
 
   // ---- Bulk select / bulk delete ----
-  const visibleIds = roster?.map((r) => r.id) ?? [];
+  const visibleIds = roster?.items.map((r) => r.id) ?? [];
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
@@ -262,7 +308,7 @@ export default function AdminRoster() {
 
   useEffect(() => {
     if (!roster) return;
-    const present = new Set(roster.map((r) => r.id));
+    const present = new Set(roster.items.map((r) => r.id));
     setSelectedIds((prev) => {
       let changed = false;
       const next = new Set<number>();
@@ -343,9 +389,9 @@ export default function AdminRoster() {
     }
   };
 
-  const handleExportRoster = () => {
-    const visible = roster ?? [];
-    if (visible.length === 0) {
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExportRoster = async () => {
+    if ((roster?.total ?? 0) === 0) {
       toast({
         title: "Nothing to export",
         description: "The roster is empty.",
@@ -353,19 +399,52 @@ export default function AdminRoster() {
       });
       return;
     }
-    const rows = visible.map((r) => ({
-      "Student User ID": r.studentId ?? "",
-      "Student Name": r.fullName ?? "",
-      "NIAT ID": r.niatId ?? "",
-      "Institute Name": r.campusName ?? "",
-      "Batch Section Name": r.batchSectionName ?? "",
-      "Email": r.email ?? "",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Roster");
-    const ts = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `roster-${ts}.xlsx`);
+    setIsExporting(true);
+    try {
+      // Pull every row that matches the current filters, not just the visible
+      // page. Loop in case the result set exceeds the API's max pageSize.
+      const exportPageSize = 10000;
+      type RosterItem = NonNullable<typeof roster>["items"][number];
+      const allItems: RosterItem[] = [];
+      let exportPage = 1;
+      while (true) {
+        const chunk = await listRosterEntries({
+          q: searchQ || undefined,
+          campusId: campusIdParam,
+          page: exportPage,
+          pageSize: exportPageSize,
+        });
+        allItems.push(...chunk.items);
+        if (
+          chunk.items.length < exportPageSize ||
+          allItems.length >= chunk.total
+        ) {
+          break;
+        }
+        exportPage += 1;
+      }
+      const rows = allItems.map((r) => ({
+        "Student User ID": r.studentId ?? "",
+        "Student Name": r.fullName ?? "",
+        "NIAT ID": r.niatId ?? "",
+        "Institute Name": r.campusName ?? "",
+        "Batch Section Name": r.batchSectionName ?? "",
+        "Email": r.email ?? "",
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Roster");
+      const ts = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `roster-${ts}.xlsx`);
+    } catch (e: any) {
+      toast({
+        title: "Export failed",
+        description: e?.message ?? "Could not download roster.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -554,11 +633,17 @@ export default function AdminRoster() {
           <Button
             variant="outline"
             onClick={handleExportRoster}
-            disabled={!roster || roster.length === 0}
+            disabled={
+              !roster || roster.total === 0 || isExporting
+            }
             title="Download the listed roster as an Excel file"
             data-testid="button-export-roster"
           >
-            <Download className="w-4 h-4 mr-2" />
+            {isExporting ? (
+              <Spinner className="w-4 h-4 mr-2" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
             Export
           </Button>
 
@@ -664,7 +749,7 @@ export default function AdminRoster() {
       <Tabs defaultValue="roster">
         <TabsList>
           <TabsTrigger value="roster">
-            Enrolled Students {roster ? `(${roster.length})` : ""}
+            Enrolled Students {roster ? `(${roster.total})` : ""}
           </TabsTrigger>
           <TabsTrigger value="requests">
             Access Requests
@@ -676,7 +761,42 @@ export default function AdminRoster() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="roster" className="mt-4">
+        <TabsContent value="roster" className="mt-4 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search by name, email, student ID, NIAT ID, batch, or campus"
+                className="pl-9"
+                data-testid="input-roster-search"
+              />
+            </div>
+            <Select
+              value={campusFilter}
+              onValueChange={(v) => {
+                setCampusFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger
+                className="sm:w-64"
+                data-testid="select-roster-campus-filter"
+              >
+                <SelectValue placeholder="All campuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_CAMPUSES}>All campuses</SelectItem>
+                {campusOptions.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <Card>
             {isLoading ? (
               <div className="flex h-64 items-center justify-center">
@@ -705,7 +825,7 @@ export default function AdminRoster() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {roster?.map((entry) => (
+                  {roster?.items.map((entry) => (
                     <TableRow
                       key={entry.id}
                       data-state={
@@ -784,15 +904,16 @@ export default function AdminRoster() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {roster?.length === 0 && (
+                  {roster?.items.length === 0 && (
                     <TableRow>
                       <TableCell
                         colSpan={9}
                         className="h-24 text-center text-muted-foreground"
                       >
                         <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        No students on roster. Use "Import Excel" or "Add
-                        Student" to populate it.
+                        {searchQ || campusFilter !== ALL_CAMPUSES
+                          ? "No matching roster entries. Try clearing the search or campus filter."
+                          : `No students on roster. Use "Import Excel" or "Add Student" to populate it.`}
                       </TableCell>
                     </TableRow>
                   )}
@@ -800,6 +921,56 @@ export default function AdminRoster() {
               </Table>
             )}
           </Card>
+
+          {roster && roster.total > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                className="text-sm text-muted-foreground"
+                data-testid="text-roster-pagination-info"
+              >
+                {(() => {
+                  const start = (roster.page - 1) * roster.pageSize + 1;
+                  const end = Math.min(
+                    roster.page * roster.pageSize,
+                    roster.total,
+                  );
+                  return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${roster.total.toLocaleString()}`;
+                })()}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={isLoading || roster.page <= 1}
+                  data-testid="button-roster-prev-page"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                <span
+                  className="text-sm tabular-nums"
+                  data-testid="text-roster-page-indicator"
+                >
+                  Page {roster.page} of{" "}
+                  {Math.max(1, Math.ceil(roster.total / roster.pageSize))}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={
+                    isLoading ||
+                    roster.page * roster.pageSize >= roster.total
+                  }
+                  data-testid="button-roster-next-page"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="requests" className="mt-4">

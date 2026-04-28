@@ -850,6 +850,13 @@ export interface RosterEntry {
   createdAt: string;
 }
 
+export interface ListRosterEntriesResponse {
+  items: RosterEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface AddRosterEntryBody {
   studentId: string;
   fullName: string;
@@ -1137,6 +1144,16 @@ export type GetAuditLogParams = {
 
 export type ListRosterEntriesParams = {
   campusId?: number;
+  q?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 10000
+   */
+  pageSize?: number;
 };
 
 export type DeleteRosterEntry200 = {

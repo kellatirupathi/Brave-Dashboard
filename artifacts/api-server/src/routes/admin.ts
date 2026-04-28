@@ -552,11 +552,51 @@ router.get("/admin/roster", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { campusId } = queryParams.data;
-  const entries = campusId
-    ? await db.select().from(rosterTable).where(eq(rosterTable.campusId, campusId))
-    : await db.select().from(rosterTable);
-  res.json(entries);
+  const { campusId, q, page, pageSize } = queryParams.data;
+  const effectivePageSize = Math.min(Math.max(pageSize ?? 100, 1), 10000);
+  const effectivePage = Math.max(page ?? 1, 1);
+  const offset = (effectivePage - 1) * effectivePageSize;
+
+  const conditions = [];
+  if (campusId) {
+    conditions.push(eq(rosterTable.campusId, campusId));
+  }
+  if (q && q.trim()) {
+    const needle = `%${q.trim()}%`;
+    conditions.push(
+      or(
+        ilike(rosterTable.fullName, needle),
+        ilike(rosterTable.email, needle),
+        ilike(rosterTable.studentId, needle),
+        ilike(rosterTable.niatId, needle),
+        ilike(rosterTable.batchSectionName, needle),
+        ilike(rosterTable.campusName, needle),
+      )!,
+    );
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [items, totalRows] = await Promise.all([
+    db
+      .select()
+      .from(rosterTable)
+      .where(whereClause)
+      .orderBy(desc(rosterTable.createdAt))
+      .limit(effectivePageSize)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(rosterTable)
+      .where(whereClause),
+  ]);
+  const total = Number(totalRows[0]?.count ?? 0);
+
+  res.json({
+    items,
+    total,
+    page: effectivePage,
+    pageSize: effectivePageSize,
+  });
 });
 
 router.post("/admin/roster", async (req, res): Promise<void> => {

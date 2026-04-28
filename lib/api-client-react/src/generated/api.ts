@@ -56,6 +56,7 @@ import type {
   ListProjectsParams,
   ListRevenueEntriesParams,
   ListRosterEntriesParams,
+  ListRosterEntriesResponse,
   ListTeamsParams,
   ListUsersParams,
   Milestone,
@@ -6808,11 +6809,14 @@ export const getListRosterEntriesUrl = (params?: ListRosterEntriesParams) => {
 export const listRosterEntries = async (
   params?: ListRosterEntriesParams,
   options?: RequestInit,
-): Promise<RosterEntry[]> => {
-  return customFetch<RosterEntry[]>(getListRosterEntriesUrl(params), {
-    ...options,
-    method: "GET",
-  });
+): Promise<ListRosterEntriesResponse> => {
+  return customFetch<ListRosterEntriesResponse>(
+    getListRosterEntriesUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
 };
 
 export const getListRosterEntriesQueryKey = (

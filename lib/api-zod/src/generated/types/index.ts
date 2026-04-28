@@ -63,6 +63,7 @@ export * from "./listProjectsStatus";
 export * from "./listRevenueEntriesParams";
 export * from "./listRevenueEntriesStatus";
 export * from "./listRosterEntriesParams";
+export * from "./listRosterEntriesResponse";
 export * from "./listTeamsParams";
 export * from "./listTeamsStatus";
 export * from "./listUsersParams";

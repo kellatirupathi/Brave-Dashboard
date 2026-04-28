@@ -2041,25 +2041,39 @@ export const GetAuditLogResponse = zod.array(GetAuditLogResponseItem);
 /**
  * @summary List roster entries
  */
+
+export const listRosterEntriesQueryPageSizeMax = 10000;
+
 export const ListRosterEntriesQueryParams = zod.object({
   campusId: zod.coerce.number().optional(),
+  q: zod.coerce.string().optional(),
+  page: zod.coerce.number().min(1).optional(),
+  pageSize: zod.coerce
+    .number()
+    .min(1)
+    .max(listRosterEntriesQueryPageSizeMax)
+    .optional(),
 });
 
-export const ListRosterEntriesResponseItem = zod.object({
-  id: zod.number(),
-  studentId: zod.string(),
-  fullName: zod.string(),
-  email: zod.string(),
-  campusName: zod.string(),
-  campusId: zod.number().nullish(),
-  niatId: zod.string().nullish(),
-  batchSectionName: zod.string().nullish(),
-  isWhitelisted: zod.boolean(),
-  createdAt: zod.coerce.date(),
+export const ListRosterEntriesResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      studentId: zod.string(),
+      fullName: zod.string(),
+      email: zod.string(),
+      campusName: zod.string(),
+      campusId: zod.number().nullish(),
+      niatId: zod.string().nullish(),
+      batchSectionName: zod.string().nullish(),
+      isWhitelisted: zod.boolean(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+  page: zod.number(),
+  pageSize: zod.number(),
 });
-export const ListRosterEntriesResponse = zod.array(
-  ListRosterEntriesResponseItem,
-);
 
 /**
  * @summary Add a student to the roster
