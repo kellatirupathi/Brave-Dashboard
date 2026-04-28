@@ -1,0 +1,84 @@
+Make sidebar profile clickable with right-side dropdown ("Edit profile" + "Logout")
+In the left sidebar, the profile block at the bottom (avatar + name + role) must become clickable. On hover it shows a pointer cursor; on click it opens a dropdown popup positioned to the RIGHT of the profile block (not below, not above) containing two items:
+
+Edit profile (text button) — top
+Logout (text button) — bottom
+This must apply to all roles — Admin, Coordinator, and Student — wherever the bottom profile block currently renders in the sidebar.
+
+1. File to change
+artifacts/brave-dashboard/src/components/sidebar.tsx (or whichever file owns the bottom profile block — look for the element rendering the avatar circle, the user's first name, and the role label like "Admin" / "Student" with the small logout/exit icon next to it).
+
+2. Behavior
+The entire profile block (avatar + name + role) is wrapped in a DropdownMenu trigger.
+Hover: cursor-pointer + subtle background hover (hover:bg-white/5 or matching the sidebar's existing hover style).
+Click: dropdown opens immediately.
+Position: <DropdownMenuContent side="right" align="end" sideOffset={8}> so it pops out to the right of the profile block, anchored to the bottom-right corner of the trigger.
+Click outside or press Esc → dropdown closes (default shadcn DropdownMenu behavior).
+The existing standalone exit icon currently inside the profile block must be removed — logout now lives inside the dropdown.
+3. Dropdown menu items
+
+<DropdownMenuContent side="right" align="end" sideOffset={8} className="w-44">
+  <DropdownMenuItem onClick={() => setLocation("/profile")} data-testid="menu-edit-profile">
+    <UserPen className="w-4 h-4 mr-2" />
+    Edit profile
+  </DropdownMenuItem>
+  <DropdownMenuSeparator />
+  <DropdownMenuItem
+    onClick={() => { window.location.href = "/api/logout"; }}
+    className="text-destructive focus:text-destructive"
+    data-testid="menu-logout"
+  >
+    <LogOut className="w-4 h-4 mr-2" />
+    Logout
+  </DropdownMenuItem>
+</DropdownMenuContent>
+Use icons from lucide-react (UserPen and LogOut). The Logout item uses the destructive text color.
+
+4. Profile block markup (replacement)
+Replace the current static profile block with a single DropdownMenu whose DropdownMenuTrigger wraps the avatar + name + role in a <button type="button"> so the whole area is the click target:
+
+
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <button
+      type="button"
+      className="w-full flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-white/5 transition-colors text-left"
+      data-testid="button-sidebar-profile"
+    >
+      <Avatar className="h-9 w-9">
+        <AvatarFallback>{initials}</AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold truncate">{user.firstName} {user.lastName}</div>
+        <div className="text-xs text-muted-foreground capitalize">{user.role}</div>
+      </div>
+    </button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent side="right" align="end" sideOffset={8} className="w-44">
+    {/* items shown above */}
+  </DropdownMenuContent>
+</DropdownMenu>
+Keep all existing text/colors/spacing of the avatar, name, and role label — only the wrapper changes.
+
+5. "Edit profile" route
+Route the Edit profile menu item to /profile. If a profile route does not yet exist, create a minimal placeholder page at artifacts/brave-dashboard/src/pages/profile.tsx that lets the user view and edit their own First Name, Last Name, Email, NIAT ID (students only show NIAT ID). Wire it via PATCH /api/auth/me (or whichever existing endpoint allows a user to update their own profile — if none exists, add it as admin-not-required, scoped strictly to req.user.id). Register the route in App.tsx for all authenticated roles.
+
+If a profile page already exists, just route to it — do not duplicate.
+
+6. Acceptance checklist
+#	Test	Expected
+1	Hover over the profile block in the sidebar	Cursor turns into a pointer (hand) and background highlights
+2	Click the profile block	Dropdown opens immediately to the right of the block
+3	Dropdown shows two items: Edit profile (top) and Logout (bottom)	✅
+4	Click Edit profile	Navigates to /profile; user can edit their details and save
+5	Click Logout	Logs the user out (hits /api/logout)
+6	Press Esc or click outside	Dropdown closes cleanly
+7	Works identically for Admin, Coordinator, and Student	✅
+8	The old standalone exit icon next to the name is gone	✅
+9	Dropdown does not overflow off-screen on narrow viewports	shadcn handles flip; verify it falls back to side="top" or side="left" if no room — leave default behavior
+10	No console errors, no layout shift in the sidebar	✅
+7. Constraints
+Reuse the existing DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator from @/components/ui/dropdown-menu. Do not introduce new libraries.
+Keep all existing sidebar behavior (active route highlight, navigation links) intact.
+No DB migration required.
+Apply this change once in the shared sidebar component — do not duplicate per-role.
