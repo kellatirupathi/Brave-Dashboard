@@ -221,6 +221,10 @@ export const projectsTable = pgTable("projects", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
   index("projects_team_idx").on(t.teamId),
+  index("projects_team_status_idx").on(t.teamId, t.status),
+  index("projects_active_team_idx")
+    .on(t.teamId)
+    .where(sql`${t.status} = 'active'`),
 ]);
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true, updatedAt: true });
@@ -247,6 +251,10 @@ export const orderBookEntriesTable = pgTable("order_book_entries", {
 }, (t) => [
   index("order_book_team_idx").on(t.teamId),
   index("order_book_project_idx").on(t.projectId),
+  index("order_book_team_status_idx").on(t.teamId, t.status),
+  index("order_book_verified_team_idx")
+    .on(t.teamId)
+    .where(sql`${t.status} = 'verified'`),
 ]);
 
 export const insertOrderBookEntrySchema = createInsertSchema(orderBookEntriesTable).omit({ id: true, createdAt: true, updatedAt: true });
@@ -275,6 +283,10 @@ export const revenueEntriesTable = pgTable("revenue_entries", {
   index("revenue_team_idx").on(t.teamId),
   index("revenue_project_idx").on(t.projectId),
   index("revenue_status_idx").on(t.status),
+  index("revenue_team_status_idx").on(t.teamId, t.status),
+  index("revenue_verified_team_idx")
+    .on(t.teamId)
+    .where(sql`${t.status} = 'verified'`),
 ]);
 
 export const insertRevenueEntrySchema = createInsertSchema(revenueEntriesTable).omit({ id: true, createdAt: true, updatedAt: true });
