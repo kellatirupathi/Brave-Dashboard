@@ -594,6 +594,14 @@ export const AdminReviewQueueItemType = {
   revenue: "revenue",
 } as const;
 
+export type AdminReviewQueueItemStatus =
+  (typeof AdminReviewQueueItemStatus)[keyof typeof AdminReviewQueueItemStatus];
+
+export const AdminReviewQueueItemStatus = {
+  submitted: "submitted",
+  verified: "verified",
+} as const;
+
 export interface AdminReviewQueueItem {
   id: number;
   type: AdminReviewQueueItemType;
@@ -609,6 +617,13 @@ export interface AdminReviewQueueItem {
   supportingDocUrl?: string | null;
   /** @nullable */
   brdUrl?: string | null;
+  status: AdminReviewQueueItemStatus;
+  /** @nullable */
+  verifiedAmount?: number | null;
+  /** @nullable */
+  verifiedAt?: string | null;
+  /** @nullable */
+  adminNotes?: string | null;
 }
 
 export interface AdminReviewQueueResponse {
@@ -1210,6 +1225,10 @@ export const ListRevenueEntriesStatus = {
 
 export type GetAdminReviewQueueParams = {
   type?: GetAdminReviewQueueType;
+  /**
+   * Filter by status. Defaults to "submitted" (pending review).
+   */
+  status?: GetAdminReviewQueueStatus;
   campusId?: number;
   search?: string;
 };
@@ -1219,6 +1238,14 @@ export type GetAdminReviewQueueType =
 
 export const GetAdminReviewQueueType = {
   revenue: "revenue",
+} as const;
+
+export type GetAdminReviewQueueStatus =
+  (typeof GetAdminReviewQueueStatus)[keyof typeof GetAdminReviewQueueStatus];
+
+export const GetAdminReviewQueueStatus = {
+  submitted: "submitted",
+  verified: "verified",
 } as const;
 
 export type GetLeaderboardParams = {

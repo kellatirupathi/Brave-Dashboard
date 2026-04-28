@@ -26,6 +26,7 @@ import {
   VerifyRevenueEntryBody,
   RejectRevenueEntryParams,
   RejectRevenueEntryBody,
+  UnverifyRevenueEntryParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
 import { createNotification } from "../lib/notifications";
@@ -454,6 +455,73 @@ router.post("/revenue-entries/:id/reject", async (req, res): Promise<void> => {
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, entry.teamId));
   if (team) await createNotification(team.leaderId, "Revenue Entry Rejected", `Your revenue entry was rejected: ${parsed.data.adminNotes}`, "entry_rejected", "/projects");
   await logAudit(req.user.id, "reject_revenue_entry", "revenue_entry", entry.id, parsed.data.adminNotes);
+  res.json(await enrichRevEntry(entry));
+});
+
+router.post("/revenue-entries/:id/unverify", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const params = UnverifyRevenueEntryParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Run the read + transition under a row lock so concurrent unverify
+  // requests cannot both succeed (only the first should win; the second
+  // must see the new "submitted" state and return 409).
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(revenueEntriesTable)
+      .where(eq(revenueEntriesTable.id, params.data.id))
+      .for("update");
+    if (!existing) return { kind: "not_found" as const };
+    if (existing.status !== "verified") return { kind: "conflict" as const };
+    const previousVerifiedAmount = existing.verifiedAmount;
+    const [updated] = await tx
+      .update(revenueEntriesTable)
+      .set({
+        status: "submitted",
+        verifiedAmount: null,
+        verifiedAt: null,
+        adminNotes: null,
+        submittedAt: existing.submittedAt ?? new Date(),
+      })
+      .where(eq(revenueEntriesTable.id, params.data.id))
+      .returning();
+    return { kind: "ok" as const, entry: updated, previousVerifiedAmount };
+  });
+
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: "Only verified entries can be unverified." });
+    return;
+  }
+  const { entry, previousVerifiedAmount } = result;
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, entry.teamId));
+  if (team) {
+    await createNotification(
+      team.leaderId,
+      "Revenue Entry Re-opened",
+      `Your previously verified revenue entry of ₹${previousVerifiedAmount?.toLocaleString("en-IN") ?? entry.amount.toLocaleString("en-IN")} is back under review.`,
+      "entry_unverified",
+      "/projects",
+    );
+  }
+  await logAudit(
+    req.user.id,
+    "unverify_revenue_entry",
+    "revenue_entry",
+    entry.id,
+    `Unverified (was ₹${previousVerifiedAmount ?? entry.amount}); moved back to submitted`,
+  );
   res.json(await enrichRevEntry(entry));
 });
 

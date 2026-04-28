@@ -1152,18 +1152,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/RevenueEntry"
 
+  /revenue-entries/{id}/unverify:
+    post:
+      operationId: unverifyRevenueEntry
+      tags: [financials]
+      summary: Move a verified revenue entry back to the review queue (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry unverified and moved back to submitted status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+
   # Admin review queue
   /admin/review-queue:
     get:
       operationId: getAdminReviewQueue
       tags: [admin]
-      summary: Get all pending financial entries for review
+      summary: Get financial entries for review (pending or approved)
       parameters:
         - name: type
           in: query
           schema:
             type: string
             enum: [revenue]
+        - name: status
+          in: query
+          description: Filter by status. Defaults to "submitted" (pending review).
+          schema:
+            type: string
+            enum: [submitted, verified]
         - name: campusId
           in: query
           schema:
@@ -2900,6 +2925,16 @@ components:
           type: ["string", "null"]
         brdUrl:
           type: ["string", "null"]
+        status:
+          type: string
+          enum: [submitted, verified]
+        verifiedAmount:
+          type: ["integer", "null"]
+        verifiedAt:
+          type: ["string", "null"]
+          format: date-time
+        adminNotes:
+          type: ["string", "null"]
       required:
         - id
         - type
@@ -2911,6 +2946,7 @@ components:
         - amount
         - submittedAt
         - isOverdue
+        - status
 
     AdminReviewQueueResponse:
       type: object

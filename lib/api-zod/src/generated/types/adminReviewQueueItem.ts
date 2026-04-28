@@ -5,6 +5,7 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminReviewQueueItemStatus } from "./adminReviewQueueItemStatus";
 import type { AdminReviewQueueItemType } from "./adminReviewQueueItemType";
 
 export interface AdminReviewQueueItem {
@@ -22,4 +23,11 @@ export interface AdminReviewQueueItem {
   supportingDocUrl?: string | null;
   /** @nullable */
   brdUrl?: string | null;
+  status: AdminReviewQueueItemStatus;
+  /** @nullable */
+  verifiedAmount?: number | null;
+  /** @nullable */
+  verifiedAt?: Date | null;
+  /** @nullable */
+  adminNotes?: string | null;
 }

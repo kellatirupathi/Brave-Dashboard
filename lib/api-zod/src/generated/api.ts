@@ -1547,10 +1547,42 @@ export const RejectRevenueEntryResponse = zod.object({
 });
 
 /**
- * @summary Get all pending financial entries for review
+ * @summary Move a verified revenue entry back to the review queue (admin only)
+ */
+export const UnverifyRevenueEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UnverifyRevenueEntryResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  projectTitle: zod.string(),
+  teamId: zod.number(),
+  teamName: zod.string(),
+  campusName: zod.string(),
+  clientName: zod.string(),
+  amount: zod.number(),
+  verifiedAmount: zod.number().nullish(),
+  paymentDate: zod.coerce.date(),
+  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  brdUrl: zod.string().nullish(),
+  testimonialUrl: zod.string().nullish(),
+  adminNotes: zod.string().nullish(),
+  enteredBy: zod.enum(["student", "admin"]),
+  submittedAt: zod.coerce.date().nullish(),
+  verifiedAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get financial entries for review (pending or approved)
  */
 export const GetAdminReviewQueueQueryParams = zod.object({
   type: zod.enum(["revenue"]).optional(),
+  status: zod
+    .enum(["submitted", "verified"])
+    .optional()
+    .describe('Filter by status. Defaults to \"submitted\" (pending review).'),
   campusId: zod.coerce.number().optional(),
   search: zod.coerce.string().optional(),
 });
@@ -1570,6 +1602,10 @@ export const GetAdminReviewQueueResponse = zod.object({
       isOverdue: zod.boolean(),
       supportingDocUrl: zod.string().nullish(),
       brdUrl: zod.string().nullish(),
+      status: zod.enum(["submitted", "verified"]),
+      verifiedAmount: zod.number().nullish(),
+      verifiedAt: zod.coerce.date().nullish(),
+      adminNotes: zod.string().nullish(),
     }),
   ),
   overdueCount: zod.number(),

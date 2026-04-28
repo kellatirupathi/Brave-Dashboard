@@ -5,10 +5,15 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { GetAdminReviewQueueStatus } from "./getAdminReviewQueueStatus";
 import type { GetAdminReviewQueueType } from "./getAdminReviewQueueType";
 
 export type GetAdminReviewQueueParams = {
   type?: GetAdminReviewQueueType;
+  /**
+   * Filter by status. Defaults to "submitted" (pending review).
+   */
+  status?: GetAdminReviewQueueStatus;
   campusId?: number;
   search?: string;
 };

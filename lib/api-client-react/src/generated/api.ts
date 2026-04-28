@@ -4652,7 +4652,91 @@ export const useRejectRevenueEntry = <
 };
 
 /**
- * @summary Get all pending financial entries for review
+ * @summary Move a verified revenue entry back to the review queue (admin only)
+ */
+export const getUnverifyRevenueEntryUrl = (id: number) => {
+  return `/api/revenue-entries/${id}/unverify`;
+};
+
+export const unverifyRevenueEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RevenueEntry> => {
+  return customFetch<RevenueEntry>(getUnverifyRevenueEntryUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUnverifyRevenueEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unverifyRevenueEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unverifyRevenueEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["unverifyRevenueEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unverifyRevenueEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return unverifyRevenueEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnverifyRevenueEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unverifyRevenueEntry>>
+>;
+
+export type UnverifyRevenueEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Move a verified revenue entry back to the review queue (admin only)
+ */
+export const useUnverifyRevenueEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unverifyRevenueEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unverifyRevenueEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUnverifyRevenueEntryMutationOptions(options));
+};
+
+/**
+ * @summary Get financial entries for review (pending or approved)
  */
 export const getGetAdminReviewQueueUrl = (
   params?: GetAdminReviewQueueParams,
@@ -4728,7 +4812,7 @@ export type GetAdminReviewQueueQueryResult = NonNullable<
 export type GetAdminReviewQueueQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get all pending financial entries for review
+ * @summary Get financial entries for review (pending or approved)
  */
 
 export function useGetAdminReviewQueue<

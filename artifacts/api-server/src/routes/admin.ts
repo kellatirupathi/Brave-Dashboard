@@ -44,6 +44,9 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     return;
   }
   const type = req.query.type as string | undefined;
+  const statusParam = req.query.status as string | undefined;
+  const status: "submitted" | "verified" =
+    statusParam === "verified" ? "verified" : "submitted";
   const campusId = req.query.campusId ? Number(req.query.campusId) : undefined;
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
@@ -55,14 +58,22 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     campusName: string; projectTitle: string; clientName: string; amount: number;
     submittedAt: Date; isOverdue: boolean; supportingDocUrl: string | null;
     brdUrl: string | null;
+    status: "submitted" | "verified";
+    verifiedAmount: number | null;
+    verifiedAt: Date | null;
+    adminNotes: string | null;
   }> = [];
 
   if (!type || type === "revenue") {
     const revEntries = await db
       .select()
       .from(revenueEntriesTable)
-      .where(eq(revenueEntriesTable.status, "submitted"))
-      .orderBy(desc(revenueEntriesTable.submittedAt));
+      .where(eq(revenueEntriesTable.status, status))
+      .orderBy(
+        status === "verified"
+          ? desc(revenueEntriesTable.verifiedAt)
+          : desc(revenueEntriesTable.submittedAt),
+      );
     for (const e of revEntries) {
       const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, e.teamId));
       if (campusId && team?.campusId !== campusId) continue;
@@ -91,13 +102,25 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
         campusName: campus?.name ?? "", projectTitle: project?.title ?? "",
         clientName: e.clientName, amount: e.amount,
         submittedAt: e.submittedAt ?? new Date(),
-        isOverdue: (e.submittedAt ?? new Date()) < cutoff,
+        isOverdue: status === "submitted" && (e.submittedAt ?? new Date()) < cutoff,
         supportingDocUrl: null, brdUrl: e.brdUrl ?? null,
+        status: e.status as "submitted" | "verified",
+        verifiedAmount: e.verifiedAmount ?? null,
+        verifiedAt: e.verifiedAt ?? null,
+        adminNotes: e.adminNotes ?? null,
       });
     }
   }
 
-  items.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  if (status === "verified") {
+    items.sort((a, b) => {
+      const av = a.verifiedAt ? new Date(a.verifiedAt).getTime() : 0;
+      const bv = b.verifiedAt ? new Date(b.verifiedAt).getTime() : 0;
+      return bv - av;
+    });
+  } else {
+    items.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  }
   res.json({
     items,
     overdueCount: items.filter(i => i.isOverdue).length,

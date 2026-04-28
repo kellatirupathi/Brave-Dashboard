@@ -133,7 +133,8 @@ export default function AdminAnnouncements() {
           onError: (err: ErrorType<unknown>) =>
             toast({
               title: "Update failed",
-              description: err instanceof Error ? err.message : "Please try again.",
+              description:
+                err instanceof Error ? err.message : "Please try again.",
               variant: "destructive",
             }),
         },
@@ -160,7 +161,8 @@ export default function AdminAnnouncements() {
         onError: (err: ErrorType<unknown>) =>
           toast({
             title: "Failed to send",
-            description: err instanceof Error ? err.message : "Please try again.",
+            description:
+              err instanceof Error ? err.message : "Please try again.",
             variant: "destructive",
           }),
       },
@@ -180,7 +182,8 @@ export default function AdminAnnouncements() {
         onError: (err: ErrorType<unknown>) => {
           toast({
             title: "Delete failed",
-            description: err instanceof Error ? err.message : "Please try again.",
+            description:
+              err instanceof Error ? err.message : "Please try again.",
             variant: "destructive",
           });
           setDeletingId(null);
@@ -252,7 +255,7 @@ export default function AdminAnnouncements() {
                     <SelectTrigger data-testid="select-campus">
                       <SelectValue placeholder="Pick a campus" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-72 overflow-y-auto">
                       {campuses?.map((c: Campus) => (
                         <SelectItem key={c.id} value={String(c.id)}>
                           {c.name}
@@ -368,8 +371,8 @@ export default function AdminAnnouncements() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this announcement?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes the announcement for everyone who could see it.
-              This action cannot be undone.
+              This permanently removes the announcement for everyone who could
+              see it. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -385,7 +388,9 @@ export default function AdminAnnouncements() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete-announcement"
             >
-              {deleteAnnouncement.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              {deleteAnnouncement.isPending && (
+                <Spinner className="w-4 h-4 mr-2" />
+              )}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

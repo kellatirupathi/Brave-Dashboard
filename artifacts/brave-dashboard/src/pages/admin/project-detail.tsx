@@ -1,5 +1,10 @@
 import { useParams, useLocation, Link } from "wouter";
-import { useGetProject, getGetProjectQueryKey } from "@workspace/api-client-react";
+import {
+  useGetProject,
+  getGetProjectQueryKey,
+  useUnverifyRevenueEntry,
+  getGetAdminReviewQueueQueryKey,
+} from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { formatINR, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,12 +20,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft,
   Wallet,
   Activity,
   FolderKanban,
   Users,
+  RotateCcw,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 export default function AdminProjectDetail() {
   const params = useParams<{ id: string }>();
@@ -190,6 +209,9 @@ export default function AdminProjectDetail() {
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">Verified</TableHead>
                   <TableHead className="text-right">Created</TableHead>
+                  {user?.role === "admin" ? (
+                    <TableHead className="text-right">Actions</TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -206,6 +228,13 @@ export default function AdminProjectDetail() {
                     <TableCell className="text-right text-muted-foreground">
                       {formatDate(e.createdAt)}
                     </TableCell>
+                    {user?.role === "admin" ? (
+                      <TableCell className="text-right">
+                        {e.status === "verified" ? (
+                          <UnverifyButton entryId={e.id} projectId={id} />
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>
@@ -214,5 +243,97 @@ export default function AdminProjectDetail() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function UnverifyButton({
+  entryId,
+  projectId,
+}: {
+  entryId: number;
+  projectId: number;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const unverify = useUnverifyRevenueEntry();
+  const [open, setOpen] = useState(false);
+
+  const onConfirm = () => {
+    unverify.mutate(
+      { id: entryId },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Entry unverified",
+            description:
+              "The entry was moved back to the pending review queue.",
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetProjectQueryKey(projectId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetAdminReviewQueueQueryKey({
+              type: "revenue",
+              status: "submitted",
+            }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetAdminReviewQueueQueryKey({
+              type: "revenue",
+              status: "verified",
+            }),
+          });
+          setOpen(false);
+        },
+        onError: (err: unknown) => {
+          const message =
+            err instanceof Error ? err.message : "Failed to unverify entry";
+          toast({
+            title: "Unverify failed",
+            description: message,
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        data-testid={`button-unverify-entry-${entryId}`}
+      >
+        <RotateCcw className="w-3.5 h-3.5 mr-1" /> Unverify
+      </Button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move entry back to review?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will clear the verified amount and admin notes, move the
+              entry back to <strong>Pending review</strong>, and notify the
+              team leader. You can re-verify or reject it from the pending
+              tab.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unverify.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onConfirm}
+              disabled={unverify.isPending}
+              data-testid={`button-confirm-unverify-entry-${entryId}`}
+            >
+              {unverify.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Unverify
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
