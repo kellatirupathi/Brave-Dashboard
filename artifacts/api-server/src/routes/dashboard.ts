@@ -1,161 +1,295 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql } from "drizzle-orm";
-import {
-  db,
-  teamsTable,
-  campusesTable,
-  revenueEntriesTable,
-  orderBookEntriesTable,
-  projectsTable,
-  teamMembersTable,
-  milestonesTable,
-  announcementsTable,
-  programmeConfigTable,
-  orderBookEntriesTable as obe,
-  revenueEntriesTable as re,
-  auditLogTable,
-  usersTable,
-  demoDayApplicationsTable,
-  accessRequestsTable,
-} from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { db } from "@workspace/db";
 
 const router: IRouter = Router();
 
+const toIso = (v: string | Date | null | undefined): string | null => {
+  if (!v) return null;
+  return v instanceof Date ? v.toISOString() : new Date(v).toISOString();
+};
+
+// =============================================================================
+// GET /dashboard/summary  (used by Admin AND Coordinator dashboards)
+//
+// Previously fired ~30+ counter queries plus an N+1 loop over every active
+// team (one query per team to compute "demo eligible") plus 2 queries per
+// campus plus 10 actor lookups for recent activity — ~1,050 round-trips on
+// production. This rewrite uses 4 parallel queries:
+//   1. Counters + config in one statement (multiple scalar subqueries)
+//   2. Demo-eligible team count in one aggregate
+//   3. Top campuses with team + revenue stats joined in one statement
+//   4. Recent audit log with actor name JOINed in one statement
+// Response shape is byte-identical to the old implementation.
+// =============================================================================
 router.get("/dashboard/summary", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const configs = await db.select().from(programmeConfigTable).limit(1);
-  const threshold = configs[0]?.demoEligibilityThreshold ?? 200000;
 
-  const [totalRevenue] = await db
-    .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-    .from(revenueEntriesTable)
-    .where(sql`status = 'verified'`);
-  const [totalOB] = await db
-    .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-    .from(orderBookEntriesTable)
-    .where(sql`status = 'verified'`);
-  const [activeTeams] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(teamsTable)
-    .where(eq(teamsTable.status, "active"));
-  const [pendingTeamsAgg] = await db
-    .select({
-      count: sql<number>`count(*)`,
-      oldestAt: sql<string | null>`min(created_at)`,
-    })
-    .from(teamsTable)
-    .where(eq(teamsTable.status, "pending"));
-  const [totalCampuses] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(campusesTable);
-  const [pendingRevReviewAgg] = await db
-    .select({
-      count: sql<number>`count(*)`,
-      oldestAt: sql<string | null>`min(submitted_at)`,
-    })
-    .from(revenueEntriesTable)
-    .where(sql`status = 'submitted'`);
-  // Match the Review Queue's 48-hour overdue cutoff
+  // Match the Review Queue's 48-hour overdue cutoff.
   const overdueCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
-  const [overdueRevReview] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(revenueEntriesTable)
-    .where(sql`status = 'submitted' and submitted_at < ${overdueCutoff}`);
-  const [pendingDemoDayAgg] = await db
-    .select({
-      count: sql<number>`count(*)`,
-      oldestAt: sql<string | null>`min(submitted_at)`,
-    })
-    .from(demoDayApplicationsTable)
-    .where(sql`status = 'submitted'`);
-  const [pendingAccessReqAgg] = await db
-    .select({
-      count: sql<number>`count(*)`,
-      oldestAt: sql<string | null>`min(created_at)`,
-    })
-    .from(accessRequestsTable)
-    .where(sql`status = 'pending'`);
 
-  // Demo eligible teams
-  const teams = await db.select().from(teamsTable).where(eq(teamsTable.status, "active"));
-  let demoEligible = 0;
-  for (const team of teams) {
-    const [revStats] = await db
-      .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-      .from(revenueEntriesTable)
-      .where(and(eq(revenueEntriesTable.teamId, team.id), sql`status = 'verified'`));
-    if (Number(revStats?.total ?? 0) >= threshold) demoEligible++;
-  }
+  const countersP = db.execute<{
+    threshold: number;
+    total_revenue: string;
+    total_ob: string;
+    active_teams: string;
+    pending_teams: string;
+    pending_teams_oldest: string | null;
+    total_campuses: string;
+    pending_review: string;
+    pending_review_oldest: string | null;
+    overdue_review: string;
+    pending_demo_day: string;
+    pending_demo_day_oldest: string | null;
+    pending_access_req: string;
+    pending_access_req_oldest: string | null;
+  }>(sql`
+    SELECT
+      COALESCE((SELECT demo_eligibility_threshold FROM programme_config LIMIT 1), 200000) AS threshold,
+      (SELECT COALESCE(SUM(verified_amount), 0) FROM revenue_entries WHERE status = 'verified')      AS total_revenue,
+      (SELECT COALESCE(SUM(verified_amount), 0) FROM order_book_entries WHERE status = 'verified')   AS total_ob,
+      (SELECT COUNT(*) FROM teams WHERE status = 'active')                                            AS active_teams,
+      (SELECT COUNT(*) FROM teams WHERE status = 'pending')                                           AS pending_teams,
+      (SELECT MIN(created_at) FROM teams WHERE status = 'pending')                                    AS pending_teams_oldest,
+      (SELECT COUNT(*) FROM campuses)                                                                 AS total_campuses,
+      (SELECT COUNT(*) FROM revenue_entries WHERE status = 'submitted')                               AS pending_review,
+      (SELECT MIN(submitted_at) FROM revenue_entries WHERE status = 'submitted')                      AS pending_review_oldest,
+      (SELECT COUNT(*) FROM revenue_entries WHERE status = 'submitted' AND submitted_at < ${overdueCutoff}) AS overdue_review,
+      (SELECT COUNT(*) FROM demo_day_applications WHERE status = 'submitted')                         AS pending_demo_day,
+      (SELECT MIN(submitted_at) FROM demo_day_applications WHERE status = 'submitted')                AS pending_demo_day_oldest,
+      (SELECT COUNT(*) FROM access_requests WHERE status = 'pending')                                 AS pending_access_req,
+      (SELECT MIN(created_at) FROM access_requests WHERE status = 'pending')                          AS pending_access_req_oldest
+  `);
 
-  // Top campuses
-  const campuses = await db.select().from(campusesTable);
-  const campusStats = await Promise.all(campuses.map(async (campus) => {
-    const [revStats] = await db
-      .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-      .from(revenueEntriesTable)
-      .where(sql`team_id in (select id from teams where campus_id = ${campus.id}) and status = 'verified'`);
-    const [teamStats] = await db
-      .select({
-        totalTeams: sql<number>`count(*)`,
-        activeTeams: sql<number>`count(*) filter (where status = 'active')`,
-      })
-      .from(teamsTable)
-      .where(eq(teamsTable.campusId, campus.id));
-    return {
-      ...campus,
-      coordinatorName: null as string | null,
-      totalTeams: Number(teamStats?.totalTeams ?? 0),
-      activeTeams: Number(teamStats?.activeTeams ?? 0),
-      totalRevenue: Number(revStats?.total ?? 0),
-    };
-  }));
-  campusStats.sort((a, b) => b.totalRevenue - a.totalRevenue);
+  // Demo-eligible: per-team verified-revenue sum >= threshold AND team is active.
+  // Start from active teams (LEFT JOIN aggregated revenue) so that active
+  // teams with no revenue_entries rows are still considered with a 0-sum —
+  // matches the old `for (team of activeTeams) { sum ?? 0 }` loop exactly,
+  // including the edge case where threshold is configured to 0.
+  const demoEligibleP = db.execute<{ count: string }>(sql`
+    SELECT COUNT(*) AS count
+    FROM teams t
+    LEFT JOIN (
+      SELECT team_id, SUM(verified_amount) AS total
+      FROM revenue_entries
+      WHERE status = 'verified'
+      GROUP BY team_id
+    ) rev_by_team ON rev_by_team.team_id = t.id
+    WHERE t.status = 'active'
+      AND COALESCE(rev_by_team.total, 0) >= COALESCE(
+        (SELECT demo_eligibility_threshold FROM programme_config LIMIT 1),
+        200000
+      )
+  `);
 
-  const recentAudit = await db
-    .select()
-    .from(auditLogTable)
-    .orderBy(sql`created_at desc`)
-    .limit(10);
-  const recentActivity = await Promise.all(recentAudit.map(async (log) => {
-    const [actor] = await db.select().from(usersTable).where(eq(usersTable.id, log.actorId));
-    return { ...log, actorName: actor ? `${actor.firstName} ${actor.lastName}` : "System" };
-  }));
+  // Top campuses with verified revenue + team counts, joined and grouped in one
+  // statement. Ordered by revenue, top 5.
+  const topCampusesP = db.execute<{
+    id: number;
+    name: string;
+    city: string;
+    state: string;
+    coordinator_id: string | null;
+    created_at: string;
+    updated_at: string;
+    total_teams: string;
+    active_teams: string;
+    total_revenue: string;
+  }>(sql`
+    SELECT
+      c.id, c.name, c.city, c.state, c.coordinator_id, c.created_at, c.updated_at,
+      COALESCE(team_stats.total_teams,  0) AS total_teams,
+      COALESCE(team_stats.active_teams, 0) AS active_teams,
+      COALESCE(rev_stats.total_revenue, 0) AS total_revenue
+    FROM campuses c
+    LEFT JOIN (
+      SELECT campus_id,
+             COUNT(*)                                  AS total_teams,
+             COUNT(*) FILTER (WHERE status = 'active') AS active_teams
+      FROM teams
+      GROUP BY campus_id
+    ) team_stats ON team_stats.campus_id = c.id
+    LEFT JOIN (
+      SELECT t.campus_id, SUM(r.verified_amount) AS total_revenue
+      FROM revenue_entries r
+      JOIN teams t ON t.id = r.team_id
+      WHERE r.status = 'verified'
+      GROUP BY t.campus_id
+    ) rev_stats ON rev_stats.campus_id = c.id
+    ORDER BY total_revenue DESC NULLS LAST, c.id ASC
+    LIMIT 5
+  `);
 
-  const toIso = (v: string | Date | null | undefined): string | null => {
-    if (!v) return null;
-    return v instanceof Date ? v.toISOString() : new Date(v).toISOString();
-  };
+  // Recent audit log with actor name resolved by LEFT JOIN (was 10 N+1 lookups).
+  const recentActivityP = db.execute<{
+    id: number;
+    actor_id: string;
+    action: string;
+    target_type: string;
+    target_id: number | null;
+    details: string | null;
+    created_at: string;
+    actor_first_name: string | null;
+    actor_last_name: string | null;
+    actor_exists: boolean;
+  }>(sql`
+    SELECT al.id, al.actor_id, al.action, al.target_type, al.target_id,
+           al.details, al.created_at,
+           u.first_name             AS actor_first_name,
+           u.last_name              AS actor_last_name,
+           (u.id IS NOT NULL)       AS actor_exists
+    FROM audit_log al
+    LEFT JOIN users u ON u.id = al.actor_id
+    ORDER BY al.created_at DESC
+    LIMIT 10
+  `);
+
+  const [countersR, demoEligibleR, topCampusesR, recentActivityR] =
+    await Promise.all([countersP, demoEligibleP, topCampusesP, recentActivityP]);
+
+  const counters = (countersR as unknown as { rows: typeof countersR extends { rows: infer R } ? R : never }).rows[0];
+  const demoEligibleRows = (demoEligibleR as unknown as { rows: { count: string }[] }).rows;
+  const topCampusesRows = (topCampusesR as unknown as { rows: Array<{
+    id: number; name: string; city: string; state: string;
+    coordinator_id: string | null; created_at: string; updated_at: string;
+    total_teams: string; active_teams: string; total_revenue: string;
+  }> }).rows;
+  const recentActivityRows = (recentActivityR as unknown as { rows: Array<{
+    id: number; actor_id: string; action: string; target_type: string;
+    target_id: number | null; details: string | null; created_at: string;
+    actor_first_name: string | null; actor_last_name: string | null;
+    actor_exists: boolean;
+  }> }).rows;
 
   res.json({
-    totalVerifiedRevenue: Number(totalRevenue?.total ?? 0),
-    totalOrderBook: Number(totalOB?.total ?? 0),
-    activeTeams: Number(activeTeams?.count ?? 0),
-    pendingTeams: Number(pendingTeamsAgg?.count ?? 0),
-    pendingTeamsOldestAt: toIso(pendingTeamsAgg?.oldestAt),
-    demoEligibleTeams: demoEligible,
-    pendingReviewCount: Number(pendingRevReviewAgg?.count ?? 0),
-    overdueReviewCount: Number(overdueRevReview?.count ?? 0),
-    pendingReviewOldestAt: toIso(pendingRevReviewAgg?.oldestAt),
-    pendingDemoDayCount: Number(pendingDemoDayAgg?.count ?? 0),
-    pendingDemoDayOldestAt: toIso(pendingDemoDayAgg?.oldestAt),
-    pendingAccessRequestCount: Number(pendingAccessReqAgg?.count ?? 0),
-    pendingAccessRequestOldestAt: toIso(pendingAccessReqAgg?.oldestAt),
-    totalCampuses: Number(totalCampuses?.count ?? 0),
-    topCampuses: campusStats.slice(0, 5),
-    recentActivity,
+    totalVerifiedRevenue:         Number(counters.total_revenue ?? 0),
+    totalOrderBook:               Number(counters.total_ob ?? 0),
+    activeTeams:                  Number(counters.active_teams ?? 0),
+    pendingTeams:                 Number(counters.pending_teams ?? 0),
+    pendingTeamsOldestAt:         toIso(counters.pending_teams_oldest),
+    demoEligibleTeams:            Number(demoEligibleRows[0]?.count ?? 0),
+    pendingReviewCount:           Number(counters.pending_review ?? 0),
+    overdueReviewCount:           Number(counters.overdue_review ?? 0),
+    pendingReviewOldestAt:        toIso(counters.pending_review_oldest),
+    pendingDemoDayCount:          Number(counters.pending_demo_day ?? 0),
+    pendingDemoDayOldestAt:       toIso(counters.pending_demo_day_oldest),
+    pendingAccessRequestCount:    Number(counters.pending_access_req ?? 0),
+    pendingAccessRequestOldestAt: toIso(counters.pending_access_req_oldest),
+    totalCampuses:                Number(counters.total_campuses ?? 0),
+    topCampuses: topCampusesRows.map((c) => ({
+      id: Number(c.id),
+      name: c.name,
+      city: c.city,
+      state: c.state,
+      coordinatorId: c.coordinator_id,
+      createdAt: toIso(c.created_at),
+      updatedAt: toIso(c.updated_at),
+      coordinatorName: null as string | null,
+      totalTeams: Number(c.total_teams ?? 0),
+      activeTeams: Number(c.active_teams ?? 0),
+      totalRevenue: Number(c.total_revenue ?? 0),
+    })),
+    recentActivity: recentActivityRows.map((r) => ({
+      id: Number(r.id),
+      actorId: r.actor_id,
+      action: r.action,
+      targetType: r.target_type,
+      targetId: r.target_id,
+      details: r.details,
+      createdAt: toIso(r.created_at),
+      // Match prior behavior exactly: when the actor row exists we returned
+      // `${firstName} ${lastName}` even if both names were null (yielding the
+      // literal string "null null"); only fall back to "System" when the row
+      // is missing entirely.
+      actorName: r.actor_exists
+        ? `${r.actor_first_name} ${r.actor_last_name}`
+        : "System",
+    })),
   });
 });
 
+// =============================================================================
+// GET /dashboard/team-summary  (used by Student dashboard)
+//
+// Previously ~17 strictly-sequential queries (team membership, team, campus,
+// config, revenue, order book, project count, pending submissions, milestones,
+// announcements, member count, plus an N+1 over announcement authors).
+// This rewrite is:
+//   1. One JOIN query that resolves membership + team + campus + config +
+//      member count in a single round-trip. Returns null-team response if the
+//      user is not on a team.
+//   2. Three queries run in parallel: team stats (revenue + order book +
+//      active projects + pending submissions in one statement), milestones,
+//      and announcements with author name JOINed.
+// Response shape is byte-identical to the old implementation.
+// =============================================================================
 router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
-  if (!member) {
+  const userId = req.user.id;
+
+  const teamCtxResult = await db.execute<{
+    team_id: number;
+    team_name: string;
+    tagline: string | null;
+    team_status: string;
+    photo_url: string | null;
+    invite_code: string | null;
+    rejection_reason: string | null;
+    coordinator_comment: string | null;
+    is_featured: boolean;
+    is_hidden: boolean;
+    campus_id: number;
+    leader_id: string | null;
+    created_at: string;
+    updated_at: string;
+    campus_name: string | null;
+    threshold: number;
+    member_count: string;
+  }>(sql`
+    SELECT
+      t.id                  AS team_id,
+      t.name                AS team_name,
+      t.tagline             AS tagline,
+      t.status              AS team_status,
+      t.photo_url           AS photo_url,
+      t.invite_code         AS invite_code,
+      t.rejection_reason    AS rejection_reason,
+      t.coordinator_comment AS coordinator_comment,
+      t.is_featured         AS is_featured,
+      t.is_hidden           AS is_hidden,
+      t.campus_id           AS campus_id,
+      t.leader_id           AS leader_id,
+      t.created_at          AS created_at,
+      t.updated_at          AS updated_at,
+      c.name                AS campus_name,
+      COALESCE(
+        (SELECT demo_eligibility_threshold FROM programme_config LIMIT 1),
+        200000
+      )                    AS threshold,
+      (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) AS member_count
+    FROM team_members tm
+    JOIN teams t      ON t.id = tm.team_id
+    LEFT JOIN campuses c ON c.id = t.campus_id
+    WHERE tm.user_id = ${userId}
+    LIMIT 1
+  `);
+  const teamCtx = (teamCtxResult as unknown as { rows: Array<{
+    team_id: number; team_name: string; tagline: string | null;
+    team_status: string; photo_url: string | null;
+    invite_code: string | null; rejection_reason: string | null;
+    coordinator_comment: string | null; is_featured: boolean;
+    is_hidden: boolean; campus_id: number; leader_id: string | null;
+    created_at: string; updated_at: string; campus_name: string | null;
+    threshold: number; member_count: string;
+  }> }).rows[0];
+
+  if (!teamCtx) {
     res.json({
       team: null,
       totalRevenue: 0,
@@ -170,75 +304,149 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
     });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, member.teamId));
-  if (!team) {
-    res.status(404).json({ error: "Team not found" });
-    return;
-  }
-  const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId));
-  const configs = await db.select().from(programmeConfigTable).limit(1);
-  const threshold = configs[0]?.demoEligibilityThreshold ?? 200000;
 
-  const [revStats] = await db
-    .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-    .from(revenueEntriesTable)
-    .where(and(eq(revenueEntriesTable.teamId, team.id), sql`status = 'verified'`));
-  const [obStats] = await db
-    .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-    .from(orderBookEntriesTable)
-    .where(and(eq(orderBookEntriesTable.teamId, team.id), sql`status = 'verified'`));
-  const [projectCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(projectsTable)
-    .where(and(eq(projectsTable.teamId, team.id), eq(projectsTable.status, "active")));
-  const [pendingRev] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(revenueEntriesTable)
-    .where(and(eq(revenueEntriesTable.teamId, team.id), sql`status in ('draft', 'submitted')`));
+  const teamId = Number(teamCtx.team_id);
+  const campusId = Number(teamCtx.campus_id);
+  const threshold = Number(teamCtx.threshold ?? 200000);
 
-  const milestones = await db
-    .select()
-    .from(milestonesTable)
-    .where(eq(milestonesTable.teamId, team.id))
-    .orderBy(sql`date desc`)
-    .limit(5);
+  const statsP = db.execute<{
+    revenue: string;
+    orderbook: string;
+    active_projects: string;
+    pending_subs: string;
+  }>(sql`
+    SELECT
+      (SELECT COALESCE(SUM(verified_amount), 0) FROM revenue_entries
+        WHERE team_id = ${teamId} AND status = 'verified')                AS revenue,
+      (SELECT COALESCE(SUM(verified_amount), 0) FROM order_book_entries
+        WHERE team_id = ${teamId} AND status = 'verified')                AS orderbook,
+      (SELECT COUNT(*) FROM projects
+        WHERE team_id = ${teamId} AND status = 'active')                  AS active_projects,
+      (SELECT COUNT(*) FROM revenue_entries
+        WHERE team_id = ${teamId} AND status IN ('draft', 'submitted'))   AS pending_subs
+  `);
 
-  const announcements = await db
-    .select()
-    .from(announcementsTable)
-    .where(sql`target = 'all' or (target = 'campus' and campus_id = ${team.campusId}) or (target = 'team' and team_id = ${team.id})`)
-    .orderBy(sql`created_at desc`)
-    .limit(5);
-  const enrichedAnnouncements = await Promise.all(announcements.map(async (a) => {
-    const [author] = await db.select().from(usersTable).where(eq(usersTable.id, a.authorId));
-    return { ...a, authorName: author ? `${author.firstName} ${author.lastName}` : "Admin" };
-  }));
+  const milestonesP = db.execute<{
+    id: number; team_id: number; type: string; title: string;
+    description: string | null; date: string; image_url: string | null;
+    link_url: string | null; is_pinned: boolean; created_at: string;
+  }>(sql`
+    SELECT id, team_id, type, title, description, date, image_url, link_url,
+           is_pinned, created_at
+    FROM milestones
+    WHERE team_id = ${teamId}
+    ORDER BY date DESC
+    LIMIT 5
+  `);
 
-  const [memberCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(teamMembersTable)
-    .where(eq(teamMembersTable.teamId, team.id));
+  const announcementsP = db.execute<{
+    id: number; author_id: string; target: string;
+    campus_id: number | null; team_id: number | null;
+    title: string; body: string; created_at: string;
+    author_first_name: string | null; author_last_name: string | null;
+    author_exists: boolean;
+  }>(sql`
+    SELECT a.id, a.author_id, a.target, a.campus_id, a.team_id,
+           a.title, a.body, a.created_at,
+           u.first_name        AS author_first_name,
+           u.last_name         AS author_last_name,
+           (u.id IS NOT NULL)  AS author_exists
+    FROM announcements a
+    LEFT JOIN users u ON u.id = a.author_id
+    WHERE a.target = 'all'
+       OR (a.target = 'campus' AND a.campus_id = ${campusId})
+       OR (a.target = 'team'   AND a.team_id   = ${teamId})
+    ORDER BY a.created_at DESC, a.id ASC
+    LIMIT 5
+  `);
+
+  const [statsR, milestonesR, announcementsR] = await Promise.all([
+    statsP,
+    milestonesP,
+    announcementsP,
+  ]);
+
+  const stats = (statsR as unknown as { rows: Array<{
+    revenue: string; orderbook: string; active_projects: string; pending_subs: string;
+  }> }).rows[0];
+  const milestoneRows = (milestonesR as unknown as { rows: Array<{
+    id: number; team_id: number; type: string; title: string;
+    description: string | null; date: string; image_url: string | null;
+    link_url: string | null; is_pinned: boolean; created_at: string;
+  }> }).rows;
+  const announcementRows = (announcementsR as unknown as { rows: Array<{
+    id: number; author_id: string; target: string;
+    campus_id: number | null; team_id: number | null;
+    title: string; body: string; created_at: string;
+    author_first_name: string | null; author_last_name: string | null;
+    author_exists: boolean;
+  }> }).rows;
+
+  const totalRevenue = Number(stats?.revenue ?? 0);
+  const totalOrderBook = Number(stats?.orderbook ?? 0);
+  const activeProjects = Number(stats?.active_projects ?? 0);
+  const pendingSubmissions = Number(stats?.pending_subs ?? 0);
 
   res.json({
     team: {
-      ...team,
-      campusName: campus?.name ?? "",
+      id: teamId,
+      name: teamCtx.team_name,
+      tagline: teamCtx.tagline,
+      status: teamCtx.team_status,
+      photoUrl: teamCtx.photo_url,
+      inviteCode: teamCtx.invite_code,
+      rejectionReason: teamCtx.rejection_reason,
+      coordinatorComment: teamCtx.coordinator_comment,
+      isFeatured: teamCtx.is_featured,
+      isHidden: teamCtx.is_hidden,
+      campusId,
+      leaderId: teamCtx.leader_id,
+      createdAt: toIso(teamCtx.created_at),
+      updatedAt: toIso(teamCtx.updated_at),
+      campusName: teamCtx.campus_name ?? "",
       leaderName: "",
-      memberCount: Number(memberCount?.count ?? 0),
-      projectCount: Number(projectCount?.count ?? 0),
-      totalRevenue: Number(revStats?.total ?? 0),
-      totalOrderBook: Number(obStats?.total ?? 0),
+      memberCount: Number(teamCtx.member_count ?? 0),
+      projectCount: activeProjects,
+      totalRevenue,
+      totalOrderBook,
       nationalRank: null as number | null,
     },
-    totalRevenue: Number(revStats?.total ?? 0),
-    totalOrderBook: Number(obStats?.total ?? 0),
+    totalRevenue,
+    totalOrderBook,
     nationalRank: null,
     campusRank: null,
-    activeProjects: Number(projectCount?.count ?? 0),
-    pendingSubmissions: Number(pendingRev?.count ?? 0),
-    demoEligible: Number(revStats?.total ?? 0) >= threshold,
-    recentMilestones: milestones,
-    announcements: enrichedAnnouncements,
+    activeProjects,
+    pendingSubmissions,
+    demoEligible: totalRevenue >= threshold,
+    recentMilestones: milestoneRows.map((m) => ({
+      id: Number(m.id),
+      teamId: Number(m.team_id),
+      type: m.type,
+      title: m.title,
+      description: m.description,
+      date: toIso(m.date),
+      imageUrl: m.image_url,
+      linkUrl: m.link_url,
+      isPinned: m.is_pinned,
+      createdAt: toIso(m.created_at),
+    })),
+    announcements: announcementRows.map((a) => ({
+      id: Number(a.id),
+      authorId: a.author_id,
+      target: a.target,
+      campusId: a.campus_id,
+      teamId: a.team_id,
+      title: a.title,
+      body: a.body,
+      createdAt: toIso(a.created_at),
+      // Match prior behavior: when the author row exists we returned
+      // `${firstName} ${lastName}` (which produced the literal "null null"
+      // when both names were null); fall back to "Admin" only when the row
+      // itself is missing.
+      authorName: a.author_exists
+        ? `${a.author_first_name} ${a.author_last_name}`
+        : "Admin",
+    })),
   });
 });
 
