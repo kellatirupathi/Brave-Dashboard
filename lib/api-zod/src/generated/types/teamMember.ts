@@ -9,6 +9,8 @@
 export interface TeamMember {
   userId: string;
   email: string;
+  /** @nullable */
+  niatId?: string | null;
   firstName: string;
   lastName: string;
   /** @nullable */

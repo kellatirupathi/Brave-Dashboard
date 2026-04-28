@@ -418,7 +418,7 @@ export default function AdminTeamDetail() {
                     <p className="text-sm font-medium truncate">
                       {m.firstName} {m.lastName}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate">{m.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">{m.niatId ?? m.email}</p>
                   </div>
                   {m.isLeader && (
                     <Badge variant="secondary" className="text-[10px]">

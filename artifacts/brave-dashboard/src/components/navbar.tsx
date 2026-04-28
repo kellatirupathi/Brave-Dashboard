@@ -88,7 +88,7 @@ export function Navbar() {
       </nav>
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground hidden sm:inline">
-          {user.firstName || user.email}{" "}
+          {user.firstName || user.niatId || user.email}{" "}
           <span className="opacity-60">({user.role})</span>
         </span>
         {isStudent && (

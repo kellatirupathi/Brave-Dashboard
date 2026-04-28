@@ -681,7 +681,7 @@ function TeamView({
                                   {s.firstName} {s.lastName}
                                 </p>
                                 <p className="text-xs text-muted-foreground truncate">
-                                  {s.email}
+                                  {s.niatId ?? s.email}
                                 </p>
                               </div>
                               {alreadyInvited ? (
@@ -743,7 +743,7 @@ function TeamView({
                           {memberName}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {member.email}
+                          {member.niatId ?? member.email}
                         </p>
                       </div>
                       {member.isLeader && (
@@ -908,7 +908,7 @@ function TeamView({
                           {inv.inviteeName}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {inv.inviteeEmail} • Invited by {inv.inviterName}
+                          {(inv.inviteeNiatId ?? inv.inviteeEmail)} • Invited by {inv.inviterName}
                         </p>
                       </div>
                       <Badge variant="outline" className="shrink-0">
@@ -953,7 +953,7 @@ function TeamView({
                           {jr.requesterName}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {jr.requesterEmail}
+                          {jr.requesterNiatId ?? jr.requesterEmail}
                         </p>
                         {jr.message && (
                           <p className="text-sm mt-2 italic">"{jr.message}"</p>

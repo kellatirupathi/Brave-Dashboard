@@ -145,6 +145,7 @@ router.get("/admin/users", async (req, res): Promise<void> => {
       ...safe,
       campusId: u.role === "admin" ? null : safe.campusId,
       campusName,
+      niatId: u.niatId ?? null,
     };
   }));
   res.json(result);

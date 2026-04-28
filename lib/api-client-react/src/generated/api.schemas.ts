@@ -22,6 +22,8 @@ export interface AuthUser {
   /** @nullable */
   replitId: string | null;
   email: string;
+  /** @nullable */
+  niatId?: string | null;
   firstName: string;
   lastName: string;
   /** @nullable */
@@ -62,6 +64,8 @@ export interface User {
   /** @nullable */
   replitId?: string | null;
   email: string;
+  /** @nullable */
+  niatId?: string | null;
   firstName: string;
   lastName: string;
   /** @nullable */
@@ -194,6 +198,8 @@ export interface Team {
 export interface TeamMember {
   userId: string;
   email: string;
+  /** @nullable */
+  niatId?: string | null;
   firstName: string;
   lastName: string;
   /** @nullable */
@@ -321,6 +327,8 @@ export interface TeamInvitation {
   inviteeId: string;
   inviteeName: string;
   inviteeEmail: string;
+  /** @nullable */
+  inviteeNiatId?: string | null;
   inviterId: string;
   inviterName: string;
   status: TeamInvitationStatus;
@@ -347,6 +355,8 @@ export interface TeamJoinRequest {
   requesterName: string;
   requesterEmail: string;
   /** @nullable */
+  requesterNiatId?: string | null;
+  /** @nullable */
   requesterProfileImage?: string | null;
   /** @nullable */
   message?: string | null;
@@ -369,6 +379,8 @@ export interface TeamLeaveRequest {
   requesterId: string;
   requesterName: string;
   requesterEmail: string;
+  /** @nullable */
+  requesterNiatId?: string | null;
   /** @nullable */
   requesterProfileImage?: string | null;
   /** @nullable */

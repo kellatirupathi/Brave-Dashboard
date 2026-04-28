@@ -14,6 +14,8 @@ export interface TeamLeaveRequest {
   requesterName: string;
   requesterEmail: string;
   /** @nullable */
+  requesterNiatId?: string | null;
+  /** @nullable */
   requesterProfileImage?: string | null;
   /** @nullable */
   reason?: string | null;

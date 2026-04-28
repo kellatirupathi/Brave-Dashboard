@@ -13,6 +13,8 @@ export interface User {
   /** @nullable */
   replitId?: string | null;
   email: string;
+  /** @nullable */
+  niatId?: string | null;
   firstName: string;
   lastName: string;
   /** @nullable */

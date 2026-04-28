@@ -49,7 +49,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ### brave.ts — All BRAVE tables:
 - `campuses` — 19-20 NIAT campuses
-- `users` — All users (students/coordinators/admins) with role enum
+- `users` — All users (students/coordinators/admins) with role enum, optional `niat_id` (shown in user-facing UI in place of email when present)
 - `roster` — Whitelist of enrolled students
 - `teams` — Student teams with status (pending/active/rejected/changes_requested) + unique `inviteCode` (BRAVE-XXXXX)
 - `teamMembers` — Team membership (unique per user)

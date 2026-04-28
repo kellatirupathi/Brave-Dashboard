@@ -514,7 +514,7 @@ export default function AdminUsers() {
                   <TableCell>
                     <div className="font-semibold">{user.firstName} {user.lastName}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <Mail className="w-3 h-3" /> {user.email}
+                      <Mail className="w-3 h-3" /> {user.niatId ?? user.email}
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{user.formsUserId ?? "—"}</TableCell>

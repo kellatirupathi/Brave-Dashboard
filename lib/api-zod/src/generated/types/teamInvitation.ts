@@ -16,6 +16,8 @@ export interface TeamInvitation {
   inviteeId: string;
   inviteeName: string;
   inviteeEmail: string;
+  /** @nullable */
+  inviteeNiatId?: string | null;
   inviterId: string;
   inviterName: string;
   status: TeamInvitationStatus;

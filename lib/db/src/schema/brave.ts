@@ -47,6 +47,7 @@ export const usersTable = pgTable("users", {
   replitId: text("replit_id").unique(),
   formsUserId: text("forms_user_id").unique(),
   email: text("email").notNull().unique(),
+  niatId: text("niat_id"),
   firstName: text("first_name").notNull().default(""),
   lastName: text("last_name").notNull().default(""),
   profileImage: text("profile_image_url"),

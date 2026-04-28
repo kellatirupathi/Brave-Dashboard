@@ -130,6 +130,7 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
     id: dbUser.id,
     replitId: dbUser.replitId ?? null,
     email: dbUser.email,
+    niatId: dbUser.niatId ?? null,
     firstName: firstName ?? "",
     lastName: lastName ?? "",
     profileImage: dbUser.profileImage ?? null,

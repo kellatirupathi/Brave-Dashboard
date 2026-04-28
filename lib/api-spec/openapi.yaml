@@ -1925,6 +1925,8 @@ components:
           type: ["string", "null"]
         email:
           type: string
+        niatId:
+          type: ["string", "null"]
         firstName:
           type: string
         lastName:
@@ -1961,6 +1963,8 @@ components:
           type: ["string", "null"]
         email:
           type: string
+        niatId:
+          type: ["string", "null"]
         firstName:
           type: string
         lastName:
@@ -2185,6 +2189,8 @@ components:
           type: string
         email:
           type: string
+        niatId:
+          type: ["string", "null"]
         firstName:
           type: string
         lastName:
@@ -2340,6 +2346,8 @@ components:
           type: string
         inviteeEmail:
           type: string
+        inviteeNiatId:
+          type: ["string", "null"]
         inviterId:
           type: string
         inviterName:
@@ -2380,6 +2388,8 @@ components:
           type: string
         requesterEmail:
           type: string
+        requesterNiatId:
+          type: ["string", "null"]
         requesterProfileImage:
           type: ["string", "null"]
         message:
@@ -2413,6 +2423,8 @@ components:
           type: string
         requesterEmail:
           type: string
+        requesterNiatId:
+          type: ["string", "null"]
         requesterProfileImage:
           type: ["string", "null"]
         reason:

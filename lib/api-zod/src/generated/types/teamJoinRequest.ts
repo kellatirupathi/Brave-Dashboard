@@ -15,6 +15,8 @@ export interface TeamJoinRequest {
   requesterName: string;
   requesterEmail: string;
   /** @nullable */
+  requesterNiatId?: string | null;
+  /** @nullable */
   requesterProfileImage?: string | null;
   /** @nullable */
   message?: string | null;
