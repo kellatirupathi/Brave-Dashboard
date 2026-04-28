@@ -1,0 +1,32 @@
+The issue + the solution — in one breath
+🐌 The issue
+Both dashboards are slow not because of the amount of data but because of how many separate database round-trips the backend makes per request.
+
+Page	Queries fired per load	Why
+Admin dashboard (GET /dashboard/summary)	~1,050	A for loop iterates every active team (~991 of them) and fires one revenue-sum query per team sequentially — same anti-pattern repeats for campuses (2 queries each) and audit log (10 queries to fetch each actor's name)
+Student dashboard (GET /dashboard/team-summary)	~17	All queries are awaited one after another, even though most are independent. Plus a hidden N+1 on announcement authors
+Each round-trip is ~5–20 ms of network + Postgres latency. That's where the seconds go — not in fetching data, but in waiting for one trip to finish before starting the next.
+
+The pattern that's killing you (a textbook N+1):
+
+
+const teams = await db.select().from(teamsTable)...;
+for (const team of teams) {
+  const [revStats] = await db.select(...).where(eq(..., team.id));  // ← N extra trips
+  ...
+}
+✅ The solution
+Replace every "loop and query" with one SQL query that aggregates in the database, and run independent queries in parallel.
+
+Now (slow)	Fix (fast)
+Loop over every active team, query that team's revenue	One GROUP BY team_id query with HAVING sum(verified_amount) >= threshold → returns just the count of demo-eligible teams
+Loop over every campus, query revenue + team stats separately	One query that joins teams ↔ campuses ↔ revenue_entries and groups by campus
+Loop over 10 audit rows, query actor name for each	One LEFT JOIN users on the audit query
+Loop over 5 announcements, query author name for each	One LEFT JOIN users on the announcement query
+Sequential awaits for independent counters	Wrap them in Promise.all([...]) so they all fire at once
+After this refactor:
+
+Page	Queries before	Queries after	Expected load time
+Admin dashboard	~1,050	~6	< 200 ms
+Student dashboard	~17	~3	< 100 ms
+In short: stop iterating in JS — let Postgres do the aggregation in one shot, and parallelize whatever's independent.

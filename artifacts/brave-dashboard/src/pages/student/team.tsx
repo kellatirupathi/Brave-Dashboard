@@ -17,6 +17,7 @@ import {
   useRemoveTeamMember,
   useTransferTeamLeadership,
   useDeleteTeam,
+  useUpdateTeam,
   getGetMyTeamQueryKey,
   getListMilestonesQueryKey,
   getSearchCampusStudentsQueryKey,
@@ -75,6 +76,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/format";
+import { InlineEditField } from "@/components/inline-edit-field";
 import { invalidateMembershipQueries } from "@/lib/queries";
 import { useToast } from "@/hooks/use-toast";
 
@@ -193,6 +195,33 @@ function TeamView({
   const removeMember = useRemoveTeamMember();
   const transferLeadership = useTransferTeamLeadership();
   const deleteTeam = useDeleteTeam();
+  const updateTeam = useUpdateTeam();
+
+  const saveTeamField = async (field: "name" | "tagline", next: string) => {
+    try {
+      await updateTeam.mutateAsync({
+        id: team.id,
+        data: { [field]: next },
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+      toast({
+        title: field === "name" ? "Team name updated" : "Tagline updated",
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : `Could not update team ${field}. Try again.`;
+      toast({
+        title: "Update failed",
+        description: message,
+        variant: "destructive",
+      });
+      // Re-throw so the inline-edit component reverts the draft and exits
+      // edit mode after surfacing the error.
+      throw err;
+    }
+  };
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -494,17 +523,32 @@ function TeamView({
                   </Badge>
                 )}
               </div>
-              <h1
-                className="text-3xl md:text-4xl font-bold tracking-tight"
-                data-testid="text-team-name"
-              >
-                {team.name}
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+                <InlineEditField
+                  value={team.name}
+                  editable={isLeader}
+                  required
+                  maxLength={80}
+                  ariaLabel="Team name"
+                  testId="text-team-name"
+                  className="text-3xl md:text-4xl font-bold tracking-tight"
+                  onSave={(next) => saveTeamField("name", next)}
+                />
               </h1>
-              {team.tagline && (
+              {isLeader || team.tagline ? (
                 <p className="text-muted-foreground mt-1.5 text-base md:text-lg">
-                  {team.tagline}
+                  <InlineEditField
+                    value={team.tagline ?? ""}
+                    editable={isLeader}
+                    placeholder="Add a tagline…"
+                    maxLength={120}
+                    ariaLabel="Team tagline"
+                    testId="text-team-tagline"
+                    className="text-base md:text-lg text-muted-foreground"
+                    onSave={(next) => saveTeamField("tagline", next)}
+                  />
                 </p>
-              )}
+              ) : null}
               <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-4 gap-y-1 mt-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Users className="w-4 h-4" /> {team.members.length}{" "}
