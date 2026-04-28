@@ -38,6 +38,8 @@ import AdminDashboard from "@/pages/admin/dashboard";
 import AdminQueue from "@/pages/admin/queue";
 import AdminTeams from "@/pages/admin/teams";
 import AdminTeamDetail from "@/pages/admin/team-detail";
+import AdminProjects from "@/pages/admin/projects";
+import AdminProjectDetail from "@/pages/admin/project-detail";
 import AdminLeaderboard from "@/pages/admin/leaderboard";
 import AdminDemoDay from "@/pages/admin/demo-day";
 import AdminUsers from "@/pages/admin/users";
@@ -47,6 +49,12 @@ import AdminConfig from "@/pages/admin/config";
 import AdminRoster from "@/pages/admin/roster";
 import AdminAuditLog from "@/pages/admin/audit-log";
 import AdminAnnouncements from "@/pages/admin/announcements";
+
+// Coordinator
+import CoordinatorProjects from "@/pages/coordinator/projects";
+
+// Shared
+import Profile from "@/pages/profile";
 
 // Components
 import { Layout } from "@/components/layout";
@@ -189,6 +197,12 @@ function Router() {
       <Route path="/coordinator/teams">
         <ProtectedRoute component={CoordinatorTeams} allowedRoles={["coordinator"]} />
       </Route>
+      <Route path="/coordinator/projects">
+        <ProtectedRoute component={CoordinatorProjects} allowedRoles={["coordinator"]} />
+      </Route>
+      <Route path="/coordinator/projects/:id">
+        <ProtectedRoute component={AdminProjectDetail} allowedRoles={["coordinator"]} />
+      </Route>
       <Route path="/coordinator/leaderboard">
         <ProtectedRoute component={CoordinatorLeaderboard} allowedRoles={["coordinator"]} />
       </Route>
@@ -211,6 +225,12 @@ function Router() {
       </Route>
       <Route path="/teams/:id">
         <ProtectedRoute component={AdminTeamDetail} allowedRoles={["student", "coordinator", "admin"]} />
+      </Route>
+      <Route path="/admin/projects">
+        <ProtectedRoute component={AdminProjects} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/projects/:id">
+        <ProtectedRoute component={AdminProjectDetail} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/leaderboard">
         <ProtectedRoute component={AdminLeaderboard} allowedRoles={["admin"]} />
@@ -238,6 +258,11 @@ function Router() {
       </Route>
       <Route path="/admin/announcements">
         <ProtectedRoute component={AdminAnnouncements} allowedRoles={["admin"]} />
+      </Route>
+
+      {/* Shared */}
+      <Route path="/profile">
+        <ProtectedRoute component={Profile} allowedRoles={["student", "coordinator", "admin"]} />
       </Route>
 
       <Route component={NotFound} />

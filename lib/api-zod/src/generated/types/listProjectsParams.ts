@@ -9,6 +9,15 @@ import type { ListProjectsStatus } from "./listProjectsStatus";
 
 export type ListProjectsParams = {
   teamId?: number;
+  campusId?: number;
   status?: ListProjectsStatus;
   search?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   */
+  pageSize?: number;
 };

@@ -66,6 +66,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/GetCurrentAuthUserResponse"
 
+  /auth/me:
+    patch:
+      operationId: updateCurrentAuthUser
+      tags: [auth]
+      summary: Update the signed-in user's editable profile fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAuthMeBody"
+      responses:
+        "200":
+          description: Updated current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCurrentAuthUserResponse"
+        "409":
+          description: Email or NIAT ID already in use by another account.
+
   # Campuses
   /campuses:
     get:
@@ -756,9 +777,13 @@ paths:
     get:
       operationId: listProjects
       tags: [projects]
-      summary: List projects for current team
+      summary: List projects (paginated). Students see only their own team; coordinators see only their campus; admins see all.
       parameters:
         - name: teamId
+          in: query
+          schema:
+            type: integer
+        - name: campusId
           in: query
           schema:
             type: integer
@@ -771,15 +796,23 @@ paths:
           in: query
           schema:
             type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
       responses:
         "200":
-          description: List of projects
+          description: Paginated projects
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Project"
+                $ref: "#/components/schemas/ListProjectsResponse"
     post:
       operationId: createProject
       tags: [projects]
@@ -1978,6 +2011,23 @@ components:
       required:
         - user
 
+    UpdateAuthMeBody:
+      type: object
+      description: Editable fields on the signed-in user's profile. All fields optional; only provided fields are updated.
+      properties:
+        firstName:
+          type: string
+          maxLength: 60
+        lastName:
+          type: string
+          maxLength: 60
+        email:
+          type: string
+          maxLength: 200
+        niatId:
+          type: string
+          maxLength: 40
+
     AuthUser:
       type: object
       properties:
@@ -2287,6 +2337,17 @@ components:
             type: string
         photoUrl:
           type: ["string", "null"]
+        fullName:
+          type: string
+          description: Captured during creation when the leader's profile is missing a name.
+          maxLength: 120
+        email:
+          type: string
+          description: Captured during creation when the leader's profile is missing an email.
+        niatId:
+          type: string
+          description: Captured during creation when the leader's profile is missing a NIAT ID.
+          maxLength: 40
       required:
         - name
         - campusId
@@ -2546,6 +2607,25 @@ components:
         - clientCount
         - createdAt
         - updatedAt
+
+    ListProjectsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+      required:
+        - items
+        - total
+        - page
+        - pageSize
 
     ProjectDetail:
       allOf:

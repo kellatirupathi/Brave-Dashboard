@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Trophy, Building2, Briefcase, FileText, CheckCircle, AlertCircle, Bell } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Link } from "wouter";
+import { NotificationsBell } from "@/components/notifications-bell";
 
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
@@ -35,6 +36,9 @@ export default function TeamDashboard() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">{summary.team?.name || "Your Team"}</h1>
           <p className="text-muted-foreground">{summary.team?.tagline || "No tagline set"}</p>
         </Link>
+        <div className="flex items-center gap-3">
+          <NotificationsBell />
+        </div>
         {summary.demoEligible && (
           <Badge variant="default" className="px-4 py-2 text-sm bg-green-500 hover:bg-green-600 border-none text-white shadow-sm">
             <CheckCircle className="w-4 h-4 mr-2" />

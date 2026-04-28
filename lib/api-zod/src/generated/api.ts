@@ -38,6 +38,50 @@ export const GetCurrentAuthUserResponse = zod.object({
 });
 
 /**
+ * @summary Update the signed-in user's editable profile fields.
+ */
+export const updateCurrentAuthUserBodyFirstNameMax = 60;
+
+export const updateCurrentAuthUserBodyLastNameMax = 60;
+
+export const updateCurrentAuthUserBodyEmailMax = 200;
+
+export const updateCurrentAuthUserBodyNiatIdMax = 40;
+
+export const UpdateCurrentAuthUserBody = zod
+  .object({
+    firstName: zod
+      .string()
+      .max(updateCurrentAuthUserBodyFirstNameMax)
+      .optional(),
+    lastName: zod.string().max(updateCurrentAuthUserBodyLastNameMax).optional(),
+    email: zod.string().max(updateCurrentAuthUserBodyEmailMax).optional(),
+    niatId: zod.string().max(updateCurrentAuthUserBodyNiatIdMax).optional(),
+  })
+  .describe(
+    "Editable fields on the signed-in user's profile. All fields optional; only provided fields are updated.",
+  );
+
+export const UpdateCurrentAuthUserResponse = zod.object({
+  user: zod.union([
+    zod.object({
+      id: zod.string(),
+      replitId: zod.string().nullable(),
+      email: zod.string(),
+      niatId: zod.string().nullish(),
+      firstName: zod.string(),
+      lastName: zod.string(),
+      profileImage: zod.string().nullable(),
+      role: zod.enum(["student", "coordinator", "admin"]),
+      campusId: zod.number().nullable(),
+      isOnRoster: zod.boolean().nullable(),
+      teamId: zod.number().nullable(),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
  * @summary List all campuses
  */
 export const ListCampusesResponseItem = zod.object({
@@ -173,12 +217,36 @@ export const createTeamBodyNameMax = 60;
 
 export const createTeamBodyTaglineMax = 120;
 
+export const createTeamBodyFullNameMax = 120;
+
+export const createTeamBodyNiatIdMax = 40;
+
 export const CreateTeamBody = zod.object({
   name: zod.string().max(createTeamBodyNameMax),
   tagline: zod.string().max(createTeamBodyTaglineMax).optional(),
   campusId: zod.number(),
   memberEmails: zod.array(zod.string()).optional(),
   photoUrl: zod.string().nullish(),
+  fullName: zod
+    .string()
+    .max(createTeamBodyFullNameMax)
+    .optional()
+    .describe(
+      "Captured during creation when the leader's profile is missing a name.",
+    ),
+  email: zod
+    .string()
+    .optional()
+    .describe(
+      "Captured during creation when the leader's profile is missing an email.",
+    ),
+  niatId: zod
+    .string()
+    .max(createTeamBodyNiatIdMax)
+    .optional()
+    .describe(
+      "Captured during creation when the leader's profile is missing a NIAT ID.",
+    ),
 });
 
 /**
@@ -1012,28 +1080,38 @@ export const DeclineLeaveRequestResponse = zod.object({
 });
 
 /**
- * @summary List projects for current team
+ * @summary List projects (paginated). Students see only their own team; coordinators see only their campus; admins see all.
  */
+
 export const ListProjectsQueryParams = zod.object({
   teamId: zod.coerce.number().optional(),
+  campusId: zod.coerce.number().optional(),
   status: zod.enum(["active", "inactive"]).optional(),
   search: zod.coerce.string().optional(),
+  page: zod.coerce.number().min(1).optional(),
+  pageSize: zod.coerce.number().min(1).optional(),
 });
 
-export const ListProjectsResponseItem = zod.object({
-  id: zod.number(),
-  teamId: zod.number(),
-  teamName: zod.string(),
-  title: zod.string(),
-  description: zod.string(),
-  status: zod.enum(["active", "inactive"]),
-  verifiedOrderBook: zod.number(),
-  verifiedRevenue: zod.number(),
-  clientCount: zod.number(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
+export const ListProjectsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      teamId: zod.number(),
+      teamName: zod.string(),
+      title: zod.string(),
+      description: zod.string(),
+      status: zod.enum(["active", "inactive"]),
+      verifiedOrderBook: zod.number(),
+      verifiedRevenue: zod.number(),
+      clientCount: zod.number(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+  page: zod.number(),
+  pageSize: zod.number(),
 });
-export const ListProjectsResponse = zod.array(ListProjectsResponseItem);
 
 /**
  * @summary Create a new project

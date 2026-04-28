@@ -23,15 +23,36 @@ import { requireTeamLeader } from "../lib/auth";
 
 const router: IRouter = Router();
 
-// True if the user is admin/coordinator OR a member of the team that owns
-// this project. Returns null if the project does not exist.
+// Resolves whether the requesting user is allowed to see this project.
+// - Admins: always isStaff=true.
+// - Coordinators: isStaff=true ONLY if the project's team belongs to their
+//   assigned campus. Coordinators with mismatched campus are treated like
+//   non-staff (and will get 403 from callers).
+// - Students: isStaff=false; isMember=true if they are on the team that
+//   owns the project.
+// Returns null if the project does not exist.
 async function getProjectAuthorization(
   projectId: number,
-  user: { id: string; role: string },
+  user: { id: string; role: string; campusId?: number | null },
 ): Promise<{ project: typeof projectsTable.$inferSelect; isMember: boolean; isStaff: boolean } | null> {
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
   if (!project) return null;
-  const isStaff = user.role === "admin" || user.role === "coordinator";
+
+  let isStaff = false;
+  if (user.role === "admin") {
+    isStaff = true;
+  } else if (user.role === "coordinator") {
+    if (!user.campusId) {
+      isStaff = false;
+    } else {
+      const [team] = await db
+        .select({ campusId: teamsTable.campusId })
+        .from(teamsTable)
+        .where(eq(teamsTable.id, project.teamId));
+      isStaff = !!team && team.campusId === user.campusId;
+    }
+  }
+
   let isMember = false;
   if (!isStaff) {
     const [member] = await db
@@ -74,15 +95,25 @@ router.get("/projects", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { teamId, status, search } = queryParams.data;
-  const isStaff = req.user.role === "admin" || req.user.role === "coordinator";
+  const { teamId, campusId, status, search, page, pageSize } = queryParams.data;
+  const effectivePage = page && page >= 1 ? page : 1;
+  const effectivePageSize = pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
+  const offset = (effectivePage - 1) * effectivePageSize;
+
+  const isAdmin = req.user.role === "admin";
+  const isCoordinator = req.user.role === "coordinator";
+  const isStaff = isAdmin || isCoordinator;
+
+  let conditions: ReturnType<typeof and>[] = [];
   let effectiveTeamId = teamId;
+
   if (!isStaff) {
-    // Non-staff are scoped to their own team. Their own teamId is derived
-    // from membership and any teamId in the query is ignored to prevent IDOR.
+    // Students/team members are scoped to their own team. Their teamId is
+    // derived from membership and any teamId in the query is ignored to
+    // prevent IDOR.
     const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
     if (!member) {
-      res.json([]);
+      res.json({ items: [], total: 0, page: effectivePage, pageSize: effectivePageSize });
       return;
     }
     if (effectiveTeamId && effectiveTeamId !== member.teamId) {
@@ -91,9 +122,36 @@ router.get("/projects", async (req, res): Promise<void> => {
     }
     effectiveTeamId = member.teamId;
   }
-  let conditions: ReturnType<typeof and>[] = [];
+
+  // Coordinators are hard-scoped to their own campus. If a campusId is
+  // supplied in the query, it must match — otherwise it's silently ignored.
+  let effectiveCampusId: number | undefined;
+  if (isCoordinator) {
+    if (req.user.campusId == null) {
+      res.json({ items: [], total: 0, page: effectivePage, pageSize: effectivePageSize });
+      return;
+    }
+    effectiveCampusId = req.user.campusId;
+  } else if (isAdmin && campusId) {
+    effectiveCampusId = campusId;
+  }
+
   if (effectiveTeamId) conditions.push(eq(projectsTable.teamId, effectiveTeamId));
   if (status) conditions.push(eq(projectsTable.status, status));
+
+  if (effectiveCampusId) {
+    const teamsInCampus = await db
+      .select({ id: teamsTable.id })
+      .from(teamsTable)
+      .where(eq(teamsTable.campusId, effectiveCampusId));
+    const idsInCampus = teamsInCampus.map((t) => t.id);
+    if (idsInCampus.length === 0) {
+      res.json({ items: [], total: 0, page: effectivePage, pageSize: effectivePageSize });
+      return;
+    }
+    conditions.push(inArray(projectsTable.teamId, idsInCampus));
+  }
+
   if (search) {
     const pattern = `%${search}%`;
     // Match by team name and campus name -> set of team IDs
@@ -127,7 +185,10 @@ router.get("/projects", async (req, res): Promise<void> => {
     ? await db.select().from(projectsTable).where(and(...conditions)).orderBy(projectsTable.createdAt)
     : await db.select().from(projectsTable).orderBy(projectsTable.createdAt);
 
-  const result = await Promise.all(projects.map(async (p) => {
+  const totalCount = projects.length;
+  const pageSlice = projects.slice(offset, offset + effectivePageSize);
+
+  const items = await Promise.all(pageSlice.map(async (p) => {
     const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, p.teamId));
     const [revStats] = await db
       .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
@@ -145,7 +206,13 @@ router.get("/projects", async (req, res): Promise<void> => {
       clientCount: 0,
     };
   }));
-  res.json(result);
+
+  res.json({
+    items,
+    total: totalCount,
+    page: effectivePage,
+    pageSize: effectivePageSize,
+  });
 });
 
 router.post("/projects", async (req, res): Promise<void> => {

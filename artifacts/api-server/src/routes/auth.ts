@@ -1,7 +1,7 @@
 import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { GetCurrentAuthUserResponse } from "@workspace/api-zod";
+import { GetCurrentAuthUserResponse, UpdateCurrentAuthUserBody } from "@workspace/api-zod";
 import crypto from "crypto";
 import {
   db,
@@ -320,6 +320,88 @@ router.get("/auth/user", async (req: Request, res: Response) => {
     req.log.warn({ err }, "auth/user live rebuild failed; using session cache");
   }
   res.json(GetCurrentAuthUserResponse.parse({ user: req.user }));
+});
+
+router.patch("/auth/me", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const parsed = UpdateCurrentAuthUserBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const updates: Partial<typeof usersTable.$inferInsert> = {};
+  if (typeof parsed.data.firstName === "string") {
+    const v = parsed.data.firstName.trim();
+    if (v) updates.firstName = v;
+  }
+  if (typeof parsed.data.lastName === "string") {
+    updates.lastName = parsed.data.lastName.trim();
+  }
+  if (typeof parsed.data.email === "string") {
+    const v = parsed.data.email.trim();
+    if (v) updates.email = v;
+  }
+  if (typeof parsed.data.niatId === "string") {
+    const v = parsed.data.niatId.trim();
+    updates.niatId = v.length > 0 ? v : null;
+  }
+  if (Object.keys(updates).length === 0) {
+    const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+    if (!dbUser) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const fresh = await buildAuthUser(dbUser);
+    res.json(GetCurrentAuthUserResponse.parse({ user: fresh }));
+    return;
+  }
+
+  if (updates.email) {
+    const [emailHit] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, updates.email));
+    if (emailHit && emailHit.id !== req.user.id) {
+      res.status(409).json({ error: "That email is already in use by another account." });
+      return;
+    }
+  }
+  if (updates.niatId) {
+    const [niatHit] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.niatId, updates.niatId));
+    if (niatHit && niatHit.id !== req.user.id) {
+      res.status(409).json({ error: "That NIAT ID is already in use by another account." });
+      return;
+    }
+  }
+
+  try {
+    await db
+      .update(usersTable)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(usersTable.id, req.user.id));
+  } catch (err) {
+    if ((err as { code?: string })?.code === "23505") {
+      res.status(409).json({ error: "That email or NIAT ID is already in use." });
+      return;
+    }
+    req.log.error({ err }, "PATCH /auth/me failed");
+    res.status(500).json({ error: "Failed to update profile" });
+    return;
+  }
+
+  const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+  if (!dbUser) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const fresh = await buildAuthUser(dbUser);
+  res.json(GetCurrentAuthUserResponse.parse({ user: fresh }));
 });
 
 // Dev-only login shortcut for seeded users. Disabled in production.

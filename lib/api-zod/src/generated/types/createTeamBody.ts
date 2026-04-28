@@ -15,4 +15,16 @@ export interface CreateTeamBody {
   memberEmails?: string[];
   /** @nullable */
   photoUrl?: string | null;
+  /**
+   * Captured during creation when the leader's profile is missing a name.
+   * @maxLength 120
+   */
+  fullName?: string;
+  /** Captured during creation when the leader's profile is missing an email. */
+  email?: string;
+  /**
+   * Captured during creation when the leader's profile is missing a NIAT ID.
+   * @maxLength 40
+   */
+  niatId?: string;
 }

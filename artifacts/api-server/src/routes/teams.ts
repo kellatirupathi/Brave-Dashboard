@@ -298,10 +298,67 @@ router.post("/teams", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Selected campus does not exist." });
     return;
   }
-  // Persist campus onto the user row when they didn't have one yet.
-  if (!req.user.campusId && req.user.role === "student") {
-    await db.update(usersTable).set({ campusId }).where(eq(usersTable.id, req.user.id));
+
+  // Capture-on-create profile fields. Only persist values for fields the
+  // user's row is currently missing; never overwrite an existing email or
+  // niatId from a request body (that's what /auth/me is for).
+  const [currentUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+  if (!currentUser) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
   }
+
+  const userUpdates: Partial<typeof usersTable.$inferInsert> = {};
+  if (!req.user.campusId && req.user.role === "student") {
+    userUpdates.campusId = campusId;
+  }
+
+  const trimmedFullName = parsed.data.fullName?.trim();
+  if ((!currentUser.firstName || !currentUser.lastName) && trimmedFullName) {
+    const parts = trimmedFullName.split(/\s+/);
+    const fn = parts[0] ?? "";
+    const ln = parts.slice(1).join(" ");
+    if (!currentUser.firstName && fn) userUpdates.firstName = fn;
+    if (!currentUser.lastName && ln) userUpdates.lastName = ln;
+  }
+
+  const trimmedEmail = parsed.data.email?.trim();
+  const wantsEmailCapture =
+    !!trimmedEmail &&
+    (!currentUser.email || currentUser.email.endsWith("@replit.user"));
+  if (wantsEmailCapture && trimmedEmail !== currentUser.email) {
+    userUpdates.email = trimmedEmail;
+  }
+
+  const trimmedNiat = parsed.data.niatId?.trim();
+  const wantsNiatCapture = !!trimmedNiat && !currentUser.niatId;
+  if (wantsNiatCapture) {
+    userUpdates.niatId = trimmedNiat;
+  }
+
+  // Pre-flight uniqueness checks so we can return 409 before consuming an
+  // invite code or starting the transaction.
+  if (userUpdates.email) {
+    const [emailHit] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.email, userUpdates.email), ne(usersTable.id, req.user.id)));
+    if (emailHit) {
+      res.status(409).json({ error: "That email is already in use by another account." });
+      return;
+    }
+  }
+  if (userUpdates.niatId) {
+    const [niatHit] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.niatId, userUpdates.niatId), ne(usersTable.id, req.user.id)));
+    if (niatHit) {
+      res.status(409).json({ error: "That NIAT ID is already in use by another account." });
+      return;
+    }
+  }
+
   const inviteCode = await generateUniqueInviteCode();
   const teamData = {
     name: parsed.data.name,
@@ -311,18 +368,39 @@ router.post("/teams", async (req, res): Promise<void> => {
     leaderId: req.user.id,
     inviteCode,
   };
-  let team;
+
+  let teamId: number;
   try {
-    [team] = await db
-      .insert(teamsTable)
-      .values(teamData)
-      .returning();
-    await db.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
-  } catch {
+    teamId = await db.transaction(async (tx) => {
+      if (Object.keys(userUpdates).length > 0) {
+        try {
+          await tx
+            .update(usersTable)
+            .set({ ...userUpdates, updatedAt: new Date() })
+            .where(eq(usersTable.id, req.user.id));
+        } catch (err) {
+          // Translate unique-violation into a sentinel the outer catch
+          // can map to a 409.
+          throw new Error(
+            (err as { code?: string })?.code === "23505" ? "user_unique_violation" : String(err),
+          );
+        }
+      }
+      const [createdTeam] = await tx.insert(teamsTable).values(teamData).returning();
+      await tx.insert(teamMembersTable).values({ teamId: createdTeam.id, userId: req.user.id });
+      return createdTeam.id;
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "user_unique_violation") {
+      res.status(409).json({ error: "That email or NIAT ID is already in use by another account." });
+      return;
+    }
     res.status(409).json({ error: "Could not create team. You may already be on a team." });
     return;
   }
-  const teamDetail = await getTeamWithStats(team.id);
+
+  const teamDetail = await getTeamWithStats(teamId);
   res.status(201).json(teamDetail);
 });
 

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Trophy, Users, CheckCircle, AlertCircle, Megaphone } from "lucide-react";
 import { Link } from "wouter";
+import { NotificationsBell } from "@/components/notifications-bell";
 
 export default function CoordinatorDashboard() {
   const { data: summary, isLoading } = useGetDashboardSummary();
@@ -21,6 +22,7 @@ export default function CoordinatorDashboard() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Campus Dashboard</h1>
           <p className="text-muted-foreground">Overview of your campus performance</p>
         </div>
+        <NotificationsBell />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

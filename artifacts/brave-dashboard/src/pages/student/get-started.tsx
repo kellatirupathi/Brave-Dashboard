@@ -37,6 +37,16 @@ export default function GetStarted() {
   const [tagline, setTagline] = useState("");
   const [campusId, setCampusId] = useState<string>("");
   const [showCreate, setShowCreate] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [niatIdInput, setNiatIdInput] = useState("");
+
+  // Detect missing profile bits so we can prompt for them inline. We treat the
+  // synthetic "<sub>@replit.user" placeholder address from SSO as "missing".
+  const missingFullName = !user?.firstName?.trim() || !user?.lastName?.trim();
+  const missingEmail = !user?.email?.trim() || user.email.endsWith("@replit.user");
+  const missingNiat = !user?.niatId?.trim();
+  const needsProfileCapture = missingFullName || missingEmail || missingNiat;
 
   if (teamLoading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
@@ -58,8 +68,29 @@ export default function GetStarted() {
       toast({ title: "Choose a campus", description: "Pick the campus your team belongs to.", variant: "destructive" });
       return;
     }
+    if (missingFullName && !fullName.trim()) {
+      toast({ title: "Tell us your full name", description: "We need your full name before we create your team.", variant: "destructive" });
+      return;
+    }
+    if (missingEmail && !emailInput.trim()) {
+      toast({ title: "Add your email", description: "We need an email address for your account.", variant: "destructive" });
+      return;
+    }
+    if (missingNiat && !niatIdInput.trim()) {
+      toast({ title: "Add your NIAT ID", description: "Your NIAT ID links your account to your campus records.", variant: "destructive" });
+      return;
+    }
     createTeam.mutate(
-      { data: { name: name.trim(), tagline: tagline.trim() || undefined, campusId: effectiveCampusId } },
+      {
+        data: {
+          name: name.trim(),
+          tagline: tagline.trim() || undefined,
+          campusId: effectiveCampusId,
+          ...(missingFullName && fullName.trim() ? { fullName: fullName.trim() } : {}),
+          ...(missingEmail && emailInput.trim() ? { email: emailInput.trim() } : {}),
+          ...(missingNiat && niatIdInput.trim() ? { niatId: niatIdInput.trim() } : {}),
+        },
+      },
       {
         onSuccess: async (created) => {
           toast({ title: "Team created", description: "Share your invite code with teammates." });
@@ -168,6 +199,59 @@ export default function GetStarted() {
                 <Label htmlFor="team-tagline">Tagline (optional)</Label>
                 <Textarea id="team-tagline" data-testid="input-team-tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={120} rows={2} />
               </div>
+              {needsProfileCapture && (
+                <div className="space-y-4 rounded-md border bg-muted/30 p-4">
+                  <div>
+                    <p className="text-sm font-medium">Confirm your details</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      We need a few extra details to set up your account. These will be saved to your profile.
+                    </p>
+                  </div>
+                  {missingFullName && (
+                    <div className="space-y-2">
+                      <Label htmlFor="profile-fullname">Full name</Label>
+                      <Input
+                        id="profile-fullname"
+                        data-testid="input-profile-fullname"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        maxLength={120}
+                        placeholder="e.g. Aanya Sharma"
+                        required
+                      />
+                    </div>
+                  )}
+                  {missingEmail && (
+                    <div className="space-y-2">
+                      <Label htmlFor="profile-email-input">Email</Label>
+                      <Input
+                        id="profile-email-input"
+                        type="email"
+                        data-testid="input-profile-email"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        maxLength={200}
+                        placeholder="you@niat.tech"
+                        required
+                      />
+                    </div>
+                  )}
+                  {missingNiat && (
+                    <div className="space-y-2">
+                      <Label htmlFor="profile-niat-input">NIAT ID</Label>
+                      <Input
+                        id="profile-niat-input"
+                        data-testid="input-profile-niatid"
+                        value={niatIdInput}
+                        onChange={(e) => setNiatIdInput(e.target.value)}
+                        maxLength={40}
+                        placeholder="e.g. NIAT-12345"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
               <Button type="submit" disabled={createTeam.isPending || !name.trim() || !effectiveCampusId} data-testid="button-submit-create">
                 {createTeam.isPending ? <Spinner className="mr-2 size-4" /> : null}
                 Create team

@@ -2,22 +2,22 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { useGetMyTeam, getGetMyTeamQueryKey } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
-import { 
-  LayoutDashboard, 
-  Trophy, 
-  Users, 
-  Megaphone, 
-  ClipboardList, 
-  Building2, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Trophy,
+  Users,
+  Megaphone,
+  ClipboardList,
+  Building2,
+  Settings,
   FolderKanban,
   FileText,
   LogOut,
-  Bell,
-  CheckSquare
+  CheckSquare,
+  UserCog,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "./ui/button";
 import { BraveLogo } from "./brave-logo";
 import {
   AlertDialog,
@@ -29,6 +29,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
@@ -72,6 +79,7 @@ export function Sidebar() {
     coordinator: [
       { name: "Dashboard", href: "/coordinator", icon: LayoutDashboard },
       { name: "Teams", href: "/coordinator/teams", icon: Users },
+      { name: "Projects", href: "/coordinator/projects", icon: FolderKanban },
       { name: "Leaderboard", href: "/coordinator/leaderboard", icon: Trophy },
       { name: "Announcements", href: "/coordinator/announcements", icon: Megaphone },
     ],
@@ -79,6 +87,7 @@ export function Sidebar() {
       { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
       { name: "Review Queue", href: "/admin/queue", icon: CheckSquare },
       { name: "Teams", href: "/admin/teams", icon: Users },
+      { name: "Projects", href: "/admin/projects", icon: FolderKanban },
       { name: "Leaderboard", href: "/admin/leaderboard", icon: Trophy },
       { name: "Demo Day", href: "/admin/demo-day", icon: FileText },
       { name: "Campuses", href: "/admin/campuses", icon: Building2 },
@@ -127,27 +136,54 @@ export function Sidebar() {
         </nav>
 
         <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-3">
-            {user.profileImage ? (
-              <img src={user.profileImage} alt="" className="w-8 h-8 rounded-full" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-sidebar-primary/20 text-sidebar-primary flex items-center justify-center text-sm font-bold">
-                {user.firstName?.[0]}{user.lastName?.[0]}
-              </div>
-            )}
-            <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">{user.firstName} {user.lastName}</p>
-              <p className="text-xs text-sidebar-foreground/50 truncate capitalize">{user.role}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowLogoutDialog(true)}
-              title="Logout"
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-md text-left transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                data-testid="button-sidebar-profile-menu"
+                aria-label="Open profile menu"
+              >
+                {user.profileImage ? (
+                  <img src={user.profileImage} alt="" className="w-8 h-8 rounded-full" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-sidebar-primary/20 text-sidebar-primary flex items-center justify-center text-sm font-bold">
+                    {user.firstName?.[0]}{user.lastName?.[0]}
+                  </div>
+                )}
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium truncate">{user.firstName} {user.lastName}</p>
+                  <p className="text-xs text-sidebar-foreground/50 truncate capitalize">{user.role}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-sidebar-foreground/40" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="right"
+              align="end"
+              className="w-48"
+              data-testid="menu-sidebar-profile"
             >
-              <LogOut className="w-4 h-4 text-sidebar-foreground/50 hover:text-sidebar-foreground" />
-            </Button>
-          </div>
+              <DropdownMenuItem asChild data-testid="menu-item-edit-profile">
+                <Link href="/profile">
+                  <UserCog className="w-4 h-4 mr-2" />
+                  Edit profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setShowLogoutDialog(true);
+                }}
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                data-testid="menu-item-logout"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

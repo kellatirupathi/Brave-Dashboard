@@ -32,7 +32,8 @@ const projectSchema = z.object({
 });
 
 export default function ProjectsList() {
-  const { data: projects, isLoading } = useListProjects();
+  const { data: projectsResponse, isLoading } = useListProjects();
+  const projects = projectsResponse?.items ?? [];
   const { data: myTeam, isLoading: teamLoading } = useGetMyTeam({
     query: { queryKey: getGetMyTeamQueryKey(), retry: false },
   });

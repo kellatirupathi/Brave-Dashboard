@@ -59,6 +59,7 @@ import type {
   ListNotificationsParams,
   ListOrderBookEntriesParams,
   ListProjectsParams,
+  ListProjectsResponse,
   ListRevenueEntriesParams,
   ListRosterEntriesParams,
   ListRosterEntriesResponse,
@@ -94,6 +95,7 @@ import type {
   TransferTeamLeadershipBody,
   UpdateAccessRequestBody,
   UpdateAnnouncementBody,
+  UpdateAuthMeBody,
   UpdateCampusBody,
   UpdateDemoDayApplicationBody,
   UpdateMilestoneBody,
@@ -268,6 +270,95 @@ export function useGetCurrentAuthUser<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Update the signed-in user's editable profile fields.
+ */
+export const getUpdateCurrentAuthUserUrl = () => {
+  return `/api/auth/me`;
+};
+
+export const updateCurrentAuthUser = async (
+  updateAuthMeBody: UpdateAuthMeBody,
+  options?: RequestInit,
+): Promise<GetCurrentAuthUserResponse> => {
+  return customFetch<GetCurrentAuthUserResponse>(
+    getUpdateCurrentAuthUserUrl(),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateAuthMeBody),
+    },
+  );
+};
+
+export const getUpdateCurrentAuthUserMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCurrentAuthUser>>,
+    TError,
+    { data: BodyType<UpdateAuthMeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCurrentAuthUser>>,
+  TError,
+  { data: BodyType<UpdateAuthMeBody> },
+  TContext
+> => {
+  const mutationKey = ["updateCurrentAuthUser"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCurrentAuthUser>>,
+    { data: BodyType<UpdateAuthMeBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateCurrentAuthUser(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCurrentAuthUserMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCurrentAuthUser>>
+>;
+export type UpdateCurrentAuthUserMutationBody = BodyType<UpdateAuthMeBody>;
+export type UpdateCurrentAuthUserMutationError = ErrorType<void>;
+
+/**
+ * @summary Update the signed-in user's editable profile fields.
+ */
+export const useUpdateCurrentAuthUser = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCurrentAuthUser>>,
+    TError,
+    { data: BodyType<UpdateAuthMeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCurrentAuthUser>>,
+  TError,
+  { data: BodyType<UpdateAuthMeBody> },
+  TContext
+> => {
+  return useMutation(getUpdateCurrentAuthUserMutationOptions(options));
+};
 
 /**
  * @summary List all campuses
@@ -3062,7 +3153,7 @@ export const useDeclineLeaveRequest = <
 };
 
 /**
- * @summary List projects for current team
+ * @summary List projects (paginated). Students see only their own team; coordinators see only their campus; admins see all.
  */
 export const getListProjectsUrl = (params?: ListProjectsParams) => {
   const normalizedParams = new URLSearchParams();
@@ -3083,8 +3174,8 @@ export const getListProjectsUrl = (params?: ListProjectsParams) => {
 export const listProjects = async (
   params?: ListProjectsParams,
   options?: RequestInit,
-): Promise<Project[]> => {
-  return customFetch<Project[]>(getListProjectsUrl(params), {
+): Promise<ListProjectsResponse> => {
+  return customFetch<ListProjectsResponse>(getListProjectsUrl(params), {
     ...options,
     method: "GET",
   });
@@ -3129,7 +3220,7 @@ export type ListProjectsQueryResult = NonNullable<
 export type ListProjectsQueryError = ErrorType<unknown>;
 
 /**
- * @summary List projects for current team
+ * @summary List projects (paginated). Students see only their own team; coordinators see only their campus; admins see all.
  */
 
 export function useListProjects<

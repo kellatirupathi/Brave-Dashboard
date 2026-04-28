@@ -41,6 +41,20 @@ export interface GetCurrentAuthUserResponse {
   user: AuthUser | null;
 }
 
+/**
+ * Editable fields on the signed-in user's profile. All fields optional; only provided fields are updated.
+ */
+export interface UpdateAuthMeBody {
+  /** @maxLength 60 */
+  firstName?: string;
+  /** @maxLength 60 */
+  lastName?: string;
+  /** @maxLength 200 */
+  email?: string;
+  /** @maxLength 40 */
+  niatId?: string;
+}
+
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 export const UserRole = {
@@ -244,6 +258,18 @@ export interface CreateTeamBody {
   memberEmails?: string[];
   /** @nullable */
   photoUrl?: string | null;
+  /**
+   * Captured during creation when the leader's profile is missing a name.
+   * @maxLength 120
+   */
+  fullName?: string;
+  /** Captured during creation when the leader's profile is missing an email. */
+  email?: string;
+  /**
+   * Captured during creation when the leader's profile is missing a NIAT ID.
+   * @maxLength 40
+   */
+  niatId?: string;
 }
 
 export interface UpdateTeamBody {
@@ -387,6 +413,13 @@ export interface TeamLeaveRequest {
   reason?: string | null;
   status: TeamLeaveRequestStatus;
   createdAt: string;
+}
+
+export interface ListProjectsResponse {
+  items: Project[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export type OrderBookEntryStatus =
@@ -1125,8 +1158,17 @@ export type SearchCampusStudentsParams = {
 
 export type ListProjectsParams = {
   teamId?: number;
+  campusId?: number;
   status?: ListProjectsStatus;
   search?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   */
+  pageSize?: number;
 };
 
 export type ListProjectsStatus =
