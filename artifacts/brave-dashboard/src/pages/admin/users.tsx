@@ -1,10 +1,33 @@
-import { useListUsers, useCreateUser, useUpdateUser, getListUsersQueryKey, useListCampuses, useImportUsersCsv, type ImportUsersCsvResponse } from "@workspace/api-client-react";
+import {
+  useListUsers,
+  useCreateUser,
+  useUpdateUser,
+  getListUsersQueryKey,
+  useListCampuses,
+  useImportUsersCsv,
+  type ImportUsersCsvResponse,
+} from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Plus, Shield, Search, ShieldCheck, Mail, Trash2, Pencil, Upload, GraduationCap, Download, MoreVertical, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Users,
+  Plus,
+  Shield,
+  Search,
+  ShieldCheck,
+  Mail,
+  Trash2,
+  Pencil,
+  Upload,
+  GraduationCap,
+  Download,
+  MoreVertical,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,10 +35,37 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEffect, useRef, useState } from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -102,12 +152,15 @@ function parseCSV(text: string): Record<string, string>[] {
     lines.push(row);
   }
   if (lines.length === 0) return [];
-  const header = lines[0].map(h => h.trim());
-  return lines.slice(1)
-    .filter(r => r.some(c => c && c.trim()))
-    .map(r => {
+  const header = lines[0].map((h) => h.trim());
+  return lines
+    .slice(1)
+    .filter((r) => r.some((c) => c && c.trim()))
+    .map((r) => {
       const obj: Record<string, string> = {};
-      header.forEach((h, idx) => { obj[h] = (r[idx] ?? "").trim(); });
+      header.forEach((h, idx) => {
+        obj[h] = (r[idx] ?? "").trim();
+      });
       return obj;
     });
 }
@@ -177,21 +230,40 @@ export default function AdminUsers() {
   const [editTarget, setEditTarget] = useState<AnyUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AnyUser | null>(null);
   const [editCampusId, setEditCampusId] = useState<string>("");
-  const [editRole, setEditRole] = useState<"admin" | "coordinator" | "student">("coordinator");
+  const [editRole, setEditRole] = useState<"admin" | "coordinator" | "student">(
+    "coordinator",
+  );
   const [isDeleting, setIsDeleting] = useState(false);
-  const [importResult, setImportResult] = useState<ImportUsersCsvResponse | null>(null);
+  const [importResult, setImportResult] =
+    useState<ImportUsersCsvResponse | null>(null);
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
 
   const form = useForm<z.infer<typeof createUserSchema>>({
     resolver: zodResolver(createUserSchema),
-    defaultValues: { formsUserId: "", email: "", firstName: "", lastName: "", role: "student", campusId: "", niatId: "", batchSectionName: "" },
+    defaultValues: {
+      formsUserId: "",
+      email: "",
+      firstName: "",
+      lastName: "",
+      role: "student",
+      campusId: "",
+      niatId: "",
+      batchSectionName: "",
+    },
   });
   const role = form.watch("role");
 
   const onCreate = (values: z.infer<typeof createUserSchema>) => {
-    if ((values.role === "coordinator" || values.role === "student") && !values.campusId) {
-      toast({ title: `Pick a campus for the ${values.role}`, variant: "destructive" });
+    if (
+      (values.role === "coordinator" || values.role === "student") &&
+      !values.campusId
+    ) {
+      toast({
+        title: `Pick a campus for the ${values.role}`,
+        variant: "destructive",
+      });
       return;
     }
     const payload = {
@@ -200,20 +272,33 @@ export default function AdminUsers() {
       firstName: values.firstName,
       lastName: values.lastName,
       role: values.role,
-      campusId: values.role === "admin" ? null : (values.campusId ? parseInt(values.campusId) : null),
+      campusId:
+        values.role === "admin"
+          ? null
+          : values.campusId
+            ? parseInt(values.campusId)
+            : null,
       niatId: values.niatId?.trim() || null,
       batchSectionName: values.batchSectionName?.trim() || null,
       password: null,
     };
-    createUser.mutate({ data: payload }, {
-      onSuccess: () => {
-        toast({ title: "User created" });
-        refresh();
-        setIsCreateOpen(false);
-        form.reset();
+    createUser.mutate(
+      { data: payload },
+      {
+        onSuccess: () => {
+          toast({ title: "User created" });
+          refresh();
+          setIsCreateOpen(false);
+          form.reset();
+        },
+        onError: (e: unknown) =>
+          toast({
+            title: "Failed to create user",
+            description: normalizeError(e, "Something went wrong.").message,
+            variant: "destructive",
+          }),
       },
-      onError: (e: unknown) => toast({ title: "Failed to create user", description: normalizeError(e, "Something went wrong.").message, variant: "destructive" }),
-    });
+    );
   };
 
   const openEdit = (u: AnyUser) => {
@@ -224,8 +309,14 @@ export default function AdminUsers() {
 
   const onSaveEdit = () => {
     if (!editTarget) return;
-    if ((editRole === "coordinator" || editRole === "student") && !editCampusId) {
-      toast({ title: `Pick a campus for the ${editRole}`, variant: "destructive" });
+    if (
+      (editRole === "coordinator" || editRole === "student") &&
+      !editCampusId
+    ) {
+      toast({
+        title: `Pick a campus for the ${editRole}`,
+        variant: "destructive",
+      });
       return;
     }
     updateUser.mutate(
@@ -242,7 +333,12 @@ export default function AdminUsers() {
           refresh();
           setEditTarget(null);
         },
-        onError: (e: unknown) => toast({ title: "Update failed", description: normalizeError(e, "Something went wrong.").message, variant: "destructive" }),
+        onError: (e: unknown) =>
+          toast({
+            title: "Update failed",
+            description: normalizeError(e, "Something went wrong.").message,
+            variant: "destructive",
+          }),
       },
     );
   };
@@ -263,7 +359,11 @@ export default function AdminUsers() {
       refresh();
       setDeleteTarget(null);
     } catch (e: unknown) {
-      toast({ title: "Delete failed", description: normalizeError(e).message, variant: "destructive" });
+      toast({
+        title: "Delete failed",
+        description: normalizeError(e).message,
+        variant: "destructive",
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -280,7 +380,11 @@ export default function AdminUsers() {
     try {
       rows = parseCSV(text);
     } catch (err) {
-      toast({ title: "Could not parse CSV", description: String(err), variant: "destructive" });
+      toast({
+        title: "Could not parse CSV",
+        description: String(err),
+        variant: "destructive",
+      });
       return;
     }
     if (rows.length === 0) {
@@ -295,7 +399,11 @@ export default function AdminUsers() {
           refresh();
         },
         onError: (err: unknown) => {
-          toast({ title: "Import failed", description: normalizeError(err).message, variant: "destructive" });
+          toast({
+            title: "Import failed",
+            description: normalizeError(err).message,
+            variant: "destructive",
+          });
         },
       },
     );
@@ -306,7 +414,9 @@ export default function AdminUsers() {
     const lines = ["row_number,forms_user_id,error"];
     for (const e of importResult.errors) {
       const safe = (s: string) => `"${(s ?? "").replace(/"/g, '""')}"`;
-      lines.push(`${e.rowNumber},${safe(e.forms_user_id ?? "")},${safe(e.message)}`);
+      lines.push(
+        `${e.rowNumber},${safe(e.forms_user_id ?? "")},${safe(e.message)}`,
+      );
     }
     downloadCsv("import-errors.csv", lines.join("\n"));
   };
@@ -328,26 +438,38 @@ export default function AdminUsers() {
         if (sourceFilter !== "all") params.set("provisionedVia", sourceFilter);
         params.set("page", String(exportPage));
         params.set("pageSize", String(exportPageSize));
-        const res = await fetch(`/api/admin/users?${params.toString()}`, { credentials: "include" });
+        const res = await fetch(`/api/admin/users?${params.toString()}`, {
+          credentials: "include",
+        });
         if (!res.ok) throw new Error("Failed to fetch users for export");
-        const chunk = (await res.json()) as { items: AnyUser[]; total: number; page: number; pageSize: number };
+        const chunk = (await res.json()) as {
+          items: AnyUser[];
+          total: number;
+          page: number;
+          pageSize: number;
+        };
         all.push(...chunk.items);
-        if (chunk.items.length < exportPageSize || all.length >= chunk.total) break;
+        if (chunk.items.length < exportPageSize || all.length >= chunk.total)
+          break;
         exportPage += 1;
       }
       if (all.length === 0) {
-        toast({ title: "Nothing to export", description: "The user list is empty.", variant: "destructive" });
+        toast({
+          title: "Nothing to export",
+          description: "The user list is empty.",
+          variant: "destructive",
+        });
         return;
       }
       const rows = all.map((u) => ({
         "Forms User ID": u.formsUserId ?? "",
         "First Name": u.firstName ?? "",
         "Last Name": u.lastName ?? "",
-        "Email": u.email,
-        "Role": u.role,
-        "Campus": u.campusName ?? "",
-        "Source": SOURCE_LABEL[u.provisionedVia] ?? u.provisionedVia,
-        "Active": u.isActive ? "Yes" : "No",
+        Email: u.email,
+        Role: u.role,
+        Campus: u.campusName ?? "",
+        Source: SOURCE_LABEL[u.provisionedVia] ?? u.provisionedVia,
+        Active: u.isActive ? "Yes" : "No",
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -356,7 +478,11 @@ export default function AdminUsers() {
       XLSX.writeFile(wb, `users-${ts}.xlsx`);
     } catch (err) {
       const { message } = normalizeError(err);
-      toast({ title: "Export failed", description: message, variant: "destructive" });
+      toast({
+        title: "Export failed",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -364,15 +490,29 @@ export default function AdminUsers() {
   // across the whole filtered set, not just this page).
   const counts = {
     total: totalUsers,
-    admin: allUsers.filter(u => u.role === "admin").length,
-    coordinator: allUsers.filter(u => u.role === "coordinator").length,
-    student: allUsers.filter(u => u.role === "student").length,
+    admin: allUsers.filter((u) => u.role === "admin").length,
+    coordinator: allUsers.filter((u) => u.role === "coordinator").length,
+    student: allUsers.filter((u) => u.role === "student").length,
   };
 
   const renderRoleBadge = (r: AnyUser["role"]) => {
-    if (r === "admin") return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-100 border-none"><ShieldCheck className="w-3 h-3 mr-1" /> Admin</Badge>;
-    if (r === "coordinator") return <Badge variant="outline"><Shield className="w-3 h-3 mr-1" /> Coordinator</Badge>;
-    return <Badge variant="secondary"><GraduationCap className="w-3 h-3 mr-1" /> Student</Badge>;
+    if (r === "admin")
+      return (
+        <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-100 border-none">
+          <ShieldCheck className="w-3 h-3 mr-1" /> Admin
+        </Badge>
+      );
+    if (r === "coordinator")
+      return (
+        <Badge variant="outline">
+          <Shield className="w-3 h-3 mr-1" /> Coordinator
+        </Badge>
+      );
+    return (
+      <Badge variant="secondary">
+        <GraduationCap className="w-3 h-3 mr-1" /> Student
+      </Badge>
+    );
   };
 
   return (
@@ -381,7 +521,8 @@ export default function AdminUsers() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Users</h1>
           <p className="text-muted-foreground">
-            All users: {counts.total} ({counts.admin} admin · {counts.coordinator} coordinator · {counts.student} student)
+            All users: {counts.total} ({counts.admin} admin ·{" "}
+            {counts.coordinator} coordinator · {counts.student} student)
           </p>
         </div>
 
@@ -396,8 +537,19 @@ export default function AdminUsers() {
             />
           </div>
 
-          <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v as RoleFilter); setPage(1); }}>
-            <SelectTrigger className="w-[160px]" data-testid="select-role-filter"><SelectValue /></SelectTrigger>
+          <Select
+            value={roleFilter}
+            onValueChange={(v) => {
+              setRoleFilter(v as RoleFilter);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger
+              className="w-[160px]"
+              data-testid="select-role-filter"
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All roles</SelectItem>
               <SelectItem value="admin">Admins</SelectItem>
@@ -406,8 +558,19 @@ export default function AdminUsers() {
             </SelectContent>
           </Select>
 
-          <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v as SourceFilter); setPage(1); }}>
-            <SelectTrigger className="w-[180px]" data-testid="select-source-filter"><SelectValue /></SelectTrigger>
+          <Select
+            value={sourceFilter}
+            onValueChange={(v) => {
+              setSourceFilter(v as SourceFilter);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger
+              className="w-[180px]"
+              data-testid="select-source-filter"
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All sources</SelectItem>
               <SelectItem value="roster">Roster</SelectItem>
@@ -470,75 +633,166 @@ export default function AdminUsers() {
 
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-user"><Plus className="w-4 h-4 mr-2" /> Add User</Button>
+              <Button data-testid="button-add-user">
+                <Plus className="w-4 h-4 mr-2" /> Add User
+              </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[480px]">
               <DialogHeader>
                 <DialogTitle>Add User</DialogTitle>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onCreate)} className="space-y-4">
-                  <FormField control={form.control} name="formsUserId" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Forms User ID (UUID)</FormLabel>
-                      <FormControl><Input placeholder="00000000-0000-0000-0000-000000000000" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="firstName" render={({ field }) => (
-                      <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="lastName" render={({ field }) => (
-                      <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                  </div>
-                  <FormField control={form.control} name="email" render={({ field }) => (
-                    <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField control={form.control} name="role" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Role</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="student">Student</SelectItem>
-                          <SelectItem value="coordinator">Campus Coordinator</SelectItem>
-                          <SelectItem value="admin">Administrator</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  {role !== "admin" && campuses && (
-                    <FormField control={form.control} name="campusId" render={({ field }) => (
+                <form
+                  onSubmit={form.handleSubmit(onCreate)}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={form.control}
+                    name="formsUserId"
+                    render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Assigned Campus</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select campus" /></SelectTrigger></FormControl>
+                        <FormLabel>Forms User ID (UUID)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="00000000-0000-0000-0000-000000000000"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>First Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Last Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                          </FormControl>
                           <SelectContent>
-                            {campuses.map((c) => (
-                              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                            ))}
+                            <SelectItem value="student">Student</SelectItem>
+                            <SelectItem value="coordinator">
+                              Campus Coordinator
+                            </SelectItem>
+                            <SelectItem value="admin">Administrator</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
-                    )} />
+                    )}
+                  />
+                  {role !== "admin" && campuses && (
+                    <FormField
+                      control={form.control}
+                      name="campusId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Assigned Campus</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select campus" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="max-h-72 overflow-y-auto">
+                              {campuses.map((c) => (
+                                <SelectItem key={c.id} value={c.id.toString()}>
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
                   {role === "student" && (
                     <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="niatId" render={({ field }) => (
-                        <FormItem><FormLabel>NIAT ID</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-                      )} />
-                      <FormField control={form.control} name="batchSectionName" render={({ field }) => (
-                        <FormItem><FormLabel>Batch / Section</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
-                      )} />
+                      <FormField
+                        control={form.control}
+                        name="niatId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>NIAT ID</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="batchSectionName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Batch / Section</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   )}
                   <div className="flex justify-end pt-4">
                     <Button type="submit" disabled={createUser.isPending}>
-                      {createUser.isPending && <Spinner className="w-4 h-4 mr-2" />} Create User
+                      {createUser.isPending && (
+                        <Spinner className="w-4 h-4 mr-2" />
+                      )}{" "}
+                      Create User
                     </Button>
                   </div>
                 </form>
@@ -550,7 +804,9 @@ export default function AdminUsers() {
 
       <Card>
         {isLoading ? (
-          <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
+          <div className="flex h-64 items-center justify-center">
+            <Spinner size="lg" />
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -566,27 +822,43 @@ export default function AdminUsers() {
             </TableHeader>
             <TableBody>
               {allUsers.map((user) => (
-                <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
+                <TableRow
+                  key={user.id}
+                  className="hover:bg-muted/50 transition-colors"
+                >
                   <TableCell>
-                    <div className="font-semibold">{user.firstName} {user.lastName}</div>
+                    <div className="font-semibold">
+                      {user.firstName} {user.lastName}
+                    </div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                       <Mail className="w-3 h-3" /> {user.niatId ?? user.email}
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{user.formsUserId ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {user.formsUserId ?? "—"}
+                  </TableCell>
                   <TableCell>{renderRoleBadge(user.role)}</TableCell>
-                  <TableCell className="text-muted-foreground">{user.role === "admin" ? "—" : (user.campusName || "—")}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {user.role === "admin" ? "—" : user.campusName || "—"}
+                  </TableCell>
                   <TableCell>
-                    <Badge variant="outline" data-testid={`badge-source-${user.id}`}>{SOURCE_LABEL[user.provisionedVia] ?? user.provisionedVia}</Badge>
+                    <Badge
+                      variant="outline"
+                      data-testid={`badge-source-${user.id}`}
+                    >
+                      {SOURCE_LABEL[user.provisionedVia] ?? user.provisionedVia}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     {user.isActive ? (
                       <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">
-                        <span className="w-2 h-2 rounded-full bg-green-600"></span> Active
+                        <span className="w-2 h-2 rounded-full bg-green-600"></span>{" "}
+                        Active
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
-                        <span className="w-2 h-2 rounded-full bg-muted-foreground"></span> Inactive
+                        <span className="w-2 h-2 rounded-full bg-muted-foreground"></span>{" "}
+                        Inactive
                       </span>
                     )}
                   </TableCell>
@@ -624,7 +896,10 @@ export default function AdminUsers() {
               ))}
               {allUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="h-24 text-center text-muted-foreground"
+                  >
                     <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     No users found.
                   </TableCell>
@@ -669,9 +944,7 @@ export default function AdminUsers() {
               variant="outline"
               size="sm"
               onClick={() => setPage((p) => p + 1)}
-              disabled={
-                isLoading || users.page * users.pageSize >= users.total
-              }
+              disabled={isLoading || users.page * users.pageSize >= users.total}
               data-testid="button-users-next-page"
             >
               Next
@@ -682,35 +955,53 @@ export default function AdminUsers() {
       )}
 
       {/* Edit dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+      <Dialog
+        open={!!editTarget}
+        onOpenChange={(open) => !open && setEditTarget(null)}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Edit {editTarget?.firstName} {editTarget?.lastName}</DialogTitle>
+            <DialogTitle>
+              Edit {editTarget?.firstName} {editTarget?.lastName}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-1.5 block">Role</label>
-              <Select value={editRole} onValueChange={(v) => {
-                const next = v as "admin" | "coordinator" | "student";
-                setEditRole(next);
-                if (next === "admin") setEditCampusId("");
-              }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={editRole}
+                onValueChange={(v) => {
+                  const next = v as "admin" | "coordinator" | "student";
+                  setEditRole(next);
+                  if (next === "admin") setEditCampusId("");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Administrator</SelectItem>
-                  <SelectItem value="coordinator">Campus Coordinator</SelectItem>
+                  <SelectItem value="coordinator">
+                    Campus Coordinator
+                  </SelectItem>
                   <SelectItem value="student">Student</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {editRole !== "admin" && (
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Assigned Campus</label>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Assigned Campus
+                </label>
                 <Select value={editCampusId} onValueChange={setEditCampusId}>
-                  <SelectTrigger><SelectValue placeholder="Select campus" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select campus" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
                     {(campuses ?? []).map((c: any) => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -718,26 +1009,43 @@ export default function AdminUsers() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>
+              Cancel
+            </Button>
             <Button onClick={onSaveEdit} disabled={updateUser.isPending}>
-              {updateUser.isPending && <Spinner className="w-4 h-4 mr-2" />} Save changes
+              {updateUser.isPending && <Spinner className="w-4 h-4 mr-2" />}{" "}
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete confirmation */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Delete user?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will permanently remove <span className="font-semibold text-foreground">{deleteTarget?.firstName} {deleteTarget?.lastName}</span> ({deleteTarget?.email}) from the system. They will no longer be able to sign in. This cannot be undone.
+            This will permanently remove{" "}
+            <span className="font-semibold text-foreground">
+              {deleteTarget?.firstName} {deleteTarget?.lastName}
+            </span>{" "}
+            ({deleteTarget?.email}) from the system. They will no longer be able
+            to sign in. This cannot be undone.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={onConfirmDelete} disabled={isDeleting}>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={onConfirmDelete}
+              disabled={isDeleting}
+            >
               {isDeleting && <Spinner className="w-4 h-4 mr-2" />} Delete
             </Button>
           </DialogFooter>
@@ -745,7 +1053,10 @@ export default function AdminUsers() {
       </Dialog>
 
       {/* Import result dialog */}
-      <Dialog open={!!importResult} onOpenChange={(open) => !open && setImportResult(null)}>
+      <Dialog
+        open={!!importResult}
+        onOpenChange={(open) => !open && setImportResult(null)}
+      >
         <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>CSV import complete</DialogTitle>
@@ -753,24 +1064,55 @@ export default function AdminUsers() {
           {importResult && (
             <div className="space-y-3">
               <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="rounded-md border p-3"><div className="text-2xl font-bold">{importResult.total}</div><div className="text-xs text-muted-foreground">Total</div></div>
-                <div className="rounded-md border p-3 bg-green-50 dark:bg-green-950"><div className="text-2xl font-bold text-green-700 dark:text-green-300">{importResult.created}</div><div className="text-xs text-muted-foreground">Created</div></div>
-                <div className="rounded-md border p-3 bg-blue-50 dark:bg-blue-950"><div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{importResult.updated}</div><div className="text-xs text-muted-foreground">Updated</div></div>
-                <div className="rounded-md border p-3 bg-red-50 dark:bg-red-950"><div className="text-2xl font-bold text-red-700 dark:text-red-300">{importResult.failed}</div><div className="text-xs text-muted-foreground">Failed</div></div>
+                <div className="rounded-md border p-3">
+                  <div className="text-2xl font-bold">{importResult.total}</div>
+                  <div className="text-xs text-muted-foreground">Total</div>
+                </div>
+                <div className="rounded-md border p-3 bg-green-50 dark:bg-green-950">
+                  <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                    {importResult.created}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Created</div>
+                </div>
+                <div className="rounded-md border p-3 bg-blue-50 dark:bg-blue-950">
+                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                    {importResult.updated}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Updated</div>
+                </div>
+                <div className="rounded-md border p-3 bg-red-50 dark:bg-red-950">
+                  <div className="text-2xl font-bold text-red-700 dark:text-red-300">
+                    {importResult.failed}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Failed</div>
+                </div>
               </div>
               {importResult.errors.length > 0 && (
                 <div className="space-y-2">
                   <div className="text-sm font-medium">First errors:</div>
                   <div className="max-h-48 overflow-y-auto border rounded-md text-xs">
                     {importResult.errors.slice(0, 25).map((e, i) => (
-                      <div key={i} className="px-3 py-2 border-b last:border-b-0">
-                        <span className="font-mono text-muted-foreground">row {e.rowNumber}</span>{" "}
-                        {e.forms_user_id ? <span className="font-mono text-muted-foreground">({e.forms_user_id})</span> : null}{" "}
+                      <div
+                        key={i}
+                        className="px-3 py-2 border-b last:border-b-0"
+                      >
+                        <span className="font-mono text-muted-foreground">
+                          row {e.rowNumber}
+                        </span>{" "}
+                        {e.forms_user_id ? (
+                          <span className="font-mono text-muted-foreground">
+                            ({e.forms_user_id})
+                          </span>
+                        ) : null}{" "}
                         — <span className="text-destructive">{e.message}</span>
                       </div>
                     ))}
                   </div>
-                  {importResult.errors.length > 25 && <div className="text-xs text-muted-foreground">… and {importResult.errors.length - 25} more</div>}
+                  {importResult.errors.length > 25 && (
+                    <div className="text-xs text-muted-foreground">
+                      … and {importResult.errors.length - 25} more
+                    </div>
+                  )}
                 </div>
               )}
             </div>
