@@ -19,6 +19,7 @@ import {
 } from "@workspace/api-zod";
 import { createNotification } from "../lib/notifications";
 import { logAudit } from "../lib/audit";
+import { requireTeamLeader } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -165,15 +166,11 @@ router.post("/projects", async (req, res): Promise<void> => {
       res.status(400).json({ error: "You must join or create a team before creating a project." });
       return;
     }
-  } else {
-    const [member] = await db
-      .select()
-      .from(teamMembersTable)
-      .where(and(eq(teamMembersTable.userId, req.user.id), eq(teamMembersTable.teamId, effectiveTeamId)));
-    if (!member) {
-      res.status(403).json({ error: "You are not a member of this team." });
-      return;
-    }
+  }
+  // Only the team leader (or an admin override) may create projects on a
+  // team. Coordinators and regular members are blocked.
+  if (!(await requireTeamLeader(req, res, effectiveTeamId))) {
+    return;
   }
   const [project] = await db
     .insert(projectsTable)
@@ -265,15 +262,17 @@ router.patch("/projects/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  // Only team members (or admin/coordinator) can edit the project. Without
-  // this gate any authenticated user could rename or deactivate any project.
-  const auth = await getProjectAuthorization(params.data.id, req.user);
-  if (!auth) {
+  // Only the team leader (or an admin override) may edit the project. Without
+  // this gate any team member could rename or deactivate the team's projects.
+  const [existingProject] = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.id, params.data.id));
+  if (!existingProject) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
-  if (!auth.isStaff && !auth.isMember) {
-    res.status(403).json({ error: "Only team members can edit this project." });
+  if (!(await requireTeamLeader(req, res, existingProject.teamId))) {
     return;
   }
   const [project] = await db
@@ -314,16 +313,21 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
         .for("update");
       if (!project) return null;
 
-      const isStaff = req.user.role === "admin" || req.user.role === "coordinator";
-      let isMember = false;
-      if (!isStaff) {
-        const [member] = await tx
-          .select()
-          .from(teamMembersTable)
-          .where(and(eq(teamMembersTable.userId, userId), eq(teamMembersTable.teamId, project.teamId)));
-        isMember = !!member;
+      // Only the team leader (or an admin override) may delete a project.
+      // Coordinators and regular members are blocked.
+      const isAdmin = req.user.role === "admin";
+      const [team] = await tx
+        .select()
+        .from(teamsTable)
+        .where(eq(teamsTable.id, project.teamId));
+      if (!team) {
+        // Orphaned project (no team row). Treat as not-found rather than
+        // forbidden so callers don't get a misleading 403.
+        blockedReason = "team_missing";
+        return null;
       }
-      if (!isStaff && !isMember) {
+      const isLeader = team.leaderId === userId;
+      if (!isAdmin && !isLeader) {
         blockedReason = "forbidden";
         return null;
       }
@@ -376,7 +380,11 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
 
   if (projectTitle === null) {
     if (blockedReason === "forbidden") {
-      res.status(403).json({ error: "Only team members can delete this project." });
+      res.status(403).json({ error: "Only the team leader can perform this action." });
+      return;
+    }
+    if (blockedReason === "team_missing") {
+      res.status(404).json({ error: "Team not found" });
       return;
     }
     if (blockedReason === "has_revenue") {

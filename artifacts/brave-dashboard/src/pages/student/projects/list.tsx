@@ -1,4 +1,5 @@
 import { useListProjects, useCreateProject, getListProjectsQueryKey, useGetMyTeam } from "@workspace/api-client-react";
+import { useAuth } from "@workspace/replit-auth-web";
 import { formatINR, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,8 +30,10 @@ export default function ProjectsList() {
   const createProject = useCreateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const hasTeam = !!myTeam;
+  const isLeader = !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
 
   const form = useForm<z.infer<typeof projectSchema>>({
     resolver: zodResolver(projectSchema),
@@ -65,15 +68,15 @@ export default function ProjectsList() {
           <p className="text-muted-foreground mt-1">Manage your active projects and revenue</p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open || hasTeam) setIsDialogOpen(open); }}>
-          {hasTeam ? (
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open || (hasTeam && isLeader)) setIsDialogOpen(open); }}>
+          {hasTeam && isLeader ? (
             <DialogTrigger asChild>
               <Button data-testid="button-new-project">
                 <Plus className="w-4 h-4 mr-2" />
                 New Project
               </Button>
             </DialogTrigger>
-          ) : (
+          ) : !hasTeam ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -89,7 +92,7 @@ export default function ProjectsList() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          )}
+          ) : null}
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
@@ -134,18 +137,32 @@ export default function ProjectsList() {
         </Dialog>
       </div>
 
+      {hasTeam && !isLeader && (
+        <div className="rounded-md border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground" data-testid="banner-projects-readonly">
+          You are a team member. Only the team leader can create, edit, or delete projects — ask your leader to make changes.
+        </div>
+      )}
+
       {!projects || projects.length === 0 ? (
         <div className="text-center py-20 bg-card border rounded-xl border-dashed">
           {hasTeam ? (
             <>
               <FolderOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
               <h3 className="text-lg font-semibold">No projects yet</h3>
-              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-                Create your first project to start tracking your order book and verified revenue.
-              </p>
-              <Button className="mt-6" variant="outline" onClick={() => setIsDialogOpen(true)} data-testid="button-add-project">
-                <Plus className="w-4 h-4 mr-2" /> Add Project
-              </Button>
+              {isLeader ? (
+                <>
+                  <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                    Create your first project to start tracking your order book and verified revenue.
+                  </p>
+                  <Button className="mt-6" variant="outline" onClick={() => setIsDialogOpen(true)} data-testid="button-add-project">
+                    <Plus className="w-4 h-4 mr-2" /> Add Project
+                  </Button>
+                </>
+              ) : (
+                <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                  Your team leader hasn't added any projects yet.
+                </p>
+              )}
             </>
           ) : (
             <>

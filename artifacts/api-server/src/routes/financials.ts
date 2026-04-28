@@ -6,7 +6,6 @@ import {
   revenueEntriesTable,
   projectsTable,
   teamsTable,
-  teamMembersTable,
   campusesTable,
   milestonesTable,
   programmeConfigTable,
@@ -30,6 +29,7 @@ import {
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
 import { createNotification } from "../lib/notifications";
+import { requireTeamLeader } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -95,6 +95,10 @@ router.post("/order-book-entries", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Project not found" });
     return;
   }
+  // Only the team leader (or an admin override) may add order book entries.
+  if (!(await requireTeamLeader(req, res, project.teamId))) {
+    return;
+  }
   const now = new Date();
   const [entry] = await db
     .insert(orderBookEntriesTable)
@@ -142,15 +146,6 @@ router.get("/order-book-entries/:id", async (req, res): Promise<void> => {
   res.json(await enrichOBEntry(entry));
 });
 
-async function userCanModifyOBEntry(userId: string, role: string | null | undefined, teamId: number): Promise<boolean> {
-  if (role === "admin") return true;
-  const memberships = await db
-    .select({ teamId: teamMembersTable.teamId })
-    .from(teamMembersTable)
-    .where(and(eq(teamMembersTable.userId, userId), eq(teamMembersTable.teamId, teamId)));
-  return memberships.length > 0;
-}
-
 router.patch("/order-book-entries/:id", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
@@ -171,8 +166,7 @@ router.patch("/order-book-entries/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Entry not found" });
     return;
   }
-  if (!(await userCanModifyOBEntry(req.user.id, req.user.role, existing.teamId))) {
-    res.status(403).json({ error: "Forbidden" });
+  if (!(await requireTeamLeader(req, res, existing.teamId))) {
     return;
   }
   const updateData: Record<string, unknown> = { ...parsed.data };
@@ -207,8 +201,7 @@ router.delete("/order-book-entries/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Entry not found" });
     return;
   }
-  if (!(await userCanModifyOBEntry(req.user.id, req.user.role, existing.teamId))) {
-    res.status(403).json({ error: "Forbidden" });
+  if (!(await requireTeamLeader(req, res, existing.teamId))) {
     return;
   }
   await db.delete(orderBookEntriesTable).where(eq(orderBookEntriesTable.id, params.data.id));
@@ -258,6 +251,10 @@ router.post("/revenue-entries", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Project not found" });
     return;
   }
+  // Only the team leader (or an admin override) may add revenue entries.
+  if (!(await requireTeamLeader(req, res, project.teamId))) {
+    return;
+  }
   const paymentDateStr = typeof parsed.data.paymentDate === "string"
     ? parsed.data.paymentDate
     : new Date(parsed.data.paymentDate as Date).toISOString().split("T")[0];
@@ -301,6 +298,18 @@ router.patch("/revenue-entries/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [existingRev] = await db
+    .select()
+    .from(revenueEntriesTable)
+    .where(eq(revenueEntriesTable.id, params.data.id));
+  if (!existingRev) {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  // Only the team leader (or an admin override) may edit revenue entries.
+  if (!(await requireTeamLeader(req, res, existingRev.teamId))) {
+    return;
+  }
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.paymentDate) {
     updateData.paymentDate = typeof parsed.data.paymentDate === "string"
@@ -335,6 +344,11 @@ router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
     .where(eq(revenueEntriesTable.id, params.data.id));
   if (!existing) {
     res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  // Only the team leader (or an admin override) may submit revenue entries
+  // for verification.
+  if (!(await requireTeamLeader(req, res, existing.teamId))) {
     return;
   }
   if (!existing.brdUrl || existing.brdUrl.trim() === "") {

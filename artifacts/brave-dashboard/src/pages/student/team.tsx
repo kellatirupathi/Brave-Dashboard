@@ -454,9 +454,13 @@ function TeamView({
                   <ShieldCheck className="w-3 h-3" /> {team.status}
                 </Badge>
                 <Badge variant="secondary">{team.campusName}</Badge>
-                {isLeader && (
+                {isLeader ? (
                   <Badge className="bg-amber-500/15 text-amber-700 border border-amber-500/30 hover:bg-amber-500/15 gap-1">
                     <Crown className="w-3 h-3" /> Leader
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-muted-foreground" data-testid="badge-team-member">
+                    Member
                   </Badge>
                 )}
               </div>

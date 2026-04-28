@@ -1,7 +1,7 @@
 import * as client from "openid-client";
 import crypto from "crypto";
 import { type Request, type Response } from "express";
-import { db, sessionsTable } from "@workspace/db";
+import { db, sessionsTable, teamsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { AuthUser } from "@workspace/api-zod";
 
@@ -83,4 +83,37 @@ export function getSessionId(req: Request): string | undefined {
     return authHeader.slice(7);
   }
   return req.cookies?.[SESSION_COOKIE];
+}
+
+// Returns true if the authenticated user is an admin OR is the current
+// leader of the supplied team. On false, writes a 403 response and returns
+// false. Coordinators do NOT pass — only admin override. Returns false (with
+// 401) if the request is not authenticated, and 404 if the team does not
+// exist.
+export async function requireTeamLeader(
+  req: Request,
+  res: Response,
+  teamId: number,
+): Promise<boolean> {
+  if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return false;
+  }
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, teamId));
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return false;
+  }
+  const isAdmin = req.user.role === "admin";
+  const isLeader = team.leaderId === req.user.id;
+  if (!isAdmin && !isLeader) {
+    res
+      .status(403)
+      .json({ error: "Only the team leader can perform this action." });
+    return false;
+  }
+  return true;
 }

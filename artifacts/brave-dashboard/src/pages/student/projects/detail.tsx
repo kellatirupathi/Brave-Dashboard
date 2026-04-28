@@ -8,9 +8,11 @@ import {
   useRequestUploadUrl,
   useUpdateProject,
   useDeleteProject,
+  useGetMyTeam,
   getGetProjectQueryKey,
   getListProjectsQueryKey,
 } from "@workspace/api-client-react";
+import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
 import { formatINR, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,6 +85,9 @@ export default function ProjectDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
   const { data: project, isLoading } = useGetProject(id);
+  const { data: myTeam } = useGetMyTeam({ query: { retry: false } });
+  const { user } = useAuth();
+  const isLeader = !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
 
   const createOrderBook = useCreateOrderBookEntry();
   const updateOrderBook = useUpdateOrderBookEntry();
@@ -447,21 +452,29 @@ export default function ProjectDetail() {
           <h1 className="text-3xl font-bold tracking-tight" data-testid="text-project-title">{project.title}</h1>
           <p className="text-muted-foreground">{project.description}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={openEditProject} data-testid="button-edit-project">
-            <Pencil className="w-4 h-4 mr-2" /> Edit
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setIsDeleteProjectOpen(true)}
-            data-testid="button-delete-project"
-          >
-            <Trash2 className="w-4 h-4 mr-2" /> Delete
-          </Button>
-        </div>
+        {isLeader && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={openEditProject} data-testid="button-edit-project">
+              <Pencil className="w-4 h-4 mr-2" /> Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => setIsDeleteProjectOpen(true)}
+              data-testid="button-delete-project"
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Delete
+            </Button>
+          </div>
+        )}
       </div>
+
+      {!isLeader && (
+        <div className="rounded-md border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground" data-testid="banner-project-readonly">
+          Only the team leader can add or edit entries — ask your leader to update this page.
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="bg-primary text-primary-foreground border-none">
@@ -524,15 +537,18 @@ export default function ProjectDetail() {
             <Dialog
               open={isRevenueOpen}
               onOpenChange={(open) => {
+                if (!isLeader) return;
                 setIsRevenueOpen(open);
                 if (!open) resetForms();
               }}
             >
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="w-4 h-4 mr-2" /> Add Revenue
-                </Button>
-              </DialogTrigger>
+              {isLeader && (
+                <DialogTrigger asChild>
+                  <Button size="sm" data-testid="button-add-revenue">
+                    <Plus className="w-4 h-4 mr-2" /> Add Revenue
+                  </Button>
+                </DialogTrigger>
+              )}
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add Revenue Entry</DialogTitle>
@@ -671,13 +687,14 @@ export default function ProjectDetail() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       {getStatusBadge(entry.status)}
-                      {entry.status === "draft" && (
+                      {isLeader && entry.status === "draft" && (
                         <Button
                           size="sm"
                           variant="outline"
                           disabled={submitRevenue.isPending || !entry.brdUrl}
                           onClick={() => handleSubmitRevenue(entry.id)}
                           title={!entry.brdUrl ? "Upload a BRD before submitting" : undefined}
+                          data-testid={`button-submit-revenue-${entry.id}`}
                         >
                           <Send className="w-3 h-3 mr-1" /> Submit for
                           verification
@@ -697,15 +714,18 @@ export default function ProjectDetail() {
             <Dialog
               open={isOrderOpen}
               onOpenChange={(open) => {
+                if (!isLeader) return;
                 setIsOrderOpen(open);
                 if (!open) resetForms();
               }}
             >
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="w-4 h-4 mr-2" /> Add Order
-                </Button>
-              </DialogTrigger>
+              {isLeader && (
+                <DialogTrigger asChild>
+                  <Button size="sm" data-testid="button-add-order">
+                    <Plus className="w-4 h-4 mr-2" /> Add Order
+                  </Button>
+                </DialogTrigger>
+              )}
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add Order Book Entry</DialogTitle>
@@ -797,25 +817,27 @@ export default function ProjectDetail() {
                       <Badge className="bg-green-500 hover:bg-green-600 border-none text-white">
                         <CheckCircle2 className="w-3 h-3 mr-1" /> Confirmed
                       </Badge>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startEditOrder(entry)}
-                          data-testid={`button-edit-order-${entry.id}`}
-                        >
-                          <Pencil className="w-3 h-3 mr-1" /> Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeletingOrderId(entry.id)}
-                          data-testid={`button-delete-order-${entry.id}`}
-                        >
-                          <Trash2 className="w-3 h-3 mr-1" /> Delete
-                        </Button>
-                      </div>
+                      {isLeader && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startEditOrder(entry)}
+                            data-testid={`button-edit-order-${entry.id}`}
+                          >
+                            <Pencil className="w-3 h-3 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeletingOrderId(entry.id)}
+                            data-testid={`button-delete-order-${entry.id}`}
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
