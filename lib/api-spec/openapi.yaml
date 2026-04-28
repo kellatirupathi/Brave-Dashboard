@@ -176,15 +176,24 @@ paths:
           in: query
           schema:
             type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
       responses:
         "200":
-          description: List of teams
+          description: List of teams (paginated)
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Team"
+                $ref: "#/components/schemas/ListTeamsResponse"
     post:
       operationId: createTeam
       tags: [teams]
@@ -1501,15 +1510,24 @@ paths:
           schema:
             type: string
             enum: [roster, csv_import, manual, auto_forms_sso]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
       responses:
         "200":
-          description: Users list
+          description: Users list (paginated)
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ListUsersResponse"
     post:
       operationId: createUser
       tags: [admin]
@@ -3335,6 +3353,44 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RosterEntry"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+      required:
+        - items
+        - total
+        - page
+        - pageSize
+
+    ListUsersResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+      required:
+        - items
+        - total
+        - page
+        - pageSize
+
+    ListTeamsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Team"
         total:
           type: integer
         page:

@@ -69,7 +69,8 @@ export default function AdminCampusDetail() {
   const { toast } = useToast();
   const deleteCampus = useDeleteCampus();
   const updateCampus = useUpdateCampus();
-  const { data: coordinatorUsers = [] } = useListUsers({ role: "coordinator" });
+  const { data: coordinatorUsersResp } = useListUsers({ role: "coordinator", pageSize: 1000 });
+  const coordinatorUsers = coordinatorUsersResp?.items ?? [];
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -161,10 +162,11 @@ export default function AdminCampusDetail() {
   } = useGetCampus(campusId, {
     query: { queryKey: getGetCampusQueryKey(campusId), enabled },
   });
-  const { data: teams = [], isLoading: teamsLoading } = useListTeams(
-    { campusId },
-    { query: { queryKey: getListTeamsQueryKey({ campusId }), enabled } },
+  const { data: teamsResp, isLoading: teamsLoading } = useListTeams(
+    { campusId, pageSize: 1000 },
+    { query: { queryKey: getListTeamsQueryKey({ campusId, pageSize: 1000 }), enabled } },
   );
+  const teams = teamsResp?.items ?? [];
   const { data: auditLog = [] } = useGetAuditLog(
     { limit: 200 },
     { query: { queryKey: getGetAuditLogQueryKey({ limit: 200 }), enabled } },

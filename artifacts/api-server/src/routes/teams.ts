@@ -121,7 +121,10 @@ router.get("/teams", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { campusId, status, search } = queryParams.data;
+  const { campusId, status, search, page, pageSize } = queryParams.data;
+  const effectivePage = page && page >= 1 ? page : 1;
+  const effectivePageSize = pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
+  const offset = (effectivePage - 1) * effectivePageSize;
   let conditions: ReturnType<typeof and>[] = [];
   if (req.user.role === "coordinator" && req.user.campusId) {
     conditions.push(eq(teamsTable.campusId, req.user.campusId));
@@ -200,13 +203,15 @@ router.get("/teams", async (req, res): Promise<void> => {
     : await db.select().from(teamsTable).orderBy(teamsTable.createdAt);
   // De-duplicate by team id (defensive — query above shouldn't dup, but joins/usage may)
   const seenTeamIds = new Set<number>();
-  const teams = teamsRaw.filter((t) => {
+  const teamsDeduped = teamsRaw.filter((t) => {
     if (seenTeamIds.has(t.id)) return false;
     seenTeamIds.add(t.id);
     return true;
   });
+  const totalCount = teamsDeduped.length;
+  const teams = teamsDeduped.slice(offset, offset + effectivePageSize);
 
-  const result = await Promise.all(
+  const items = await Promise.all(
     teams.map(async (team) => {
       const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId));
       const [leader] = await db.select().from(usersTable).where(eq(usersTable.id, team.leaderId));
@@ -238,7 +243,12 @@ router.get("/teams", async (req, res): Promise<void> => {
       };
     })
   );
-  res.json(result);
+  res.json({
+    items,
+    total: totalCount,
+    page: effectivePage,
+    pageSize: effectivePageSize,
+  });
 });
 
 router.post("/teams", async (req, res): Promise<void> => {

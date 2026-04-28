@@ -11,4 +11,13 @@ export type ListTeamsParams = {
   campusId?: number;
   status?: ListTeamsStatus;
   search?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 10000
+   */
+  pageSize?: number;
 };

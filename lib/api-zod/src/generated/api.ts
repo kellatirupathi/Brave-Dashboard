@@ -121,35 +121,50 @@ export const DeleteCampusParams = zod.object({
 /**
  * @summary List teams (filtered by role)
  */
+
+export const listTeamsQueryPageSizeMax = 10000;
+
 export const ListTeamsQueryParams = zod.object({
   campusId: zod.coerce.number().optional(),
   status: zod.enum(["pending", "active", "rejected"]).optional(),
   search: zod.coerce.string().optional(),
+  page: zod.coerce.number().min(1).optional(),
+  pageSize: zod.coerce
+    .number()
+    .min(1)
+    .max(listTeamsQueryPageSizeMax)
+    .optional(),
 });
 
-export const ListTeamsResponseItem = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  campusId: zod.number(),
-  campusName: zod.string(),
-  leaderId: zod.string(),
-  leaderName: zod.string(),
-  status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
-  tagline: zod.string().nullish(),
-  photoUrl: zod.string().nullish(),
-  inviteCode: zod.string().nullable(),
-  rejectionReason: zod.string().nullish(),
-  coordinatorComment: zod.string().nullish(),
-  isHidden: zod.boolean(),
-  isFeatured: zod.boolean(),
-  memberCount: zod.number(),
-  projectCount: zod.number(),
-  totalRevenue: zod.number(),
-  totalOrderBook: zod.number(),
-  nationalRank: zod.number().nullish(),
-  createdAt: zod.coerce.date(),
+export const ListTeamsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      campusId: zod.number(),
+      campusName: zod.string(),
+      leaderId: zod.string(),
+      leaderName: zod.string(),
+      status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
+      tagline: zod.string().nullish(),
+      photoUrl: zod.string().nullish(),
+      inviteCode: zod.string().nullable(),
+      rejectionReason: zod.string().nullish(),
+      coordinatorComment: zod.string().nullish(),
+      isHidden: zod.boolean(),
+      isFeatured: zod.boolean(),
+      memberCount: zod.number(),
+      projectCount: zod.number(),
+      totalRevenue: zod.number(),
+      totalOrderBook: zod.number(),
+      nationalRank: zod.number().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+  page: zod.number(),
+  pageSize: zod.number(),
 });
-export const ListTeamsResponse = zod.array(ListTeamsResponseItem);
 
 /**
  * @summary Create/register a team
@@ -1902,6 +1917,9 @@ export const DeleteAnnouncementParams = zod.object({
 /**
  * @summary List all users (admin)
  */
+
+export const listUsersQueryPageSizeMax = 10000;
+
 export const ListUsersQueryParams = zod.object({
   role: zod.enum(["student", "coordinator", "admin"]).optional(),
   campusId: zod.coerce.number().optional(),
@@ -1909,29 +1927,41 @@ export const ListUsersQueryParams = zod.object({
   provisionedVia: zod
     .enum(["roster", "csv_import", "manual", "auto_forms_sso"])
     .optional(),
+  page: zod.coerce.number().min(1).optional(),
+  pageSize: zod.coerce
+    .number()
+    .min(1)
+    .max(listUsersQueryPageSizeMax)
+    .optional(),
 });
 
-export const ListUsersResponseItem = zod.object({
-  id: zod.string(),
-  replitId: zod.string().nullish(),
-  email: zod.string(),
-  niatId: zod.string().nullish(),
-  firstName: zod.string(),
-  lastName: zod.string(),
-  profileImage: zod.string().nullish(),
-  role: zod.enum(["student", "coordinator", "admin"]),
-  campusId: zod.number().nullish(),
-  campusName: zod.string().nullish(),
-  isActive: zod.boolean(),
-  provisionedVia: zod.enum([
-    "roster",
-    "csv_import",
-    "manual",
-    "auto_forms_sso",
-  ]),
-  createdAt: zod.coerce.date(),
+export const ListUsersResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.string(),
+      replitId: zod.string().nullish(),
+      email: zod.string(),
+      niatId: zod.string().nullish(),
+      firstName: zod.string(),
+      lastName: zod.string(),
+      profileImage: zod.string().nullish(),
+      role: zod.enum(["student", "coordinator", "admin"]),
+      campusId: zod.number().nullish(),
+      campusName: zod.string().nullish(),
+      isActive: zod.boolean(),
+      provisionedVia: zod.enum([
+        "roster",
+        "csv_import",
+        "manual",
+        "auto_forms_sso",
+      ]),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+  page: zod.number(),
+  pageSize: zod.number(),
 });
-export const ListUsersResponse = zod.array(ListUsersResponseItem);
 
 /**
  * @summary Create a coordinator or admin account (admin only)

@@ -885,6 +885,20 @@ export interface ListRosterEntriesResponse {
   pageSize: number;
 }
 
+export interface ListUsersResponse {
+  items: User[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ListTeamsResponse {
+  items: Team[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface AddRosterEntryBody {
   studentId: string;
   fullName: string;
@@ -1081,6 +1095,15 @@ export type ListTeamsParams = {
   campusId?: number;
   status?: ListTeamsStatus;
   search?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 10000
+   */
+  pageSize?: number;
 };
 
 export type ListTeamsStatus =
@@ -1194,6 +1217,15 @@ export type ListUsersParams = {
   campusId?: number;
   search?: string;
   provisionedVia?: ListUsersProvisionedVia;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 10000
+   */
+  pageSize?: number;
 };
 
 export type ListUsersRole = (typeof ListUsersRole)[keyof typeof ListUsersRole];

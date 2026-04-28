@@ -13,4 +13,13 @@ export type ListUsersParams = {
   campusId?: number;
   search?: string;
   provisionedVia?: ListUsersProvisionedVia;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 10000
+   */
+  pageSize?: number;
 };

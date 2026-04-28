@@ -15,12 +15,12 @@ import { formatINR } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Search, Filter, Check, X, Trash2, UserPlus, Upload } from "lucide-react";
+import { Search, Filter, Check, X, Trash2, UserPlus, Upload, ChevronLeft, ChevronRight } from "lucide-react";
 import { AddTeamDialog } from "./components/AddTeamDialog";
 import { ImportTeamsDialog } from "./components/ImportTeamsDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -48,11 +48,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const PAGE_SIZE = 100;
+
 export default function AdminTeams() {
   const [, setLocation] = useLocation();
   const searchString = useSearch();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const initialStatus = (() => {
     const params = new URLSearchParams(searchString);
@@ -67,11 +70,36 @@ export default function AdminTeams() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [page, setPage] = useState(1);
+
+  // Debounce search so we aren't firing a request on every keystroke.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
 
   const { data: teams, isLoading } = useListTeams({
     search: search || undefined,
     status: status !== "all" ? (status as ListTeamsStatus) : undefined,
+    page,
+    pageSize: PAGE_SIZE,
   });
+
+  // Clamp the current page back into range when filters narrow the result set.
+  useEffect(() => {
+    if (!teams) return;
+    if (teams.total === 0) {
+      if (page !== 1) setPage(1);
+      return;
+    }
+    const maxPage = Math.max(1, Math.ceil(teams.total / teams.pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [teams, page]);
+
+  const teamItems = teams?.items ?? [];
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -153,7 +181,7 @@ export default function AdminTeams() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Teams Directory</h1>
           <p className="text-muted-foreground">
-            Manage all {teams?.length || 0} teams across campuses
+            Manage all {teams?.total ?? 0} teams across campuses
           </p>
         </div>
 
@@ -181,13 +209,13 @@ export default function AdminTeams() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search by team, campus, member name, email or NIAT ID…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-9"
             />
           </div>
 
-          <Select value={status} onValueChange={setStatus}>
+          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
             <SelectTrigger className="w-[140px]">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4" />
@@ -222,7 +250,7 @@ export default function AdminTeams() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {teams?.map((team) => {
+              {teamItems.map((team) => {
                 const isPending = team.status === "pending";
                 return (
                   <TableRow
@@ -316,7 +344,7 @@ export default function AdminTeams() {
                   </TableRow>
                 );
               })}
-              {teams?.length === 0 && (
+              {teamItems.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={6}
@@ -330,6 +358,52 @@ export default function AdminTeams() {
           </Table>
         )}
       </Card>
+
+      {teams && teams.total > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className="text-sm text-muted-foreground"
+            data-testid="text-teams-pagination-info"
+          >
+            {(() => {
+              const start = (teams.page - 1) * teams.pageSize + 1;
+              const end = Math.min(teams.page * teams.pageSize, teams.total);
+              return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${teams.total.toLocaleString()}`;
+            })()}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={isLoading || teams.page <= 1}
+              data-testid="button-teams-prev-page"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Previous
+            </Button>
+            <span
+              className="text-sm tabular-nums"
+              data-testid="text-teams-page-indicator"
+            >
+              Page {teams.page} of{" "}
+              {Math.max(1, Math.ceil(teams.total / teams.pageSize))}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={
+                isLoading || teams.page * teams.pageSize >= teams.total
+              }
+              data-testid="button-teams-next-page"
+            >
+              Next
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <ReasonPromptDialog
         open={rejectId != null}

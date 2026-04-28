@@ -22,7 +22,8 @@ import { ReasonPromptDialog } from "@/components/reason-prompt-dialog";
 export default function CoordinatorTeams() {
   const { user } = useAuth();
   const isCoordinator = user?.role === "coordinator";
-  const { data: teams, isLoading } = useListTeams();
+  const { data: teamsResp, isLoading } = useListTeams({ pageSize: 1000 });
+  const teams = teamsResp?.items;
   const approveTeam = useApproveTeam();
   const rejectTeam = useRejectTeam();
   const requestChanges = useRequestTeamChanges();

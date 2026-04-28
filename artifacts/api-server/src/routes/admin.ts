@@ -116,7 +116,11 @@ router.get("/admin/users", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { role, campusId, search, provisionedVia } = queryParams.data;
+  const { role, campusId, search, provisionedVia, page, pageSize } = queryParams.data;
+  const effectivePage = page && page >= 1 ? page : 1;
+  const effectivePageSize = pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
+  const offset = (effectivePage - 1) * effectivePageSize;
+
   let conditions: ReturnType<typeof and>[] = [];
   if (role) conditions.push(eq(usersTable.role, role));
   if (campusId) conditions.push(eq(usersTable.campusId, campusId));
@@ -131,10 +135,17 @@ router.get("/admin/users", async (req, res): Promise<void> => {
     );
     if (orFilter) conditions.push(orFilter);
   }
-  const users = conditions.length > 0
-    ? await db.select().from(usersTable).where(and(...conditions))
-    : await db.select().from(usersTable);
-  const result = await Promise.all(users.map(async (u) => {
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [{ count: totalCount }] = whereClause
+    ? await db.select({ count: sql<number>`count(*)::int` }).from(usersTable).where(whereClause)
+    : await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
+
+  const users = whereClause
+    ? await db.select().from(usersTable).where(whereClause).orderBy(usersTable.createdAt).limit(effectivePageSize).offset(offset)
+    : await db.select().from(usersTable).orderBy(usersTable.createdAt).limit(effectivePageSize).offset(offset);
+
+  const items = await Promise.all(users.map(async (u) => {
     let campusName: string | null = null;
     if (u.role !== "admin" && u.campusId) {
       const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, u.campusId));
@@ -148,7 +159,12 @@ router.get("/admin/users", async (req, res): Promise<void> => {
       niatId: u.niatId ?? null,
     };
   }));
-  res.json(result);
+  res.json({
+    items,
+    total: totalCount,
+    page: effectivePage,
+    pageSize: effectivePageSize,
+  });
 });
 
 // Resolve a campus by name (case-insensitive). Returns null if not found.

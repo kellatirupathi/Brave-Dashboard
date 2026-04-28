@@ -63,7 +63,9 @@ import type {
   ListRosterEntriesParams,
   ListRosterEntriesResponse,
   ListTeamsParams,
+  ListTeamsResponse,
   ListUsersParams,
+  ListUsersResponse,
   Milestone,
   Notification,
   OrderBookEntry,
@@ -706,8 +708,8 @@ export const getListTeamsUrl = (params?: ListTeamsParams) => {
 export const listTeams = async (
   params?: ListTeamsParams,
   options?: RequestInit,
-): Promise<Team[]> => {
-  return customFetch<Team[]>(getListTeamsUrl(params), {
+): Promise<ListTeamsResponse> => {
+  return customFetch<ListTeamsResponse>(getListTeamsUrl(params), {
     ...options,
     method: "GET",
   });
@@ -6205,8 +6207,8 @@ export const getListUsersUrl = (params?: ListUsersParams) => {
 export const listUsers = async (
   params?: ListUsersParams,
   options?: RequestInit,
-): Promise<User[]> => {
-  return customFetch<User[]>(getListUsersUrl(params), {
+): Promise<ListUsersResponse> => {
+  return customFetch<ListUsersResponse>(getListUsersUrl(params), {
     ...options,
     method: "GET",
   });

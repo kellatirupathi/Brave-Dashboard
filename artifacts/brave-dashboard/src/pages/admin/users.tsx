@@ -4,14 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Plus, Shield, Search, ShieldCheck, Mail, Trash2, Pencil, Upload, GraduationCap, Download, MoreVertical } from "lucide-react";
+import { Users, Plus, Shield, Search, ShieldCheck, Mail, Trash2, Pencil, Upload, GraduationCap, Download, MoreVertical, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -128,15 +128,42 @@ const TEMPLATE_CSV =
   "00000000-0000-0000-0000-000000000001,coordinator,Coordinator Name,coord@example.com,NIAT - Chevella,,\n" +
   "00000000-0000-0000-0000-000000000002,student,Student Name,student@example.com,NIAT - Chevella,NIAT123,Section A\n";
 
+const PAGE_SIZE = 100;
+
 export default function AdminUsers() {
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [page, setPage] = useState(1);
+
+  // Debounce search so we aren't firing a request on every keystroke.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
   const { data: users, isLoading } = useListUsers({
     search: search || undefined,
     role: roleFilter === "all" ? undefined : roleFilter,
     provisionedVia: sourceFilter === "all" ? undefined : sourceFilter,
+    page,
+    pageSize: PAGE_SIZE,
   });
+
+  // Clamp the current page back into range when filters narrow the result set.
+  useEffect(() => {
+    if (!users) return;
+    if (users.total === 0) {
+      if (page !== 1) setPage(1);
+      return;
+    }
+    const maxPage = Math.max(1, Math.ceil(users.total / users.pageSize));
+    if (page > maxPage) setPage(maxPage);
+  }, [users, page]);
   const { data: campuses } = useListCampuses();
 
   const createUser = useCreateUser();
@@ -284,32 +311,59 @@ export default function AdminUsers() {
     downloadCsv("import-errors.csv", lines.join("\n"));
   };
 
-  const allUsers = (users ?? []) as AnyUser[];
+  const allUsers = (users?.items ?? []) as AnyUser[];
+  const totalUsers = users?.total ?? 0;
 
-  const handleExportUsers = () => {
-    if (allUsers.length === 0) {
-      toast({ title: "Nothing to export", description: "The user list is empty.", variant: "destructive" });
-      return;
+  const handleExportUsers = async () => {
+    // Export ALL users matching current filters, not just the visible page.
+    // Loop in case the result set exceeds the API's max pageSize.
+    try {
+      const exportPageSize = 10000;
+      const all: AnyUser[] = [];
+      let exportPage = 1;
+      while (true) {
+        const params = new URLSearchParams();
+        if (search) params.set("search", search);
+        if (roleFilter !== "all") params.set("role", roleFilter);
+        if (sourceFilter !== "all") params.set("provisionedVia", sourceFilter);
+        params.set("page", String(exportPage));
+        params.set("pageSize", String(exportPageSize));
+        const res = await fetch(`/api/admin/users?${params.toString()}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch users for export");
+        const chunk = (await res.json()) as { items: AnyUser[]; total: number; page: number; pageSize: number };
+        all.push(...chunk.items);
+        if (chunk.items.length < exportPageSize || all.length >= chunk.total) break;
+        exportPage += 1;
+      }
+      if (all.length === 0) {
+        toast({ title: "Nothing to export", description: "The user list is empty.", variant: "destructive" });
+        return;
+      }
+      const rows = all.map((u) => ({
+        "Forms User ID": u.formsUserId ?? "",
+        "First Name": u.firstName ?? "",
+        "Last Name": u.lastName ?? "",
+        "Email": u.email,
+        "Role": u.role,
+        "Campus": u.campusName ?? "",
+        "Source": SOURCE_LABEL[u.provisionedVia] ?? u.provisionedVia,
+        "Active": u.isActive ? "Yes" : "No",
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Users");
+      const ts = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `users-${ts}.xlsx`);
+    } catch (err) {
+      const { message } = normalizeError(err);
+      toast({ title: "Export failed", description: message, variant: "destructive" });
     }
-    const rows = allUsers.map((u) => ({
-      "Forms User ID": u.formsUserId ?? "",
-      "First Name": u.firstName ?? "",
-      "Last Name": u.lastName ?? "",
-      "Email": u.email,
-      "Role": u.role,
-      "Campus": u.campusName ?? "",
-      "Source": SOURCE_LABEL[u.provisionedVia] ?? u.provisionedVia,
-      "Active": u.isActive ? "Yes" : "No",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Users");
-    const ts = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `users-${ts}.xlsx`);
   };
 
+  // Page-level role breakdown (the totalUsers count above is the real total
+  // across the whole filtered set, not just this page).
   const counts = {
-    total: allUsers.length,
+    total: totalUsers,
     admin: allUsers.filter(u => u.role === "admin").length,
     coordinator: allUsers.filter(u => u.role === "coordinator").length,
     student: allUsers.filter(u => u.role === "student").length,
@@ -336,13 +390,13 @@ export default function AdminUsers() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search by name or email…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-9"
             />
           </div>
 
-          <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as RoleFilter)}>
+          <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v as RoleFilter); setPage(1); }}>
             <SelectTrigger className="w-[160px]" data-testid="select-role-filter"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All roles</SelectItem>
@@ -352,7 +406,7 @@ export default function AdminUsers() {
             </SelectContent>
           </Select>
 
-          <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
+          <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v as SourceFilter); setPage(1); }}>
             <SelectTrigger className="w-[180px]" data-testid="select-source-filter"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All sources</SelectItem>
@@ -580,6 +634,52 @@ export default function AdminUsers() {
           </Table>
         )}
       </Card>
+
+      {users && users.total > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className="text-sm text-muted-foreground"
+            data-testid="text-users-pagination-info"
+          >
+            {(() => {
+              const start = (users.page - 1) * users.pageSize + 1;
+              const end = Math.min(users.page * users.pageSize, users.total);
+              return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${users.total.toLocaleString()}`;
+            })()}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={isLoading || users.page <= 1}
+              data-testid="button-users-prev-page"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Previous
+            </Button>
+            <span
+              className="text-sm tabular-nums"
+              data-testid="text-users-page-indicator"
+            >
+              Page {users.page} of{" "}
+              {Math.max(1, Math.ceil(users.total / users.pageSize))}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={
+                isLoading || users.page * users.pageSize >= users.total
+              }
+              data-testid="button-users-next-page"
+            >
+              Next
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Edit dialog */}
       <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>

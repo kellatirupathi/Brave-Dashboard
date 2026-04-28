@@ -53,7 +53,8 @@ const UNASSIGNED = "__unassigned__";
 
 export default function AdminCampuses() {
   const { data: campuses, isLoading } = useListCampuses();
-  const { data: coordinatorUsers = [] } = useListUsers({ role: "coordinator" });
+  const { data: coordinatorUsersResp } = useListUsers({ role: "coordinator", pageSize: 1000 });
+  const coordinatorUsers = coordinatorUsersResp?.items ?? [];
   const createCampus = useCreateCampus();
   const updateCampus = useUpdateCampus();
   const deleteCampus = useDeleteCampus();
