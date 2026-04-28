@@ -22,6 +22,8 @@ export * from "./bulkImportRosterBodyStudentsItem";
 export * from "./bulkImportRosterResponse";
 export * from "./campus";
 export * from "./campusStudent";
+export * from "./clearAllRoster200";
+export * from "./clearAllRosterBody";
 export * from "./createAnnouncementBody";
 export * from "./createAnnouncementBodyTarget";
 export * from "./createCampusBody";

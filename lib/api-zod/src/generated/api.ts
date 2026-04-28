@@ -2127,6 +2127,24 @@ export const BulkImportRosterResponse = zod.object({
 });
 
 /**
+ * Wipes the entire roster table in a single transaction. Linked user
+accounts, teams, projects and progress are intentionally NOT
+deleted — affected students simply lose campus eligibility until
+re-added. Caller must send the literal confirmation phrase
+`DELETE ALL ROSTER` in the request body.
+
+ * @summary Permanently delete every roster entry (admin only)
+ */
+export const ClearAllRosterBody = zod.object({
+  confirm: zod.string().describe('Must equal \"DELETE ALL ROSTER\".'),
+});
+
+export const ClearAllRosterResponse = zod.object({
+  ok: zod.boolean(),
+  deleted: zod.number().describe("Number of roster rows that were removed."),
+});
+
+/**
  * @summary Update a single roster entry (admin)
  */
 export const UpdateRosterEntryParams = zod.object({

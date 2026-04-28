@@ -725,6 +725,47 @@ router.patch("/admin/roster/:id", async (req, res): Promise<void> => {
   res.json(updated);
 });
 
+// Wipe ALL roster entries in a single transaction. Linked user accounts,
+// teams, projects and progress are intentionally left intact — only the
+// roster whitelist is cleared, so affected students will lose campus
+// eligibility but can be re-added later via Add Student or Bulk Import.
+//
+// Caller must POST { confirm: "DELETE ALL ROSTER" } to defend against
+// accidental clicks. There are currently no tables with a FK pointing at
+// roster.id, so no `?force=true` flag is exposed (the schema makes this
+// always safe to run; nothing else cascades).
+router.post("/admin/roster/clear", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const confirm =
+    typeof req.body?.confirm === "string" ? req.body.confirm.trim() : "";
+  if (confirm !== "DELETE ALL ROSTER") {
+    res.status(400).json({
+      error:
+        "Confirmation phrase missing. Send { confirm: \"DELETE ALL ROSTER\" } to proceed.",
+    });
+    return;
+  }
+
+  // Use DELETE ... RETURNING so the count reflects the rows actually
+  // removed by THIS statement, even under READ COMMITTED concurrency.
+  const deletedRows = await db
+    .delete(rosterTable)
+    .returning({ id: rosterTable.id });
+  const deleted = deletedRows.length;
+
+  await logAudit(
+    req.user.id,
+    "clear_roster_all",
+    "roster",
+    undefined,
+    `Cleared all roster entries (${deleted} deleted)`,
+  );
+  res.json({ ok: true, deleted });
+});
+
 // Delete a roster entry (and its mirrored user row, if any).
 router.delete("/admin/roster/:id", async (req, res): Promise<void> => {
   if (!req.isAuthenticated() || req.user.role !== "admin") {

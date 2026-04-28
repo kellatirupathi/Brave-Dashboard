@@ -8,6 +8,7 @@ import {
   getListAccessRequestsQueryKey,
   useBulkImportRoster,
   useUpdateRosterEntry,
+  useClearAllRoster,
   getListUsersQueryKey,
   useListCampuses,
 } from "@workspace/api-client-react";
@@ -184,6 +185,12 @@ export default function AdminRoster() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  // "Delete all roster entries" — destructive, type-to-confirm.
+  const [isClearAllOpen, setIsClearAllOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState("");
+  const clearAllRoster = useClearAllRoster();
+  const CLEAR_PHRASE = "DELETE ALL ROSTER";
   const [editStudentId, setEditStudentId] = useState("");
   const [editFullName, setEditFullName] = useState("");
   const [editEmail, setEditEmail] = useState("");
@@ -361,6 +368,31 @@ export default function AdminRoster() {
     } finally {
       setIsBulkDeleting(false);
     }
+  };
+
+  const handleClearAll = () => {
+    if (clearConfirmText.trim() !== CLEAR_PHRASE) return;
+    clearAllRoster.mutate(
+      { data: { confirm: CLEAR_PHRASE } },
+      {
+        onSuccess: (resp) => {
+          toast({
+            title: "Roster cleared",
+            description: `${resp.deleted} roster ${resp.deleted === 1 ? "entry" : "entries"} permanently deleted.`,
+          });
+          setIsClearAllOpen(false);
+          setClearConfirmText("");
+          setSelectedIds(new Set());
+          refreshAll();
+        },
+        onError: (e: any) =>
+          toast({
+            title: "Failed to clear roster",
+            description: e?.data?.error ?? e?.message ?? "Server error",
+            variant: "destructive",
+          }),
+      },
+    );
   };
 
   const handleConfirmDelete = async () => {
@@ -658,6 +690,17 @@ export default function AdminRoster() {
               <Upload className="w-4 h-4 mr-2" />
             )}
             Import Excel
+          </Button>
+
+          <Button
+            variant="destructive"
+            onClick={() => setIsClearAllOpen(true)}
+            disabled={!roster || roster.total === 0}
+            title="Permanently remove every roster entry"
+            data-testid="button-clear-all-roster"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete all
           </Button>
 
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -1197,6 +1240,79 @@ export default function AdminRoster() {
               disabled={isDeletingRoster}
             >
               {isDeletingRoster && <Spinner className="w-4 h-4 mr-2" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete-all-roster confirmation (type-to-confirm) */}
+      <Dialog
+        open={isClearAllOpen}
+        onOpenChange={(open) => {
+          if (clearAllRoster.isPending) return;
+          setIsClearAllOpen(open);
+          if (!open) setClearConfirmText("");
+        }}
+      >
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">
+              Delete every roster entry?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              This will permanently delete{" "}
+              <span className="font-semibold">
+                all {(roster?.total ?? 0).toLocaleString("en-IN")} roster{" "}
+                {roster?.total === 1 ? "entry" : "entries"}
+              </span>
+              . Linked user accounts, teams, and progress will{" "}
+              <span className="font-semibold">not</span> be deleted, but those
+              students will lose campus eligibility until re-added.
+            </p>
+            <p className="text-muted-foreground">
+              Type{" "}
+              <span className="font-mono font-semibold text-destructive">
+                {CLEAR_PHRASE}
+              </span>{" "}
+              below to confirm.
+            </p>
+            <Input
+              value={clearConfirmText}
+              onChange={(e) => setClearConfirmText(e.target.value)}
+              placeholder={CLEAR_PHRASE}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              disabled={clearAllRoster.isPending}
+              data-testid="input-clear-roster-confirm"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsClearAllOpen(false);
+                setClearConfirmText("");
+              }}
+              disabled={clearAllRoster.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearAll}
+              disabled={
+                clearAllRoster.isPending ||
+                clearConfirmText.trim() !== CLEAR_PHRASE
+              }
+              data-testid="button-confirm-clear-roster"
+            >
+              {clearAllRoster.isPending && (
+                <Spinner className="w-4 h-4 mr-2" />
+              )}
+              Delete all
             </Button>
           </DialogFooter>
         </DialogContent>

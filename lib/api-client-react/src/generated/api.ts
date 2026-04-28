@@ -27,6 +27,8 @@ import type {
   BulkImportRosterResponse,
   Campus,
   CampusStudent,
+  ClearAllRoster200,
+  ClearAllRosterBody,
   CreateAnnouncementBody,
   CreateCampusBody,
   CreateDemoDayApplicationBody,
@@ -7057,6 +7059,98 @@ export const useBulkImportRoster = <
   TContext
 > => {
   return useMutation(getBulkImportRosterMutationOptions(options));
+};
+
+/**
+ * Wipes the entire roster table in a single transaction. Linked user
+accounts, teams, projects and progress are intentionally NOT
+deleted — affected students simply lose campus eligibility until
+re-added. Caller must send the literal confirmation phrase
+`DELETE ALL ROSTER` in the request body.
+
+ * @summary Permanently delete every roster entry (admin only)
+ */
+export const getClearAllRosterUrl = () => {
+  return `/api/admin/roster/clear`;
+};
+
+export const clearAllRoster = async (
+  clearAllRosterBody: ClearAllRosterBody,
+  options?: RequestInit,
+): Promise<ClearAllRoster200> => {
+  return customFetch<ClearAllRoster200>(getClearAllRosterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(clearAllRosterBody),
+  });
+};
+
+export const getClearAllRosterMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAllRoster>>,
+    TError,
+    { data: BodyType<ClearAllRosterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearAllRoster>>,
+  TError,
+  { data: BodyType<ClearAllRosterBody> },
+  TContext
+> => {
+  const mutationKey = ["clearAllRoster"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearAllRoster>>,
+    { data: BodyType<ClearAllRosterBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return clearAllRoster(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearAllRosterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearAllRoster>>
+>;
+export type ClearAllRosterMutationBody = BodyType<ClearAllRosterBody>;
+export type ClearAllRosterMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Permanently delete every roster entry (admin only)
+ */
+export const useClearAllRoster = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAllRoster>>,
+    TError,
+    { data: BodyType<ClearAllRosterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearAllRoster>>,
+  TError,
+  { data: BodyType<ClearAllRosterBody> },
+  TContext
+> => {
+  return useMutation(getClearAllRosterMutationOptions(options));
 };
 
 /**

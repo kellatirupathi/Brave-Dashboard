@@ -1166,6 +1166,17 @@ export type ListRosterEntriesParams = {
   pageSize?: number;
 };
 
+export type ClearAllRosterBody = {
+  /** Must equal "DELETE ALL ROSTER". */
+  confirm: string;
+};
+
+export type ClearAllRoster200 = {
+  ok: boolean;
+  /** Number of roster rows that were removed. */
+  deleted: number;
+};
+
 export type DeleteRosterEntry200 = {
   ok: boolean;
 };
