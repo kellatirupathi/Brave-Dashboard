@@ -617,24 +617,70 @@ router.post("/admin/roster", async (req, res): Promise<void> => {
     const c = await resolveCampusByName(data.campusName);
     if (c) campusId = c.id;
   }
-  const [entry] = await db
-    .insert(rosterTable)
-    .values({ ...data, campusId, isWhitelisted: data.isWhitelisted ?? true })
-    .returning();
 
-  // Mirror into users table so /admin/users shows the student.
+  // Uniqueness on roster is enforced ONLY on studentId. Duplicate emails,
+  // NIAT IDs, and full names are explicitly allowed (multiple students
+  // legitimately share a college mailbox or have the same name).
+  const [existing] = await db
+    .select({ id: rosterTable.id })
+    .from(rosterTable)
+    .where(eq(rosterTable.studentId, data.studentId))
+    .limit(1);
+  if (existing) {
+    res
+      .status(409)
+      .json({ error: "A student with this Student User ID already exists" });
+    return;
+  }
+
+  let entry;
+  try {
+    [entry] = await db
+      .insert(rosterTable)
+      .values({
+        ...data,
+        email: data.email ?? null,
+        campusId,
+        isWhitelisted: data.isWhitelisted ?? true,
+      })
+      .returning();
+  } catch (err: unknown) {
+    // Race: another request inserted the same studentId between the pre-check
+    // and the insert. Surface as a 409 instead of a generic 500.
+    const code = (err as { code?: string } | null)?.code;
+    if (code === "23505") {
+      res
+        .status(409)
+        .json({ error: "A student with this Student User ID already exists" });
+      return;
+    }
+    throw err;
+  }
+
+  // Mirror into users table so /admin/users shows the student. Dedup by
+  // formsUserId only — never by email, since multiple students may share
+  // a mailbox. If the admin didn't supply an email, synthesize a unique
+  // placeholder so the (still NOT NULL) users.email column is satisfied
+  // without colliding with any other row.
   if (data.studentId || data.email) {
     const nameParts = data.fullName.trim().split(/\s+/);
     const firstName = nameParts[0] ?? "";
     const lastName = nameParts.slice(1).join(" ") || "";
-    await db.insert(usersTable).values({
-      formsUserId: data.studentId || null,
-      email: data.email || `sso_${data.studentId}@forms.local`,
-      firstName,
-      lastName,
-      role: "student",
-      campusId,
-    }).onConflictDoNothing();
+    const userEmail =
+      data.email && data.email.trim().length > 0
+        ? data.email
+        : `sso_${data.studentId}_${Date.now()}@forms.local`;
+    await db
+      .insert(usersTable)
+      .values({
+        formsUserId: data.studentId || null,
+        email: userEmail,
+        firstName,
+        lastName,
+        role: "student",
+        campusId,
+      })
+      .onConflictDoNothing({ target: usersTable.formsUserId });
   }
 
   await logAudit(req.user.id, "create_roster_entry", "roster", entry.id, `Added ${entry.fullName} (${entry.studentId})`);
@@ -841,6 +887,21 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
         skipped++;
         continue;
       }
+
+      // Uniqueness on roster is enforced ONLY on studentId. Duplicate
+      // emails / NIAT IDs / names from the same import are allowed and
+      // will all be inserted; only a row whose studentId already exists
+      // (in the DB or earlier in this same import) is skipped.
+      const [existing] = await db
+        .select({ id: rosterTable.id })
+        .from(rosterTable)
+        .where(eq(rosterTable.studentId, studentUserId))
+        .limit(1);
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
       // Other columns are best-effort: import whatever cells have values.
       // Institute Name is matched against existing campuses when present;
       // when blank or unmatched, store the row without a campusId so the
@@ -858,39 +919,29 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
         niatId: s.niatId?.trim() || null,
         batchSectionName: s.batchSectionName?.trim() || null,
         isWhitelisted: true,
-      }).onConflictDoNothing();
+      });
 
-      // Mirror email onto a linked user row, if one exists. We resolve a
-      // single user (formsUserId first, then email) so we never accidentally
-      // touch unrelated rows that share an email with another student.
+      // Mirror email onto the linked user row, if one already exists.
+      // Match ONLY by formsUserId — never by email, because multiple
+      // students may legitimately share a college mailbox.
       if (email) {
-        let linkedUserId: string | undefined;
-        if (s.studentUserId) {
-          const [hit] = await db
-            .select({ id: usersTable.id })
-            .from(usersTable)
-            .where(eq(usersTable.formsUserId, s.studentUserId))
-            .limit(1);
-          linkedUserId = hit?.id;
-        }
-        if (!linkedUserId) {
-          const [hit] = await db
-            .select({ id: usersTable.id })
-            .from(usersTable)
-            .where(eq(usersTable.email, email))
-            .limit(1);
-          linkedUserId = hit?.id;
-        }
-        if (linkedUserId) {
+        const [hit] = await db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(eq(usersTable.formsUserId, studentUserId))
+          .limit(1);
+        if (hit?.id) {
           await db
             .update(usersTable)
             .set({ email })
-            .where(eq(usersTable.id, linkedUserId));
+            .where(eq(usersTable.id, hit.id));
         }
       }
 
       inserted++;
     } catch {
+      // Any insert failure (including a 23505 unique-violation race on
+      // studentId) → count as skipped so the import remains idempotent.
       skipped++;
     }
   }

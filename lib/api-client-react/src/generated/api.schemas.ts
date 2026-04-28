@@ -888,7 +888,8 @@ export interface ListRosterEntriesResponse {
 export interface AddRosterEntryBody {
   studentId: string;
   fullName: string;
-  email: string;
+  /** @nullable */
+  email?: string | null;
   campusName: string;
   /** @nullable */
   campusId?: number | null;

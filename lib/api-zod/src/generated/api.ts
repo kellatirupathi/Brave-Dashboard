@@ -2175,7 +2175,7 @@ export const ListRosterEntriesResponse = zod.object({
 export const AddRosterEntryBody = zod.object({
   studentId: zod.string(),
   fullName: zod.string(),
-  email: zod.string(),
+  email: zod.string().nullish(),
   campusName: zod.string(),
   campusId: zod.number().nullish(),
   niatId: zod.string().nullish(),

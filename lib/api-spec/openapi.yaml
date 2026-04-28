@@ -3355,7 +3355,7 @@ components:
         fullName:
           type: string
         email:
-          type: string
+          type: ["string", "null"]
         campusName:
           type: string
         campusId:
@@ -3369,7 +3369,6 @@ components:
       required:
         - studentId
         - fullName
-        - email
         - campusName
 
     BulkImportRosterBody:

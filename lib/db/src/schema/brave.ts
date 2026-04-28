@@ -46,7 +46,7 @@ export const usersTable = pgTable("users", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),
   replitId: text("replit_id").unique(),
   formsUserId: text("forms_user_id").unique(),
-  email: text("email").notNull().unique(),
+  email: text("email").notNull(),
   niatId: text("niat_id"),
   firstName: text("first_name").notNull().default(""),
   lastName: text("last_name").notNull().default(""),
@@ -81,9 +81,9 @@ export type AuthToken = typeof authTokensTable.$inferSelect;
 // Student roster
 export const rosterTable = pgTable("roster", {
   id: serial("id").primaryKey(),
-  studentId: text("student_id").notNull(),
+  studentId: text("student_id").notNull().unique(),
   fullName: text("full_name").notNull(),
-  email: text("email").unique(),
+  email: text("email"),
   campusName: text("campus_name").notNull(),
   campusId: integer("campus_id"),
   niatId: text("niat_id"),

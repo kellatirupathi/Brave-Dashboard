@@ -1,0 +1,58 @@
+Replit Prompt: Fix Roster — only studentId must be unique, allow duplicate emails / NIAT IDs / names
+In the Student Roster flow (Add Student manual form and Import Excel), I want uniqueness enforced ONLY on studentId (Student User ID). Duplicate emails, duplicate NIAT IDs, and duplicate full names must be allowed.
+
+Right now, manually adding a student fails with HTTP 500 when an email already exists, because roster.email has a UNIQUE constraint and users.email is NOT NULL UNIQUE. Also, email is required by the API validator even though the UI labels it "(optional)".
+
+Changes required
+1. DB schema — lib/db/src/schema/brave.ts
+rosterTable:
+
+Remove .unique() from the email column. Keep email nullable.
+Make studentId the only unique field — add .unique() to studentId.
+Generate a Drizzle migration that drops the roster_email_key (or equivalent) UNIQUE index and adds a UNIQUE index on roster.student_id.
+usersTable:
+
+Keep email NOT NULL but drop the UNIQUE constraint on email (so two roster students sharing a college mailbox can both be mirrored into users). Uniqueness is already enforced via replitId and formsUserId.
+Generate a migration that drops the users_email_unique (or equivalent) UNIQUE index.
+2. OpenAPI spec — lib/api-spec/openapi.yaml
+In AddRosterEntryBody:
+
+Make email optional and nullable (type: string, nullable: true, not in required).
+Keep only studentId, fullName, campusName in required.
+After the spec change, run pnpm --filter @workspace/api-spec run codegen to regenerate lib/api-zod and lib/api-client-react.
+
+3. API route — artifacts/api-server/src/routes/admin.ts
+POST /admin/roster (around line 603):
+
+Before inserting, check only for an existing roster row with the same studentId. If found, return 409 with { error: "A student with this Student User ID already exists" }.
+Do NOT check email, NIAT ID, or name for duplicates.
+Wrap the db.insert(rosterTable) in a try/catch — on Postgres unique-violation (code 23505) for studentId, return 409.
+For the usersTable mirror insert: keep .onConflictDoNothing() and stop using email as a conflict target. Use formsUserId as the dedupe key (don't try to merge by email anymore).
+If data.email is empty/null, do NOT synthesize sso_<studentId>@forms.local anymore — just leave email as null for the user row (after the NOT NULL constraint is dropped) OR, if you keep email NOT NULL on users for now, use a unique synthetic per row (e.g. sso_<studentId>_<timestamp>@forms.local) to avoid email collisions.
+POST /admin/roster/import (around line 817):
+
+Replace .onConflictDoNothing() on the roster insert with an explicit pre-check: skip the row only if studentId already exists. Counts go to skipped. All other rows insert even if their email/NIAT ID/name matches existing rows.
+Do not skip rows for duplicate emails or NIAT IDs.
+Remove the block that updates an existing user's email by matching on email — only match by formsUserId.
+4. Frontend — artifacts/brave-dashboard/src/pages/admin/roster.tsx (or equivalent)
+Keep the Email "(optional)" label as-is — do not mark it required.
+On 409 from the API, show toast: "A student with this Student User ID already exists."
+On 400, surface the server's error text in the toast (already done in some places).
+5. Acceptance tests
+Add tests under artifacts/api-server/src/routes/__tests__/:
+
+Adding two roster rows with the same email → both succeed (201, 201).
+Adding two roster rows with the same NIAT ID → both succeed.
+Adding two roster rows with the same full name → both succeed.
+Adding two roster rows with the same studentId → first 201, second 409.
+Adding a roster row with email omitted → 201 (not 400).
+Bulk import where 100 rows share the same email but have unique studentIds → all 100 inserted.
+Bulk import where row #5 reuses a studentId from row #2 → row #5 skipped, others inserted.
+6. Manual verification checklist
+Open /admin/roster → Add Student with no email → saves successfully.
+Add another student with the same email as an existing one → saves successfully.
+Add another student with the same studentId as an existing one → toast: 409 conflict message.
+Import Excel with rows sharing emails / NIAT IDs / names → all inserted; only studentId duplicates skipped, with the skipped count shown.
+Do NOT change anything outside the roster flow (teams, financials, leaderboard, demo day, auth, etc.). Keep all other unique constraints intact.
+
+Paste that into Replit and it should make the change end-to-end (schema migration + spec + codegen + route + UI + tests).

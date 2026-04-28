@@ -211,7 +211,7 @@ export default function AdminRoster() {
         data: {
           studentId,
           fullName,
-          email: email || (undefined as unknown as string),
+          email: email || null,
           campusName,
           niatId: niatId || null,
           batchSectionName: batchSectionName || null,
@@ -229,12 +229,23 @@ export default function AdminRoster() {
           setNiatId("");
           setBatchSectionName("");
         },
-        onError: (e: any) =>
+        onError: (e: any) => {
+          const status = e?.response?.status ?? e?.status;
+          if (status === 409) {
+            toast({
+              title: "Duplicate Student User ID",
+              description:
+                "A student with this Student User ID already exists.",
+              variant: "destructive",
+            });
+            return;
+          }
           toast({
             title: "Failed to add student",
             description: e?.data?.error ?? e?.message ?? "Server error",
             variant: "destructive",
-          }),
+          });
+        },
       },
     );
   };
