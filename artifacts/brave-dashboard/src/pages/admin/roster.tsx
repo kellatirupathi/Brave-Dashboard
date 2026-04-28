@@ -41,6 +41,7 @@ import {
   ClipboardList,
   Plus,
   Upload,
+  Download,
   CheckCircle,
   XCircle,
   Clock,
@@ -335,6 +336,31 @@ export default function AdminRoster() {
     }
   };
 
+  const handleExportRoster = () => {
+    const visible = roster ?? [];
+    if (visible.length === 0) {
+      toast({
+        title: "Nothing to export",
+        description: "The roster is empty.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const rows = visible.map((r) => ({
+      "Student User ID": r.studentId ?? "",
+      "Student Name": r.fullName ?? "",
+      "NIAT ID": r.niatId ?? "",
+      "Institute Name": r.campusName ?? "",
+      "Batch Section Name": r.batchSectionName ?? "",
+      "Email": r.email ?? "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Roster");
+    const ts = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `roster-${ts}.xlsx`);
+  };
+
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const inputEl = e.target;
@@ -517,6 +543,17 @@ export default function AdminRoster() {
               Delete selected ({selectedIds.size})
             </Button>
           )}
+
+          <Button
+            variant="outline"
+            onClick={handleExportRoster}
+            disabled={!roster || roster.length === 0}
+            title="Download the listed roster as an Excel file"
+            data-testid="button-export-roster"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
 
           <Button
             variant="outline"

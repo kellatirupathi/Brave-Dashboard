@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import * as XLSX from "xlsx";
 
 const createUserSchema = z.object({
   formsUserId: z.string().optional(),
@@ -277,6 +278,28 @@ export default function AdminUsers() {
 
   const allUsers = (users ?? []) as AnyUser[];
 
+  const handleExportUsers = () => {
+    if (allUsers.length === 0) {
+      toast({ title: "Nothing to export", description: "The user list is empty.", variant: "destructive" });
+      return;
+    }
+    const rows = allUsers.map((u) => ({
+      "Forms User ID": u.formsUserId ?? "",
+      "First Name": u.firstName ?? "",
+      "Last Name": u.lastName ?? "",
+      "Email": u.email,
+      "Role": u.role,
+      "Campus": u.campusName ?? "",
+      "Source": SOURCE_LABEL[u.provisionedVia] ?? u.provisionedVia,
+      "Active": u.isActive ? "Yes" : "No",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Users");
+    const ts = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `users-${ts}.xlsx`);
+  };
+
   const counts = {
     total: allUsers.length,
     admin: allUsers.filter(u => u.role === "admin").length,
@@ -344,8 +367,14 @@ export default function AdminUsers() {
             {importCsv.isPending ? <Spinner className="w-4 h-4 mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
             Import CSV
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => downloadCsv("users-template.csv", TEMPLATE_CSV)} title="Download CSV template">
-            <Download className="w-4 h-4 mr-1" /> Template
+          <Button
+            variant="outline"
+            onClick={handleExportUsers}
+            disabled={allUsers.length === 0}
+            title="Download the listed users as an Excel file"
+            data-testid="button-export-users"
+          >
+            <Download className="w-4 h-4 mr-2" /> Export
           </Button>
 
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
