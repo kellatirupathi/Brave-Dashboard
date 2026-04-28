@@ -1,0 +1,68 @@
+Found exactly why both dashboards are slow. It's the backend, not the UI. The data fetched is small — but it's fetched via dozens of sequential round-trips and N+1 loops.
+
+🐌 Why the Admin Dashboard is slow (dashboard.ts:24-150)
+GET /dashboard/summary runs roughly 30+ separate SQL queries for one page load:
+
+Stage	Queries
+Config	1
+Top counters (revenue, OB, active/pending teams, campuses, pending reviews, overdue reviews, demo-day, access requests)	9
+Demo-eligible loop — fetches every active team, then runs one extra query per team to sum that team's revenue	1 + N (where N = number of active teams. With ~991 teams, that alone is up to 992 queries)
+Top campuses loop — fetches all 19–20 campuses, then 2 queries per campus (revenue + team stats)	1 + 2×C (~41 queries for 20 campuses)
+Recent audit (10 rows)	1
+Audit actor loop — for each of the 10 audit rows, another query to fetch the actor user	10
+Total: ~1,050 queries per dashboard load in your current data set.
+
+The two killer loops are classic N+1 patterns:
+
+Killer #1 — Demo-eligible count (dashboard.ts:83-91)
+
+const teams = await db.select().from(teamsTable).where(eq(teamsTable.status, "active"));
+let demoEligible = 0;
+for (const team of teams) {                          // ← runs once per team
+  const [revStats] = await db.select(...).from(revenueEntriesTable)
+    .where(and(eq(revenueEntriesTable.teamId, team.id), ...));
+  if (Number(revStats?.total ?? 0) >= threshold) demoEligible++;
+}
+Awaited inside a for loop → serial, not parallel → 991 round-trips happen one after another, each adding ~5–20ms. That's 5–20 seconds just for this counter.
+
+Killer #2 — Top campuses (dashboard.ts:94-114)
+Uses Promise.all so it's parallel, but still fires 2 × campuses extra queries.
+
+Killer #3 — Recent activity actors (dashboard.ts:122-125)
+10 extra queries to look up actor names — could be one JOIN.
+
+🐌 Why the Student Dashboard is slower than it should be (dashboard.ts:152-243)
+GET /dashboard/team-summary runs ~12+ sequential queries:
+
+team membership lookup
+team row
+campus row
+programme config
+team verified revenue
+team order book total
+active project count
+pending revenue submissions count
+recent milestones (5)
+announcements (5)
++ 5 more queries in Promise.all to look up each announcement's author name (N+1 again, line 212-215)
+team member count
+That's ~17 queries served strictly awaited one after another — none of the independent ones are parallelized with Promise.all. So even at 10ms per query you're paying ~170ms just in DB round-trip latency, plus network.
+
+Also, nationalRank and campusRank are returned as null (lines 231, 235-236) — meaning the leaderboard rank that shows on the student dashboard is never actually computed by this endpoint. The frontend probably calls the leaderboard endpoint separately to fill it in, doubling the perceived load time.
+
+📊 Summary — what's actually happening
+Page	Queries fired per load	Main culprit
+Admin Dashboard	~1,050 (with ~991 active teams)	Demo-eligible for await loop runs one query per team, sequentially
+Student Dashboard	~17	All queries awaited sequentially; N+1 on announcement authors
+It's not "loading entire data" in the sense of fetching every row of every table — the rows themselves are small. The slowness is round-trip count, not payload size. Each await db.select(...) is a separate network hop to Postgres.
+
+🧠 Quick mental model for what would make it fast
+Now	Should be
+Loop "for each team, query its revenue"	One query with GROUP BY team_id + HAVING sum(...) >= threshold
+Loop "for each campus, query revenue + team stats"	One query that joins teams ↔ campuses with grouped aggregates
+Loop "for each audit log, look up actor name"	One LEFT JOIN on users
+Loop "for each announcement, look up author name"	One LEFT JOIN on users
+Sequential awaits for independent counters	Wrap independent queries in Promise.all([...])
+Roughly: admin dashboard goes from ~1,050 queries → ~6 queries, student dashboard from ~17 → ~3 queries. Realistic expected load time after that: <200ms for either.
+
+Want me to write the Replit prompt to refactor both endpoints into the consolidated query versions?
