@@ -7,6 +7,7 @@ import {
   usersTable,
   campusesTable,
   milestonesTable,
+  rosterTable,
 } from "@workspace/db";
 import {
   AdminCreateTeamBody,
@@ -16,6 +17,136 @@ import { logAudit } from "../lib/audit";
 import { generateUniqueInviteCode } from "../lib/team-helpers";
 
 const router: IRouter = Router();
+
+/**
+ * Resolves a Student User ID to a users-table row. The CSV "Student User ID"
+ * column maps to roster.studentId — admins bulk-import the entire enrolled-
+ * student profile into roster long before the student first logs in via
+ * Replit OIDC. Until that login happens, no users-table row exists.
+ *
+ * To let admins build teams ahead of student onboarding, this helper:
+ *  1. Returns the existing users row if it's already there.
+ *  2. Otherwise looks up the id in roster, and provisions a users row from
+ *     roster data using the SAME id (so the OIDC login flow later matches by
+ *     id and does not create a duplicate).
+ *  3. Returns ok:false if the id isn't in roster either.
+ *
+ * Returns:
+ *   { ok: true, userId, campusId } when the user is ready to be added to a team
+ *   { ok: false, reason } when the id is not in roster, or any other validation fails
+ */
+async function resolveOrProvisionUser(studentUserId: string): Promise<
+  | { ok: true; userId: string; campusId: number | null }
+  | { ok: false; reason: string }
+> {
+  if (!studentUserId || !studentUserId.trim()) {
+    return { ok: false, reason: "Empty user id" };
+  }
+  const id = studentUserId.trim();
+
+  // 1. Already in users table by primary key? Done.
+  const [existingById] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id));
+  if (existingById) {
+    return {
+      ok: true,
+      userId: existingById.id,
+      campusId: existingById.campusId ?? null,
+    };
+  }
+
+  // 1b. Maybe the student logged in via Forms SSO before being imported, so
+  //     a row exists with formsUserId = studentUserId but a different
+  //     synthetic users.id. Reuse THAT row — putting them on the team via
+  //     its real users.id keeps team_members consistent with the row their
+  //     subsequent logins resolve to.
+  const [existingByFormsId] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.formsUserId, id));
+  if (existingByFormsId) {
+    return {
+      ok: true,
+      userId: existingByFormsId.id,
+      campusId: existingByFormsId.campusId ?? null,
+    };
+  }
+
+  // 2. Not in users — try roster.
+  const [rosterRow] = await db
+    .select()
+    .from(rosterTable)
+    .where(eq(rosterTable.studentId, id));
+  if (!rosterRow) {
+    return { ok: false, reason: `User not found in roster: ${id}` };
+  }
+
+  // 3. Resolve campus from roster (campusId on roster row, or look up by campusName).
+  let campusId: number | null = rosterRow.campusId ?? null;
+  if (!campusId && rosterRow.campusName) {
+    const [c] = await db
+      .select()
+      .from(campusesTable)
+      .where(eq(campusesTable.name, rosterRow.campusName.trim()));
+    campusId = c?.id ?? null;
+  }
+
+  // 4. Split fullName into first/last (best effort).
+  const fullName = (rosterRow.fullName ?? "").trim();
+  const parts = fullName.split(/\s+/);
+  const firstName = parts[0] ?? "";
+  const lastName = parts.slice(1).join(" ") || "";
+
+  // 5. Insert the users row. Set formsUserId = studentUserId because that is
+  //    how the Forms SSO first-login flow (createOrGetUserByFormsId in
+  //    lib/db/src/forms-auth.ts) matches an incoming login to an existing
+  //    row — without it, the student's first login would create a *second*
+  //    users row and they'd never see the team they were assigned to.
+  //    We also keep id = studentUserId for symmetry, and rely on email
+  //    fallback for any future Replit-OIDC login path.
+  //    onConflictDoNothing + re-select makes the helper safe against
+  //    concurrent imports racing to provision the same studentId.
+  await db
+    .insert(usersTable)
+    .values({
+      id,
+      formsUserId: id,
+      email: rosterRow.email ?? `${id}@placeholder.brave.local`,
+      firstName,
+      lastName,
+      role: "student",
+      campusId,
+      niatId: rosterRow.niatId ?? null,
+      isActive: true,
+      provisionedVia: "manual",
+    })
+    .onConflictDoNothing();
+
+  // Re-select in case a concurrent insert won the race (or the conflict was
+  // on the unique formsUserId / email constraint rather than the id PK).
+  // Try by id first, then by formsUserId — a concurrent Forms-SSO first
+  // login could have created a row with a synthetic id and our formsUserId.
+  let [provisioned] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id));
+  if (!provisioned) {
+    [provisioned] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.formsUserId, id));
+  }
+  if (!provisioned) {
+    return {
+      ok: false,
+      reason: `Failed to provision user from roster: ${id}`,
+    };
+  }
+
+  return { ok: true, userId: provisioned.id, campusId: provisioned.campusId ?? null };
+}
 
 type CreateOk = { ok: true; teamId: number };
 type CreateErr = { ok: false; status: number; reason: string };
@@ -38,19 +169,20 @@ async function createActiveTeam(args: {
     return { ok: false, status: 400, reason: `Unknown campus id: ${campusId}` };
   }
 
-  // Build deduped list, leader first. Intra-row duplicates (same id appearing
-  // as leader and member, or twice as members) are silently collapsed.
-  const seen = new Set<string>();
-  const allIds: string[] = [];
+  // Build deduped INPUT list, leader first. Intra-row duplicates (same id
+  // appearing as leader and member, or twice as members) are silently
+  // collapsed.
+  const seenInput = new Set<string>();
+  const inputIds: string[] = [];
   for (const id of [leaderUserId, ...memberUserIds]) {
-    if (!seen.has(id)) {
-      seen.add(id);
-      allIds.push(id);
+    if (!seenInput.has(id)) {
+      seenInput.add(id);
+      inputIds.push(id);
     }
   }
   // Server-side cap (defence-in-depth even if API client violates spec):
   // leader + up to 4 members = max 5 ids total.
-  if (allIds.length > 5) {
+  if (inputIds.length > 5) {
     return {
       ok: false,
       status: 400,
@@ -58,16 +190,41 @@ async function createActiveTeam(args: {
     };
   }
 
-  // Verify all users exist
-  const userRows = await db
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(inArray(usersTable.id, allIds));
-  const foundIds = new Set(userRows.map((u) => u.id));
-  for (const id of allIds) {
-    if (!foundIds.has(id)) {
-      return { ok: false, status: 400, reason: `User not found: ${id}` };
+  // Resolve every input id against users-or-roster, auto-provisioning a
+  // users row from roster data when the student hasn't logged in yet.
+  // We process ids sequentially and bail out on the first failure with a
+  // 400 — by design, any earlier ids that were freshly provisioned are
+  // kept (those rows are valid; they just won't be attached to a team this
+  // call). The map records the actual users.id we should write to
+  // teams.leader_id and team_members.user_id — that may differ from the
+  // input studentUserId when the student already exists with a synthetic
+  // id and formsUserId = studentUserId (Forms-SSO first-login case).
+  const resolvedById = new Map<string, string>();
+  for (const id of inputIds) {
+    const r = await resolveOrProvisionUser(id);
+    if (!r.ok) {
+      return { ok: false, status: 400, reason: r.reason };
     }
+    resolvedById.set(id, r.userId);
+  }
+  const resolvedLeaderId = resolvedById.get(leaderUserId)!;
+
+  // Dedup again on resolved ids, in case two different input ids resolved
+  // to the same users row (extremely rare but possible).
+  const seenResolved = new Set<string>();
+  const allResolvedIds: string[] = [];
+  for (const inputId of inputIds) {
+    const resolved = resolvedById.get(inputId)!;
+    if (!seenResolved.has(resolved)) {
+      seenResolved.add(resolved);
+      allResolvedIds.push(resolved);
+    }
+  }
+  // Reverse map so the "already in team" error reports the studentUserId
+  // the admin actually typed in the CSV, not the synthetic resolved id.
+  const inputByResolved = new Map<string, string>();
+  for (const [input, resolved] of resolvedById) {
+    if (!inputByResolved.has(resolved)) inputByResolved.set(resolved, input);
   }
 
   // Verify none already in a team (preflight; transactional insert below
@@ -75,12 +232,13 @@ async function createActiveTeam(args: {
   const existingMembers = await db
     .select({ userId: teamMembersTable.userId })
     .from(teamMembersTable)
-    .where(inArray(teamMembersTable.userId, allIds));
+    .where(inArray(teamMembersTable.userId, allResolvedIds));
   if (existingMembers.length > 0) {
+    const offending = existingMembers[0].userId;
     return {
       ok: false,
       status: 400,
-      reason: `User already in team: ${existingMembers[0].userId}`,
+      reason: `User already in team: ${inputByResolved.get(offending) ?? offending}`,
     };
   }
 
@@ -97,14 +255,17 @@ async function createActiveTeam(args: {
         .values({
           name,
           campusId,
-          leaderId: leaderUserId,
+          // Always store the resolved users.id, never the raw studentUserId
+          // input — they differ for Forms-SSO-first students whose row has
+          // a synthetic id and formsUserId = studentUserId.
+          leaderId: resolvedLeaderId,
           status: "active",
           inviteCode,
         })
         .returning();
 
       await tx.insert(teamMembersTable).values(
-        allIds.map((userId) => ({
+        allResolvedIds.map((userId) => ({
           teamId: team.id,
           userId,
           memberRole: "member" as const,
@@ -140,7 +301,7 @@ async function createActiveTeam(args: {
     "admin.team_created",
     "team",
     teamId,
-    JSON.stringify({ teamName: name, memberCount: allIds.length }),
+    JSON.stringify({ teamName: name, memberCount: allResolvedIds.length }),
   );
 
   return { ok: true, teamId };

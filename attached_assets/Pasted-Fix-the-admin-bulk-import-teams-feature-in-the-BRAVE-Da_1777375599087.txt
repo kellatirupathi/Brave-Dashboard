@@ -1,0 +1,180 @@
+Fix the admin bulk-import-teams feature in the BRAVE Dashboard so it validates Student User IDs against the roster table (not the users table) and auto-provisions the user row from roster data when creating teams. Apply the same fix to the single "Add Team" admin endpoint as well.
+
+=== CONTEXT — WHY THIS FIX ===
+The current admin team-import flow (POST /api/admin/teams/bulk-import and POST /api/admin/teams) validates each Student User ID by checking if it exists in the users table. But the users table is only populated AFTER a student logs in via Replit OIDC for the first time. Real source-of-truth for enrolled students is the roster table — admins bulk-imported all 7,500+ student profiles there earlier (each row has studentId UUID + niatId + fullName + email + campusName + batchSectionName).
+
+Result today: a CSV containing legitimate enrolled students all gets skipped with "User not found" because no users-table row exists yet. The team must be createable now so that when the student finally logs in, they immediately see the team on their account.
+
+Stack context: pnpm monorepo. lib/db/src/schema/brave.ts has both `users` and `roster` tables. Both have a UUID id column; the CSV's "Student User ID" column matches roster.studentId (which is the same UUID that becomes users.id when the student logs in for the first time — the auth flow already does this idempotent matching). lib/db/src/schema/auth.ts is unchanged.
+
+=== BUSINESS RULES (confirmed) ===
+1. The Student User IDs in the CSV are roster.studentId values. Roster is the validation source.
+2. If a Student User ID is in roster but NOT yet in users, AUTO-PROVISION a users row from roster data at team creation time, so the team membership can be inserted and the student is linked instantly when they log in.
+3. If a Student User ID is NOT in roster either → skip the row with reason "User not found in roster: <id>".
+4. If a user (whether existing in users or newly provisioned) is already on another team → skip the whole row with reason "User already in team: <id>".
+5. Existing student-driven team creation, coordinator approval, all other flows must remain UNCHANGED.
+6. Do NOT modify the database schema. No migrations.
+
+=== EXACT CHANGES ===
+
+STEP 1 — Backend
+File: artifacts/api-server/src/routes/admin-teams.ts (already exists from the previous bulk-import work).
+
+Replace the user-existence validation logic with a roster-first lookup that auto-provisions users on demand. Use a single helper function and call it from BOTH the POST /admin/teams and POST /admin/teams/bulk-import handlers.
+
+Add this helper near the top of admin-teams.ts:
+
+  /**
+   * Resolves a Student User ID to a users-table row. If the user does not yet
+   * exist (the student hasn't logged in), provisions them from roster data so
+   * that team membership can be inserted right away.
+   *
+   * Returns:
+   *   { ok: true, userId, campusId } when the user is ready to be added to a team
+   *   { ok: false, reason } when the id is not in roster, or any other validation fails
+   */
+  async function resolveOrProvisionUser(studentUserId: string): Promise<
+    | { ok: true; userId: string; campusId: number | null }
+    | { ok: false; reason: string }
+  > {
+    if (!studentUserId || !studentUserId.trim()) {
+      return { ok: false, reason: "Empty user id" };
+    }
+
+    // 1. Already in users table? Done.
+    const [existing] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, studentUserId));
+    if (existing) {
+      return { ok: true, userId: existing.id, campusId: existing.campusId ?? null };
+    }
+
+    // 2. Not in users — try roster.
+    const [rosterRow] = await db
+      .select()
+      .from(rosterTable)
+      .where(eq(rosterTable.studentId, studentUserId));
+    if (!rosterRow) {
+      return { ok: false, reason: `User not found in roster: ${studentUserId}` };
+    }
+
+    // 3. Resolve campus from roster (campusId on roster row, or look up by campusName).
+    let campusId: number | null = rosterRow.campusId ?? null;
+    if (!campusId && rosterRow.campusName) {
+      const [c] = await db
+        .select()
+        .from(campusesTable)
+        .where(eq(campusesTable.name, rosterRow.campusName.trim()));
+      campusId = c?.id ?? null;
+    }
+
+    // 4. Split fullName into first/last (best effort).
+    const fullName = (rosterRow.fullName ?? "").trim();
+    const parts = fullName.split(/\s+/);
+    const firstName = parts[0] ?? "";
+    const lastName = parts.slice(1).join(" ") || "";
+
+    // 5. Insert the users row with the SAME id as the roster studentId so that
+    //    when the student later logs in via OIDC, the existing flow links them
+    //    correctly.
+    await db.insert(usersTable).values({
+      id: studentUserId,
+      email: rosterRow.email ?? `${studentUserId}@placeholder.brave.local`,
+      firstName,
+      lastName,
+      role: "student",
+      campusId,
+      niatId: rosterRow.niatId ?? null,
+      isActive: true,
+      provisionedVia: "manual",
+    });
+
+    return { ok: true, userId: studentUserId, campusId };
+  }
+
+Imports needed at the top of admin-teams.ts (verify these are present, add any missing):
+  import { db } from "@workspace/db";
+  import {
+    users as usersTable,
+    roster as rosterTable,
+    campuses as campusesTable,
+    teamMembers as teamMembersTable,
+  } from "@workspace/db/schema/brave";
+  import { eq } from "drizzle-orm";
+
+Replace the existing per-row validation block in BOTH handlers with the new logic:
+
+POST /admin/teams (single team):
+  - Resolve the leader: const leader = await resolveOrProvisionUser(leaderUserId)
+    if !leader.ok → return 400 with leader.reason
+  - For each memberUserId: const m = await resolveOrProvisionUser(memberUserId)
+    if any !m.ok → return 400 with m.reason (do NOT partially provision; if validation fails return early — but note: if earlier members were already provisioned by resolveOrProvisionUser, that is acceptable; those user rows are valid, we just won't put them on this team. Document this in a code comment.)
+  - Then check no resolved userId exists in teamMembers; return 400 if any do.
+  - Then proceed with the existing insert path: campus check, generate inviteCode, insert team, insert teamMembers, audit log, milestone.
+
+POST /admin/teams/bulk-import (bulk):
+  - For each row, resolve leader and members via resolveOrProvisionUser.
+  - If any user fails to resolve → push to skipped with that reason; SKIP THE WHOLE ROW.
+  - If any resolved user is already in teamMembers → push to skipped with reason "User already in team: <id>"; skip the row.
+  - If row passes all checks → insert team + teamMembers + milestone, push to inserted[].
+  - Important: provisioning of users that occurred for a row whose team ultimately gets skipped is acceptable — those user rows are correct, they just don't get attached to a team. Do NOT roll back provisioning on row-skip.
+  - After processing all rows, write the existing summary auditLog entry: action 'admin.teams_bulk_imported' with totalRows, insertedCount, skippedCount.
+
+Resolve campus per row: keep the existing logic (look up campuses table by universityName trimmed + case-insensitive). Do NOT change campus validation.
+
+DO NOT change:
+- The OpenAPI spec (request/response shapes are unchanged)
+- The frontend components (AddTeamDialog, ImportTeamsDialog) — they keep sending the same payloads
+- Codegen does NOT need to be re-run for this change
+
+STEP 2 — Verify roster schema field names
+Open lib/db/src/schema/brave.ts and confirm the roster table has these columns (they should already exist — adjust the helper above only if names differ):
+  - studentId  (UUID, the column the CSV's Student User ID maps to)
+  - fullName
+  - email
+  - niatId
+  - campusId  (nullable foreign key to campuses)
+  - campusName  (denormalized name)
+
+If any name differs in the schema, update the helper to use the actual schema names. Do NOT alter the schema.
+
+STEP 3 — Cleanup
+Remove or simplify any leftover code in admin-teams.ts that did the old plain "SELECT FROM users WHERE id = ?" validation; it is now redundant since resolveOrProvisionUser handles it.
+
+=== VERIFICATION ===
+After changes:
+
+1. Run pnpm run typecheck — must pass with zero errors.
+2. Restart the API server: pnpm --filter @workspace/api-server run dev
+3. In /admin/teams, click Import CSV and upload the same 467-row CSV that previously imported 0 of 467 teams.
+4. Expected outcome: the import inserts most/all rows. Skipped rows now only happen for genuine reasons:
+   - "User not found in roster: <id>" — the User ID isn't in roster either
+   - "User already in team: <id>" — that student is already on another team
+   - "Unknown university: <name>" — campus name doesn't resolve
+   - "Empty user id" / "Team name required" / "Leader required"
+5. After import, query the database to verify:
+   - New users rows exist for all the previously-roster-only students who appeared as leaders/members
+   - Each new users row has the same id as the roster.studentId
+   - role = 'student', campusId set, niatId set
+   - teamMembers rows exist linking these users to their teams
+6. Log out as admin. Log in (Replit OIDC) as one of the students whose ID was just provisioned via this import. Confirm:
+   - The OIDC login does NOT create a duplicate users row (it should match by id)
+   - /team page shows their team immediately
+   - Sidebar shows the in-team menu (Dashboard, Projects, Leaderboard, My Team, Demo Day) — not the Get Started menu
+7. Re-run the same CSV import a second time. Confirm: all 467 rows now skip with reason "User already in team: <id>" — proving idempotency. No duplicate teams.
+8. Existing flows still work:
+   - Student-driven team creation via /get-started still works and still requires coordinator approval
+   - Coordinator approve/reject team workflow is unchanged
+   - /admin/teams existing search, filter, view, approve, reject, delete buttons unchanged
+
+=== DO NOT TOUCH ===
+- DB schema files (lib/db/src/schema/*)
+- OpenAPI spec (lib/api-spec/openapi.yaml)
+- Generated codegen files
+- Existing teams.ts, team-flow.ts, auth.ts logic for student-driven flows
+- Coordinator routes
+- Roster CRUD endpoints — they're separate
+- Any frontend file — this is a server-only change
+
+Do not introduce new dependencies. Do not write any DB migration. Do not change any column names.
