@@ -5,7 +5,10 @@ import {
   useListTeams,
   useGetAuditLog,
   useDeleteCampus,
+  useUpdateCampus,
+  useListUsers,
   getListCampusesQueryKey,
+  getGetCampusQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +17,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -40,7 +51,12 @@ import {
   ListChecks,
   UserCog,
   Trash2,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
+
+const UNASSIGNED = "__unassigned__";
 
 export default function AdminCampusDetail() {
   const params = useParams<{ id: string }>();
@@ -50,7 +66,65 @@ export default function AdminCampusDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const deleteCampus = useDeleteCampus();
+  const updateCampus = useUpdateCampus();
+  const { data: coordinatorUsers = [] } = useListUsers({ role: "coordinator" });
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftCity, setDraftCity] = useState("");
+  const [draftState, setDraftState] = useState("");
+  const [draftCoordinatorId, setDraftCoordinatorId] = useState<string>(UNASSIGNED);
+
+  const startEdit = () => {
+    if (!campus) return;
+    setDraftName(campus.name);
+    setDraftCity(campus.city);
+    setDraftState(campus.state);
+    setDraftCoordinatorId(campus.coordinatorId ?? UNASSIGNED);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => setIsEditing(false);
+
+  const saveEdit = () => {
+    const payload = {
+      name: draftName.trim(),
+      city: draftCity.trim(),
+      state: draftState.trim(),
+      coordinatorId: draftCoordinatorId === UNASSIGNED ? null : draftCoordinatorId,
+    };
+    if (!payload.name || !payload.city || !payload.state) {
+      toast({
+        title: "Name, city and state are required",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateCampus.mutate(
+      { id: campusId, data: payload },
+      {
+        onSuccess: () => {
+          toast({ title: "Campus updated" });
+          queryClient.invalidateQueries({ queryKey: getGetCampusQueryKey(campusId) });
+          queryClient.invalidateQueries({ queryKey: getListCampusesQueryKey() });
+          setIsEditing(false);
+        },
+        onError: (err) => {
+          const data = (err as { data?: unknown }).data;
+          let message = err instanceof Error ? err.message : "Please try again.";
+          if (data && typeof data === "object" && "error" in data && typeof (data as { error: unknown }).error === "string") {
+            message = (data as { error: string }).error;
+          }
+          toast({
+            title: "Could not update campus",
+            description: message,
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
 
   const handleDelete = () => {
     deleteCampus.mutate(
@@ -162,36 +236,137 @@ export default function AdminCampusDetail() {
         </Link>
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1
-            className="text-3xl font-bold tracking-tight flex items-center gap-2"
-            data-testid="text-campus-name"
-          >
-            <Building2 className="w-7 h-7 text-primary" />
-            {campus.name}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {campus.city}, {campus.state}
-          </p>
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          {isEditing ? (
+            <div className="space-y-3 max-w-2xl">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-7 h-7 text-primary shrink-0" />
+                <Input
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  placeholder="Campus name"
+                  className="text-2xl font-bold h-12"
+                  data-testid="input-edit-campus-name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    City
+                  </label>
+                  <Input
+                    value={draftCity}
+                    onChange={(e) => setDraftCity(e.target.value)}
+                    placeholder="City"
+                    data-testid="input-edit-campus-city"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    State
+                  </label>
+                  <Input
+                    value={draftState}
+                    onChange={(e) => setDraftState(e.target.value)}
+                    placeholder="State"
+                    data-testid="input-edit-campus-state"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1 max-w-xs">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Coordinator
+                </label>
+                <Select
+                  value={draftCoordinatorId}
+                  onValueChange={setDraftCoordinatorId}
+                >
+                  <SelectTrigger data-testid="select-edit-campus-coordinator">
+                    <SelectValue placeholder="Coordinator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                    {coordinatorUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h1
+                className="text-3xl font-bold tracking-tight flex items-center gap-2"
+                data-testid="text-campus-name"
+              >
+                <Building2 className="w-7 h-7 text-primary" />
+                {campus.name}
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                {campus.city}, {campus.state}
+              </p>
+            </>
+          )}
         </div>
         <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <div className="flex items-center gap-2 text-sm">
-            <UserCog className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Coordinator:</span>
-            <span className="font-medium" data-testid="text-coordinator-name">
-              {campus.coordinatorName || "Unassigned"}
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-destructive hover:text-destructive border-destructive/40"
-            onClick={() => setDeleteOpen(true)}
-            data-testid="button-delete-campus-detail"
-          >
-            <Trash2 className="w-4 h-4 mr-1" /> Delete campus
-          </Button>
+          {!isEditing && (
+            <div className="flex items-center gap-2 text-sm">
+              <UserCog className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Coordinator:</span>
+              <span className="font-medium" data-testid="text-coordinator-name">
+                {campus.coordinatorName || "Unassigned"}
+              </span>
+            </div>
+          )}
+          {isEditing ? (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={saveEdit}
+                disabled={updateCampus.isPending}
+                data-testid="button-save-campus-detail"
+              >
+                {updateCampus.isPending ? (
+                  <Spinner className="w-4 h-4 mr-1" />
+                ) : (
+                  <Check className="w-4 h-4 mr-1" />
+                )}
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={cancelEdit}
+                disabled={updateCampus.isPending}
+                data-testid="button-cancel-edit-campus-detail"
+              >
+                <X className="w-4 h-4 mr-1" /> Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={startEdit}
+              data-testid="button-edit-campus-detail"
+            >
+              <Pencil className="w-4 h-4 mr-1" /> Edit
+            </Button>
+          )}
+          {!isEditing && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive hover:text-destructive border-destructive/40"
+              onClick={() => setDeleteOpen(true)}
+              data-testid="button-delete-campus-detail"
+            >
+              <Trash2 className="w-4 h-4 mr-1" /> Delete campus
+            </Button>
+          )}
         </div>
       </div>
 
