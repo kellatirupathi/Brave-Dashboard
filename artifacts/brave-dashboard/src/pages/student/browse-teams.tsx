@@ -3,6 +3,7 @@ import {
   useBrowseCampusTeams,
   useRequestToJoinTeam,
   useGetMyTeam,
+  getGetMyTeamQueryKey,
 } from "@workspace/api-client-react";
 import type { Team } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +17,9 @@ import { Textarea } from "@/components/ui/textarea";
 
 export default function BrowseTeams() {
   const { data: teams, isLoading } = useBrowseCampusTeams();
-  const { data: myTeam } = useGetMyTeam({ query: { retry: false } });
+  const { data: myTeam } = useGetMyTeam({
+    query: { queryKey: getGetMyTeamQueryKey(), retry: false },
+  });
   const requestJoin = useRequestToJoinTeam();
   const { toast } = useToast();
   const [openId, setOpenId] = useState<number | null>(null);

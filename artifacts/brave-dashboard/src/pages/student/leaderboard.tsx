@@ -25,7 +25,7 @@ export default function Leaderboard() {
 
   const { data: leaderboard, isLoading } = useGetLeaderboard({
     view,
-    campusId: view === "campus" ? user?.campusId : undefined,
+    campusId: view === "campus" ? user?.campusId ?? undefined : undefined,
     search: search || undefined,
   });
 

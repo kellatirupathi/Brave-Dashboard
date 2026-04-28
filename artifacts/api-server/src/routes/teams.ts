@@ -276,7 +276,7 @@ router.post("/teams", async (req, res): Promise<void> => {
     campusId = req.user.campusId ?? parsed.data.campusId;
   } else {
     // coordinator (or any other role) must already have a campus assigned
-    campusId = req.user.campusId;
+    campusId = req.user.campusId ?? undefined;
   }
   if (!campusId) {
     res.status(400).json({ error: "Please choose a campus for your team." });

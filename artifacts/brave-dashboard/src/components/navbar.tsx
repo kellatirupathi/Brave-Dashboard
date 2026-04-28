@@ -2,7 +2,12 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { Link, useLocation } from "wouter";
 import { Bell, Mail, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
-import { useListMyInvitations, useListNotifications } from "@workspace/api-client-react";
+import {
+  useListMyInvitations,
+  useListNotifications,
+  getListMyInvitationsQueryKey,
+  getListNotificationsQueryKey,
+} from "@workspace/api-client-react";
 
 type NavLink = { href: string; label: string };
 
@@ -45,8 +50,18 @@ export function Navbar() {
   const { user } = useAuth();
   const [location] = useLocation();
   const isStudent = user?.role === "student";
-  const { data: invitations } = useListMyInvitations({ query: { enabled: !!isStudent } });
-  const { data: notifications } = useListNotifications({}, { query: { enabled: !!isStudent } });
+  const { data: invitations } = useListMyInvitations({
+    query: { queryKey: getListMyInvitationsQueryKey(), enabled: !!isStudent },
+  });
+  const { data: notifications } = useListNotifications(
+    {},
+    {
+      query: {
+        queryKey: getListNotificationsQueryKey(),
+        enabled: !!isStudent,
+      },
+    },
+  );
   const pendingInvites = invitations?.filter((i) => i.status === "pending").length ?? 0;
   const unreadNotifications = notifications?.filter((n) => !n.isRead).length ?? 0;
 

@@ -12,6 +12,8 @@ import {
   useDeleteTeam,
   getGetTeamQueryKey,
   getListTeamsQueryKey,
+  getListOrderBookEntriesQueryKey,
+  getListRevenueEntriesQueryKey,
   type ErrorType,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -80,15 +82,28 @@ export default function AdminTeamDetail() {
   const backLabel = user?.role === "admin" ? "Back to Teams" : "Back to Leaderboard";
 
   const { data: team, isLoading: teamLoading } = useGetTeam(teamId, {
-    query: { enabled: Number.isFinite(teamId) },
+    query: {
+      queryKey: getGetTeamQueryKey(teamId),
+      enabled: Number.isFinite(teamId),
+    },
   });
   const { data: orderBook = [] } = useListOrderBookEntries(
     { teamId },
-    { query: { enabled: Number.isFinite(teamId) } },
+    {
+      query: {
+        queryKey: getListOrderBookEntriesQueryKey({ teamId }),
+        enabled: Number.isFinite(teamId),
+      },
+    },
   );
   const { data: revenue = [] } = useListRevenueEntries(
     { teamId },
-    { query: { enabled: Number.isFinite(teamId) } },
+    {
+      query: {
+        queryKey: getListRevenueEntriesQueryKey({ teamId }),
+        enabled: Number.isFinite(teamId),
+      },
+    },
   );
 
   const queryClient = useQueryClient();

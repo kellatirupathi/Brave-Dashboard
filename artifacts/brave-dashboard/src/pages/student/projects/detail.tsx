@@ -11,6 +11,7 @@ import {
   useGetMyTeam,
   getGetProjectQueryKey,
   getListProjectsQueryKey,
+  getGetMyTeamQueryKey,
 } from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
@@ -85,7 +86,9 @@ export default function ProjectDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
   const { data: project, isLoading } = useGetProject(id);
-  const { data: myTeam } = useGetMyTeam({ query: { retry: false } });
+  const { data: myTeam } = useGetMyTeam({
+    query: { queryKey: getGetMyTeamQueryKey(), retry: false },
+  });
   const { user } = useAuth();
   const isLeader = !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
 

@@ -17,6 +17,9 @@ import {
   useRemoveTeamMember,
   useTransferTeamLeadership,
   useDeleteTeam,
+  getGetMyTeamQueryKey,
+  getListMilestonesQueryKey,
+  getSearchCampusStudentsQueryKey,
 } from "@workspace/api-client-react";
 import type { TeamDetail } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -79,7 +82,7 @@ export default function TeamProfile() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const { data: team, isLoading: teamLoading } = useGetMyTeam({
-    query: { retry: false },
+    query: { queryKey: getGetMyTeamQueryKey(), retry: false },
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -170,7 +173,12 @@ function TeamView({
   const isLeader = String(team.leaderId) === userId;
   const { data: milestones, isLoading: milestonesLoading } = useListMilestones(
     { teamId: team.id },
-    { query: { enabled: !!team.id } },
+    {
+      query: {
+        queryKey: getListMilestonesQueryKey({ teamId: team.id }),
+        enabled: !!team.id,
+      },
+    },
   );
   const { data: sentInvitations } = useListTeamInvitations(team.id);
   const { data: joinRequests } = useListTeamJoinRequests(team.id);
@@ -210,7 +218,12 @@ function TeamView({
 
   const { data: students = [] } = useSearchCampusStudents(
     { q: searchQ },
-    { query: { enabled: searchQ.trim().length >= 2 } },
+    {
+      query: {
+        queryKey: getSearchCampusStudentsQueryKey({ q: searchQ }),
+        enabled: searchQ.trim().length >= 2,
+      },
+    },
   );
 
   const invalidateAll = () => {

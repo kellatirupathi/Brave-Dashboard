@@ -7,6 +7,7 @@ import {
   timestamp,
   pgEnum,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -58,7 +59,11 @@ export const usersTable = pgTable("users", {
   provisionedVia: provisionedViaEnum("provisioned_via").notNull().default("manual"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("users_campus_idx").on(t.campusId),
+  index("users_role_idx").on(t.role),
+  index("users_email_idx").on(t.email),
+]);
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -90,7 +95,11 @@ export const rosterTable = pgTable("roster", {
   batchSectionName: text("batch_section_name"),
   isWhitelisted: boolean("is_whitelisted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("roster_campus_idx").on(t.campusId),
+  index("roster_full_name_idx").on(t.fullName),
+  index("roster_email_idx").on(t.email),
+]);
 
 export const insertRosterSchema = createInsertSchema(rosterTable).omit({ id: true, createdAt: true });
 export type InsertRoster = z.infer<typeof insertRosterSchema>;
@@ -131,7 +140,11 @@ export const teamsTable = pgTable("teams", {
   isFeatured: boolean("is_featured").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("teams_campus_idx").on(t.campusId),
+  index("teams_status_idx").on(t.status),
+  index("teams_leader_idx").on(t.leaderId),
+]);
 
 export const insertTeamSchema = createInsertSchema(teamsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertTeam = z.infer<typeof insertTeamSchema>;
@@ -144,7 +157,10 @@ export const teamMembersTable = pgTable("team_members", {
   userId: text("user_id").notNull(),
   memberRole: text("member_role"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [unique("team_members_user_unique").on(t.userId)]);
+}, (t) => [
+  unique("team_members_user_unique").on(t.userId),
+  index("team_members_team_idx").on(t.teamId),
+]);
 
 export const insertTeamMemberSchema = createInsertSchema(teamMembersTable).omit({ id: true, joinedAt: true });
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
@@ -203,7 +219,9 @@ export const projectsTable = pgTable("projects", {
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("projects_team_idx").on(t.teamId),
+]);
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertProject = z.infer<typeof insertProjectSchema>;
@@ -226,7 +244,10 @@ export const orderBookEntriesTable = pgTable("order_book_entries", {
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("order_book_team_idx").on(t.teamId),
+  index("order_book_project_idx").on(t.projectId),
+]);
 
 export const insertOrderBookEntrySchema = createInsertSchema(orderBookEntriesTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertOrderBookEntry = z.infer<typeof insertOrderBookEntrySchema>;
@@ -250,7 +271,11 @@ export const revenueEntriesTable = pgTable("revenue_entries", {
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("revenue_team_idx").on(t.teamId),
+  index("revenue_project_idx").on(t.projectId),
+  index("revenue_status_idx").on(t.status),
+]);
 
 export const insertRevenueEntrySchema = createInsertSchema(revenueEntriesTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertRevenueEntry = z.infer<typeof insertRevenueEntrySchema>;
@@ -268,7 +293,9 @@ export const milestonesTable = pgTable("milestones", {
   linkUrl: text("link_url"),
   isPinned: boolean("is_pinned").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("milestones_team_idx").on(t.teamId),
+]);
 
 export const insertMilestoneSchema = createInsertSchema(milestonesTable).omit({ id: true, createdAt: true });
 export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
@@ -303,7 +330,10 @@ export const notificationsTable = pgTable("notifications", {
   isRead: boolean("is_read").notNull().default(false),
   link: text("link"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("notifications_user_idx").on(t.userId),
+  index("notifications_user_read_idx").on(t.userId, t.isRead),
+]);
 
 export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({ id: true, createdAt: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
@@ -366,7 +396,10 @@ export const auditLogTable = pgTable("audit_log", {
   targetId: integer("target_id"),
   details: text("details"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("audit_log_actor_idx").on(t.actorId),
+  index("audit_log_created_idx").on(t.createdAt),
+]);
 
 export const insertAuditLogSchema = createInsertSchema(auditLogTable).omit({ id: true, createdAt: true });
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;

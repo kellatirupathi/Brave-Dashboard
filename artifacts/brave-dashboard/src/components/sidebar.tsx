@@ -1,5 +1,5 @@
 import { useAuth } from "@workspace/replit-auth-web";
-import { useGetMyTeam } from "@workspace/api-client-react";
+import { useGetMyTeam, getGetMyTeamQueryKey } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { 
@@ -44,7 +44,11 @@ export function Sidebar() {
   // "Get started" to the full student menu for users who already have
   // a team.
   const { data: myTeam, isLoading: teamLoading } = useGetMyTeam({
-    query: { retry: false, enabled: user?.role === "student" },
+    query: {
+      queryKey: getGetMyTeamQueryKey(),
+      retry: false,
+      enabled: user?.role === "student",
+    },
   });
   const hasTeam = teamLoading ? !!user?.teamId : !!myTeam;
 

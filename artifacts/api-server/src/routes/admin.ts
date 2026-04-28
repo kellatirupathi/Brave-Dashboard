@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, or, sql, desc } from "drizzle-orm";
+import { eq, ilike, and, or, sql, desc, inArray } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -704,6 +704,20 @@ router.patch("/admin/roster/:id", async (req, res): Promise<void> => {
     return;
   }
   const updates = parsed.data;
+
+  // Look up the row BEFORE mutating it so we can resolve the linked user
+  // record by the OLD identifiers below — otherwise renaming the studentId
+  // or email here would orphan the mirror update.
+  const [target] = await db
+    .select({ studentId: rosterTable.studentId, email: rosterTable.email })
+    .from(rosterTable)
+    .where(eq(rosterTable.id, id))
+    .limit(1);
+  if (!target) {
+    res.status(404).json({ error: "Roster entry not found" });
+    return;
+  }
+
   let campusId: number | null | undefined;
   if (updates.campusName) {
     const c = await resolveCampusByName(updates.campusName);
@@ -723,11 +737,48 @@ router.patch("/admin/roster/:id", async (req, res): Promise<void> => {
   if (updates.batchSectionName !== undefined) set.batchSectionName = updates.batchSectionName;
   if (updates.isWhitelisted !== undefined && updates.isWhitelisted !== null) set.isWhitelisted = updates.isWhitelisted;
 
-  const [updated] = await db
-    .update(rosterTable)
-    .set(set)
-    .where(eq(rosterTable.id, id))
-    .returning();
+  // If we're changing the studentId, pre-check that no OTHER row already
+  // has it. We still wrap the actual update in try/catch below so a race
+  // (admin A and admin B renaming to the same id concurrently) maps to a
+  // clean 409 instead of a 500.
+  if (
+    typeof set.studentId === "string" &&
+    set.studentId !== target.studentId
+  ) {
+    const [clash] = await db
+      .select({ id: rosterTable.id })
+      .from(rosterTable)
+      .where(eq(rosterTable.studentId, set.studentId as string))
+      .limit(1);
+    if (clash && clash.id !== id) {
+      res.status(409).json({
+        error: `Another roster entry already uses Student User ID "${set.studentId}".`,
+      });
+      return;
+    }
+  }
+
+  let updated: typeof rosterTable.$inferSelect | undefined;
+  try {
+    [updated] = await db
+      .update(rosterTable)
+      .set(set)
+      .where(eq(rosterTable.id, id))
+      .returning();
+  } catch (err: unknown) {
+    // Postgres unique-violation: surface as a friendly 409 rather than a 500.
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      (err as { code?: unknown }).code === "23505"
+    ) {
+      res.status(409).json({
+        error: "Another roster entry already uses that Student User ID.",
+      });
+      return;
+    }
+    throw err;
+  }
   if (!updated) {
     res.status(404).json({ error: "Roster entry not found" });
     return;
@@ -877,74 +928,160 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
   const campusByName = new Map<string, typeof allCampuses[number]>();
   for (const c of allCampuses) campusByName.set(c.name.trim().toLowerCase(), c);
 
-  let inserted = 0;
+  // ---------------------------------------------------------------------
+  // Pass 1: prepare in-memory rows. Drop blank-studentId rows up front
+  // and de-duplicate within the import payload itself (first row wins),
+  // mirroring the prior per-row behavior.
+  // ---------------------------------------------------------------------
+  type Prepared = {
+    studentId: string;
+    fullName: string;
+    email: string | null;
+    campusName: string;
+    campusId: number | null;
+    niatId: string | null;
+    batchSectionName: string | null;
+    isWhitelisted: true;
+  };
+  const prepared: Prepared[] = [];
+  const seenInPayload = new Set<string>();
   let skipped = 0;
   for (const s of students) {
-    try {
-      // Student User ID is the only mandatory column. If it's blank, skip.
-      const studentUserId = (s.studentUserId ?? "").trim();
-      if (!studentUserId) {
-        skipped++;
-        continue;
+    const studentUserId = (s.studentUserId ?? "").trim();
+    if (!studentUserId) {
+      skipped++;
+      continue;
+    }
+    if (seenInPayload.has(studentUserId)) {
+      skipped++;
+      continue;
+    }
+    seenInPayload.add(studentUserId);
+    const campus = s.instituteName
+      ? campusByName.get(s.instituteName.trim().toLowerCase())
+      : undefined;
+    const email = s.email?.trim() ? s.email.trim().toLowerCase() : null;
+    prepared.push({
+      studentId: studentUserId,
+      fullName: s.studentName?.trim() || studentUserId,
+      email,
+      campusName: campus?.name ?? (s.instituteName?.trim() ?? ""),
+      campusId: campus?.id ?? null,
+      niatId: s.niatId?.trim() || null,
+      batchSectionName: s.batchSectionName?.trim() || null,
+      isWhitelisted: true,
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Pass 2: in a single round-trip, find which studentIds already exist
+  // in the DB and exclude them. Postgres parameter limit is 65k so we
+  // chunk the IN-list into 1k-id slices. Uniqueness on roster is
+  // enforced ONLY on studentId — duplicate emails / NIAT IDs / names
+  // are allowed.
+  // ---------------------------------------------------------------------
+  const ID_LOOKUP_CHUNK = 1000;
+  const existingIds = new Set<string>();
+  const allIds = prepared.map((p) => p.studentId);
+  for (let i = 0; i < allIds.length; i += ID_LOOKUP_CHUNK) {
+    const slice = allIds.slice(i, i + ID_LOOKUP_CHUNK);
+    if (slice.length === 0) continue;
+    const rows = await db
+      .select({ s: rosterTable.studentId })
+      .from(rosterTable)
+      .where(inArray(rosterTable.studentId, slice));
+    for (const r of rows) existingIds.add(r.s);
+  }
+  const fresh = prepared.filter((p) => {
+    if (existingIds.has(p.studentId)) {
+      skipped++;
+      return false;
+    }
+    return true;
+  });
+
+  // ---------------------------------------------------------------------
+  // Pass 3: chunked INSERT inside a transaction. onConflictDoNothing on
+  // studentId guards against any race where another admin imports the
+  // same id concurrently — those rows are silently skipped.
+  // ---------------------------------------------------------------------
+  const INSERT_CHUNK = 250;
+  let inserted = 0;
+  // Track the studentIds the DB actually accepted (not the optimistic
+  // `fresh` list) so the email-mirror pass below only updates rows that
+  // really got imported, even under races with onConflictDoNothing.
+  const insertedStudentIds = new Set<string>();
+  if (fresh.length > 0) {
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < fresh.length; i += INSERT_CHUNK) {
+        const slice = fresh.slice(i, i + INSERT_CHUNK);
+        const inserted_rows = await tx
+          .insert(rosterTable)
+          .values(slice)
+          .onConflictDoNothing({ target: rosterTable.studentId })
+          .returning({
+            id: rosterTable.id,
+            studentId: rosterTable.studentId,
+          });
+        inserted += inserted_rows.length;
+        for (const row of inserted_rows) insertedStudentIds.add(row.studentId);
       }
+    });
+    // Anything that conflicted at insert time was a race — count it.
+    skipped += fresh.length - inserted;
+  }
 
-      // Uniqueness on roster is enforced ONLY on studentId. Duplicate
-      // emails / NIAT IDs / names from the same import are allowed and
-      // will all be inserted; only a row whose studentId already exists
-      // (in the DB or earlier in this same import) is skipped.
-      const [existing] = await db
-        .select({ id: rosterTable.id })
-        .from(rosterTable)
-        .where(eq(rosterTable.studentId, studentUserId))
-        .limit(1);
-      if (existing) {
-        skipped++;
-        continue;
+  // ---------------------------------------------------------------------
+  // Pass 4: mirror email onto linked user rows that match by formsUserId.
+  // Bulk: load all matching users in one query, then issue a single
+  // UPDATE per (email -> userIds) bucket. Multiple students may share a
+  // college mailbox, so matching is keyed strictly by formsUserId.
+  //
+  // Restrict to rows we actually inserted (insertedStudentIds) — anything
+  // dropped by onConflictDoNothing belongs to another import / admin and
+  // shouldn't have its mirrored email overwritten by ours.
+  // ---------------------------------------------------------------------
+  const idsWithEmail = fresh.filter(
+    (p) => p.email && insertedStudentIds.has(p.studentId),
+  );
+  if (idsWithEmail.length > 0) {
+    const lookupIds = idsWithEmail.map((p) => p.studentId);
+    const linkedUsers: { id: string; formsUserId: string | null }[] = [];
+    for (let i = 0; i < lookupIds.length; i += ID_LOOKUP_CHUNK) {
+      const slice = lookupIds.slice(i, i + ID_LOOKUP_CHUNK);
+      const rows = await db
+        .select({ id: usersTable.id, formsUserId: usersTable.formsUserId })
+        .from(usersTable)
+        .where(inArray(usersTable.formsUserId, slice));
+      linkedUsers.push(...rows);
+    }
+    const userIdByFormsId = new Map<string, string>();
+    for (const u of linkedUsers) {
+      if (u.formsUserId) userIdByFormsId.set(u.formsUserId, u.id);
+    }
+    if (userIdByFormsId.size > 0) {
+      // Group user ids by the new email value so each distinct email
+      // becomes one UPDATE … WHERE id IN (…) instead of one per row.
+      const idsByEmail = new Map<string, string[]>();
+      for (const p of idsWithEmail) {
+        const userId = userIdByFormsId.get(p.studentId);
+        if (!userId || !p.email) continue;
+        const bucket = idsByEmail.get(p.email);
+        if (bucket) bucket.push(userId);
+        else idsByEmail.set(p.email, [userId]);
       }
-
-      // Other columns are best-effort: import whatever cells have values.
-      // Institute Name is matched against existing campuses when present;
-      // when blank or unmatched, store the row without a campusId so the
-      // admin can fix it up later via the inline edit flow.
-      const campus = s.instituteName
-        ? campusByName.get(s.instituteName.trim().toLowerCase())
-        : undefined;
-      const email = s.email?.trim() ? s.email.trim().toLowerCase() : null;
-      await db.insert(rosterTable).values({
-        studentId: studentUserId,
-        fullName: s.studentName?.trim() || studentUserId,
-        email,
-        campusName: campus?.name ?? (s.instituteName?.trim() ?? ""),
-        campusId: campus?.id ?? null,
-        niatId: s.niatId?.trim() || null,
-        batchSectionName: s.batchSectionName?.trim() || null,
-        isWhitelisted: true,
-      });
-
-      // Mirror email onto the linked user row, if one already exists.
-      // Match ONLY by formsUserId — never by email, because multiple
-      // students may legitimately share a college mailbox.
-      if (email) {
-        const [hit] = await db
-          .select({ id: usersTable.id })
-          .from(usersTable)
-          .where(eq(usersTable.formsUserId, studentUserId))
-          .limit(1);
-        if (hit?.id) {
+      for (const [email, userIds] of idsByEmail) {
+        for (let i = 0; i < userIds.length; i += ID_LOOKUP_CHUNK) {
+          const slice = userIds.slice(i, i + ID_LOOKUP_CHUNK);
           await db
             .update(usersTable)
             .set({ email })
-            .where(eq(usersTable.id, hit.id));
+            .where(inArray(usersTable.id, slice));
         }
       }
-
-      inserted++;
-    } catch {
-      // Any insert failure (including a 23505 unique-violation race on
-      // studentId) → count as skipped so the import remains idempotent.
-      skipped++;
     }
   }
+
   await logAudit(req.user.id, "bulk_import_roster", "roster", undefined, `Imported ${inserted} students, skipped ${skipped}`);
   res.json({ inserted, skipped, total: students.length });
 });

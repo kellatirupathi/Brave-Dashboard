@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@workspace/replit-auth-web";
-import { useGetMyTeam } from "@workspace/api-client-react";
+import { useGetMyTeam, getGetMyTeamQueryKey } from "@workspace/api-client-react";
 import NotFound from "@/pages/not-found";
 
 // Auth
@@ -97,7 +97,9 @@ function ProtectedRoute({ component: Component, allowedRoles }: { component: Rea
 }
 
 function StudentDashboardOrGetStarted() {
-  const { data: team, isLoading } = useGetMyTeam({ query: { retry: false } });
+  const { data: team, isLoading } = useGetMyTeam({
+    query: { queryKey: getGetMyTeamQueryKey(), retry: false },
+  });
   if (isLoading) {
     return <div className="min-h-screen w-full flex items-center justify-center bg-background"><Spinner className="size-10" /></div>;
   }

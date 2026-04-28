@@ -64,6 +64,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeError } from "@/lib/api-error";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import * as XLSX from "xlsx";
@@ -229,8 +230,8 @@ export default function AdminRoster() {
           setNiatId("");
           setBatchSectionName("");
         },
-        onError: (e: any) => {
-          const status = e?.response?.status ?? e?.status;
+        onError: (e: unknown) => {
+          const { status, message } = normalizeError(e);
           if (status === 409) {
             toast({
               title: "Duplicate Student User ID",
@@ -242,7 +243,7 @@ export default function AdminRoster() {
           }
           toast({
             title: "Failed to add student",
-            description: e?.data?.error ?? e?.message ?? "Server error",
+            description: message,
             variant: "destructive",
           });
         },
@@ -282,10 +283,10 @@ export default function AdminRoster() {
           refreshAll();
           setEditTarget(null);
         },
-        onError: (e: any) =>
+        onError: (e: unknown) =>
           toast({
             title: "Update failed",
-            description: e?.data?.error ?? e?.message ?? "Server error",
+            description: normalizeError(e).message,
             variant: "destructive",
           }),
       },
@@ -396,10 +397,10 @@ export default function AdminRoster() {
           setSelectedIds(new Set());
           refreshAll();
         },
-        onError: (e: any) =>
+        onError: (e: unknown) =>
           toast({
             title: "Failed to clear roster",
-            description: e?.data?.error ?? e?.message ?? "Server error",
+            description: normalizeError(e).message,
             variant: "destructive",
           }),
       },
@@ -421,10 +422,10 @@ export default function AdminRoster() {
       toast({ title: "Roster entry deleted" });
       refreshAll();
       setDeleteTarget(null);
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: "Delete failed",
-        description: e.message,
+        description: normalizeError(e).message,
         variant: "destructive",
       });
     } finally {
@@ -479,10 +480,10 @@ export default function AdminRoster() {
       XLSX.utils.book_append_sheet(wb, ws, "Roster");
       const ts = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `roster-${ts}.xlsx`);
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: "Export failed",
-        description: e?.message ?? "Could not download roster.",
+        description: normalizeError(e, "Could not download roster.").message,
         variant: "destructive",
       });
     } finally {

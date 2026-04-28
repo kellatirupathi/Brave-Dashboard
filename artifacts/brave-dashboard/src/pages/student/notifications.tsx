@@ -19,7 +19,7 @@ export default function Notifications() {
   };
 
   const handleMarkAllRead = () => {
-    markAllRead.mutate({}, {
+    markAllRead.mutate(undefined, {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() })
     });
   };

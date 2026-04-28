@@ -6,6 +6,7 @@ import {
   useCreateTeam,
   useListMyInvitations,
   useListCampuses,
+  getGetMyTeamQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateMembershipQueries } from "@/lib/queries";
@@ -24,7 +25,9 @@ import { useToast } from "@/hooks/use-toast";
 export default function GetStarted() {
   const { user, refresh: refreshAuth } = useAuth();
   const [, setLocation] = useLocation();
-  const { data: team, isLoading: teamLoading } = useGetMyTeam({ query: { retry: false } });
+  const { data: team, isLoading: teamLoading } = useGetMyTeam({
+    query: { queryKey: getGetMyTeamQueryKey(), retry: false },
+  });
   const { data: invitations } = useListMyInvitations();
   const queryClient = useQueryClient();
   const { toast } = useToast();

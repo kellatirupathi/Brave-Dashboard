@@ -9,6 +9,8 @@ import {
   useListUsers,
   getListCampusesQueryKey,
   getGetCampusQueryKey,
+  getListTeamsQueryKey,
+  getGetAuditLogQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -157,15 +159,15 @@ export default function AdminCampusDetail() {
     isLoading: campusLoading,
     isError: campusError,
   } = useGetCampus(campusId, {
-    query: { enabled },
+    query: { queryKey: getGetCampusQueryKey(campusId), enabled },
   });
   const { data: teams = [], isLoading: teamsLoading } = useListTeams(
     { campusId },
-    { query: { enabled } },
+    { query: { queryKey: getListTeamsQueryKey({ campusId }), enabled } },
   );
   const { data: auditLog = [] } = useGetAuditLog(
     { limit: 200 },
-    { query: { enabled } },
+    { query: { queryKey: getGetAuditLogQueryKey({ limit: 200 }), enabled } },
   );
 
   if (campusLoading) {

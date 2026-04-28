@@ -21,6 +21,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeError } from "@/lib/api-error";
 import * as XLSX from "xlsx";
 
 const createUserSchema = z.object({
@@ -45,6 +46,7 @@ type AnyUser = {
   role: "admin" | "coordinator" | "student";
   campusId?: number | null;
   campusName?: string | null;
+  niatId?: string | null;
   isActive: boolean;
   provisionedVia: ProvisionedVia;
 };
@@ -183,7 +185,7 @@ export default function AdminUsers() {
         setIsCreateOpen(false);
         form.reset();
       },
-      onError: (e: any) => toast({ title: "Failed to create user", description: e?.data?.error ?? e?.message ?? "Something went wrong.", variant: "destructive" }),
+      onError: (e: unknown) => toast({ title: "Failed to create user", description: normalizeError(e, "Something went wrong.").message, variant: "destructive" }),
     });
   };
 
@@ -213,7 +215,7 @@ export default function AdminUsers() {
           refresh();
           setEditTarget(null);
         },
-        onError: (e: any) => toast({ title: "Update failed", description: e?.data?.error ?? e?.message ?? "Something went wrong.", variant: "destructive" }),
+        onError: (e: unknown) => toast({ title: "Update failed", description: normalizeError(e, "Something went wrong.").message, variant: "destructive" }),
       },
     );
   };
@@ -233,8 +235,8 @@ export default function AdminUsers() {
       toast({ title: "User deleted" });
       refresh();
       setDeleteTarget(null);
-    } catch (e: any) {
-      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Delete failed", description: normalizeError(e).message, variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -265,8 +267,8 @@ export default function AdminUsers() {
           setImportResult(result);
           refresh();
         },
-        onError: (err: any) => {
-          toast({ title: "Import failed", description: err?.data?.error ?? err?.message ?? "Server error", variant: "destructive" });
+        onError: (err: unknown) => {
+          toast({ title: "Import failed", description: normalizeError(err).message, variant: "destructive" });
         },
       },
     );

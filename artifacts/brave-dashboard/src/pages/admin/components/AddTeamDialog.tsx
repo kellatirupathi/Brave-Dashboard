@@ -5,6 +5,7 @@ import {
   useSearchCampusStudents,
   useAdminCreateTeam,
   getListTeamsQueryKey,
+  getSearchCampusStudentsQueryKey,
   type CampusStudent,
   type ErrorType,
 } from "@workspace/api-client-react";
@@ -79,7 +80,15 @@ function StudentSearch({
   const enabled = !!campusId && debounced.trim().length >= 2;
   const { data: students = [], isFetching } = useSearchCampusStudents(
     { q: debounced, campusId: campusId ?? undefined },
-    { query: { enabled } },
+    {
+      query: {
+        queryKey: getSearchCampusStudentsQueryKey({
+          q: debounced,
+          campusId: campusId ?? undefined,
+        }),
+        enabled,
+      },
+    },
   );
 
   const filtered = useMemo(() => {

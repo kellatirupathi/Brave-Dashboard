@@ -1,4 +1,10 @@
-import { useListProjects, useCreateProject, getListProjectsQueryKey, useGetMyTeam } from "@workspace/api-client-react";
+import {
+  useListProjects,
+  useCreateProject,
+  getListProjectsQueryKey,
+  useGetMyTeam,
+  getGetMyTeamQueryKey,
+} from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { formatINR, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -18,6 +24,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeError } from "@/lib/api-error";
 
 const projectSchema = z.object({
   title: z.string().min(3).max(80),
@@ -26,7 +33,9 @@ const projectSchema = z.object({
 
 export default function ProjectsList() {
   const { data: projects, isLoading } = useListProjects();
-  const { data: myTeam, isLoading: teamLoading } = useGetMyTeam({ query: { retry: false } });
+  const { data: myTeam, isLoading: teamLoading } = useGetMyTeam({
+    query: { queryKey: getGetMyTeamQueryKey(), retry: false },
+  });
   const createProject = useCreateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -48,10 +57,12 @@ export default function ProjectsList() {
         setIsDialogOpen(false);
         form.reset();
       },
-      onError: (err: any) => {
-        const apiMsg = err?.response?.data?.error ?? err?.data?.error;
-        const message = typeof apiMsg === "string" ? apiMsg : err?.message ?? "Something went wrong.";
-        toast({ title: "Couldn't create project", description: message, variant: "destructive" });
+      onError: (err: unknown) => {
+        toast({
+          title: "Couldn't create project",
+          description: normalizeError(err, "Something went wrong.").message,
+          variant: "destructive",
+        });
       }
     });
   };
