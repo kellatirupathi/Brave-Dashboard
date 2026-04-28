@@ -7,10 +7,10 @@
  */
 
 export type BulkImportRosterBodyStudentsItem = {
-  studentUserId?: string;
-  studentName: string;
+  studentUserId: string;
+  studentName?: string;
   niatId?: string;
-  instituteName: string;
+  instituteName?: string;
   batchSectionName?: string;
   email?: string;
 };

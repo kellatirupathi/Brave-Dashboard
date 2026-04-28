@@ -865,10 +865,10 @@ export interface AddRosterEntryBody {
 }
 
 export type BulkImportRosterBodyStudentsItem = {
-  studentUserId?: string;
-  studentName: string;
+  studentUserId: string;
+  studentName?: string;
   niatId?: string;
-  instituteName: string;
+  instituteName?: string;
   batchSectionName?: string;
   email?: string;
 };
@@ -879,8 +879,8 @@ export interface BulkImportRosterBody {
 
 export interface BulkImportRosterResponse {
   inserted: number;
-  skipped?: number;
-  total?: number;
+  skipped: number;
+  total: number;
 }
 
 export interface UpdateRosterEntryBody {

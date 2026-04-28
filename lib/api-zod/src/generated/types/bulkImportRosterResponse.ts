@@ -8,6 +8,6 @@
 
 export interface BulkImportRosterResponse {
   inserted: number;
-  skipped?: number;
-  total?: number;
+  skipped: number;
+  total: number;
 }

@@ -2081,10 +2081,10 @@ export const AddRosterEntryBody = zod.object({
 export const BulkImportRosterBody = zod.object({
   students: zod.array(
     zod.object({
-      studentUserId: zod.string().optional(),
-      studentName: zod.string(),
+      studentUserId: zod.string(),
+      studentName: zod.string().optional(),
       niatId: zod.string().optional(),
-      instituteName: zod.string(),
+      instituteName: zod.string().optional(),
       batchSectionName: zod.string().optional(),
       email: zod.string().email().optional(),
     }),
@@ -2093,8 +2093,8 @@ export const BulkImportRosterBody = zod.object({
 
 export const BulkImportRosterResponse = zod.object({
   inserted: zod.number(),
-  skipped: zod.number().optional(),
-  total: zod.number().optional(),
+  skipped: zod.number(),
+  total: zod.number(),
 });
 
 /**

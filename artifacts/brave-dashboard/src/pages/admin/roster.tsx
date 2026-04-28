@@ -354,7 +354,6 @@ export default function AdminRoster() {
         });
 
         const students: ImportStudent[] = rows
-          .filter((row) => row["Student Name"] || row["studentName"])
           .map((row) => {
             const emailValue = String(
               row["Email"] || row["email"] || "",
@@ -362,27 +361,30 @@ export default function AdminRoster() {
             return {
               studentUserId: String(
                 row["Student User ID"] || row["studentUserId"] || "",
-              ),
+              ).trim(),
               studentName: String(
                 row["Student Name"] || row["studentName"] || "",
-              ),
-              niatId: String(row["NIAT ID"] || row["niatId"] || ""),
+              ).trim(),
+              niatId: String(row["NIAT ID"] || row["niatId"] || "").trim(),
               instituteName: String(
                 row["Institute Name"] || row["instituteName"] || "",
-              ),
+              ).trim(),
               batchSectionName: String(
                 row["Batch Section Name"] || row["batchSectionName"] || "",
-              ),
+              ).trim(),
               ...(emailValue ? { email: emailValue } : {}),
             };
           })
-          .filter((s) => s.studentName && s.instituteName);
+          // Student User ID is the only mandatory column. Rows missing it are
+          // dropped here; rows missing any other column are kept and imported
+          // with whatever cells do have values.
+          .filter((s) => s.studentUserId);
 
         if (students.length === 0) {
           toast({
             title: "No valid rows found in the file",
             description:
-              "Expected columns: Student User ID, Student Name, NIAT ID, Institute Name, Batch Section Name, Email",
+              "Every row needs a Student User ID. Other columns (Student Name, NIAT ID, Institute Name, Batch Section Name, Email) are optional.",
             variant: "destructive",
           });
           return;

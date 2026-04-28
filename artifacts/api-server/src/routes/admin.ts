@@ -753,20 +753,28 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
   let skipped = 0;
   for (const s of students) {
     try {
-      const campus = campusByName.get((s.instituteName ?? "").trim().toLowerCase());
-      if (!campus) {
+      // Student User ID is the only mandatory column. If it's blank, skip.
+      const studentUserId = (s.studentUserId ?? "").trim();
+      if (!studentUserId) {
         skipped++;
         continue;
       }
+      // Other columns are best-effort: import whatever cells have values.
+      // Institute Name is matched against existing campuses when present;
+      // when blank or unmatched, store the row without a campusId so the
+      // admin can fix it up later via the inline edit flow.
+      const campus = s.instituteName
+        ? campusByName.get(s.instituteName.trim().toLowerCase())
+        : undefined;
       const email = s.email?.trim() ? s.email.trim().toLowerCase() : null;
       await db.insert(rosterTable).values({
-        studentId: s.studentUserId ?? "",
-        fullName: s.studentName,
+        studentId: studentUserId,
+        fullName: s.studentName?.trim() || studentUserId,
         email,
-        campusName: campus.name,
-        campusId: campus.id,
-        niatId: s.niatId ?? null,
-        batchSectionName: s.batchSectionName ?? null,
+        campusName: campus?.name ?? (s.instituteName?.trim() ?? ""),
+        campusId: campus?.id ?? null,
+        niatId: s.niatId?.trim() || null,
+        batchSectionName: s.batchSectionName?.trim() || null,
         isWhitelisted: true,
       }).onConflictDoNothing();
 

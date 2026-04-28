@@ -3238,8 +3238,7 @@ components:
                 type: string
                 format: email
             required:
-              - studentName
-              - instituteName
+              - studentUserId
       required:
         - students
 
@@ -3254,6 +3253,8 @@ components:
           type: integer
       required:
         - inserted
+        - skipped
+        - total
 
     UpdateRosterEntryBody:
       type: object
