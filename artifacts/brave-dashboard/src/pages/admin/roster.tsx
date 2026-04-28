@@ -47,7 +47,14 @@ import {
   Clock,
   Pencil,
   Trash2,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -743,25 +750,34 @@ export default function AdminRoster() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="inline-flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEdit(entry as RosterRow)}
-                            data-testid={`button-edit-roster-${entry.id}`}
-                          >
-                            <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeleteTarget(entry as RosterRow)}
-                            data-testid={`button-delete-roster-${entry.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
-                          </Button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              data-testid={`button-actions-roster-${entry.id}`}
+                              aria-label="Open actions"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => openEdit(entry as RosterRow)}
+                              data-testid={`button-edit-roster-${entry.id}`}
+                            >
+                              <Pencil className="w-4 h-4 mr-2" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setDeleteTarget(entry as RosterRow)}
+                              className="text-destructive focus:text-destructive"
+                              data-testid={`button-delete-roster-${entry.id}`}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
