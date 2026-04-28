@@ -113,6 +113,19 @@ function memberInitials(firstName?: string, lastName?: string, email?: string) {
   return (email ?? "?").substring(0, 2).toUpperCase();
 }
 
+function nameInitials(name?: string | null, email?: string | null) {
+  const trimmed = (name ?? "").trim();
+  if (trimmed) {
+    return trimmed
+      .split(/\s+/)
+      .map((s) => s[0] ?? "")
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }
+  return (email ?? "?").substring(0, 2).toUpperCase();
+}
+
 function StatTile({
   label,
   value,
@@ -459,7 +472,11 @@ function TeamView({
                     <Crown className="w-3 h-3" /> Leader
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-muted-foreground" data-testid="badge-team-member">
+                  <Badge
+                    variant="outline"
+                    className="text-muted-foreground"
+                    data-testid="badge-team-member"
+                  >
                     Member
                   </Badge>
                 )}
@@ -928,11 +945,7 @@ function TeamView({
                           src={jr.requesterProfileImage ?? undefined}
                         />
                         <AvatarFallback>
-                          {jr.requesterName
-                            .split(" ")
-                            .map((s) => s[0])
-                            .join("")
-                            .slice(0, 2)}
+                          {nameInitials(jr.requesterName, jr.requesterEmail)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
@@ -997,11 +1010,7 @@ function TeamView({
                           src={lr.requesterProfileImage ?? undefined}
                         />
                         <AvatarFallback>
-                          {lr.requesterName
-                            .split(" ")
-                            .map((s) => s[0])
-                            .join("")
-                            .slice(0, 2)}
+                          {nameInitials(lr.requesterName, lr.requesterEmail)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
