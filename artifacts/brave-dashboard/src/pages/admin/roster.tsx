@@ -761,7 +761,7 @@ export default function AdminRoster() {
                     <SelectTrigger>
                       <SelectValue placeholder="Select campus" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-72">
                       {CAMPUSES.map((c) => (
                         <SelectItem key={c} value={c}>
                           {c}
@@ -1170,7 +1170,7 @@ export default function AdminRoster() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select campus" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-72">
                   {CAMPUSES.map((c) => (
                     <SelectItem key={c} value={c}>
                       {c}
