@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Trophy, Medal, Building2, TrendingUp, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -17,7 +17,9 @@ import {
 import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
 
-export default function Leaderboard() {
+export default function Leaderboard({
+  headerExtra,
+}: { headerExtra?: ReactNode } = {}) {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [view, setView] = useState<"national" | "campus">("national");
@@ -62,6 +64,8 @@ export default function Leaderboard() {
               <TabsTrigger value="campus">My Campus</TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {headerExtra}
         </div>
       </div>
 

@@ -33,13 +33,7 @@ function memberCells(team: LeaderboardExportTeam): (string | null)[] {
   for (let i = 0; i < MAX_MEMBER_SLOTS; i++) {
     const m = team.members[i];
     if (m) {
-      cells.push(
-        m.name,
-        m.niatId ?? "",
-        m.formsUserId ?? "",
-        m.email,
-        m.role,
-      );
+      cells.push(m.name, m.niatId ?? "", m.formsUserId ?? "", m.email, m.role);
     } else {
       cells.push("", "", "", "", "");
     }
@@ -47,9 +41,7 @@ function memberCells(team: LeaderboardExportTeam): (string | null)[] {
   return cells;
 }
 
-function buildNationalSheet(
-  teams: LeaderboardExportTeam[],
-): XLSX.WorkSheet {
+function buildNationalSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
   const headers = [
     "Rank",
     "Team Name",
@@ -78,9 +70,7 @@ function buildNationalSheet(
   return XLSX.utils.aoa_to_sheet(rows);
 }
 
-function buildCampusSheet(
-  teams: LeaderboardExportTeam[],
-): XLSX.WorkSheet {
+function buildCampusSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
   // Group by campus, then assign campus rank using existing national-order
   // (which is already featured DESC, revenue DESC, id ASC). Sort campuses
   // alphabetically so the sheet is predictable.
@@ -91,9 +81,7 @@ function buildCampusSheet(
     arr.push(t);
     byCampus.set(key, arr);
   }
-  const campusNames = [...byCampus.keys()].sort((a, b) =>
-    a.localeCompare(b),
-  );
+  const campusNames = [...byCampus.keys()].sort((a, b) => a.localeCompare(b));
 
   const headers = [
     "Campus",
@@ -156,7 +144,8 @@ export default function AdminLeaderboard() {
     } catch (e: unknown) {
       toast({
         title: "Export failed",
-        description: normalizeError(e, "Could not generate the workbook.").message,
+        description: normalizeError(e, "Could not generate the workbook.")
+          .message,
         variant: "destructive",
       });
     } finally {
@@ -165,12 +154,13 @@ export default function AdminLeaderboard() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
+    <Leaderboard
+      headerExtra={
         <Button
           onClick={handleExport}
           disabled={isExporting}
           data-testid="button-export-leaderboard"
+          className="w-full sm:w-auto"
         >
           {isExporting ? (
             <Spinner className="w-4 h-4 mr-2" />
@@ -179,8 +169,7 @@ export default function AdminLeaderboard() {
           )}
           Export
         </Button>
-      </div>
-      <Leaderboard />
-    </div>
+      }
+    />
   );
 }
