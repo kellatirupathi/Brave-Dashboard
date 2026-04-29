@@ -127,7 +127,6 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
     WHERE t.status = 'active'
       ${hiddenFilter}
       ${campusFilter}
-      ${searchFilter}
     ORDER BY
       t.is_featured DESC,
       COALESCE(rev.total, 0) DESC,
@@ -138,7 +137,9 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
   // drizzle's execute returns a node-pg result; rows are on .rows.
   const rows = (result as unknown as { rows: LeaderboardRow[] }).rows;
 
-  const final = rows.map((r, idx) => {
+  // 1. Assign rank to ALL teams in the ORDER BY position — this is the
+  //    true national/campus rank, computed BEFORE any search filter.
+  const ranked = rows.map((r, idx) => {
     const totalRevenue = Number(r.total_revenue ?? 0);
     return {
       teamId: Number(r.team_id),
@@ -158,6 +159,45 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
       rank: idx + 1,
     };
   });
+
+  // 2. Apply the search filter AFTER ranks are locked in, so a team's
+  //    displayed rank reflects its real standing in the full leaderboard
+  //    (not its position within the filtered subset).
+  //    Match against team name, campus name, or any team member's name /
+  //    email / NIAT id — same surfaces the SQL EXISTS used to cover.
+  let final = ranked;
+  if (search && search.trim().length > 0) {
+    const q = search.trim().toLowerCase();
+
+    // One round-trip to fetch member-search hits (team ids whose members
+    // match the query). We can't do this in the original WHERE clause
+    // anymore because we need rank to be assigned first.
+    const memberHits = await db.execute<{ team_id: number }>(sql`
+      SELECT DISTINCT tm.team_id
+      FROM team_members tm
+      JOIN users u ON u.id = tm.user_id
+      LEFT JOIN roster r_email ON r_email.email = u.email
+      LEFT JOIN roster r_forms ON r_forms.student_id = u.forms_user_id
+      WHERE LOWER(
+        COALESCE(u.first_name, '') || ' ' ||
+        COALESCE(u.last_name,  '') || ' ' ||
+        COALESCE(u.email,      '') || ' ' ||
+        COALESCE(u.niat_id, COALESCE(r_email.niat_id, r_forms.niat_id), '')
+      ) LIKE ${"%" + q + "%"}
+    `);
+    const memberHitIds = new Set(
+      (memberHits as unknown as { rows: { team_id: number }[] }).rows.map((h) =>
+        Number(h.team_id),
+      ),
+    );
+
+    final = ranked.filter(
+      (t) =>
+        t.teamName.toLowerCase().includes(q) ||
+        (t.campusName ?? "").toLowerCase().includes(q) ||
+        memberHitIds.has(t.teamId),
+    );
+  }
 
   res.json(final);
 });
