@@ -37,7 +37,13 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
-export function Sidebar() {
+/**
+ * Sidebar contents (header, nav links, profile menu) without any outer
+ * shell/width. Used both inside the desktop fixed column and inside the
+ * mobile Sheet drawer. Pass `onNavigate` so mobile callers can close the
+ * drawer when a link is clicked.
+ */
+export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -103,7 +109,7 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="w-64 bg-sidebar border-r border-sidebar-border h-screen sticky top-0 flex flex-col text-sidebar-foreground">
+      <div className="flex h-full flex-col text-sidebar-foreground">
         <div className="p-6">
           <BraveLogo className="text-2xl" />
           <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-2">Dashboard</p>
@@ -120,8 +126,9 @@ export function Sidebar() {
               : location === item.href || location.startsWith(item.href + '/');
             
             return (
-              <Link key={item.name} href={item.href}>
-                <span className={cn(
+              <Link key={item.name} href={item.href} onClick={onNavigate}>
+                <span
+                  className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
                   isActive 
                     ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" 
@@ -165,7 +172,7 @@ export function Sidebar() {
               data-testid="menu-sidebar-profile"
             >
               <DropdownMenuItem asChild data-testid="menu-item-edit-profile">
-                <Link href="/profile">
+                <Link href="/profile" onClick={onNavigate}>
                   <UserCog className="w-4 h-4 mr-2" />
                   Edit profile
                 </Link>
@@ -207,5 +214,17 @@ export function Sidebar() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * Desktop sidebar column. Hidden below the lg breakpoint — at <1024px the
+ * Layout renders a top bar + Sheet drawer instead.
+ */
+export function Sidebar() {
+  return (
+    <div className="hidden lg:flex w-64 bg-sidebar border-r border-sidebar-border h-screen sticky top-0 flex-col">
+      <SidebarBody />
+    </div>
   );
 }

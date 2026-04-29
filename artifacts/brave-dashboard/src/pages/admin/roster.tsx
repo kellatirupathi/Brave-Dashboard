@@ -655,7 +655,7 @@ export default function AdminRoster() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -726,7 +726,7 @@ export default function AdminRoster() {
                 <DialogTitle>Add to Roster</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleAdd} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">
                       Student User ID
@@ -1145,7 +1145,7 @@ export default function AdminRoster() {
             <DialogTitle>Edit roster entry</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Student User ID</label>
                 <Input

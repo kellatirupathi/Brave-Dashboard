@@ -164,7 +164,7 @@ export default function AdminCampuses() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Campuses</h1>
           <p className="text-muted-foreground">Manage participating campuses</p>
@@ -182,7 +182,7 @@ export default function AdminCampuses() {
                 <label className="text-sm font-medium">Campus Name</label>
                 <Input value={name} onChange={e => setName(e.target.value)} required />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">City</label>
                   <Input value={city} onChange={e => setCity(e.target.value)} required />
