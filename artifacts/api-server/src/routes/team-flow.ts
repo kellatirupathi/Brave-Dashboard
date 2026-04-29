@@ -20,6 +20,7 @@ import {
 } from "@workspace/api-zod";
 import { z } from "zod/v4";
 import { createNotification } from "../lib/notifications";
+import { getTeamMemberLimit, getTeamMemberCount, teamFullMessage } from "../lib/team-limits";
 
 const router: IRouter = Router();
 
@@ -314,9 +315,24 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
     res.status(400).json({ error: "You are already on a team" });
     return;
   }
-  try {
-    await db.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
-  } catch {
+  // Enforce team capacity atomically (lock the team row, recount under lock).
+  const joinResult = await db.transaction(async (tx) => {
+    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, team.id)).for("update");
+    const limit = await getTeamMemberLimit(tx);
+    const count = await getTeamMemberCount(team.id, tx);
+    if (count >= limit) return { kind: "full" as const, count, limit };
+    try {
+      await tx.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
+    } catch {
+      return { kind: "duplicate" as const };
+    }
+    return { kind: "ok" as const };
+  });
+  if (joinResult.kind === "full") {
+    res.status(400).json({ error: teamFullMessage(joinResult.count, joinResult.limit) });
+    return;
+  }
+  if (joinResult.kind === "duplicate") {
     res.status(400).json({ error: "Could not join team (already a member of one)" });
     return;
   }
@@ -438,6 +454,16 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
     );
   if (dup) { res.status(400).json({ error: "An invitation is already pending for this student" }); return; }
 
+  // Block new invitations when the team is already at capacity.
+  {
+    const limit = await getTeamMemberLimit();
+    const count = await getTeamMemberCount(team.id);
+    if (count >= limit) {
+      res.status(400).json({ error: teamFullMessage(count, limit) });
+      return;
+    }
+  }
+
   const [inv] = await db
     .insert(teamInvitationsTable)
     .values({ teamId: team.id, inviterId: req.user.id, inviteeId: invitee.id })
@@ -472,10 +498,28 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
   const existing = await getMembership(req.user.id);
   if (existing) { res.status(400).json({ error: "You are already on a team" }); return; }
 
-  try {
-    await db.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
-  } catch {
-    res.status(400).json({ error: "Could not join team" }); return;
+  // Enforce team capacity atomically: lock the team row, recount members
+  // under the lock, then insert. This prevents two concurrent acceptances
+  // from racing past the limit.
+  const acceptResult = await db.transaction(async (tx) => {
+    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, team.id)).for("update");
+    const limit = await getTeamMemberLimit(tx);
+    const count = await getTeamMemberCount(team.id, tx);
+    if (count >= limit) return { kind: "full" as const, count, limit };
+    try {
+      await tx.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
+    } catch {
+      return { kind: "duplicate" as const };
+    }
+    return { kind: "ok" as const };
+  });
+  if (acceptResult.kind === "full") {
+    res.status(400).json({ error: teamFullMessage(acceptResult.count, acceptResult.limit) });
+    return;
+  }
+  if (acceptResult.kind === "duplicate") {
+    res.status(400).json({ error: "Could not join team" });
+    return;
   }
   await db
     .update(teamInvitationsTable)
@@ -592,10 +636,26 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Requester has already joined another team" });
     return;
   }
-  try {
-    await db.insert(teamMembersTable).values({ teamId: team.id, userId: jr.requesterId });
-  } catch {
-    res.status(400).json({ error: "Could not add member" }); return;
+  // Enforce team capacity atomically (lock the team row, recount under lock).
+  const approveResult = await db.transaction(async (tx) => {
+    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, team.id)).for("update");
+    const limit = await getTeamMemberLimit(tx);
+    const count = await getTeamMemberCount(team.id, tx);
+    if (count >= limit) return { kind: "full" as const, count, limit };
+    try {
+      await tx.insert(teamMembersTable).values({ teamId: team.id, userId: jr.requesterId });
+    } catch {
+      return { kind: "duplicate" as const };
+    }
+    return { kind: "ok" as const };
+  });
+  if (approveResult.kind === "full") {
+    res.status(400).json({ error: teamFullMessage(approveResult.count, approveResult.limit) });
+    return;
+  }
+  if (approveResult.kind === "duplicate") {
+    res.status(400).json({ error: "Could not add member" });
+    return;
   }
   await db
     .update(teamJoinRequestsTable)

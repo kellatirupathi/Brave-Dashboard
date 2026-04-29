@@ -105,11 +105,18 @@ function ProtectedRoute({ component: Component, allowedRoles }: { component: Rea
 }
 
 function StudentDashboardOrGetStarted() {
+  const { user } = useAuth();
   const { data: team, isLoading } = useGetMyTeam({
     query: { queryKey: getGetMyTeamQueryKey(), retry: false },
   });
   if (isLoading) {
     return <div className="min-h-screen w-full flex items-center justify-center bg-background"><Spinner className="size-10" /></div>;
+  }
+  // First-time profile completion: students with no team and who have never
+  // saved their profile go to /profile first; the profile page then sends
+  // them on to /get-started after a successful save.
+  if (!team && user && !user.profileCompletedAt) {
+    return <Redirect to="/profile" />;
   }
   if (!team) return <Redirect to="/get-started" />;
   return <TeamDashboard />;

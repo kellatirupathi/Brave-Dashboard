@@ -19,6 +19,7 @@ import {
   useTransferTeamLeadership,
   useDeleteTeam,
   useUpdateTeam,
+  useGetProgrammeConfig,
   getGetMyTeamQueryKey,
   getListMilestonesQueryKey,
   getSearchCampusStudentsQueryKey,
@@ -186,6 +187,10 @@ function TeamView({
   const { data: sentInvitations } = useListTeamInvitations(team.id);
   const { data: joinRequests } = useListTeamJoinRequests(team.id);
   const { data: leaveRequests } = useListTeamLeaveRequests(team.id);
+  const { data: programmeConfig } = useGetProgrammeConfig();
+  const teamMemberLimit = programmeConfig?.teamMemberLimit ?? 5;
+  const memberCount = team.members.length;
+  const isTeamFull = memberCount >= teamMemberLimit;
 
   const sendInvite = useSendTeamInvitation();
   const cancelInvite = useCancelInvitation();
@@ -592,14 +597,23 @@ function TeamView({
                   </div>
                 )}
               </div>
-              <Button
-                size="sm"
-                onClick={() => setInviteOpen(true)}
-                data-testid="button-hero-invite"
-                className="gap-2"
-              >
-                <UserPlus className="w-4 h-4" /> Invite member
-              </Button>
+              {isTeamFull ? (
+                <div
+                  className="text-sm text-muted-foreground rounded-md border px-3 py-2"
+                  data-testid="text-team-full"
+                >
+                  Team is full ({memberCount}/{teamMemberLimit} members)
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => setInviteOpen(true)}
+                  data-testid="button-hero-invite"
+                  className="gap-2"
+                >
+                  <UserPlus className="w-4 h-4" /> Invite member
+                </Button>
+              )}
             </div>
           </div>
         </div>

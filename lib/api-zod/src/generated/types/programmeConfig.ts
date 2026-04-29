@@ -13,6 +13,8 @@ export interface ProgrammeConfig {
   /** @nullable */
   demoDayDate?: Date | null;
   demoEligibilityThreshold: number;
+  /** Maximum number of members allowed per team. Default 5. */
+  teamMemberLimit: number;
   leaderboardFrozen: boolean;
   demoDayApplicationsOpen: boolean;
   /** @nullable */

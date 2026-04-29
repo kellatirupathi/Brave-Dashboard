@@ -1189,6 +1189,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RevenueEntry"
+        "403":
+          description: Forbidden — admin role required
+        "404":
+          description: Entry not found
+        "409":
+          description: Only verified entries can be unverified
+
+  /order-book-entries/{id}/unverify:
+    post:
+      operationId: unverifyOrderBookEntry
+      tags: [financials]
+      summary: Move a verified order book entry back to the review queue (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry unverified and moved back to submitted status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookEntry"
+        "403":
+          description: Forbidden — admin role required
+        "404":
+          description: Entry not found
+        "409":
+          description: Only verified entries can be unverified
 
   # Admin review queue
   /admin/review-queue:
@@ -2098,6 +2129,9 @@ components:
           type: ["boolean", "null"]
         teamId:
           type: ["integer", "null"]
+        profileCompletedAt:
+          type: ["string", "null"]
+          description: ISO timestamp of the first time the user successfully saved their profile. Null until completed.
       required:
         - id
         - replitId
@@ -2737,7 +2771,7 @@ components:
           type: ["integer", "null"]
         status:
           type: string
-          enum: [verified]
+          enum: [submitted, verified]
         supportingDocUrl:
           type: ["string", "null"]
         notes:
@@ -3374,6 +3408,9 @@ components:
           format: date
         demoEligibilityThreshold:
           type: integer
+        teamMemberLimit:
+          type: integer
+          description: Maximum number of members allowed per team. Default 5.
         leaderboardFrozen:
           type: boolean
         demoDayApplicationsOpen:
@@ -3391,6 +3428,7 @@ components:
         - startDate
         - endDate
         - demoEligibilityThreshold
+        - teamMemberLimit
         - leaderboardFrozen
         - demoDayApplicationsOpen
         - programmePhase
@@ -3410,6 +3448,9 @@ components:
           format: date
         demoEligibilityThreshold:
           type: integer
+        teamMemberLimit:
+          type: integer
+          minimum: 1
         leaderboardFrozen:
           type: boolean
         demoDayApplicationsOpen:

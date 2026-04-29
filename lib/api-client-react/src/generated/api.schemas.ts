@@ -35,6 +35,11 @@ export interface AuthUser {
   isOnRoster: boolean | null;
   /** @nullable */
   teamId: number | null;
+  /**
+   * ISO timestamp of the first time the user successfully saved their profile. Null until completed.
+   * @nullable
+   */
+  profileCompletedAt?: string | null;
 }
 
 export interface GetCurrentAuthUserResponse {
@@ -426,6 +431,7 @@ export type OrderBookEntryStatus =
   (typeof OrderBookEntryStatus)[keyof typeof OrderBookEntryStatus];
 
 export const OrderBookEntryStatus = {
+  submitted: "submitted",
   verified: "verified",
 } as const;
 
@@ -889,6 +895,8 @@ export interface ProgrammeConfig {
   /** @nullable */
   demoDayDate?: string | null;
   demoEligibilityThreshold: number;
+  /** Maximum number of members allowed per team. Default 5. */
+  teamMemberLimit: number;
   leaderboardFrozen: boolean;
   demoDayApplicationsOpen: boolean;
   /** @nullable */
@@ -903,6 +911,8 @@ export interface UpdateProgrammeConfigBody {
   /** @nullable */
   demoDayDate?: string | null;
   demoEligibilityThreshold?: number;
+  /** @minimum 1 */
+  teamMemberLimit?: number;
   leaderboardFrozen?: boolean;
   demoDayApplicationsOpen?: boolean;
   /** @nullable */

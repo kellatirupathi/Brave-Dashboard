@@ -581,8 +581,12 @@ export default function ProjectDetail() {
                         type="date"
                         value={paymentDate}
                         onChange={(e) => setPaymentDate(e.target.value)}
+                        max={new Date().toISOString().split("T")[0]}
                         required
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Future dates are not allowed.
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-2">

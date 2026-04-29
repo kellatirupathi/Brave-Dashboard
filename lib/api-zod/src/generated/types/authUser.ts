@@ -25,4 +25,9 @@ export interface AuthUser {
   isOnRoster: boolean | null;
   /** @nullable */
   teamId: number | null;
+  /**
+   * ISO timestamp of the first time the user successfully saved their profile. Null until completed.
+   * @nullable
+   */
+  profileCompletedAt?: string | null;
 }

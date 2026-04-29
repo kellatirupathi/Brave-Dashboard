@@ -12,6 +12,8 @@ export interface UpdateProgrammeConfigBody {
   /** @nullable */
   demoDayDate?: Date | null;
   demoEligibilityThreshold?: number;
+  /** @minimum 1 */
+  teamMemberLimit?: number;
   leaderboardFrozen?: boolean;
   demoDayApplicationsOpen?: boolean;
   /** @nullable */

@@ -15,6 +15,7 @@ type LeaderboardRow = {
   total_revenue: string | null;
   total_order_book: string | null;
   active_projects: string | null;
+  client_count: string | null;
   last_payment_date: string | null;
   is_featured: boolean;
   is_hidden: boolean;
@@ -92,6 +93,7 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
       COALESCE(rev.total, 0)        AS total_revenue,
       COALESCE(ob.total,  0)        AS total_order_book,
       COALESCE(p.active_count, 0)   AS active_projects,
+      COALESCE(cc.client_count, 0)  AS client_count,
       rev.last_payment_date         AS last_payment_date,
       t.is_featured                 AS is_featured,
       t.is_hidden                   AS is_hidden
@@ -117,6 +119,11 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
       WHERE status = 'active'
       GROUP BY team_id
     ) p ON p.team_id = t.id
+    LEFT JOIN (
+      SELECT team_id, COUNT(DISTINCT client_name) AS client_count
+      FROM order_book_entries
+      GROUP BY team_id
+    ) cc ON cc.team_id = t.id
     WHERE t.status = 'active'
       ${hiddenFilter}
       ${campusFilter}
@@ -143,7 +150,7 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
       totalRevenue,
       totalOrderBook: Number(r.total_order_book ?? 0),
       activeProjects: Number(r.active_projects ?? 0),
-      clientCount: 0,
+      clientCount: Number(r.client_count ?? 0),
       lastPaymentDate: r.last_payment_date ?? null,
       isDemoEligible: totalRevenue >= threshold,
       isFeatured: r.is_featured,

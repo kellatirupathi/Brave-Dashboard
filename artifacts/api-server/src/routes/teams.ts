@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, sql, or, ne, inArray, notInArray } from "drizzle-orm";
+import { getProjectClientCount } from "../lib/project-stats";
+import { getTeamMemberLimit, getTeamMemberCount, teamFullMessage } from "../lib/team-limits";
 import {
   db,
   teamsTable,
@@ -578,9 +580,24 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
     res.status(400).json({ error: "You are already on a team" });
     return;
   }
-  try {
-    await db.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
-  } catch {
+  // Enforce team capacity atomically.
+  const joinResult = await db.transaction(async (tx) => {
+    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, team.id)).for("update");
+    const limit = await getTeamMemberLimit(tx);
+    const count = await getTeamMemberCount(team.id, tx);
+    if (count >= limit) return { kind: "full" as const, count, limit };
+    try {
+      await tx.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
+    } catch {
+      return { kind: "duplicate" as const };
+    }
+    return { kind: "ok" as const };
+  });
+  if (joinResult.kind === "full") {
+    res.status(400).json({ error: teamFullMessage(joinResult.count, joinResult.limit) });
+    return;
+  }
+  if (joinResult.kind === "duplicate") {
     res.status(409).json({ error: "Could not join team. You may already be on a team." });
     return;
   }
@@ -642,12 +659,13 @@ router.get("/teams/my", async (req, res): Promise<void> => {
         .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
         .from(orderBookEntriesTable)
         .where(and(eq(orderBookEntriesTable.projectId, p.id), sql`status = 'verified'`));
+      const clientCount = await getProjectClientCount(p.id);
       return {
         ...p,
         teamName: teamDetail.name,
         verifiedRevenue: Number(revStats?.total ?? 0),
         verifiedOrderBook: Number(obStats?.total ?? 0),
-        clientCount: 0,
+        clientCount,
       };
     })
   );
@@ -1211,6 +1229,15 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Team not found" });
     return;
   }
+  // Block new invitations when the team is already at capacity.
+  {
+    const limit = await getTeamMemberLimit();
+    const count = await getTeamMemberCount(team.id);
+    if (count >= limit) {
+      res.status(400).json({ error: teamFullMessage(count, limit) });
+      return;
+    }
+  }
   // Note: this route is shadowed by the version in team-flow.ts which
   // additionally accepts a rosterId. Kept here for back-compat; rosterId-only
   // payloads should be routed through the team-flow handler.
@@ -1318,9 +1345,26 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Team not found" });
     return;
   }
-  try {
-    await db.insert(teamMembersTable).values({ teamId: inv.teamId, userId: req.user.id });
-  } catch {
+  // Enforce team capacity atomically: lock the team row, recount members
+  // under the lock, then insert. This prevents two concurrent acceptances
+  // from racing past the limit.
+  const acceptResult = await db.transaction(async (tx) => {
+    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, inv.teamId)).for("update");
+    const limit = await getTeamMemberLimit(tx);
+    const count = await getTeamMemberCount(inv.teamId, tx);
+    if (count >= limit) return { kind: "full" as const, count, limit };
+    try {
+      await tx.insert(teamMembersTable).values({ teamId: inv.teamId, userId: req.user.id });
+    } catch {
+      return { kind: "duplicate" as const };
+    }
+    return { kind: "ok" as const };
+  });
+  if (acceptResult.kind === "full") {
+    res.status(400).json({ error: teamFullMessage(acceptResult.count, acceptResult.limit) });
+    return;
+  }
+  if (acceptResult.kind === "duplicate") {
     res.status(409).json({ error: "Could not join team. You may already be on a team." });
     return;
   }
@@ -1606,9 +1650,24 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Requester is already on a team" });
     return;
   }
-  try {
-    await db.insert(teamMembersTable).values({ teamId: jr.teamId, userId: jr.requesterId });
-  } catch {
+  // Enforce team capacity atomically.
+  const approveResult = await db.transaction(async (tx) => {
+    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, jr.teamId)).for("update");
+    const limit = await getTeamMemberLimit(tx);
+    const count = await getTeamMemberCount(jr.teamId, tx);
+    if (count >= limit) return { kind: "full" as const, count, limit };
+    try {
+      await tx.insert(teamMembersTable).values({ teamId: jr.teamId, userId: jr.requesterId });
+    } catch {
+      return { kind: "duplicate" as const };
+    }
+    return { kind: "ok" as const };
+  });
+  if (approveResult.kind === "full") {
+    res.status(400).json({ error: teamFullMessage(approveResult.count, approveResult.limit) });
+    return;
+  }
+  if (approveResult.kind === "duplicate") {
     res.status(409).json({ error: "Could not add member. They may already be on a team." });
     return;
   }

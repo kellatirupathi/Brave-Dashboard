@@ -138,6 +138,9 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
     campusId,
     teamId: member?.teamId ?? null,
     isOnRoster: !!rosterEntry,
+    profileCompletedAt: dbUser.profileCompletedAt
+      ? dbUser.profileCompletedAt.toISOString()
+      : null,
   };
 }
 
@@ -349,6 +352,15 @@ router.patch("/auth/me", async (req: Request, res: Response) => {
     updates.niatId = v.length > 0 ? v : null;
   }
   if (Object.keys(updates).length === 0) {
+    // Even with no field changes, stamp the first-time profile completion flag
+    // so users with fully-prefilled rosters can clear the profile gate by
+    // simply confirming the page.
+    if (!req.user.profileCompletedAt) {
+      await db
+        .update(usersTable)
+        .set({ profileCompletedAt: new Date(), updatedAt: new Date() })
+        .where(eq(usersTable.id, req.user.id));
+    }
     const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
     if (!dbUser) {
       res.status(404).json({ error: "User not found" });
@@ -380,10 +392,18 @@ router.patch("/auth/me", async (req: Request, res: Response) => {
     }
   }
 
+  // Stamp the first-time profile completion flag if it has never been set.
+  // Using the in-flight req.user as the "before" snapshot is sufficient — we
+  // only need to know whether the user has ever completed it, not the exact
+  // current row state.
+  const finalUpdates: Partial<typeof usersTable.$inferInsert> = { ...updates, updatedAt: new Date() };
+  if (!req.user.profileCompletedAt) {
+    finalUpdates.profileCompletedAt = new Date();
+  }
   try {
     await db
       .update(usersTable)
-      .set({ ...updates, updatedAt: new Date() })
+      .set(finalUpdates)
       .where(eq(usersTable.id, req.user.id));
   } catch (err) {
     if ((err as { code?: string })?.code === "23505") {

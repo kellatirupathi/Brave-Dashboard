@@ -4753,7 +4753,7 @@ export const unverifyRevenueEntry = async (
 };
 
 export const getUnverifyRevenueEntryMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -4794,13 +4794,13 @@ export type UnverifyRevenueEntryMutationResult = NonNullable<
   Awaited<ReturnType<typeof unverifyRevenueEntry>>
 >;
 
-export type UnverifyRevenueEntryMutationError = ErrorType<unknown>;
+export type UnverifyRevenueEntryMutationError = ErrorType<void>;
 
 /**
  * @summary Move a verified revenue entry back to the review queue (admin only)
  */
 export const useUnverifyRevenueEntry = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -4817,6 +4817,90 @@ export const useUnverifyRevenueEntry = <
   TContext
 > => {
   return useMutation(getUnverifyRevenueEntryMutationOptions(options));
+};
+
+/**
+ * @summary Move a verified order book entry back to the review queue (admin only)
+ */
+export const getUnverifyOrderBookEntryUrl = (id: number) => {
+  return `/api/order-book-entries/${id}/unverify`;
+};
+
+export const unverifyOrderBookEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OrderBookEntry> => {
+  return customFetch<OrderBookEntry>(getUnverifyOrderBookEntryUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUnverifyOrderBookEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unverifyOrderBookEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unverifyOrderBookEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["unverifyOrderBookEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unverifyOrderBookEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return unverifyOrderBookEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnverifyOrderBookEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unverifyOrderBookEntry>>
+>;
+
+export type UnverifyOrderBookEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Move a verified order book entry back to the review queue (admin only)
+ */
+export const useUnverifyOrderBookEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unverifyOrderBookEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unverifyOrderBookEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUnverifyOrderBookEntryMutationOptions(options));
 };
 
 /**

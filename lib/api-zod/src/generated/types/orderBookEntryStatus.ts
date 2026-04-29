@@ -10,5 +10,6 @@ export type OrderBookEntryStatus =
   (typeof OrderBookEntryStatus)[keyof typeof OrderBookEntryStatus];
 
 export const OrderBookEntryStatus = {
+  submitted: "submitted",
   verified: "verified",
 } as const;

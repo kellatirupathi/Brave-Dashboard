@@ -32,6 +32,12 @@ export const GetCurrentAuthUserResponse = zod.object({
       campusId: zod.number().nullable(),
       isOnRoster: zod.boolean().nullable(),
       teamId: zod.number().nullable(),
+      profileCompletedAt: zod
+        .string()
+        .nullish()
+        .describe(
+          "ISO timestamp of the first time the user successfully saved their profile. Null until completed.",
+        ),
     }),
     zod.null(),
   ]),
@@ -76,6 +82,12 @@ export const UpdateCurrentAuthUserResponse = zod.object({
       campusId: zod.number().nullable(),
       isOnRoster: zod.boolean().nullable(),
       teamId: zod.number().nullable(),
+      profileCompletedAt: zod
+        .string()
+        .nullish()
+        .describe(
+          "ISO timestamp of the first time the user successfully saved their profile. Null until completed.",
+        ),
     }),
     zod.null(),
   ]),
@@ -1171,7 +1183,7 @@ export const GetProjectResponse = zod
           clientName: zod.string(),
           amount: zod.number(),
           verifiedAmount: zod.number().nullish(),
-          status: zod.enum(["verified"]),
+          status: zod.enum(["submitted", "verified"]),
           supportingDocUrl: zod.string().nullish(),
           notes: zod.string().nullish(),
           adminNotes: zod.string().nullish(),
@@ -1259,7 +1271,7 @@ export const ListOrderBookEntriesResponseItem = zod.object({
   clientName: zod.string(),
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["verified"]),
+  status: zod.enum(["submitted", "verified"]),
   supportingDocUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1302,7 +1314,7 @@ export const GetOrderBookEntryResponse = zod.object({
   clientName: zod.string(),
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["verified"]),
+  status: zod.enum(["submitted", "verified"]),
   supportingDocUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1336,7 +1348,7 @@ export const UpdateOrderBookEntryResponse = zod.object({
   clientName: zod.string(),
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
-  status: zod.enum(["verified"]),
+  status: zod.enum(["submitted", "verified"]),
   supportingDocUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1578,6 +1590,33 @@ export const UnverifyRevenueEntryResponse = zod.object({
   status: zod.enum(["draft", "submitted", "verified", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
+  adminNotes: zod.string().nullish(),
+  enteredBy: zod.enum(["student", "admin"]),
+  submittedAt: zod.coerce.date().nullish(),
+  verifiedAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Move a verified order book entry back to the review queue (admin only)
+ */
+export const UnverifyOrderBookEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UnverifyOrderBookEntryResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  projectTitle: zod.string(),
+  teamId: zod.number(),
+  teamName: zod.string(),
+  campusName: zod.string(),
+  clientName: zod.string(),
+  amount: zod.number(),
+  verifiedAmount: zod.number().nullish(),
+  status: zod.enum(["submitted", "verified"]),
+  supportingDocUrl: zod.string().nullish(),
+  notes: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
@@ -2233,6 +2272,9 @@ export const GetProgrammeConfigResponse = zod.object({
   endDate: zod.coerce.date(),
   demoDayDate: zod.coerce.date().nullish(),
   demoEligibilityThreshold: zod.number(),
+  teamMemberLimit: zod
+    .number()
+    .describe("Maximum number of members allowed per team. Default 5."),
   leaderboardFrozen: zod.boolean(),
   demoDayApplicationsOpen: zod.boolean(),
   demoDayApplicationDeadline: zod.coerce.date().nullish(),
@@ -2243,11 +2285,13 @@ export const GetProgrammeConfigResponse = zod.object({
 /**
  * @summary Update programme configuration (admin)
  */
+
 export const UpdateProgrammeConfigBody = zod.object({
   startDate: zod.coerce.date().optional(),
   endDate: zod.coerce.date().optional(),
   demoDayDate: zod.coerce.date().nullish(),
   demoEligibilityThreshold: zod.number().optional(),
+  teamMemberLimit: zod.number().min(1).optional(),
   leaderboardFrozen: zod.boolean().optional(),
   demoDayApplicationsOpen: zod.boolean().optional(),
   demoDayApplicationDeadline: zod.coerce.date().nullish(),
@@ -2260,6 +2304,9 @@ export const UpdateProgrammeConfigResponse = zod.object({
   endDate: zod.coerce.date(),
   demoDayDate: zod.coerce.date().nullish(),
   demoEligibilityThreshold: zod.number(),
+  teamMemberLimit: zod
+    .number()
+    .describe("Maximum number of members allowed per team. Default 5."),
   leaderboardFrozen: zod.boolean(),
   demoDayApplicationsOpen: zod.boolean(),
   demoDayApplicationDeadline: zod.coerce.date().nullish(),

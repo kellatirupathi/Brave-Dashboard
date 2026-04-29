@@ -63,11 +63,14 @@ export default function Profile() {
     }
     if (niatId.trim() !== (user.niatId ?? "")) payload.niatId = niatId.trim();
 
-    if (Object.keys(payload).length === 0) {
+    const wasFirstCompletion = !user.profileCompletedAt;
+    // Allow first-time users to clear the profile gate even with no field
+    // changes (e.g. fully prefilled from the roster). The server will stamp
+    // profileCompletedAt on this empty PATCH.
+    if (Object.keys(payload).length === 0 && !wasFirstCompletion) {
       toast({ title: "No changes to save" });
       return;
     }
-
     updateMe.mutate(
       { data: payload },
       {
@@ -75,6 +78,11 @@ export default function Profile() {
           await refreshAuth();
           await queryClient.invalidateQueries();
           toast({ title: "Profile updated" });
+          // First-time completion for a student: kick them straight to the
+          // get-started flow so they can join or create a team.
+          if (wasFirstCompletion && user.role === "student") {
+            setLocation("/get-started");
+          }
         },
         onError: (err: unknown) => {
           toast({

@@ -144,7 +144,19 @@ export default function AdminConfig() {
             <label className="text-sm font-medium">Demo Eligibility Threshold (₹)</label>
             <Input type="number" value={formData.demoEligibilityThreshold || ''} onChange={e => handleChange('demoEligibilityThreshold', Number(e.target.value))} />
           </div>
-          
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Team Members Count Limit</label>
+            <Input
+              type="number"
+              min={1}
+              value={formData.teamMemberLimit ?? ''}
+              onChange={e => handleChange('teamMemberLimit', Number(e.target.value))}
+              data-testid="input-team-member-limit"
+            />
+            <p className="text-xs text-muted-foreground">Maximum number of students allowed on a single team. New invites, join requests, and acceptances will be rejected once a team reaches this limit.</p>
+          </div>
+
           <div className="flex items-center justify-between border p-4 rounded-lg">
             <div>
               <p className="font-medium">Leaderboard Frozen</p>

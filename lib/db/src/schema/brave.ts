@@ -57,6 +57,7 @@ export const usersTable = pgTable("users", {
   passwordHash: text("password_hash"),
   isActive: boolean("is_active").notNull().default(true),
   provisionedVia: provisionedViaEnum("provisioned_via").notNull().default("manual"),
+  profileCompletedAt: timestamp("profile_completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
@@ -374,6 +375,7 @@ export const programmeConfigTable = pgTable("programme_config", {
   endDate: text("end_date").notNull().default("2025-07-15"),
   demoDayDate: text("demo_day_date"),
   demoEligibilityThreshold: integer("demo_eligibility_threshold").notNull().default(200000),
+  teamMemberLimit: integer("team_member_limit").notNull().default(5),
   leaderboardFrozen: boolean("leaderboard_frozen").notNull().default(false),
   demoDayApplicationsOpen: boolean("demo_day_applications_open").notNull().default(false),
   demoDayApplicationDeadline: text("demo_day_application_deadline"),

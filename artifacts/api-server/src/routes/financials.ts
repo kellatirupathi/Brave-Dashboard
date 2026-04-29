@@ -27,6 +27,7 @@ import {
   RejectRevenueEntryParams,
   RejectRevenueEntryBody,
   UnverifyRevenueEntryParams,
+  UnverifyOrderBookEntryParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
 import { createNotification } from "../lib/notifications";
@@ -259,6 +260,13 @@ router.post("/revenue-entries", async (req, res): Promise<void> => {
   const paymentDateStr = typeof parsed.data.paymentDate === "string"
     ? parsed.data.paymentDate
     : new Date(parsed.data.paymentDate as Date).toISOString().split("T")[0];
+  // Block future-dated payments. Compare on YYYY-MM-DD only so a same-day
+  // entry submitted late at night is still accepted.
+  const todayStr = new Date().toISOString().split("T")[0];
+  if (paymentDateStr > todayStr) {
+    res.status(400).json({ error: "Payment date cannot be in the future." });
+    return;
+  }
   const [entry] = await db
     .insert(revenueEntriesTable)
     .values({ ...parsed.data, paymentDate: paymentDateStr, teamId: project.teamId })
@@ -313,9 +321,16 @@ router.patch("/revenue-entries/:id", async (req, res): Promise<void> => {
   }
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.paymentDate) {
-    updateData.paymentDate = typeof parsed.data.paymentDate === "string"
+    const paymentDateStr = typeof parsed.data.paymentDate === "string"
       ? parsed.data.paymentDate
       : new Date(parsed.data.paymentDate as Date).toISOString().split("T")[0];
+    // Block future-dated payments on edit as well.
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (paymentDateStr > todayStr) {
+      res.status(400).json({ error: "Payment date cannot be in the future." });
+      return;
+    }
+    updateData.paymentDate = paymentDateStr;
   }
   const [entry] = await db
     .update(revenueEntriesTable)
@@ -523,6 +538,72 @@ router.post("/revenue-entries/:id/unverify", async (req, res): Promise<void> => 
     `Unverified (was ₹${previousVerifiedAmount ?? entry.amount}); moved back to submitted`,
   );
   res.json(await enrichRevEntry(entry));
+});
+
+router.post("/order-book-entries/:id/unverify", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const params = UnverifyOrderBookEntryParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Mirror the revenue unverify flow: lock the row, recheck status, and
+  // transition back to "submitted" only when the entry is currently verified.
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(orderBookEntriesTable)
+      .where(eq(orderBookEntriesTable.id, params.data.id))
+      .for("update");
+    if (!existing) return { kind: "not_found" as const };
+    if (existing.status !== "verified") return { kind: "conflict" as const };
+    const previousVerifiedAmount = existing.verifiedAmount;
+    const [updated] = await tx
+      .update(orderBookEntriesTable)
+      .set({
+        status: "submitted",
+        verifiedAmount: null,
+        verifiedAt: null,
+        adminNotes: null,
+        submittedAt: existing.submittedAt ?? new Date(),
+      })
+      .where(eq(orderBookEntriesTable.id, params.data.id))
+      .returning();
+    return { kind: "ok" as const, entry: updated, previousVerifiedAmount };
+  });
+
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: "Only verified entries can be unverified." });
+    return;
+  }
+  const { entry, previousVerifiedAmount } = result;
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, entry.teamId));
+  if (team) {
+    await createNotification(
+      team.leaderId,
+      "Order Book Entry Re-opened",
+      `Your previously verified order book entry of ₹${previousVerifiedAmount?.toLocaleString("en-IN") ?? entry.amount.toLocaleString("en-IN")} is back under review.`,
+      "entry_unverified",
+      "/projects",
+    );
+  }
+  await logAudit(
+    req.user.id,
+    "unverify_order_book_entry",
+    "order_book_entry",
+    entry.id,
+    `Unverified (was ₹${previousVerifiedAmount ?? entry.amount}); moved back to submitted`,
+  );
+  res.json(await enrichOBEntry(entry));
 });
 
 export default router;

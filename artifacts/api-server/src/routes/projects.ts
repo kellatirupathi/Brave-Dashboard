@@ -20,6 +20,7 @@ import {
 import { createNotification } from "../lib/notifications";
 import { logAudit } from "../lib/audit";
 import { requireTeamLeader } from "../lib/auth";
+import { getProjectClientCount } from "../lib/project-stats";
 
 const router: IRouter = Router();
 
@@ -76,12 +77,13 @@ async function getProjectWithStats(projectId: number) {
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(orderBookEntriesTable)
     .where(and(eq(orderBookEntriesTable.projectId, projectId), sql`status = 'verified'`));
+  const clientCount = await getProjectClientCount(projectId);
   return {
     ...project,
     teamName: team?.name ?? "",
     verifiedRevenue: Number(revStats?.total ?? 0),
     verifiedOrderBook: Number(obStats?.total ?? 0),
-    clientCount: 0,
+    clientCount,
   };
 }
 
@@ -198,12 +200,13 @@ router.get("/projects", async (req, res): Promise<void> => {
       .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
       .from(orderBookEntriesTable)
       .where(and(eq(orderBookEntriesTable.projectId, p.id), sql`status = 'verified'`));
+    const clientCount = await getProjectClientCount(p.id);
     return {
       ...p,
       teamName: team?.name ?? "",
       verifiedRevenue: Number(revStats?.total ?? 0),
       verifiedOrderBook: Number(obStats?.total ?? 0),
-      clientCount: 0,
+      clientCount,
     };
   }));
 
