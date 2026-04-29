@@ -292,6 +292,25 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
     return;
   }
   const updates: typeof parsed.data = { ...parsed.data };
+  if (typeof updates.firstName === "string") updates.firstName = updates.firstName.trim();
+  if (typeof updates.lastName === "string") updates.lastName = updates.lastName.trim();
+  if (typeof updates.email === "string") updates.email = updates.email.trim().toLowerCase();
+  if (typeof updates.niatId === "string") {
+    const v = updates.niatId.trim();
+    updates.niatId = v.length === 0 ? null : v;
+  }
+  if (typeof updates.profileImage === "string") {
+    const v = updates.profileImage.trim();
+    updates.profileImage = v.length === 0 ? null : v;
+  }
+  if (updates.firstName === "") {
+    res.status(400).json({ error: "First name cannot be empty." });
+    return;
+  }
+  if (updates.lastName === "") {
+    res.status(400).json({ error: "Last name cannot be empty." });
+    return;
+  }
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
   if (!existing) {
     res.status(404).json({ error: "User not found" });

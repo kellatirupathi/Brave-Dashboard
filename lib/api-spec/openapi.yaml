@@ -2221,8 +2221,17 @@ components:
       properties:
         firstName:
           type: string
+          minLength: 1
         lastName:
           type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        niatId:
+          type: ["string", "null"]
+        profileImage:
+          type: ["string", "null"]
         role:
           type: string
           enum: [student, coordinator, admin]

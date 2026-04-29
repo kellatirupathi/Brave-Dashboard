@@ -2151,8 +2151,11 @@ export const UpdateUserParams = zod.object({
 });
 
 export const UpdateUserBody = zod.object({
-  firstName: zod.string().optional(),
-  lastName: zod.string().optional(),
+  firstName: zod.string().min(1).optional(),
+  lastName: zod.string().min(1).optional(),
+  email: zod.string().email().optional(),
+  niatId: zod.string().nullish(),
+  profileImage: zod.string().nullish(),
   role: zod.enum(["student", "coordinator", "admin"]).optional(),
   campusId: zod.number().nullish(),
   isActive: zod.boolean().optional(),

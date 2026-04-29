@@ -10,6 +10,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -97,6 +98,7 @@ type AnyUser = {
   campusId?: number | null;
   campusName?: string | null;
   niatId?: string | null;
+  profileImage?: string | null;
   isActive: boolean;
   provisionedVia: ProvisionedVia;
 };
@@ -233,6 +235,12 @@ export default function AdminUsers() {
   const [editRole, setEditRole] = useState<"admin" | "coordinator" | "student">(
     "coordinator",
   );
+  const [editFirstName, setEditFirstName] = useState<string>("");
+  const [editLastName, setEditLastName] = useState<string>("");
+  const [editEmail, setEditEmail] = useState<string>("");
+  const [editNiatId, setEditNiatId] = useState<string>("");
+  const [editProfileImage, setEditProfileImage] = useState<string>("");
+  const [editIsActive, setEditIsActive] = useState<boolean>(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [importResult, setImportResult] =
     useState<ImportUsersCsvResponse | null>(null);
@@ -305,10 +313,31 @@ export default function AdminUsers() {
     setEditTarget(u);
     setEditRole(u.role);
     setEditCampusId(u.campusId ? String(u.campusId) : "");
+    setEditFirstName(u.firstName ?? "");
+    setEditLastName(u.lastName ?? "");
+    setEditEmail(u.email ?? "");
+    setEditNiatId(u.niatId ?? "");
+    setEditProfileImage(u.profileImage ?? "");
+    setEditIsActive(u.isActive);
   };
 
   const onSaveEdit = () => {
     if (!editTarget) return;
+    const trimmedFirst = editFirstName.trim();
+    const trimmedLast = editLastName.trim();
+    const trimmedEmail = editEmail.trim();
+    if (!trimmedFirst) {
+      toast({ title: "First name is required", variant: "destructive" });
+      return;
+    }
+    if (!trimmedLast) {
+      toast({ title: "Last name is required", variant: "destructive" });
+      return;
+    }
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      toast({ title: "Enter a valid email", variant: "destructive" });
+      return;
+    }
     if (
       (editRole === "coordinator" || editRole === "student") &&
       !editCampusId
@@ -319,12 +348,21 @@ export default function AdminUsers() {
       });
       return;
     }
+    const trimmedNiat = editNiatId.trim();
+    const trimmedProfileImage = editProfileImage.trim();
     updateUser.mutate(
       {
         id: editTarget.id,
         data: {
+          firstName: trimmedFirst,
+          lastName: trimmedLast,
+          email: trimmedEmail,
+          niatId: trimmedNiat.length === 0 ? null : trimmedNiat,
+          profileImage:
+            trimmedProfileImage.length === 0 ? null : trimmedProfileImage,
           role: editRole,
           campusId: editRole === "admin" ? null : parseInt(editCampusId),
+          isActive: editIsActive,
         },
       },
       {
@@ -959,13 +997,68 @@ export default function AdminUsers() {
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
       >
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Edit {editTarget?.firstName} {editTarget?.lastName}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  First name
+                </label>
+                <Input
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  data-testid="input-edit-firstName"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Last name
+                </label>
+                <Input
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  data-testid="input-edit-lastName"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Email</label>
+              <Input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                data-testid="input-edit-email"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  NIAT ID
+                </label>
+                <Input
+                  value={editNiatId}
+                  onChange={(e) => setEditNiatId(e.target.value)}
+                  placeholder="Optional"
+                  data-testid="input-edit-niatId"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Profile image URL
+                </label>
+                <Input
+                  value={editProfileImage}
+                  onChange={(e) => setEditProfileImage(e.target.value)}
+                  placeholder="https://…"
+                  data-testid="input-edit-profileImage"
+                />
+              </div>
+            </div>
             <div>
               <label className="text-sm font-medium mb-1.5 block">Role</label>
               <Select
@@ -976,7 +1069,7 @@ export default function AdminUsers() {
                   if (next === "admin") setEditCampusId("");
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger data-testid="select-edit-role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -994,7 +1087,7 @@ export default function AdminUsers() {
                   Assigned Campus
                 </label>
                 <Select value={editCampusId} onValueChange={setEditCampusId}>
-                  <SelectTrigger>
+                  <SelectTrigger data-testid="select-edit-campus">
                     <SelectValue placeholder="Select campus" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
@@ -1007,12 +1100,52 @@ export default function AdminUsers() {
                 </Select>
               </div>
             )}
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div>
+                <div className="text-sm font-medium">Active</div>
+                <div className="text-xs text-muted-foreground">
+                  Inactive users cannot sign in.
+                </div>
+              </div>
+              <Switch
+                checked={editIsActive}
+                onCheckedChange={setEditIsActive}
+                data-testid="switch-edit-isActive"
+              />
+            </div>
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">
+                Read-only
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground">
+                    Forms User ID
+                  </div>
+                  <div className="font-mono text-xs break-all">
+                    {editTarget?.formsUserId ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">
+                    Provisioned via
+                  </div>
+                  <div className="text-xs">
+                    {editTarget?.provisionedVia ?? "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTarget(null)}>
               Cancel
             </Button>
-            <Button onClick={onSaveEdit} disabled={updateUser.isPending}>
+            <Button
+              onClick={onSaveEdit}
+              disabled={updateUser.isPending}
+              data-testid="button-save-edit-user"
+            >
               {updateUser.isPending && <Spinner className="w-4 h-4 mr-2" />}{" "}
               Save changes
             </Button>

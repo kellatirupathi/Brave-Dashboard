@@ -8,8 +8,15 @@
 import type { UpdateUserBodyRole } from "./updateUserBodyRole";
 
 export interface UpdateUserBody {
+  /** @minLength 1 */
   firstName?: string;
+  /** @minLength 1 */
   lastName?: string;
+  email?: string;
+  /** @nullable */
+  niatId?: string | null;
+  /** @nullable */
+  profileImage?: string | null;
   role?: UpdateUserBodyRole;
   /** @nullable */
   campusId?: number | null;
