@@ -402,17 +402,27 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
         return null;
       }
 
-      // Block deletion if any submitted/verified entries exist (everyone,
-      // including admins — those entries represent reviewed financial data
-      // that should be moved or rejected explicitly before tearing down the
-      // project). Draft entries are cascaded.
+      // Block deletion if reviewed financial data still exists.
+      //   - Team leaders: blocked on submitted OR verified entries — they
+      //     must not silently throw away pending or approved submissions.
+      //     The team leader has to ask an admin to reject the entries first.
+      //   - Admins: blocked only on verified entries. Submitted entries are
+      //     cascaded, because the admin is the one who reviews them and
+      //     unverify (verified -> submitted) is the explicit recovery path
+      //     to make a project deletable. Verified entries still require an
+      //     explicit unverify first, preserving the "reviewed = protected"
+      //     intent for the admin's own approvals.
+      // Draft and rejected entries are always cascaded.
+      const blockingStatuses = isAdmin
+        ? sql`status = 'verified'`
+        : sql`status in ('submitted', 'verified')`;
       const [revHit] = await tx
         .select({ id: revenueEntriesTable.id })
         .from(revenueEntriesTable)
         .where(
           and(
             eq(revenueEntriesTable.projectId, projectId),
-            sql`status in ('submitted', 'verified')`,
+            blockingStatuses,
           ),
         )
         .limit(1);
@@ -426,7 +436,7 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
         .where(
           and(
             eq(orderBookEntriesTable.projectId, projectId),
-            sql`status in ('submitted', 'verified')`,
+            blockingStatuses,
           ),
         )
         .limit(1);
