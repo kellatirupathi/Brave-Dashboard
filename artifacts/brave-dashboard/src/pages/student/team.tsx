@@ -309,9 +309,10 @@ function TeamView({
           invalidateAll();
         },
         onError: (err: unknown) => {
+          const raw = (err as { message?: string })?.message ?? "Try again.";
+          const cleaned = raw.replace(/^HTTP\s+\d+[^:]*:\s*/i, "");
           toast({
-            title: "Could not invite",
-            description: (err as { message?: string })?.message ?? "Try again.",
+            description: cleaned,
             variant: "destructive",
           });
         },
