@@ -1,0 +1,155 @@
+TASK: Add mobile + tablet responsiveness across the dashboard
+WITHOUT modifying any existing desktop styles.
+
+CONTEXT
+- Stack: React 19, Vite, Tailwind CSS v4, shadcn/ui, wouter
+- Frontend lives in: artifacts/brave-dashboard/src/
+- Desktop layout is FINAL and SIGNED OFF. It must look pixel-identical
+  on screens ≥ 1024px after your changes.
+- Today the app is essentially desktop-only — tables overflow, the
+  sidebar covers content, dialogs clip, headers wrap badly on phones
+  and tablets.
+
+NON-NEGOTIABLE RULES
+1. DO NOT remove or change any existing Tailwind class.
+2. DO NOT change existing class ORDER (Tailwind cascade matters).
+3. DO NOT modify shadcn primitive files in
+   artifacts/brave-dashboard/src/components/ui/* unless absolutely
+   required for layout (then leave a 1-line comment why).
+4. ADD new responsiveness ONLY via Tailwind's max-width modifiers
+   (`max-lg:`, `max-md:`, `max-sm:`) so the rules apply ONLY below
+   the desktop breakpoint and the existing classes stay as the
+   default for ≥ lg screens.
+   ✅ correct:  className="flex gap-4 max-md:flex-col max-md:gap-2"
+   ❌ wrong:    changing "flex gap-4" → "flex flex-col md:flex-row gap-2 md:gap-4"
+5. Do not change route structure, component APIs, business logic, or
+   any backend/API code. CSS / className / wrapper-div changes only.
+6. Do not introduce new dependencies.
+
+BREAKPOINTS TO TARGET (Tailwind defaults)
+- max-sm   : phones                  (< 640px)
+- max-md   : large phones / small    (< 768px)
+- max-lg   : tablets / small laptops (< 1024px)
+- ≥ lg     : DESKTOP — leave alone
+
+PAGES / COMPONENTS THAT NEED RESPONSIVE PASS
+Layout shell:
+- src/components/layout.tsx
+- src/components/sidebar.tsx       → off-canvas drawer below lg
+- src/components/navbar.tsx        → add hamburger toggle below lg,
+                                     compact spacing, truncate long
+                                     names, hide non-essential items
+- src/components/notifications-bell.tsx
+
+Tables (the biggest pain points — convert to stacked cards below md):
+- src/pages/admin/teams.tsx
+- src/pages/admin/users.tsx
+- src/pages/admin/roster.tsx
+- src/pages/admin/queue.tsx
+- src/pages/admin/projects.tsx
+- src/pages/admin/leaderboard.tsx
+- src/pages/admin/demo-day.tsx
+- src/pages/admin/audit-log.tsx
+- src/pages/admin/campuses.tsx
+- src/pages/coordinator/teams.tsx
+- src/pages/coordinator/projects.tsx
+- src/pages/coordinator/leaderboard.tsx
+- src/pages/student/leaderboard.tsx
+
+Detail / form pages:
+- src/pages/admin/team-detail.tsx
+- src/pages/admin/project-detail.tsx
+- src/pages/admin/campus-detail.tsx
+- src/pages/admin/config.tsx
+- src/pages/admin/announcements.tsx
+- src/pages/coordinator/dashboard.tsx
+- src/pages/coordinator/announcements.tsx
+- src/pages/student/dashboard.tsx
+- src/pages/student/team.tsx
+- src/pages/student/projects/list.tsx
+- src/pages/student/projects/detail.tsx
+- src/pages/student/get-started.tsx
+- src/pages/student/browse-teams.tsx
+- src/pages/student/join.tsx
+- src/pages/student/invitations.tsx
+- src/pages/student/demo-day.tsx
+- src/pages/student/notifications.tsx
+- src/pages/profile.tsx
+- src/pages/auth/login.tsx
+- src/pages/auth/dev-login.tsx
+- src/pages/auth/not-on-roster.tsx
+- src/pages/marketing/landing.tsx
+- src/pages/admin/components/AddTeamDialog.tsx
+- src/pages/admin/components/ImportTeamsDialog.tsx
+- src/pages/admin/components/ActionCenter.tsx
+- src/components/document-viewer.tsx
+- src/components/inline-edit-field.tsx
+- src/components/reason-prompt-dialog.tsx
+
+STANDARD PATTERNS TO APPLY
+A. Sidebar
+   - ≥ lg: untouched (fixed left column).
+   - < lg: hidden by default, slide-in drawer triggered by a hamburger
+     in the navbar. Use existing shadcn `Sheet` component.
+B. Navbar / page header rows (title + action buttons)
+   - Add `max-md:flex-col max-md:items-stretch max-md:gap-3`.
+   - Long titles: `max-md:text-2xl` (keep desktop text-3xl).
+   - Action buttons: `max-md:w-full max-md:justify-center` and stack
+     button groups vertically.
+C. Search + filter rows
+   - Stack vertically below md, full-width inputs, full-width Selects.
+D. Tables → cards below md
+   - Wrap each <Table> with: `<div className="max-md:hidden">` for the
+     existing table, then add a sibling `<div className="hidden max-md:block space-y-3">`
+     that maps the same items into Card components showing the same
+     fields stacked vertically (label : value pairs). Action buttons
+     go to a footer row in the card.
+   - Pagination footer: `max-sm:flex-col max-sm:gap-2`.
+E. Dialogs (AlertDialog / Dialog / Sheet)
+   - Add `max-md:max-w-[calc(100vw-2rem)] max-md:mx-4` to content,
+     and `max-md:flex-col max-md:gap-2` to footers so buttons stack.
+F. Forms
+   - Two-column grids → `max-md:grid-cols-1`.
+   - Long labels: `max-sm:text-sm`.
+G. Cards / stat tiles grids
+   - `grid-cols-4` → add `max-lg:grid-cols-2 max-sm:grid-cols-1`.
+H. Horizontal scroll fallback
+   - For tables you cannot reasonably stack (audit-log, leaderboard
+     with many numeric columns), wrap in
+     `<div className="max-md:overflow-x-auto">` instead of stacking.
+I. Touch targets
+   - Icon-only buttons under md must be at least h-10 w-10.
+   - Add `max-md:h-10 max-md:w-10` to small icon buttons in tables.
+J. Typography
+   - Body text already fine. Page H1: keep desktop, add
+     `max-md:text-2xl max-sm:text-xl` only.
+
+VERIFICATION CHECKLIST
+1. `pnpm run typecheck` passes.
+2. Open Chrome DevTools device toolbar:
+   - iPhone SE (375): no horizontal scroll, sidebar accessible via
+     hamburger, every table page is readable as cards, all dialogs
+     fit within the viewport with margins, all primary buttons full
+     width.
+   - iPad (768): two-column grids, sidebar still drawer, headers
+     readable.
+   - iPad Pro / 1024+: pixel-identical to current desktop. Diff the
+     screenshot with main if possible.
+3. Sidebar drawer closes when a nav link is clicked, traps focus
+   while open, closes on Esc.
+4. No layout shift on resize across breakpoints.
+5. Lighthouse mobile run on `/admin/teams` scores ≥ 90 for
+   "Tap targets are sized appropriately" and "Content is sized
+   correctly for the viewport".
+
+DELIVERABLE
+A single PR / commit titled:
+   "Add mobile + tablet responsiveness (desktop unchanged)"
+that touches ONLY className strings, JSX wrappers, and adds the
+mobile-card sibling blocks for tables. No logic, no API, no
+shadcn primitive rewrites unless strictly necessary (justify in
+PR description).
+
+If you are unsure whether a change would alter the desktop
+rendering, default to NOT changing it. The desktop view is the
+source of truth.
