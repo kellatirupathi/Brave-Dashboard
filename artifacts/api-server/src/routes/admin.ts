@@ -412,6 +412,162 @@ router.delete("/admin/users/:id", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// Full leaderboard payload with team members for Excel export.
+// Always includes hidden teams. No campus / search filters.
+// Returns teams pre-sorted by national rank with members sorted leader-first
+// then by joined date ascending.
+type LeaderboardExportTeamRow = {
+  team_id: number;
+  team_name: string;
+  campus_name: string | null;
+  campus_id: number;
+  tagline: string | null;
+  total_revenue: string | null;
+  total_order_book: string | null;
+  active_projects: string | null;
+  is_featured: boolean;
+  is_hidden: boolean;
+  leader_id: string;
+};
+
+type LeaderboardExportMemberRow = {
+  team_id: number;
+  user_id: string;
+  forms_user_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  niat_id: string | null;
+  email: string;
+  joined_at: Date;
+};
+
+router.get("/admin/leaderboard-export", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const [config] = await db
+    .select({ threshold: programmeConfigTable.demoEligibilityThreshold })
+    .from(programmeConfigTable)
+    .limit(1);
+  const threshold = config?.threshold ?? 200000;
+
+  const teamsResult = await db.execute<LeaderboardExportTeamRow>(sql`
+    SELECT
+      t.id            AS team_id,
+      t.name          AS team_name,
+      c.name          AS campus_name,
+      t.campus_id     AS campus_id,
+      t.tagline       AS tagline,
+      COALESCE(rev.total, 0)      AS total_revenue,
+      COALESCE(ob.total,  0)      AS total_order_book,
+      COALESCE(p.active_count, 0) AS active_projects,
+      t.is_featured               AS is_featured,
+      t.is_hidden                 AS is_hidden,
+      t.leader_id                 AS leader_id
+    FROM teams t
+    LEFT JOIN campuses c ON c.id = t.campus_id
+    LEFT JOIN (
+      SELECT team_id, SUM(verified_amount) AS total
+      FROM revenue_entries
+      WHERE status = 'verified'
+      GROUP BY team_id
+    ) rev ON rev.team_id = t.id
+    LEFT JOIN (
+      SELECT team_id, SUM(verified_amount) AS total
+      FROM order_book_entries
+      WHERE status = 'verified'
+      GROUP BY team_id
+    ) ob ON ob.team_id = t.id
+    LEFT JOIN (
+      SELECT team_id, COUNT(*) AS active_count
+      FROM projects
+      WHERE status = 'active'
+      GROUP BY team_id
+    ) p ON p.team_id = t.id
+    WHERE t.status = 'active'
+    ORDER BY
+      t.is_featured DESC,
+      COALESCE(rev.total, 0) DESC,
+      t.id ASC
+  `);
+  const teamRows = (teamsResult as unknown as { rows: LeaderboardExportTeamRow[] }).rows;
+
+  const teamIds = teamRows.map((r) => Number(r.team_id));
+
+  let memberRows: LeaderboardExportMemberRow[] = [];
+  if (teamIds.length > 0) {
+    const membersResult = await db.execute<LeaderboardExportMemberRow>(sql`
+      SELECT
+        tm.team_id      AS team_id,
+        u.id            AS user_id,
+        u.forms_user_id AS forms_user_id,
+        u.first_name    AS first_name,
+        u.last_name     AS last_name,
+        u.niat_id       AS niat_id,
+        u.email         AS email,
+        tm.joined_at    AS joined_at
+      FROM team_members tm
+      JOIN users u ON u.id = tm.user_id
+      WHERE tm.team_id IN (${sql.join(teamIds.map((id) => sql`${id}`), sql`, `)})
+      ORDER BY tm.joined_at ASC
+    `);
+    memberRows = (membersResult as unknown as { rows: LeaderboardExportMemberRow[] }).rows;
+  }
+
+  // Group members by team
+  const membersByTeam = new Map<number, LeaderboardExportMemberRow[]>();
+  for (const m of memberRows) {
+    const tid = Number(m.team_id);
+    const arr = membersByTeam.get(tid) ?? [];
+    arr.push(m);
+    membersByTeam.set(tid, arr);
+  }
+
+  const teams = teamRows.map((r, idx) => {
+    const teamId = Number(r.team_id);
+    const totalRevenue = Number(r.total_revenue ?? 0);
+    const teamMembers = membersByTeam.get(teamId) ?? [];
+    // Sort: Leader first, then by joinedAt ASC
+    const sorted = [...teamMembers].sort((a, b) => {
+      const aIsLeader = a.user_id === r.leader_id ? 0 : 1;
+      const bIsLeader = b.user_id === r.leader_id ? 0 : 1;
+      if (aIsLeader !== bIsLeader) return aIsLeader - bIsLeader;
+      return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+    });
+    return {
+      teamId,
+      teamName: r.team_name,
+      tagline: r.tagline ?? null,
+      campusId: Number(r.campus_id),
+      campusName: r.campus_name ?? null,
+      totalRevenue,
+      totalOrderBook: Number(r.total_order_book ?? 0),
+      activeProjects: Number(r.active_projects ?? 0),
+      isDemoEligible: totalRevenue >= threshold,
+      isHidden: r.is_hidden,
+      isFeatured: r.is_featured,
+      nationalRank: idx + 1,
+      members: sorted.map((m) => ({
+        userId: m.user_id,
+        formsUserId: m.forms_user_id ?? null,
+        name: `${m.first_name ?? ""} ${m.last_name ?? ""}`.trim() || m.email,
+        niatId: m.niat_id ?? null,
+        email: m.email,
+        role: m.user_id === r.leader_id ? ("Leader" as const) : ("Member" as const),
+        joinedAt: new Date(m.joined_at).toISOString(),
+      })),
+    };
+  });
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    threshold,
+    teams,
+  });
+});
+
 // Bulk import / upsert users (admin / coordinator / student) from a parsed CSV.
 // Identity key is forms_user_id. Existing rows are updated; missing rows are created.
 router.post("/admin/users/import-csv", async (req, res): Promise<void> => {

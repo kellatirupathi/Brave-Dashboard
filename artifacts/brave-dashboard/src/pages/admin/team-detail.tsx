@@ -586,6 +586,7 @@ function EntryTable({
       {entries.length === 0 ? (
         <p className="text-xs text-muted-foreground">{emptyText}</p>
       ) : (
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -625,6 +626,7 @@ function EntryTable({
             })}
           </TableBody>
         </Table>
+        </div>
       )}
     </div>
   );

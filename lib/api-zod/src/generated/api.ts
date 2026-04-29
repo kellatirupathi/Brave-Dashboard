@@ -2183,6 +2183,41 @@ export const UpdateUserResponse = zod.object({
 });
 
 /**
+ * @summary Full leaderboard data with team members for Excel export (admin only)
+ */
+export const GetLeaderboardExportResponse = zod.object({
+  generatedAt: zod.coerce.date(),
+  threshold: zod.number(),
+  teams: zod.array(
+    zod.object({
+      teamId: zod.number(),
+      teamName: zod.string(),
+      tagline: zod.string().nullish(),
+      campusId: zod.number(),
+      campusName: zod.string().nullish(),
+      totalRevenue: zod.number(),
+      totalOrderBook: zod.number(),
+      activeProjects: zod.number(),
+      isDemoEligible: zod.boolean(),
+      isHidden: zod.boolean(),
+      isFeatured: zod.boolean(),
+      nationalRank: zod.number(),
+      members: zod.array(
+        zod.object({
+          userId: zod.string(),
+          formsUserId: zod.string().nullish(),
+          name: zod.string(),
+          niatId: zod.string().nullish(),
+          email: zod.string(),
+          role: zod.enum(["Leader", "Member"]),
+          joinedAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  ),
+});
+
+/**
  * @summary Bulk import/upsert users from a parsed CSV (admin only)
  */
 export const ImportUsersCsvBody = zod.object({

@@ -152,6 +152,50 @@ export interface UpdateUserBody {
   isActive?: boolean;
 }
 
+export type LeaderboardExportMemberRole =
+  (typeof LeaderboardExportMemberRole)[keyof typeof LeaderboardExportMemberRole];
+
+export const LeaderboardExportMemberRole = {
+  Leader: "Leader",
+  Member: "Member",
+} as const;
+
+export interface LeaderboardExportMember {
+  userId: string;
+  /** @nullable */
+  formsUserId?: string | null;
+  name: string;
+  /** @nullable */
+  niatId?: string | null;
+  email: string;
+  role: LeaderboardExportMemberRole;
+  joinedAt: string;
+}
+
+export interface LeaderboardExportTeam {
+  teamId: number;
+  teamName: string;
+  /** @nullable */
+  tagline?: string | null;
+  campusId: number;
+  /** @nullable */
+  campusName?: string | null;
+  totalRevenue: number;
+  totalOrderBook: number;
+  activeProjects: number;
+  isDemoEligible: boolean;
+  isHidden: boolean;
+  isFeatured: boolean;
+  nationalRank: number;
+  members: LeaderboardExportMember[];
+}
+
+export interface LeaderboardExportResponse {
+  generatedAt: string;
+  threshold: number;
+  teams: LeaderboardExportTeam[];
+}
+
 export interface Campus {
   id: number;
   name: string;

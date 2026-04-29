@@ -238,6 +238,7 @@ export default function AdminTeams() {
             <Spinner size="lg" />
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -356,6 +357,7 @@ export default function AdminTeams() {
               )}
             </TableBody>
           </Table>
+          </div>
         )}
       </Card>
 

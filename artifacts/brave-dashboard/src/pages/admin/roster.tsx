@@ -858,6 +858,7 @@ export default function AdminRoster() {
                 <Spinner size="lg" />
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -974,6 +975,7 @@ export default function AdminRoster() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             )}
           </Card>
 
@@ -1035,6 +1037,7 @@ export default function AdminRoster() {
                 <Spinner size="lg" />
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1130,6 +1133,7 @@ export default function AdminRoster() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             )}
           </Card>
         </TabsContent>

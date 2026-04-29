@@ -846,6 +846,7 @@ export default function AdminUsers() {
             <Spinner size="lg" />
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -945,6 +946,7 @@ export default function AdminUsers() {
               )}
             </TableBody>
           </Table>
+          </div>
         )}
       </Card>
 
@@ -1196,7 +1198,7 @@ export default function AdminUsers() {
           </DialogHeader>
           {importResult && (
             <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                 <div className="rounded-md border p-3">
                   <div className="text-2xl font-bold">{importResult.total}</div>
                   <div className="text-xs text-muted-foreground">Total</div>

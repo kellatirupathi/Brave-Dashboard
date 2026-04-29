@@ -1145,11 +1145,7 @@ function TeamView({
                 <div className="relative border-l-2 border-muted ml-3 space-y-6 pb-2">
                   {milestones.map((m, idx) => (
                     <div key={m.id} className="relative pl-6">
-                      <div
-                        className={`absolute w-3 h-3 rounded-full -left-[7.5px] top-2 ring-4 ring-background ${
-                          idx === 0 ? "bg-primary" : "bg-muted-foreground/40"
-                        }`}
-                      />
+                      <div className="absolute w-3 h-3 rounded-full -left-[7.5px] top-2 ring-4 ring-background bg-primary" />
                       <div className="bg-muted/30 p-4 rounded-lg border hover:border-primary/40 transition-colors">
                         <div className="flex items-center justify-between mb-1.5 gap-3">
                           <h4 className="font-bold text-foreground">

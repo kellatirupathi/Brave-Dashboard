@@ -206,6 +206,7 @@ export default function AdminCampuses() {
         {isLoading ? (
           <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -380,6 +381,7 @@ export default function AdminCampuses() {
               )}
             </TableBody>
           </Table>
+          </div>
         )}
       </Card>
 

@@ -93,6 +93,7 @@ export default function AdminDemoDay() {
             <Spinner size="lg" />
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -170,6 +171,7 @@ export default function AdminDemoDay() {
               )}
             </TableBody>
           </Table>
+          </div>
         )}
       </Card>
     </div>

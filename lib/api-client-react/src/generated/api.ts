@@ -54,6 +54,7 @@ import type {
   ImportUsersCsvResponse,
   JoinByCodeBody,
   LeaderboardEntry,
+  LeaderboardExportResponse,
   ListAccessRequestsParams,
   ListMilestonesParams,
   ListNotificationsParams,
@@ -6794,6 +6795,81 @@ export const useUpdateUser = <
 > => {
   return useMutation(getUpdateUserMutationOptions(options));
 };
+
+/**
+ * @summary Full leaderboard data with team members for Excel export (admin only)
+ */
+export const getGetLeaderboardExportUrl = () => {
+  return `/api/admin/leaderboard-export`;
+};
+
+export const getLeaderboardExport = async (
+  options?: RequestInit,
+): Promise<LeaderboardExportResponse> => {
+  return customFetch<LeaderboardExportResponse>(getGetLeaderboardExportUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLeaderboardExportQueryKey = () => {
+  return [`/api/admin/leaderboard-export`] as const;
+};
+
+export const getGetLeaderboardExportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLeaderboardExport>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getLeaderboardExport>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetLeaderboardExportQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getLeaderboardExport>>
+  > = ({ signal }) => getLeaderboardExport({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLeaderboardExport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLeaderboardExportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLeaderboardExport>>
+>;
+export type GetLeaderboardExportQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Full leaderboard data with team members for Excel export (admin only)
+ */
+
+export function useGetLeaderboardExport<
+  TData = Awaited<ReturnType<typeof getLeaderboardExport>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getLeaderboardExport>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLeaderboardExportQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Bulk import/upsert users from a parsed CSV (admin only)

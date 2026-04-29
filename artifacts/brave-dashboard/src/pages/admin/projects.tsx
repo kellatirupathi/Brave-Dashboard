@@ -184,6 +184,7 @@ export default function AdminProjects({
             <Spinner size="lg" />
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -276,6 +277,7 @@ export default function AdminProjects({
               )}
             </TableBody>
           </Table>
+          </div>
         )}
       </Card>
 

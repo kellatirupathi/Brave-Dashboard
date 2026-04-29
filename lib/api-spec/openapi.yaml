@@ -1679,6 +1679,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /admin/leaderboard-export:
+    get:
+      operationId: getLeaderboardExport
+      tags: [admin]
+      summary: Full leaderboard data with team members for Excel export (admin only)
+      responses:
+        "200":
+          description: Leaderboard export payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardExportResponse"
+
   /admin/users/import-csv:
     post:
       operationId: importUsersCsv
@@ -2239,6 +2252,93 @@ components:
           type: ["integer", "null"]
         isActive:
           type: boolean
+
+    LeaderboardExportMember:
+      type: object
+      properties:
+        userId:
+          type: string
+        formsUserId:
+          type: ["string", "null"]
+        name:
+          type: string
+        niatId:
+          type: ["string", "null"]
+        email:
+          type: string
+        role:
+          type: string
+          enum: [Leader, Member]
+        joinedAt:
+          type: string
+          format: date-time
+      required:
+        - userId
+        - name
+        - email
+        - role
+        - joinedAt
+
+    LeaderboardExportTeam:
+      type: object
+      properties:
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        tagline:
+          type: ["string", "null"]
+        campusId:
+          type: integer
+        campusName:
+          type: ["string", "null"]
+        totalRevenue:
+          type: number
+        totalOrderBook:
+          type: number
+        activeProjects:
+          type: integer
+        isDemoEligible:
+          type: boolean
+        isHidden:
+          type: boolean
+        isFeatured:
+          type: boolean
+        nationalRank:
+          type: integer
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardExportMember"
+      required:
+        - teamId
+        - teamName
+        - campusId
+        - totalRevenue
+        - totalOrderBook
+        - activeProjects
+        - isDemoEligible
+        - isHidden
+        - isFeatured
+        - nationalRank
+        - members
+
+    LeaderboardExportResponse:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        threshold:
+          type: number
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardExportTeam"
+      required:
+        - generatedAt
+        - threshold
+        - teams
 
     Campus:
       type: object

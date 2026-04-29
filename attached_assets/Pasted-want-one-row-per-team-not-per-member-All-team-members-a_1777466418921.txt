@@ -1,0 +1,69 @@
+want one row per team (not per member). All team members appear horizontally in the same row as additional columns, not as separate rows.
+
+File Format
+✅ .xlsx workbook (Excel format, multiple tabs in one file)
+✅ Filename: brave-leaderboard-2026-04-29.xlsx
+✅ Triggered by an "Export" button on the top-right of /admin/leaderboard
+
+Sheet Structure
+Two tabs in the workbook:
+
+Tab	Contents
+National	Every team ranked nationally — 1 row per team with all members in the same row
+Campus-wise	Every team grouped by campus — 1 row per team with all members in the same row
+Tab 1: "National" — One Row Per Team
+Rank	Team Name	Tagline	Campus	Verified Revenue	Order Book	Active Projects	Demo Day Eligible	Member 1 Name	Member 1 NIAT ID	Member 1 User ID	Member 1 Email	Member 1 Role	Member 2 Name	Member 2 NIAT ID	Member 2 User ID	Member 2 Email	Member 2 Role	Member 3 Name	...	Member 5 Name	...
+1	Dead_lock_breaker	—	Yenepoya	₹0	₹0	0	No	Aakhanksha Reddy B	N24H01A0550	46b99...	aakh@...	Leader	Krupanand Jonathan	N24H01A0590	0e03e...	krup@...	Member	Nayana Sree	N24H01B0023	...	harinadh
+2	Brave Sphere	—	Yenepoya	₹0	₹0	0	No	(member 1 details...)					(member 2...)					(empty)			
+3	Titan Alliance	—	Yenepoya	₹0	₹0	0	No	(member 1 details...)					(empty if only 1 member)								
+...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...
+→ One row per team. All up-to-5 members listed horizontally in 5 column groups (Member 1, Member 2, Member 3, Member 4, Member 5).
+
+Tab 2: "Campus-wise" — Same Structure, Grouped by Campus
+Campus	Campus Rank	Team Name	Verified Revenue	Order Book	Active Projects	Demo Day Eligible	Member 1 Name	Member 1 NIAT ID	Member 1 User ID	Member 1 Email	Member 1 Role	Member 2 Name	...	Member 5 ...
+NIAT - KKH	1	Team A	₹5,00,000	₹3L	2	Yes	Sai Kiran	N25...	abc...	sk@...	Leader	Ajith	N25...	...
+NIAT - KKH	2	Team B	₹2,00,000	₹1L	1	Yes	(member 1 details...)					(member 2...)		
+Yenepoya University	1	Dead_lock_breaker	₹0	₹0	0	No	Aakhanksha Reddy	N24H01A0550	46b99...	...	Leader	Krupanand	N24H01A0590	...
+Yenepoya University	2	Brave Sphere	₹0	₹0	0	No	(member 1...)					(empty)		
+...	...	...	...	...	...	...	...	...	...	...	...	...	...	...
+→ Same one-row-per-team rule, but sorted by Campus first then by Campus Rank.
+
+Member Column Layout — Per Member (5 fields per slot)
+For each of the 5 member slots, these columns repeat:
+
+Column	Source
+Member N — Name	users.firstName + ' ' + users.lastName
+Member N — NIAT ID	users.niatId (e.g. N24H01A0550)
+Member N — User ID	users.formsUserId (UUID from Forms SSO)
+Member N — Email	users.email
+Member N — Role	Leader or Member (based on team.leaderId)
+So for 5 member slots × 5 fields each = 25 member columns per row.
+Plus team-level columns (~8) = ~33 total columns per row in the National tab.
+
+How Empty Slots Are Handled
+A team with only 2 members → Member 1 and Member 2 columns filled, Member 3/4/5 columns left blank (empty cells)
+A team with 5 full members → all slots filled
+A team with 0 members yet (rare) → all member columns blank, team-level data still shown
+How Members Are Ordered Inside a Row
+Consistent ordering so it's predictable:
+
+Slot 1 = Team Leader (always first)
+Slots 2–5 = Other members sorted by join date (oldest first) or alphabetically by name
+Why This Layout Makes Sense
+✅ One row per team = easy to scan ranks down the column
+✅ Members horizontal = the whole team is visible on one row, no scrolling between rows to see who's on which team
+✅ Filterable = admin can filter by Campus, Rank, Demo Day Eligible without losing member visibility
+✅ Easy VLOOKUP / pivots in Excel since each team is a single row anchor
+Final Decisions Locked In
+Decision	Value
+Format	.xlsx
+Tabs	"National" + "Campus-wise" (2 tabs total)
+Row granularity	One row per team ✅
+Member layout	Horizontal — 5 slots × 5 fields = 25 columns
+Member ordering	Leader first, then others (by join date)
+Team size assumption	Up to 5 members (matches the team-size limit you mentioned earlier)
+Empty member slots	Left blank
+Filename	brave-leaderboard-YYYY-MM-DD.xlsx
+Hidden teams	Included
+Search filter on screen	Ignored — always full export
+Auth	Admin-only

@@ -162,6 +162,7 @@ export default function AdminProjectDetail() {
           {project.orderBookEntries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No order book entries yet.</p>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -200,6 +201,7 @@ export default function AdminProjectDetail() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -212,6 +214,7 @@ export default function AdminProjectDetail() {
           {project.revenueEntries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No revenue entries yet.</p>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -250,6 +253,7 @@ export default function AdminProjectDetail() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

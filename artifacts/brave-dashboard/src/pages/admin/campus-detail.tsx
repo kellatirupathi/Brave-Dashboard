@@ -445,6 +445,7 @@ export default function AdminCampusDetail() {
               No teams have been registered at this campus yet.
             </p>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -508,6 +509,7 @@ export default function AdminCampusDetail() {
                   })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
