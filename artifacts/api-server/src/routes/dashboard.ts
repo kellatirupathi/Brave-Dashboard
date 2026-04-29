@@ -326,6 +326,44 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
         WHERE team_id = ${teamId} AND status IN ('draft', 'submitted'))   AS pending_subs
   `);
 
+  // National + campus rank for this team. Uses the same ordering as the
+  // /leaderboard endpoint (featured first, then verified revenue desc, then
+  // team id asc) and the same eligibility filter (active + non-hidden).
+  // Computed in one round-trip via window functions over the full leaderboard
+  // population, then we read just the row for this team. If the team is not
+  // active or is hidden, it won't be in the ranked set and both ranks will
+  // be null — which the response shape already permits.
+  const ranksP = db.execute<{
+    national_rank: string;
+    campus_rank: string;
+  }>(sql`
+    SELECT national_rank, campus_rank FROM (
+      SELECT
+        t.id,
+        ROW_NUMBER() OVER (
+          ORDER BY t.is_featured DESC,
+                   COALESCE(rev.total, 0) DESC,
+                   t.id ASC
+        ) AS national_rank,
+        ROW_NUMBER() OVER (
+          PARTITION BY t.campus_id
+          ORDER BY t.is_featured DESC,
+                   COALESCE(rev.total, 0) DESC,
+                   t.id ASC
+        ) AS campus_rank
+      FROM teams t
+      LEFT JOIN (
+        SELECT team_id, SUM(verified_amount) AS total
+        FROM revenue_entries
+        WHERE status = 'verified'
+        GROUP BY team_id
+      ) rev ON rev.team_id = t.id
+      WHERE t.status = 'active'
+        AND t.is_hidden = FALSE
+    ) ranked
+    WHERE id = ${teamId}
+  `);
+
   const milestonesP = db.execute<{
     id: number; team_id: number; type: string; title: string;
     description: string | null; date: string; image_url: string | null;
@@ -360,8 +398,9 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
     LIMIT 5
   `);
 
-  const [statsR, milestonesR, announcementsR] = await Promise.all([
+  const [statsR, ranksR, milestonesR, announcementsR] = await Promise.all([
     statsP,
+    ranksP,
     milestonesP,
     announcementsP,
   ]);
@@ -369,6 +408,11 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
   const stats = (statsR as unknown as { rows: Array<{
     revenue: string; orderbook: string; active_projects: string; pending_subs: string;
   }> }).rows[0];
+  const ranksRow = (ranksR as unknown as { rows: Array<{
+    national_rank: string; campus_rank: string;
+  }> }).rows[0];
+  const nationalRank = ranksRow ? Number(ranksRow.national_rank) : null;
+  const campusRank   = ranksRow ? Number(ranksRow.campus_rank)   : null;
   const milestoneRows = (milestonesR as unknown as { rows: Array<{
     id: number; team_id: number; type: string; title: string;
     description: string | null; date: string; image_url: string | null;
@@ -409,12 +453,12 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
       projectCount: activeProjects,
       totalRevenue,
       totalOrderBook,
-      nationalRank: null as number | null,
+      nationalRank,
     },
     totalRevenue,
     totalOrderBook,
-    nationalRank: null,
-    campusRank: null,
+    nationalRank,
+    campusRank,
     activeProjects,
     pendingSubmissions,
     demoEligible: totalRevenue >= threshold,

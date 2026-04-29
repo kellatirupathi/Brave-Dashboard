@@ -1130,9 +1130,6 @@ function TeamView({
                   Track your team's journey
                 </p>
               </div>
-              <Button size="sm" className="gap-2">
-                <Plus className="w-4 h-4" /> Add Update
-              </Button>
             </CardHeader>
             <CardContent>
               {milestonesLoading ? (
@@ -1195,9 +1192,9 @@ function TeamView({
               Cancel invitation to {cancelInviteTarget?.inviteeName}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              They won't be able to accept this invite anymore. They will not
-              be notified that it was cancelled. You can always send a new
-              invite later.
+              They won't be able to accept this invite anymore. They will not be
+              notified that it was cancelled. You can always send a new invite
+              later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

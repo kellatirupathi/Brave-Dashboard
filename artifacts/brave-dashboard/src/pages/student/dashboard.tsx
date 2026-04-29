@@ -36,15 +36,15 @@ export default function TeamDashboard() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">{summary.team?.name || "Your Team"}</h1>
           <p className="text-muted-foreground">{summary.team?.tagline || "No tagline set"}</p>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end">
+          {summary.demoEligible && (
+            <Badge variant="default" className="px-4 py-2 text-sm bg-green-500 hover:bg-green-600 border-none text-white shadow-sm">
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Demo Day Eligible!
+            </Badge>
+          )}
           <NotificationsBell />
         </div>
-        {summary.demoEligible && (
-          <Badge variant="default" className="px-4 py-2 text-sm bg-green-500 hover:bg-green-600 border-none text-white shadow-sm">
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Demo Day Eligible!
-          </Badge>
-        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
