@@ -41,9 +41,27 @@ function memberCells(team: LeaderboardExportTeam): (string | null)[] {
   return cells;
 }
 
+// Compute each team's rank within its own campus using the national order
+// (which is already featured DESC, revenue DESC, id ASC).
+function computeCampusRanks(
+  teams: LeaderboardExportTeam[],
+): Map<number, number> {
+  const counters = new Map<string, number>();
+  const ranks = new Map<number, number>();
+  for (const t of teams) {
+    const key = t.campusName ?? "(No campus)";
+    const next = (counters.get(key) ?? 0) + 1;
+    counters.set(key, next);
+    ranks.set(t.teamId, next);
+  }
+  return ranks;
+}
+
 function buildNationalSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
+  const campusRanks = computeCampusRanks(teams);
   const headers = [
-    "Rank",
+    "National Rank",
+    "Campus Rank",
     "Team Name",
     "Tagline",
     "Campus",
@@ -57,6 +75,7 @@ function buildNationalSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
   for (const t of teams) {
     rows.push([
       t.nationalRank,
+      campusRanks.get(t.teamId) ?? "",
       t.teamName,
       t.tagline ?? "",
       t.campusName ?? "",
@@ -86,6 +105,7 @@ function buildCampusSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
   const headers = [
     "Campus",
     "Campus Rank",
+    "National Rank",
     "Team Name",
     "Verified Revenue",
     "Order Book",
@@ -100,6 +120,7 @@ function buildCampusSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
       rows.push([
         campus,
         idx + 1,
+        t.nationalRank,
         t.teamName,
         t.totalRevenue,
         t.totalOrderBook,
