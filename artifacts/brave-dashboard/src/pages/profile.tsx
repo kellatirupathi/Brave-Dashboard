@@ -24,12 +24,18 @@ export default function Profile() {
   const [email, setEmail] = useState("");
   const [niatId, setNiatId] = useState("");
 
+  // Server-generated placeholder addresses for SSO users who never supplied
+  // a real email. Treat these as "no email" so the user sees a blank field
+  // and can type their real address.
+  const isSyntheticEmail = (e: string | null | undefined): boolean =>
+    !!e && /@forms\.local$/i.test(e);
+
   // Hydrate the form from the auth user as soon as we have it.
   useEffect(() => {
     if (!user) return;
     setFirstName(user.firstName ?? "");
     setLastName(user.lastName ?? "");
-    setEmail(user.email ?? "");
+    setEmail(isSyntheticEmail(user.email) ? "" : (user.email ?? ""));
     setNiatId(user.niatId ?? "");
   }, [user?.id]);
 
@@ -46,7 +52,15 @@ export default function Profile() {
     const payload: Record<string, string> = {};
     if (firstName.trim() !== (user.firstName ?? "")) payload.firstName = firstName.trim();
     if (lastName.trim() !== (user.lastName ?? "")) payload.lastName = lastName.trim();
-    if (email.trim() !== (user.email ?? "")) payload.email = email.trim();
+    // Compare against the email value the user actually saw on the form.
+    // For SSO users with a synthetic placeholder, the field was rendered
+    // blank — leaving it blank should be a no-op rather than an attempt to
+    // clear the underlying placeholder.
+    const emailBaseline = isSyntheticEmail(user.email) ? "" : (user.email ?? "");
+    const trimmedEmail = email.trim();
+    if (trimmedEmail !== emailBaseline && trimmedEmail !== "") {
+      payload.email = trimmedEmail;
+    }
     if (niatId.trim() !== (user.niatId ?? "")) payload.niatId = niatId.trim();
 
     if (Object.keys(payload).length === 0) {

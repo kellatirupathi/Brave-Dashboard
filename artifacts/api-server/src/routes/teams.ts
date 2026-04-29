@@ -40,6 +40,7 @@ import {
   SendTeamInvitationBody,
   AcceptInvitationParams,
   DeclineInvitationParams,
+  CancelInvitationParams,
   ListTeamJoinRequestsParams,
   RequestToJoinTeamParams,
   RequestToJoinTeamBody,
@@ -1401,6 +1402,68 @@ router.post("/invitations/:id/decline", async (req, res): Promise<void> => {
     "team_invitation_declined",
     "/team",
   );
+  res.json({ success: true });
+});
+
+// Cancel a pending invitation that the requester's team sent. Allowed for
+// any member of the sending team (matches the existing "any member can
+// invite" policy on POST /teams/:id/invitations). The invited student is
+// intentionally NOT notified.
+router.post("/invitations/:id/cancel", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const params = CancelInvitationParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [inv] = await db
+    .select()
+    .from(teamInvitationsTable)
+    .where(eq(teamInvitationsTable.id, params.data.id));
+  if (!inv) {
+    res.status(404).json({ error: "Invitation not found" });
+    return;
+  }
+  if (!(await ensureTeamMember(inv.teamId, req.user.id))) {
+    res.status(403).json({ error: "Only members of the sending team can cancel this invitation" });
+    return;
+  }
+  // Idempotent: already-cancelled is treated as success.
+  if (inv.status === "cancelled") {
+    res.json({ success: true });
+    return;
+  }
+  // Atomic transition: only flips when still pending. Prevents racing with
+  // accept/decline performed by the invitee in another request.
+  const updated = await db
+    .update(teamInvitationsTable)
+    .set({ status: "cancelled", respondedAt: new Date() })
+    .where(
+      and(
+        eq(teamInvitationsTable.id, inv.id),
+        eq(teamInvitationsTable.status, "pending"),
+      ),
+    )
+    .returning({ id: teamInvitationsTable.id });
+  if (updated.length === 0) {
+    // Re-read to report the current state. Either the invitee responded
+    // first (accepted/declined) or another tab already cancelled.
+    const [latest] = await db
+      .select()
+      .from(teamInvitationsTable)
+      .where(eq(teamInvitationsTable.id, inv.id));
+    if (latest?.status === "cancelled") {
+      res.json({ success: true });
+      return;
+    }
+    res
+      .status(409)
+      .json({ error: `Invitation is no longer pending (status: ${latest?.status ?? "unknown"})` });
+    return;
+  }
   res.json({ success: true });
 });
 

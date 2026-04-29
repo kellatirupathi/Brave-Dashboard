@@ -916,6 +916,17 @@ export const DeclineInvitationResponse = zod.object({
 });
 
 /**
+ * @summary Cancel a pending invitation sent by the requester's team (any member). The invited student is not notified.
+ */
+export const CancelInvitationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CancelInvitationResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
  * @summary List pending join requests for a team (any member)
  */
 export const ListTeamJoinRequestsParams = zod.object({

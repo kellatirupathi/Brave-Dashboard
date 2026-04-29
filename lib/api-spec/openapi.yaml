@@ -608,6 +608,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  /invitations/{id}/cancel:
+    post:
+      operationId: cancelInvitation
+      tags: [teams]
+      summary: Cancel a pending invitation sent by the requester's team (any member). The invited student is not notified.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   /teams/{id}/join-requests:
     get:
       operationId: listTeamJoinRequests

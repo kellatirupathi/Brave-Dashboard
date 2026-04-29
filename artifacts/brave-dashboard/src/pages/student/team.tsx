@@ -9,6 +9,7 @@ import {
   useListTeamLeaveRequests,
   useSearchCampusStudents,
   useSendTeamInvitation,
+  useCancelInvitation,
   useApproveJoinRequest,
   useDeclineJoinRequest,
   useRequestToLeaveTeam,
@@ -187,6 +188,7 @@ function TeamView({
   const { data: leaveRequests } = useListTeamLeaveRequests(team.id);
 
   const sendInvite = useSendTeamInvitation();
+  const cancelInvite = useCancelInvitation();
   const approveJoin = useApproveJoinRequest();
   const declineJoin = useDeclineJoinRequest();
   const requestLeave = useRequestToLeaveTeam();
@@ -236,6 +238,10 @@ function TeamView({
     name: string;
   } | null>(null);
   const [deleteTeamOpen, setDeleteTeamOpen] = useState(false);
+  const [cancelInviteTarget, setCancelInviteTarget] = useState<{
+    id: number;
+    inviteeName: string;
+  } | null>(null);
 
   const pendingInvitations =
     sentInvitations?.filter((i) => i.status === "pending") ?? [];
@@ -599,34 +605,6 @@ function TeamView({
         </div>
       </Card>
 
-      {/* QUICK STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatTile
-          label="Members"
-          value={team.members.length}
-          icon={Users}
-          accent="bg-blue-500/10 text-blue-600"
-        />
-        <StatTile
-          label="Pending Invites"
-          value={pendingInvitations.length}
-          icon={Mail}
-          accent="bg-violet-500/10 text-violet-600"
-        />
-        <StatTile
-          label="Join Requests"
-          value={pendingJoins.length}
-          icon={UserPlus}
-          accent="bg-emerald-500/10 text-emerald-600"
-        />
-        <StatTile
-          label="Milestones"
-          value={milestones?.length ?? 0}
-          icon={Sparkles}
-          accent="bg-amber-500/10 text-amber-600"
-        />
-      </div>
-
       {/* MAIN GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN */}
@@ -965,12 +943,30 @@ function TeamView({
                           {inv.inviteeName}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {(inv.inviteeNiatId ?? inv.inviteeEmail)} • Invited by {inv.inviterName}
+                          {inv.inviteeNiatId ?? inv.inviteeEmail} • Invited by{" "}
+                          {inv.inviterName}
                         </p>
                       </div>
-                      <Badge variant="outline" className="shrink-0">
-                        Pending
-                      </Badge>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline">Pending</Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setCancelInviteTarget({
+                              id: inv.id,
+                              inviteeName: inv.inviteeName,
+                            })
+                          }
+                          disabled={
+                            cancelInvite.isPending &&
+                            cancelInvite.variables?.id === inv.id
+                          }
+                          data-testid={`button-cancel-invite-${inv.id}`}
+                        >
+                          Cancel invitation
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1172,6 +1168,70 @@ function TeamView({
       </Link>
 
       {/* DIALOGS */}
+      <AlertDialog
+        open={cancelInviteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !cancelInvite.isPending) setCancelInviteTarget(null);
+        }}
+      >
+        <AlertDialogContent data-testid="dialog-confirm-cancel-invite">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Cancel invitation to {cancelInviteTarget?.inviteeName}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              They won't be able to accept this invite anymore. They will not
+              be notified that it was cancelled. You can always send a new
+              invite later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              data-testid="button-dismiss-cancel-invite"
+              disabled={cancelInvite.isPending}
+            >
+              Keep invite
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (!cancelInviteTarget) return;
+                const target = cancelInviteTarget;
+                cancelInvite.mutate(
+                  { id: target.id },
+                  {
+                    onSuccess: () => {
+                      invalidateAll();
+                      setCancelInviteTarget(null);
+                      toast({
+                        title: "Invitation cancelled",
+                        description: `Invite to ${target.inviteeName} has been withdrawn.`,
+                      });
+                    },
+                    onError: (err: unknown) => {
+                      const message =
+                        err instanceof Error
+                          ? err.message
+                          : "Could not cancel the invitation. Try again.";
+                      toast({
+                        title: "Couldn't cancel invitation",
+                        description: message,
+                        variant: "destructive",
+                      });
+                    },
+                  },
+                );
+              }}
+              disabled={cancelInvite.isPending}
+              data-testid="button-confirm-cancel-invite"
+            >
+              {cancelInvite.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Cancel invitation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog
         open={removeTarget !== null}
         onOpenChange={(open) => {

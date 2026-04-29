@@ -2467,6 +2467,90 @@ export const useDeclineInvitation = <
 };
 
 /**
+ * @summary Cancel a pending invitation sent by the requester's team (any member). The invited student is not notified.
+ */
+export const getCancelInvitationUrl = (id: number) => {
+  return `/api/invitations/${id}/cancel`;
+};
+
+export const cancelInvitation = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getCancelInvitationUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCancelInvitationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelInvitation>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelInvitation>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["cancelInvitation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelInvitation>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return cancelInvitation(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelInvitation>>
+>;
+
+export type CancelInvitationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cancel a pending invitation sent by the requester's team (any member). The invited student is not notified.
+ */
+export const useCancelInvitation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelInvitation>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelInvitation>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCancelInvitationMutationOptions(options));
+};
+
+/**
  * @summary List pending join requests for a team (any member)
  */
 export const getListTeamJoinRequestsUrl = (id: number) => {
