@@ -2,7 +2,7 @@ import * as client from "openid-client";
 import crypto from "crypto";
 import { type Request, type Response } from "express";
 import { db, sessionsTable, teamsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { AuthUser } from "@workspace/api-zod";
 
 export const ISSUER_URL = process.env.ISSUER_URL ?? "https://replit.com/oidc";
@@ -67,6 +67,15 @@ export async function updateSession(
 
 export async function deleteSession(sid: string): Promise<void> {
   await db.delete(sessionsTable).where(eq(sessionsTable.sid, sid));
+}
+
+// Invalidates ALL sessions belonging to the given user.
+// Use this when a user's role or active status changes so existing
+// sessions can no longer use stale (elevated) permissions.
+export async function deleteSessionsForUser(userId: string): Promise<void> {
+  await db
+    .delete(sessionsTable)
+    .where(sql`(${sessionsTable.sess}->'user'->>'id') = ${userId}`);
 }
 
 export async function clearSession(

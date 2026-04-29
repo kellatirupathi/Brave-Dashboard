@@ -29,6 +29,7 @@ import {
   UpdateAccessRequestParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { deleteSessionsForUser } from "../lib/auth";
 import { runSeed } from "../seed";
 import * as bcrypt from "bcryptjs";
 
@@ -336,6 +337,22 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
+  }
+  // If role or active status changed, kill the target user's existing
+  // sessions so they can't keep using stale (possibly elevated) permissions.
+  const roleChanged =
+    updates.role !== undefined && updates.role !== existing.role;
+  const activeChanged =
+    updates.isActive !== undefined && updates.isActive !== existing.isActive;
+  if (roleChanged || activeChanged) {
+    try {
+      await deleteSessionsForUser(user.id);
+    } catch (err) {
+      req.log.warn(
+        { err, userId: user.id },
+        "Failed to invalidate sessions after role/isActive change",
+      );
+    }
   }
   await logAudit(req.user.id, "update_user", "user", undefined, `${user.id} ${JSON.stringify(updates)}`);
   const { passwordHash, ...safe } = user;
