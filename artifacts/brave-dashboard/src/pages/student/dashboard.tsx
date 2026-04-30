@@ -3,7 +3,16 @@ import { formatINR } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Building2, Briefcase, FileText, CheckCircle, AlertCircle, Bell } from "lucide-react";
+import {
+  Trophy,
+  Building2,
+  Briefcase,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+  Bell,
+  HelpCircle,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
@@ -13,7 +22,11 @@ export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
 
   if (isLoading) {
-    return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
   }
 
   if (!summary) {
@@ -21,7 +34,10 @@ export default function TeamDashboard() {
   }
 
   const demoDayThreshold = 200000;
-  const progressPercent = Math.min((summary.totalRevenue / demoDayThreshold) * 100, 100);
+  const progressPercent = Math.min(
+    (summary.totalRevenue / demoDayThreshold) * 100,
+    100,
+  );
 
   const cardLinkClass =
     "block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
@@ -35,12 +51,19 @@ export default function TeamDashboard() {
           className="block rounded-md -mx-2 px-2 py-1 hover-elevate active-elevate-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid="link-team-header"
         >
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">{summary.team?.name || "Your Team"}</h1>
-          <p className="text-muted-foreground">{summary.team?.tagline || "No tagline set"}</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {summary.team?.name || "Your Team"}
+          </h1>
+          <p className="text-muted-foreground">
+            {summary.team?.tagline || "No tagline set"}
+          </p>
         </Link>
         <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end">
           {summary.demoEligible && (
-            <Badge variant="default" className="px-4 py-2 text-sm bg-green-500 hover:bg-green-600 border-none text-white shadow-sm">
+            <Badge
+              variant="default"
+              className="px-4 py-2 text-sm bg-green-500 hover:bg-green-600 border-none text-white shadow-sm"
+            >
               <CheckCircle className="w-4 h-4 mr-2" />
               Demo Day Eligible!
             </Badge>
@@ -50,14 +73,22 @@ export default function TeamDashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Link href="/demo-day" className={cardLinkClass} data-testid="link-card-revenue">
+        <Link
+          href="/demo-day"
+          className={cardLinkClass}
+          data-testid="link-card-revenue"
+        >
           <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium">Verified Revenue</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Verified Revenue
+              </CardTitle>
               <Trophy className="w-4 h-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatINR(summary.totalRevenue)}</div>
+              <div className="text-2xl font-bold">
+                {formatINR(summary.totalRevenue)}
+              </div>
               <Progress value={progressPercent} className="mt-3 h-2" />
               <p className="text-xs text-muted-foreground mt-2">
                 {progressPercent.toFixed(1)}% of Demo Day goal
@@ -66,14 +97,20 @@ export default function TeamDashboard() {
           </Card>
         </Link>
 
-        <Link href="/projects" className={cardLinkClass} data-testid="link-card-order-book">
+        <Link
+          href="/projects"
+          className={cardLinkClass}
+          data-testid="link-card-order-book"
+        >
           <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium">Order Book</CardTitle>
               <Briefcase className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatINR(summary.totalOrderBook)}</div>
+              <div className="text-2xl font-bold">
+                {formatINR(summary.totalOrderBook)}
+              </div>
               <p className="text-xs text-muted-foreground mt-2">
                 Unverified or uncollected revenue
               </p>
@@ -81,14 +118,22 @@ export default function TeamDashboard() {
           </Card>
         </Link>
 
-        <Link href="/leaderboard" className={cardLinkClass} data-testid="link-card-national-rank">
+        <Link
+          href="/leaderboard"
+          className={cardLinkClass}
+          data-testid="link-card-national-rank"
+        >
           <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium">National Rank</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                National Rank
+              </CardTitle>
               <Trophy className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">#{summary.nationalRank || "—"}</div>
+              <div className="text-2xl font-bold">
+                #{summary.nationalRank || "—"}
+              </div>
               <p className="text-xs text-muted-foreground mt-2">
                 Across all campuses
               </p>
@@ -96,14 +141,20 @@ export default function TeamDashboard() {
           </Card>
         </Link>
 
-        <Link href="/leaderboard" className={cardLinkClass} data-testid="link-card-campus-rank">
+        <Link
+          href="/leaderboard"
+          className={cardLinkClass}
+          data-testid="link-card-campus-rank"
+        >
           <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium">Campus Rank</CardTitle>
               <Building2 className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">#{summary.campusRank || "—"}</div>
+              <div className="text-2xl font-bold">
+                #{summary.campusRank || "—"}
+              </div>
               <p className="text-xs text-muted-foreground mt-2">
                 At {summary.team?.campusName || "your campus"}
               </p>
@@ -127,10 +178,14 @@ export default function TeamDashboard() {
                     className="flex gap-4 rounded-md p-2 -mx-2 hover-elevate active-elevate-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     data-testid={`link-announcement-${announcement.id}`}
                   >
-                    <div className="mt-1"><Bell className="w-5 h-5 text-primary" /></div>
+                    <div className="mt-1">
+                      <Bell className="w-5 h-5 text-primary" />
+                    </div>
                     <div>
                       <h4 className="font-semibold">{announcement.title}</h4>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{announcement.body}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                        {announcement.body}
+                      </p>
                     </div>
                   </Link>
                 ))}
@@ -157,7 +212,9 @@ export default function TeamDashboard() {
                 <FileText className="w-5 h-5 text-blue-500" />
                 <div className="flex-1">
                   <h4 className="font-semibold">Active Projects</h4>
-                  <p className="text-sm text-muted-foreground">{summary.activeProjects} projects running</p>
+                  <p className="text-sm text-muted-foreground">
+                    {summary.activeProjects} projects running
+                  </p>
                 </div>
               </Link>
 
@@ -169,13 +226,27 @@ export default function TeamDashboard() {
                 <AlertCircle className="w-5 h-5 text-orange-500" />
                 <div className="flex-1">
                   <h4 className="font-semibold">Pending Submissions</h4>
-                  <p className="text-sm text-muted-foreground">{summary.pendingSubmissions} items awaiting review</p>
+                  <p className="text-sm text-muted-foreground">
+                    {summary.pendingSubmissions} items awaiting review
+                  </p>
                 </div>
               </Link>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      <a
+        href="https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?usp=sharing"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open help guide in a new tab"
+        title="Help"
+        data-testid="button-help"
+        className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        <HelpCircle className="h-6 w-6" />
+      </a>
     </div>
   );
 }
