@@ -10,16 +10,35 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateMembershipQueries } from "@/lib/queries";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, KeyRound, Search, ArrowRight, Mail } from "lucide-react";
+import {
+  Plus,
+  KeyRound,
+  Search,
+  ArrowRight,
+  Mail,
+  HelpCircle,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function GetStarted() {
@@ -44,40 +63,63 @@ export default function GetStarted() {
   // Detect missing profile bits so we can prompt for them inline. We treat the
   // synthetic "<sub>@replit.user" placeholder address from SSO as "missing".
   const missingFullName = !user?.firstName?.trim() || !user?.lastName?.trim();
-  const missingEmail = !user?.email?.trim() || user.email.endsWith("@replit.user");
+  const missingEmail =
+    !user?.email?.trim() || user.email.endsWith("@replit.user");
   const missingNiat = !user?.niatId?.trim();
   const needsProfileCapture = missingFullName || missingEmail || missingNiat;
 
   if (teamLoading) {
-    return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
   }
   if (team) {
     setLocation("/team");
     return null;
   }
 
-  const pendingInvitations = invitations?.filter((i) => i.status === "pending") ?? [];
+  const pendingInvitations =
+    invitations?.filter((i) => i.status === "pending") ?? [];
 
-  const effectiveCampusId = user?.campusId ?? (campusId ? Number(campusId) : undefined);
+  const effectiveCampusId =
+    user?.campusId ?? (campusId ? Number(campusId) : undefined);
   const needsCampusPick = !user?.campusId;
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     if (!effectiveCampusId) {
-      toast({ title: "Choose a campus", description: "Pick the campus your team belongs to.", variant: "destructive" });
+      toast({
+        title: "Choose a campus",
+        description: "Pick the campus your team belongs to.",
+        variant: "destructive",
+      });
       return;
     }
     if (missingFullName && !fullName.trim()) {
-      toast({ title: "Tell us your full name", description: "We need your full name before we create your team.", variant: "destructive" });
+      toast({
+        title: "Tell us your full name",
+        description: "We need your full name before we create your team.",
+        variant: "destructive",
+      });
       return;
     }
     if (missingEmail && !emailInput.trim()) {
-      toast({ title: "Add your email", description: "We need an email address for your account.", variant: "destructive" });
+      toast({
+        title: "Add your email",
+        description: "We need an email address for your account.",
+        variant: "destructive",
+      });
       return;
     }
     if (missingNiat && !niatIdInput.trim()) {
-      toast({ title: "Add your NIAT ID", description: "Your NIAT ID links your account to your campus records.", variant: "destructive" });
+      toast({
+        title: "Add your NIAT ID",
+        description: "Your NIAT ID links your account to your campus records.",
+        variant: "destructive",
+      });
       return;
     }
     createTeam.mutate(
@@ -86,24 +128,40 @@ export default function GetStarted() {
           name: name.trim(),
           tagline: tagline.trim() || undefined,
           campusId: effectiveCampusId,
-          ...(missingFullName && fullName.trim() ? { fullName: fullName.trim() } : {}),
-          ...(missingEmail && emailInput.trim() ? { email: emailInput.trim() } : {}),
-          ...(missingNiat && niatIdInput.trim() ? { niatId: niatIdInput.trim() } : {}),
+          ...(missingFullName && fullName.trim()
+            ? { fullName: fullName.trim() }
+            : {}),
+          ...(missingEmail && emailInput.trim()
+            ? { email: emailInput.trim() }
+            : {}),
+          ...(missingNiat && niatIdInput.trim()
+            ? { niatId: niatIdInput.trim() }
+            : {}),
         },
       },
       {
         onSuccess: async (created) => {
-          toast({ title: "Team created", description: "Share your invite code with teammates." });
+          toast({
+            title: "Team created",
+            description: "Share your invite code with teammates.",
+          });
           // Refresh the auth user so the sidebar (which depends on user.teamId)
           // shows the full student nav (Dashboard, Projects, Leaderboard,
           // My Team, Demo Day) immediately — no page reload needed.
           await refreshAuth();
-          invalidateMembershipQueries(queryClient, { teamId: created?.id ?? null });
+          invalidateMembershipQueries(queryClient, {
+            teamId: created?.id ?? null,
+          });
           setLocation("/team");
         },
         onError: (err: unknown) => {
-          const msg = (err as { message?: string })?.message ?? "Failed to create team";
-          toast({ title: "Could not create team", description: msg, variant: "destructive" });
+          const msg =
+            (err as { message?: string })?.message ?? "Failed to create team";
+          toast({
+            title: "Could not create team",
+            description: msg,
+            variant: "destructive",
+          });
         },
       },
     );
@@ -112,47 +170,87 @@ export default function GetStarted() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Get started with a team</h1>
-        <p className="text-muted-foreground mt-1">You aren't on a team yet. Create one, join with a code, or browse teams at your campus.</p>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Get started with a team
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          You aren't on a team yet. Create one, join with a code, or browse
+          teams at your campus.
+        </p>
       </div>
 
       {pendingInvitations.length > 0 && (
-        <Card className="border-primary/40 bg-primary/5" data-testid="card-pending-invitations">
+        <Card
+          className="border-primary/40 bg-primary/5"
+          data-testid="card-pending-invitations"
+        >
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2"><Mail className="w-5 h-5" /> You have {pendingInvitations.length} team invitation{pendingInvitations.length === 1 ? "" : "s"}</CardTitle>
-              <CardDescription>Review and respond to invitations from other teams.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="w-5 h-5" /> You have{" "}
+                {pendingInvitations.length} team invitation
+                {pendingInvitations.length === 1 ? "" : "s"}
+              </CardTitle>
+              <CardDescription>
+                Review and respond to invitations from other teams.
+              </CardDescription>
             </div>
-            <Link href="/invitations"><Button data-testid="button-view-invitations">View invitations <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
+            <Link href="/invitations">
+              <Button data-testid="button-view-invitations">
+                View invitations <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
           </CardHeader>
         </Card>
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="cursor-pointer hover:border-primary/50 transition" onClick={() => setShowCreate((v) => !v)} data-testid="card-create-team">
+        <Card
+          className="cursor-pointer hover:border-primary/50 transition"
+          onClick={() => setShowCreate((v) => !v)}
+          data-testid="card-create-team"
+        >
           <CardHeader>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><Plus className="w-5 h-5" /></div>
+            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+              <Plus className="w-5 h-5" />
+            </div>
             <CardTitle className="mt-3">Create a team</CardTitle>
-            <CardDescription>Start a brand-new team and become its leader.</CardDescription>
+            <CardDescription>
+              Start a brand-new team and become its leader.
+            </CardDescription>
           </CardHeader>
         </Card>
 
         <Link href="/join">
-          <Card className="cursor-pointer hover:border-primary/50 transition h-full" data-testid="card-join-by-code">
+          <Card
+            className="cursor-pointer hover:border-primary/50 transition h-full"
+            data-testid="card-join-by-code"
+          >
             <CardHeader>
-              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><KeyRound className="w-5 h-5" /></div>
+              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <KeyRound className="w-5 h-5" />
+              </div>
               <CardTitle className="mt-3">Join with a code</CardTitle>
-              <CardDescription>Enter an invite code shared by a team member.</CardDescription>
+              <CardDescription>
+                Enter an invite code shared by a team member.
+              </CardDescription>
             </CardHeader>
           </Card>
         </Link>
 
         <Link href="/browse-teams">
-          <Card className="cursor-pointer hover:border-primary/50 transition h-full" data-testid="card-browse-teams">
+          <Card
+            className="cursor-pointer hover:border-primary/50 transition h-full"
+            data-testid="card-browse-teams"
+          >
             <CardHeader>
-              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><Search className="w-5 h-5" /></div>
+              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <Search className="w-5 h-5" />
+              </div>
               <CardTitle className="mt-3">Browse campus teams</CardTitle>
-              <CardDescription>See teams at your campus and request to join.</CardDescription>
+              <CardDescription>
+                See teams at your campus and request to join.
+              </CardDescription>
             </CardHeader>
           </Card>
         </Link>
@@ -162,7 +260,10 @@ export default function GetStarted() {
         <Card data-testid="card-create-form">
           <CardHeader>
             <CardTitle>Create your team</CardTitle>
-            <CardDescription>You'll be the team leader. Share the invite code with teammates afterwards.</CardDescription>
+            <CardDescription>
+              You'll be the team leader. Share the invite code with teammates
+              afterwards.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-4 max-w-2xl">
@@ -170,41 +271,83 @@ export default function GetStarted() {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="team-name">Team name</Label>
-                    <Input id="team-name" data-testid="input-team-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
+                    <Input
+                      id="team-name"
+                      data-testid="input-team-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={60}
+                      required
+                    />
                   </div>
                   <div className="space-y-2 md:col-span-3">
                     <Label htmlFor="team-campus">Campus</Label>
                     <Select value={campusId} onValueChange={setCampusId}>
-                      <SelectTrigger id="team-campus" data-testid="select-team-campus" className="w-full">
-                        <SelectValue placeholder={campusesLoading ? "Loading campuses…" : "Select your campus"} />
+                      <SelectTrigger
+                        id="team-campus"
+                        data-testid="select-team-campus"
+                        className="w-full"
+                      >
+                        <SelectValue
+                          placeholder={
+                            campusesLoading
+                              ? "Loading campuses…"
+                              : "Select your campus"
+                          }
+                        />
                       </SelectTrigger>
-                      <SelectContent style={{ maxHeight: "18rem" }} className="overflow-y-auto">
+                      <SelectContent
+                        style={{ maxHeight: "18rem" }}
+                        className="overflow-y-auto"
+                      >
                         {(campuses ?? []).map((c) => (
-                          <SelectItem key={c.id} value={String(c.id)} data-testid={`option-campus-${c.id}`}>
+                          <SelectItem
+                            key={c.id}
+                            value={String(c.id)}
+                            data-testid={`option-campus-${c.id}`}
+                          >
                             {c.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">We'll save this campus to your profile so future teammates show up correctly.</p>
+                    <p className="text-xs text-muted-foreground">
+                      We'll save this campus to your profile so future teammates
+                      show up correctly.
+                    </p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2 max-w-md">
                   <Label htmlFor="team-name">Team name</Label>
-                  <Input id="team-name" data-testid="input-team-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
+                  <Input
+                    id="team-name"
+                    data-testid="input-team-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={60}
+                    required
+                  />
                 </div>
               )}
               <div className="space-y-2">
                 <Label htmlFor="team-tagline">Tagline (optional)</Label>
-                <Textarea id="team-tagline" data-testid="input-team-tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={120} rows={2} />
+                <Textarea
+                  id="team-tagline"
+                  data-testid="input-team-tagline"
+                  value={tagline}
+                  onChange={(e) => setTagline(e.target.value)}
+                  maxLength={120}
+                  rows={2}
+                />
               </div>
               {needsProfileCapture && (
                 <div className="space-y-4 rounded-md border bg-muted/30 p-4">
                   <div>
                     <p className="text-sm font-medium">Confirm your details</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      We need a few extra details to set up your account. These will be saved to your profile.
+                      We need a few extra details to set up your account. These
+                      will be saved to your profile.
                     </p>
                   </div>
                   {missingFullName && (
@@ -252,8 +395,16 @@ export default function GetStarted() {
                   )}
                 </div>
               )}
-              <Button type="submit" disabled={createTeam.isPending || !name.trim() || !effectiveCampusId} data-testid="button-submit-create">
-                {createTeam.isPending ? <Spinner className="mr-2 size-4" /> : null}
+              <Button
+                type="submit"
+                disabled={
+                  createTeam.isPending || !name.trim() || !effectiveCampusId
+                }
+                data-testid="button-submit-create"
+              >
+                {createTeam.isPending ? (
+                  <Spinner className="mr-2 size-4" />
+                ) : null}
                 Create team
               </Button>
             </form>
@@ -261,8 +412,23 @@ export default function GetStarted() {
         </Card>
       )}
 
-      <Avatar className="hidden"><AvatarImage src="" /><AvatarFallback>?</AvatarFallback></Avatar>
+      <Avatar className="hidden">
+        <AvatarImage src="" />
+        <AvatarFallback>?</AvatarFallback>
+      </Avatar>
       <Badge className="hidden">x</Badge>
+
+      <a
+        href="https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?usp=sharing"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open help guide in a new tab"
+        title="Help"
+        data-testid="button-help"
+        className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        <HelpCircle className="h-6 w-6" />
+      </a>
     </div>
   );
 }
