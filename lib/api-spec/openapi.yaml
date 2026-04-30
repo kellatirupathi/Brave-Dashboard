@@ -1555,6 +1555,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/Announcement"
 
+  /announcements/pinned:
+    get:
+      operationId: getPinnedAnnouncement
+      tags: [announcements]
+      summary: Get the most recent pinned announcement for the current user (or null if dismissed/none)
+      responses:
+        "200":
+          description: Pinned announcement or null
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Announcement"
+                  - type: "null"
+
+  /announcements/{id}/dismiss:
+    post:
+      operationId: dismissAnnouncement
+      tags: [announcements]
+      summary: Permanently dismiss a pinned announcement for the current user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Dismissed
+
   /announcements/{id}:
     patch:
       operationId: updateAnnouncement
@@ -3455,6 +3485,8 @@ components:
           type: string
         body:
           type: string
+        pinToDashboard:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -3465,6 +3497,7 @@ components:
         - target
         - title
         - body
+        - pinToDashboard
         - createdAt
 
     CreateAnnouncementBody:
@@ -3481,6 +3514,8 @@ components:
           type: string
         body:
           type: string
+        pinToDashboard:
+          type: boolean
       required:
         - target
         - title
@@ -3500,6 +3535,8 @@ components:
           type: string
         body:
           type: string
+        pinToDashboard:
+          type: boolean
 
     ProgrammeConfig:
       type: object

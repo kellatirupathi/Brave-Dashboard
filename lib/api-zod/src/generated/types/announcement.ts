@@ -18,5 +18,6 @@ export interface Announcement {
   teamId?: number | null;
   title: string;
   body: string;
+  pinToDashboard: boolean;
   createdAt: Date;
 }

@@ -8,6 +8,7 @@ import {
   pgEnum,
   unique,
   index,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -361,12 +362,34 @@ export const announcementsTable = pgTable("announcements", {
   teamId: integer("team_id"),
   title: text("title").notNull(),
   body: text("body").notNull(),
+  pinToDashboard: boolean("pin_to_dashboard").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const insertAnnouncementSchema = createInsertSchema(announcementsTable).omit({ id: true, createdAt: true });
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
 export type Announcement = typeof announcementsTable.$inferSelect;
+
+// Per-student permanent dismissals of pinned announcements.
+export const announcementDismissalsTable = pgTable(
+  "announcement_dismissals",
+  {
+    userId: text("user_id").notNull(),
+    announcementId: integer("announcement_id")
+      .notNull()
+      .references(() => announcementsTable.id, { onDelete: "cascade" }),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.announcementId] }),
+    index("announcement_dismissals_user_idx").on(t.userId),
+  ],
+);
+
+export type AnnouncementDismissal =
+  typeof announcementDismissalsTable.$inferSelect;
 
 // Programme Config
 export const programmeConfigTable = pgTable("programme_config", {

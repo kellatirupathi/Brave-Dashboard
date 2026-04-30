@@ -784,6 +784,7 @@ export interface Announcement {
   teamId?: number | null;
   title: string;
   body: string;
+  pinToDashboard: boolean;
   createdAt: string;
 }
 
@@ -918,6 +919,7 @@ export interface CreateAnnouncementBody {
   teamId?: number | null;
   title: string;
   body: string;
+  pinToDashboard?: boolean;
 }
 
 export type UpdateAnnouncementBodyTarget =
@@ -937,6 +939,7 @@ export interface UpdateAnnouncementBody {
   teamId?: number | null;
   title?: string;
   body?: string;
+  pinToDashboard?: boolean;
 }
 
 export interface ProgrammeConfig {

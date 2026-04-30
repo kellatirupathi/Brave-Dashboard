@@ -15,4 +15,5 @@ export interface UpdateAnnouncementBody {
   teamId?: number | null;
   title?: string;
   body?: string;
+  pinToDashboard?: boolean;
 }

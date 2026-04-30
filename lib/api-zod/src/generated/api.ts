@@ -1795,6 +1795,7 @@ export const GetTeamDashboardSummaryResponse = zod.object({
       teamId: zod.number().nullish(),
       title: zod.string(),
       body: zod.string(),
+      pinToDashboard: zod.boolean(),
       createdAt: zod.coerce.date(),
     }),
   ),
@@ -2027,6 +2028,7 @@ export const ListAnnouncementsResponseItem = zod.object({
   teamId: zod.number().nullish(),
   title: zod.string(),
   body: zod.string(),
+  pinToDashboard: zod.boolean(),
   createdAt: zod.coerce.date(),
 });
 export const ListAnnouncementsResponse = zod.array(
@@ -2042,6 +2044,33 @@ export const CreateAnnouncementBody = zod.object({
   teamId: zod.number().nullish(),
   title: zod.string(),
   body: zod.string(),
+  pinToDashboard: zod.boolean().optional(),
+});
+
+/**
+ * @summary Get the most recent pinned announcement for the current user (or null if dismissed/none)
+ */
+export const GetPinnedAnnouncementResponse = zod.union([
+  zod.object({
+    id: zod.number(),
+    authorId: zod.string(),
+    authorName: zod.string(),
+    target: zod.enum(["all", "campus", "team"]),
+    campusId: zod.number().nullish(),
+    teamId: zod.number().nullish(),
+    title: zod.string(),
+    body: zod.string(),
+    pinToDashboard: zod.boolean(),
+    createdAt: zod.coerce.date(),
+  }),
+  zod.null(),
+]);
+
+/**
+ * @summary Permanently dismiss a pinned announcement for the current user
+ */
+export const DismissAnnouncementParams = zod.object({
+  id: zod.coerce.number(),
 });
 
 /**
@@ -2057,6 +2086,7 @@ export const UpdateAnnouncementBody = zod.object({
   teamId: zod.number().nullish(),
   title: zod.string().optional(),
   body: zod.string().optional(),
+  pinToDashboard: zod.boolean().optional(),
 });
 
 export const UpdateAnnouncementResponse = zod.object({
@@ -2068,6 +2098,7 @@ export const UpdateAnnouncementResponse = zod.object({
   teamId: zod.number().nullish(),
   title: zod.string(),
   body: zod.string(),
+  pinToDashboard: zod.boolean(),
   createdAt: zod.coerce.date(),
 });
 

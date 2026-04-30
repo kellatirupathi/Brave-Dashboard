@@ -66,6 +66,23 @@ import { useQueryClient } from "@tanstack/react-query";
 
 type UploadField = "supportingDoc" | "brd";
 
+const sanitizeAmount = (raw: string): string =>
+  raw.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+
+const BRD_ACCEPT =
+  ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+const isAllowedBrdFile = (file: File): boolean => {
+  const name = file.name.toLowerCase();
+  const okExt = name.endsWith(".pdf") || name.endsWith(".docx");
+  const okMime =
+    file.type === "application/pdf" ||
+    file.type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    file.type === "";
+  return okExt && okMime;
+};
+
 function extractUploadErrorMessage(err: unknown): string {
   if (
     err &&
@@ -90,7 +107,8 @@ export default function ProjectDetail() {
     query: { queryKey: getGetMyTeamQueryKey(), retry: false },
   });
   const { user } = useAuth();
-  const isLeader = !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
+  const isLeader =
+    !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
 
   const createOrderBook = useCreateOrderBookEntry();
   const updateOrderBook = useUpdateOrderBookEntry();
@@ -115,12 +133,14 @@ export default function ProjectDetail() {
 
   // Form states
   const [clientName, setClientName] = useState("");
-  const [amount, setAmount] = useState<number | "">("");
+  const [amount, setAmount] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState("");
   const [notes, setNotes] = useState("");
   const [supportingDocUrl, setSupportingDocUrl] = useState<string | null>(null);
   const [brdUrl, setBrdUrl] = useState<string | null>(null);
-  const [uploadingField, setUploadingField] = useState<UploadField | null>(null);
+  const [uploadingField, setUploadingField] = useState<UploadField | null>(
+    null,
+  );
 
   if (isLoading)
     return (
@@ -170,6 +190,15 @@ export default function ProjectDetail() {
     file: File | undefined,
   ): Promise<void> => {
     if (!file) return;
+    if (field === "brd" && !isAllowedBrdFile(file)) {
+      toast({
+        title: "Invalid file type",
+        description:
+          "BRD must be a PDF or DOCX file. Images and other formats are not allowed.",
+        variant: "destructive",
+      });
+      return;
+    }
     setUploadingField(field);
     try {
       const presigned = await requestUpload.mutateAsync({
@@ -221,10 +250,10 @@ export default function ProjectDetail() {
     );
   };
 
-  const startEditOrder = (entry: typeof project.orderBookEntries[number]) => {
+  const startEditOrder = (entry: (typeof project.orderBookEntries)[number]) => {
     setEditingOrderId(entry.id);
     setClientName(entry.clientName);
-    setAmount(entry.amount);
+    setAmount(String(entry.amount));
     setNotes(entry.notes ?? "");
     setSupportingDocUrl(entry.supportingDocUrl ?? null);
   };
@@ -341,7 +370,10 @@ export default function ProjectDetail() {
     const title = editTitle.trim();
     const description = editDescription.trim();
     if (title.length < 3 || description.length < 10) {
-      toast({ title: "Please fill in title and description", variant: "destructive" });
+      toast({
+        title: "Please fill in title and description",
+        variant: "destructive",
+      });
       return;
     }
     updateProject.mutate(
@@ -350,12 +382,18 @@ export default function ProjectDetail() {
         onSuccess: () => {
           toast({ title: "Project updated" });
           refresh();
-          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+          queryClient.invalidateQueries({
+            queryKey: getListProjectsQueryKey(),
+          });
           setIsEditProjectOpen(false);
         },
         onError: (err: unknown) => {
           const e = err as { data?: { error?: string }; message?: string };
-          toast({ title: "Could not update project", description: e?.data?.error ?? e?.message ?? "Try again", variant: "destructive" });
+          toast({
+            title: "Could not update project",
+            description: e?.data?.error ?? e?.message ?? "Try again",
+            variant: "destructive",
+          });
         },
       },
     );
@@ -367,16 +405,28 @@ export default function ProjectDetail() {
       {
         onSuccess: () => {
           toast({ title: "Project deleted" });
-          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+          queryClient.invalidateQueries({
+            queryKey: getListProjectsQueryKey(),
+          });
           setIsDeleteProjectOpen(false);
           setLocation("/projects");
         },
         onError: (err: unknown) => {
-          const e = err as { status?: number; data?: { error?: string }; message?: string };
-          const desc = e?.status === 409
-            ? (e?.data?.error || "Project has submitted or verified entries — clear them first.")
-            : (e?.data?.error || e?.message || "Try again.");
-          toast({ title: "Could not delete project", description: desc, variant: "destructive" });
+          const e = err as {
+            status?: number;
+            data?: { error?: string };
+            message?: string;
+          };
+          const desc =
+            e?.status === 409
+              ? e?.data?.error ||
+                "Project has submitted or verified entries — clear them first."
+              : e?.data?.error || e?.message || "Try again.";
+          toast({
+            title: "Could not delete project",
+            description: desc,
+            variant: "destructive",
+          });
         },
       },
     );
@@ -393,13 +443,7 @@ export default function ProjectDetail() {
 
   const docLink = (url: string | null | undefined, label: string) => {
     if (!url) return null;
-    return (
-      <DocumentLinkButton
-        url={url}
-        label={label}
-        variant="inline"
-      />
-    );
+    return <DocumentLinkButton url={url} label={label} variant="inline" />;
   };
 
   const FilePicker = ({
@@ -452,12 +496,22 @@ export default function ProjectDetail() {
           </Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-project-title">{project.title}</h1>
+          <h1
+            className="text-3xl font-bold tracking-tight"
+            data-testid="text-project-title"
+          >
+            {project.title}
+          </h1>
           <p className="text-muted-foreground">{project.description}</p>
         </div>
         {isLeader && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={openEditProject} data-testid="button-edit-project">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openEditProject}
+              data-testid="button-edit-project"
+            >
               <Pencil className="w-4 h-4 mr-2" /> Edit
             </Button>
             <Button
@@ -474,8 +528,12 @@ export default function ProjectDetail() {
       </div>
 
       {!isLeader && (
-        <div className="rounded-md border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground" data-testid="banner-project-readonly">
-          Only the team leader can add or edit entries — ask your leader to update this page.
+        <div
+          className="rounded-md border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+          data-testid="banner-project-readonly"
+        >
+          Only the team leader can add or edit entries — ask your leader to
+          update this page.
         </div>
       )}
 
@@ -569,14 +627,21 @@ export default function ProjectDetail() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Amount (₹)</label>
                       <Input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="0"
                         value={amount}
-                        onChange={(e) => setAmount(Number(e.target.value))}
+                        onChange={(e) =>
+                          setAmount(sanitizeAmount(e.target.value))
+                        }
                         required
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Payment Date</label>
+                      <label className="text-sm font-medium">
+                        Payment Date
+                      </label>
                       <Input
                         type="date"
                         value={paymentDate}
@@ -592,7 +657,8 @@ export default function ProjectDetail() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-medium">
-                        BRD document (PDF) <span className="text-destructive">*</span>
+                        BRD document (PDF){" "}
+                        <span className="text-destructive">*</span>
                       </label>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -700,7 +766,11 @@ export default function ProjectDetail() {
                           variant="outline"
                           disabled={submitRevenue.isPending || !entry.brdUrl}
                           onClick={() => handleSubmitRevenue(entry.id)}
-                          title={!entry.brdUrl ? "Upload a BRD before submitting" : undefined}
+                          title={
+                            !entry.brdUrl
+                              ? "Upload a BRD before submitting"
+                              : undefined
+                          }
                           data-testid={`button-submit-revenue-${entry.id}`}
                         >
                           <Send className="w-3 h-3 mr-1" /> Submit for
@@ -749,9 +819,14 @@ export default function ProjectDetail() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Amount (₹)</label>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="0"
                       value={amount}
-                      onChange={(e) => setAmount(Number(e.target.value))}
+                      onChange={(e) =>
+                        setAmount(sanitizeAmount(e.target.value))
+                      }
                       required
                     />
                   </div>
@@ -880,9 +955,12 @@ export default function ProjectDetail() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Amount (₹)</label>
               <Input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="0"
                 value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
+                onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
                 required
                 data-testid="input-edit-order-amount"
               />
@@ -979,27 +1057,45 @@ export default function ProjectDetail() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsEditProjectOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditProjectOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateProject.isPending} data-testid="button-save-project">
-                {updateProject.isPending && <Spinner className="w-4 h-4 mr-2" />} Save changes
+              <Button
+                type="submit"
+                disabled={updateProject.isPending}
+                data-testid="button-save-project"
+              >
+                {updateProject.isPending && (
+                  <Spinner className="w-4 h-4 mr-2" />
+                )}{" "}
+                Save changes
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={isDeleteProjectOpen} onOpenChange={setIsDeleteProjectOpen}>
+      <AlertDialog
+        open={isDeleteProjectOpen}
+        onOpenChange={setIsDeleteProjectOpen}
+      >
         <AlertDialogContent data-testid="dialog-confirm-delete-project">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {project.title}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes the project and any draft revenue or order book entries. If the project has any submitted or verified entries, the request will be blocked.
+              This permanently removes the project and any draft revenue or
+              order book entries. If the project has any submitted or verified
+              entries, the request will be blocked.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete-project">Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete-project">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();

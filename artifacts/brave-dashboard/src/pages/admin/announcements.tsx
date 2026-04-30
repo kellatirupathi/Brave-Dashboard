@@ -5,6 +5,7 @@ import {
   useDeleteAnnouncement,
   useListCampuses,
   getListAnnouncementsQueryKey,
+  getGetPinnedAnnouncementQueryKey,
   type Announcement,
   type Campus,
   type CreateAnnouncementBody,
@@ -45,6 +46,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Pin } from "lucide-react";
 
 type TargetMode = "all" | "campus";
 
@@ -63,6 +66,7 @@ export default function AdminAnnouncements() {
   const [body, setBody] = useState("");
   const [target, setTarget] = useState<TargetMode>("all");
   const [campusId, setCampusId] = useState<string>("");
+  const [pinToDashboard, setPinToDashboard] = useState(false);
 
   const campusNameById = useMemo(() => {
     const m = new Map<number, string>();
@@ -75,13 +79,20 @@ export default function AdminAnnouncements() {
     setBody("");
     setTarget("all");
     setCampusId("");
+    setPinToDashboard(false);
     setEditingId(null);
   };
 
-  const refresh = () =>
+  const refresh = () => {
     queryClient.invalidateQueries({
       queryKey: getListAnnouncementsQueryKey(),
     });
+    // Pin status / audience may have changed — refresh the student-facing
+    // pinned banner cache so it reflects the latest pinned announcement.
+    queryClient.invalidateQueries({
+      queryKey: getGetPinnedAnnouncementQueryKey(),
+    });
+  };
 
   const openCreate = () => {
     reset();
@@ -92,6 +103,7 @@ export default function AdminAnnouncements() {
     setEditingId(a.id);
     setTitle(a.title);
     setBody(a.body);
+    setPinToDashboard(a.pinToDashboard);
     if (a.target === "campus") {
       setTarget("campus");
       setCampusId(a.campusId != null ? String(a.campusId) : "");
@@ -120,6 +132,7 @@ export default function AdminAnnouncements() {
         target,
         campusId: target === "campus" ? Number(campusId) : null,
         teamId: null,
+        pinToDashboard,
       };
       updateAnnouncement.mutate(
         { id: editingId, data: payload },
@@ -148,6 +161,7 @@ export default function AdminAnnouncements() {
       target,
       campusId: target === "campus" ? Number(campusId) : null,
       teamId: null,
+      pinToDashboard,
     };
     createAnnouncement.mutate(
       { data: payload },
@@ -284,6 +298,28 @@ export default function AdminAnnouncements() {
                   data-testid="input-body"
                 />
               </div>
+              <div className="flex items-start gap-2 rounded-md border p-3">
+                <Checkbox
+                  id="pin-to-dashboard"
+                  checked={pinToDashboard}
+                  onCheckedChange={(v) => setPinToDashboard(v === true)}
+                  data-testid="checkbox-pin-to-dashboard"
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <label
+                    htmlFor="pin-to-dashboard"
+                    className="text-sm font-medium cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Pin className="w-3.5 h-3.5" />
+                    Pin to student dashboard
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Shows a banner at the top of each targeted student's
+                    dashboard until they dismiss it.
+                  </p>
+                </div>
+              </div>
               <div className="flex justify-end pt-4">
                 <Button
                   type="submit"
@@ -321,6 +357,16 @@ export default function AdminAnnouncements() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    {a.pinToDashboard && (
+                      <Badge
+                        variant="default"
+                        className="text-[10px] gap-1"
+                        data-testid={`badge-pinned-${a.id}`}
+                      >
+                        <Pin className="w-3 h-3" />
+                        Pinned
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="text-[10px]">
                       {targetLabel}
                     </Badge>

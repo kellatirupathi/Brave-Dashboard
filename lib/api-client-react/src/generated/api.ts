@@ -6359,6 +6359,165 @@ export const useCreateAnnouncement = <
 };
 
 /**
+ * @summary Get the most recent pinned announcement for the current user (or null if dismissed/none)
+ */
+export const getGetPinnedAnnouncementUrl = () => {
+  return `/api/announcements/pinned`;
+};
+
+export const getPinnedAnnouncement = async (
+  options?: RequestInit,
+): Promise<Announcement | null> => {
+  return customFetch<Announcement | null>(getGetPinnedAnnouncementUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPinnedAnnouncementQueryKey = () => {
+  return [`/api/announcements/pinned`] as const;
+};
+
+export const getGetPinnedAnnouncementQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPinnedAnnouncement>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPinnedAnnouncement>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPinnedAnnouncementQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPinnedAnnouncement>>
+  > = ({ signal }) => getPinnedAnnouncement({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPinnedAnnouncement>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPinnedAnnouncementQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPinnedAnnouncement>>
+>;
+export type GetPinnedAnnouncementQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the most recent pinned announcement for the current user (or null if dismissed/none)
+ */
+
+export function useGetPinnedAnnouncement<
+  TData = Awaited<ReturnType<typeof getPinnedAnnouncement>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPinnedAnnouncement>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPinnedAnnouncementQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Permanently dismiss a pinned announcement for the current user
+ */
+export const getDismissAnnouncementUrl = (id: number) => {
+  return `/api/announcements/${id}/dismiss`;
+};
+
+export const dismissAnnouncement = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDismissAnnouncementUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDismissAnnouncementMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissAnnouncement>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dismissAnnouncement>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["dismissAnnouncement"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dismissAnnouncement>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return dismissAnnouncement(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DismissAnnouncementMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dismissAnnouncement>>
+>;
+
+export type DismissAnnouncementMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Permanently dismiss a pinned announcement for the current user
+ */
+export const useDismissAnnouncement = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissAnnouncement>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof dismissAnnouncement>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDismissAnnouncementMutationOptions(options));
+};
+
+/**
  * @summary Edit an announcement (admin/coordinator, author only)
  */
 export const getUpdateAnnouncementUrl = (id: number) => {

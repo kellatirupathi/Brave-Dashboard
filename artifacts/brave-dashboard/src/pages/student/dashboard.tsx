@@ -7,6 +7,7 @@ import { Trophy, Building2, Briefcase, FileText, CheckCircle, AlertCircle, Bell 
 import { Spinner } from "@/components/ui/spinner";
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
@@ -27,6 +28,7 @@ export default function TeamDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <PinnedAnnouncementBanner />
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <Link
           href="/team"
