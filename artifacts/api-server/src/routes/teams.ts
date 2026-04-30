@@ -25,7 +25,6 @@ import {
   GetTeamParams,
   UpdateTeamParams,
   UpdateTeamBody,
-  ApproveTeamParams,
   RejectTeamParams,
   RejectTeamBody,
   RequestTeamChangesParams,
@@ -389,8 +388,22 @@ router.post("/teams", async (req, res): Promise<void> => {
           );
         }
       }
-      const [createdTeam] = await tx.insert(teamsTable).values(teamData).returning();
+      const [createdTeam] = await tx
+        .insert(teamsTable)
+        .values({ ...teamData, status: "active" })
+        .returning();
       await tx.insert(teamMembersTable).values({ teamId: createdTeam.id, userId: req.user.id });
+      // Auto-approve: seed the "Team Registered" milestone immediately so the
+      // team timeline reflects activation at creation time. Keeps the timeline
+      // identical to the legacy admin-approval flow it replaces.
+      await tx.insert(milestonesTable).values({
+        teamId: createdTeam.id,
+        type: "auto",
+        title: "Team Registered",
+        description: "Your team is now active!",
+        date: new Date(),
+        isPinned: false,
+      });
       return createdTeam.id;
     });
   } catch (err) {
@@ -893,39 +906,6 @@ router.delete("/teams/:id", async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
-router.post("/teams/:id/approve", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = ApproveTeamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const [team] = await db
-    .update(teamsTable)
-    .set({ status: "active" })
-    .where(eq(teamsTable.id, params.data.id))
-    .returning();
-  if (!team) {
-    res.status(404).json({ error: "Team not found" });
-    return;
-  }
-  await db.insert(milestonesTable).values({
-    teamId: team.id,
-    type: "auto",
-    title: "Team Registered",
-    description: "Your team has been approved and is now active!",
-    date: new Date(),
-    isPinned: false,
-  });
-  await createNotification(team.leaderId, "Team Approved!", `Your team "${team.name}" has been approved.`, "team_approved", "/team");
-  await logAudit(req.user.id, "approve_team", "team", team.id);
-  const teamData = await getTeamWithStats(team.id);
-  res.json(teamData);
-});
-
 router.post("/teams/:id/reject", async (req, res): Promise<void> => {
   if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
     res.status(403).json({ error: "Forbidden" });
@@ -941,13 +921,16 @@ router.post("/teams/:id/reject", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Auto-approve flow: only pending teams can be rejected. Active/rejected/
+  // changes_requested teams are off-limits — reject is a registration-time
+  // gate, not a way to re-state an active team.
   const [team] = await db
     .update(teamsTable)
     .set({ status: "rejected", rejectionReason: parsed.data.reason })
-    .where(eq(teamsTable.id, params.data.id))
+    .where(and(eq(teamsTable.id, params.data.id), eq(teamsTable.status, "pending")))
     .returning();
   if (!team) {
-    res.status(404).json({ error: "Team not found" });
+    res.status(404).json({ error: "Team not found or not in a pending state" });
     return;
   }
   await createNotification(team.leaderId, "Team Registration Rejected", `Your team "${team.name}" was rejected: ${parsed.data.reason}`, "team_rejected", "/team");
@@ -971,13 +954,14 @@ router.post("/teams/:id/request-changes", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Auto-approve flow: only pending teams can have changes requested.
   const [team] = await db
     .update(teamsTable)
     .set({ status: "changes_requested", coordinatorComment: parsed.data.comment })
-    .where(eq(teamsTable.id, params.data.id))
+    .where(and(eq(teamsTable.id, params.data.id), eq(teamsTable.status, "pending")))
     .returning();
   if (!team) {
-    res.status(404).json({ error: "Team not found" });
+    res.status(404).json({ error: "Team not found or not in a pending state" });
     return;
   }
   await createNotification(team.leaderId, "Changes Requested", `Changes requested for team "${team.name}": ${parsed.data.comment}`, "team_changes_requested", "/team");

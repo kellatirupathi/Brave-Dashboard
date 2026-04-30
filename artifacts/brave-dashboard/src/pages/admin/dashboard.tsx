@@ -109,14 +109,6 @@ export default function AdminDashboard() {
         <ActionCenter
           items={[
             {
-              key: "teams",
-              label: "Teams pending approval",
-              count: summary.pendingTeams,
-              oldestAt: summary.pendingTeamsOldestAt,
-              href: "/admin/teams?status=pending",
-              color: "amber",
-            },
-            {
               key: "revenue",
               label: "Revenue entries to verify",
               count: summary.pendingReviewCount,

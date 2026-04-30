@@ -1,7 +1,5 @@
 import {
   useListTeams,
-  useApproveTeam,
-  useRejectTeam,
   useDeleteTeam,
   getListTeamsQueryKey,
   type ErrorType,
@@ -15,7 +13,7 @@ import { formatINR } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Search, Filter, Check, X, Trash2, UserPlus, Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Filter, Trash2, UserPlus, Upload, ChevronLeft, ChevronRight } from "lucide-react";
 import { AddTeamDialog } from "./components/AddTeamDialog";
 import { ImportTeamsDialog } from "./components/ImportTeamsDialog";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ReasonPromptDialog } from "@/components/reason-prompt-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,13 +57,11 @@ export default function AdminTeams() {
   const initialStatus = (() => {
     const params = new URLSearchParams(searchString);
     const fromUrl = params.get("status");
-    return fromUrl &&
-      ["pending", "active", "rejected", "suspended"].includes(fromUrl)
+    return fromUrl && ["active", "rejected", "suspended"].includes(fromUrl)
       ? fromUrl
       : "all";
   })();
   const [status, setStatus] = useState<string>(initialStatus);
-  const [rejectId, setRejectId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -103,30 +98,10 @@ export default function AdminTeams() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const approveTeam = useApproveTeam();
-  const rejectTeam = useRejectTeam();
   const deleteTeam = useDeleteTeam();
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
-
-  const handleApprove = (id: number) => {
-    approveTeam.mutate(
-      { id },
-      {
-        onSuccess: () => {
-          toast({ title: "Team approved" });
-          refresh();
-        },
-        onError: (err: ErrorType<unknown>) =>
-          toast({
-            title: "Approval failed",
-            description: err instanceof Error ? err.message : "Please try again.",
-            variant: "destructive",
-          }),
-      },
-    );
-  };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -148,31 +123,6 @@ export default function AdminTeams() {
         },
       },
     );
-  };
-
-  const handleReject = async (reason: string) => {
-    if (rejectId == null) return;
-    await new Promise<void>((resolve) => {
-      rejectTeam.mutate(
-        { id: rejectId, data: { reason } },
-        {
-          onSuccess: () => {
-            toast({ title: "Team rejected" });
-            refresh();
-            setRejectId(null);
-            resolve();
-          },
-          onError: (err: ErrorType<unknown>) => {
-            toast({
-              title: "Rejection failed",
-              description: err instanceof Error ? err.message : "Please try again.",
-              variant: "destructive",
-            });
-            resolve();
-          },
-        },
-      );
-    });
   };
 
   return (
@@ -225,7 +175,6 @@ export default function AdminTeams() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
@@ -252,7 +201,6 @@ export default function AdminTeams() {
             </TableHeader>
             <TableBody>
               {teamItems.map((team) => {
-                const isPending = team.status === "pending";
                 return (
                   <TableRow
                     key={team.id}
@@ -288,43 +236,15 @@ export default function AdminTeams() {
                         className="flex items-center justify-end gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {isAdmin && isPending ? (
-                          <>
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleApprove(team.id);
-                              }}
-                              disabled={approveTeam.isPending}
-                              data-testid={`button-approve-${team.id}`}
-                            >
-                              <Check className="w-4 h-4 mr-1" /> Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="bg-red-400 hover:bg-red-500 text-white"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRejectId(team.id);
-                              }}
-                              data-testid={`button-reject-${team.id}`}
-                            >
-                              <X className="w-4 h-4 mr-1" /> Reject
-                            </Button>
-                          </>
-                        ) : (
-                          <span
-                            className="text-primary text-sm font-medium hover:underline cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLocation(`/teams/${team.id}`);
-                            }}
-                          >
-                            View
-                          </span>
-                        )}
+                        <span
+                          className="text-primary text-sm font-medium hover:underline cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLocation(`/teams/${team.id}`);
+                          }}
+                        >
+                          View
+                        </span>
                         {isAdmin && (
                           <Button
                             size="icon"
@@ -406,21 +326,6 @@ export default function AdminTeams() {
           </div>
         </div>
       )}
-
-      <ReasonPromptDialog
-        open={rejectId != null}
-        onOpenChange={(o) => {
-          if (!o) setRejectId(null);
-        }}
-        title="Reject team"
-        description="Tell the team why their registration is being rejected."
-        label="Rejection reason"
-        placeholder="e.g. Team name conflicts with an existing team."
-        submitLabel="Reject team"
-        submitVariant="destructive"
-        isSubmitting={rejectTeam.isPending}
-        onSubmit={handleReject}
-      />
 
       <AlertDialog
         open={deleteTarget != null}

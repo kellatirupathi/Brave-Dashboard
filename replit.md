@@ -75,7 +75,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `auth.ts` — OIDC login/callback/logout + /auth/user
 - `storage.ts` — File upload URL generation
 - `campuses.ts` — CRUD for campuses
-- `teams.ts` — Team registration, approval workflow, member management (legacy POST/DELETE /teams/:id/members are admin-only)
+- `teams.ts` — Team registration (auto-active on creation, "Team Registered" milestone inserted in same txn), member management (legacy POST/DELETE /teams/:id/members are admin-only). The legacy /teams/:id/reject and /teams/:id/request-changes endpoints remain but are guarded with `WHERE status='pending'` and effectively dead since no team is ever pending.
 - `team-flow.ts` — Browse same-campus teams, search students, join-by-code, invitations, join-requests, leave-requests. All membership mutations enforce strict same-campus equality and auto-cancel other pending pendings on accept
 - `projects.ts` — Project CRUD
 - `financials.ts` — Order book + revenue entry CRUD with submit/verify/reject
@@ -101,7 +101,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ### Coordinator:
 - `/coordinator` — Campus dashboard
-- `/coordinator/teams` — Team approval workflow
+- `/coordinator/teams` — Read-only campus teams list
 - `/coordinator/leaderboard` — Campus leaderboard
 - `/coordinator/announcements` — Post announcements
 
@@ -137,7 +137,7 @@ The dashboard surfaces the server's `error` string in a destructive toast on rej
 
 - **Revenue verification**: Only `verified_amount` from `revenue_entries` with `status='verified'` counts for leaderboard ranking and Demo Day eligibility
 - **Demo Day threshold**: Configurable (default ₹2,00,000), stored in `programme_config`
-- **Auto milestones**: Triggered on team approval, first project, first verified entry, ₹50K/₹1L/threshold revenue milestones
+- **Auto milestones**: Triggered on team registration (auto-inserted at creation), first project, first verified entry, ₹50K/₹1L/threshold revenue milestones
 - **Indian currency format**: All amounts in ₹ with lakh notation (₹1,00,000)
 - **Codegen pitfall**: `lib/api-zod/src/index.ts` must only export `./generated/api` and `AuthUser` — never re-export `./generated/types` (causes duplicate export errors)
 

@@ -132,7 +132,7 @@ export const teamsTable = pgTable("teams", {
   name: text("name").notNull(),
   campusId: integer("campus_id").notNull(),
   leaderId: text("leader_id").notNull(),
-  status: teamStatusEnum("status").notNull().default("pending"),
+  status: teamStatusEnum("status").notNull().default("active"),
   tagline: text("tagline"),
   photoUrl: text("photo_url"),
   inviteCode: text("invite_code").unique(),

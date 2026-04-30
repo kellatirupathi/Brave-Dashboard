@@ -47,7 +47,7 @@ export default function CoordinatorDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{summary.activeTeams}</div>
               <p className="text-xs text-muted-foreground mt-2">
-                {summary.pendingTeams} pending approval
+                Teams at your campus
               </p>
             </CardContent>
           </Card>

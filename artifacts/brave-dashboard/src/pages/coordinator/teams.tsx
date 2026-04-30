@@ -1,111 +1,15 @@
-import {
-  useListTeams,
-  useApproveTeam,
-  useRejectTeam,
-  useRequestTeamChanges,
-  getListTeamsQueryKey,
-  type ErrorType,
-} from "@workspace/api-client-react";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useListTeams } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, Check, X, MessageSquareWarning } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { Users } from "lucide-react";
 import { formatINR } from "@/lib/format";
-import { useState } from "react";
-import { ReasonPromptDialog } from "@/components/reason-prompt-dialog";
 
 export default function CoordinatorTeams() {
-  const { user } = useAuth();
-  const isCoordinator = user?.role === "coordinator";
   const { data: teamsResp, isLoading } = useListTeams({ pageSize: 1000 });
   const teams = teamsResp?.items;
-  const approveTeam = useApproveTeam();
-  const rejectTeam = useRejectTeam();
-  const requestChanges = useRequestTeamChanges();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [rejectId, setRejectId] = useState<number | null>(null);
-  const [changesId, setChangesId] = useState<number | null>(null);
   const [, setLocation] = useLocation();
-
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
-
-  const errorDescription = (err: ErrorType<unknown>) =>
-    err instanceof Error ? err.message : "Please try again.";
-
-  const handleApprove = (id: number) => {
-    approveTeam.mutate(
-      { id },
-      {
-        onSuccess: () => {
-          toast({ title: "Team approved" });
-          refresh();
-        },
-        onError: (err) =>
-          toast({
-            title: "Approval failed",
-            description: errorDescription(err),
-            variant: "destructive",
-          }),
-      },
-    );
-  };
-
-  const handleReject = async (reason: string) => {
-    if (rejectId == null) return;
-    await new Promise<void>((resolve) => {
-      rejectTeam.mutate(
-        { id: rejectId, data: { reason } },
-        {
-          onSuccess: () => {
-            toast({ title: "Team rejected" });
-            refresh();
-            setRejectId(null);
-            resolve();
-          },
-          onError: (err) => {
-            toast({
-              title: "Rejection failed",
-              description: errorDescription(err),
-              variant: "destructive",
-            });
-            resolve();
-          },
-        },
-      );
-    });
-  };
-
-  const handleRequestChanges = async (comment: string) => {
-    if (changesId == null) return;
-    await new Promise<void>((resolve) => {
-      requestChanges.mutate(
-        { id: changesId, data: { comment } },
-        {
-          onSuccess: () => {
-            toast({ title: "Changes requested" });
-            refresh();
-            setChangesId(null);
-            resolve();
-          },
-          onError: (err) => {
-            toast({
-              title: "Request failed",
-              description: errorDescription(err),
-              variant: "destructive",
-            });
-            resolve();
-          },
-        },
-      );
-    });
-  };
 
   if (isLoading)
     return (
@@ -156,38 +60,6 @@ export default function CoordinatorTeams() {
               >
                 {team.status.replace("_", " ")}
               </Badge>
-              {isCoordinator && team.status === "pending" && (
-                <div
-                  className="flex flex-wrap gap-2 ml-auto sm:ml-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => handleApprove(team.id)}
-                    disabled={approveTeam.isPending}
-                    data-testid={`button-approve-${team.id}`}
-                  >
-                    <Check className="w-4 h-4 mr-1" /> Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setChangesId(team.id)}
-                    data-testid={`button-request-changes-${team.id}`}
-                  >
-                    <MessageSquareWarning className="w-4 h-4 mr-1" /> Request changes
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-red-400 hover:bg-red-500 text-white"
-                    onClick={() => setRejectId(team.id)}
-                    data-testid={`button-reject-${team.id}`}
-                  >
-                    <X className="w-4 h-4 mr-1" /> Reject
-                  </Button>
-                </div>
-              )}
             </div>
           </Card>
         ))}
@@ -198,35 +70,6 @@ export default function CoordinatorTeams() {
           </div>
         )}
       </div>
-
-      <ReasonPromptDialog
-        open={rejectId != null}
-        onOpenChange={(o) => {
-          if (!o) setRejectId(null);
-        }}
-        title="Reject team"
-        description="Tell the team why their registration is being rejected."
-        label="Rejection reason"
-        placeholder="e.g. Team name conflicts with an existing team."
-        submitLabel="Reject team"
-        submitVariant="destructive"
-        isSubmitting={rejectTeam.isPending}
-        onSubmit={handleReject}
-      />
-
-      <ReasonPromptDialog
-        open={changesId != null}
-        onOpenChange={(o) => {
-          if (!o) setChangesId(null);
-        }}
-        title="Request changes"
-        description="Let the team know what they need to fix before approval."
-        label="Comment for the team"
-        placeholder="e.g. Please update your team tagline and add a 4th member."
-        submitLabel="Send request"
-        isSubmitting={requestChanges.isPending}
-        onSubmit={handleRequestChanges}
-      />
     </div>
   );
 }

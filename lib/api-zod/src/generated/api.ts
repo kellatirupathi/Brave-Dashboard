@@ -427,36 +427,6 @@ export const DeleteTeamParams = zod.object({
 });
 
 /**
- * @summary Approve a team registration (coordinator/admin)
- */
-export const ApproveTeamParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const ApproveTeamResponse = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  campusId: zod.number(),
-  campusName: zod.string(),
-  leaderId: zod.string(),
-  leaderName: zod.string(),
-  status: zod.enum(["pending", "active", "rejected", "changes_requested"]),
-  tagline: zod.string().nullish(),
-  photoUrl: zod.string().nullish(),
-  inviteCode: zod.string().nullable(),
-  rejectionReason: zod.string().nullish(),
-  coordinatorComment: zod.string().nullish(),
-  isHidden: zod.boolean(),
-  isFeatured: zod.boolean(),
-  memberCount: zod.number(),
-  projectCount: zod.number(),
-  totalRevenue: zod.number(),
-  totalOrderBook: zod.number(),
-  nationalRank: zod.number().nullish(),
-  createdAt: zod.coerce.date(),
-});
-
-/**
  * @summary Reject a team registration (coordinator/admin)
  */
 export const RejectTeamParams = zod.object({

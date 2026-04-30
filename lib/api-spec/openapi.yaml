@@ -307,25 +307,6 @@ paths:
         "409":
           description: Team has submitted or verified financial entries and cannot be deleted
 
-  /teams/{id}/approve:
-    post:
-      operationId: approveTeam
-      tags: [teams]
-      summary: Approve a team registration (coordinator/admin)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Team approved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Team"
-
   /teams/{id}/reject:
     post:
       operationId: rejectTeam
