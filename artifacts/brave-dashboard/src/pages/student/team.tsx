@@ -51,7 +51,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -233,7 +232,6 @@ function TeamView({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [leaveOpen, setLeaveOpen] = useState(false);
-  const [leaveReason, setLeaveReason] = useState("");
   const [removeTarget, setRemoveTarget] = useState<{
     userId: string;
     name: string;
@@ -254,7 +252,6 @@ function TeamView({
     joinRequests?.filter((j) => j.status === "pending") ?? [];
   const pendingLeaves =
     leaveRequests?.filter((l) => l.status === "pending") ?? [];
-  const myLeaveRequest = pendingLeaves.find((l) => l.requesterId === userId);
 
   const { data: students = [] } = useSearchCampusStudents(
     { q: searchQ },
@@ -353,23 +350,23 @@ function TeamView({
       },
     );
 
-  const handleRequestLeave = () => {
+  const handleConfirmLeave = () => {
     requestLeave.mutate(
-      { id: team.id, data: { reason: leaveReason.trim() || undefined } },
+      { id: team.id, data: {} },
       {
         onSuccess: () => {
           toast({
-            title: "Leave request sent",
-            description: "Your team leader will review it.",
+            title: "You left the team",
+            description: `You're no longer a member of ${team.name}.`,
           });
           setLeaveOpen(false);
-          setLeaveReason("");
           invalidateAll();
+          setLocation("/get-started");
         },
         onError: (err: unknown) =>
           toast({
-            title: "Failed",
-            description: (err as { message?: string })?.message,
+            title: "Could not leave team",
+            description: (err as { message?: string })?.message ?? "Try again.",
             variant: "destructive",
           }),
       },
@@ -847,59 +844,16 @@ function TeamView({
                 })}
               </div>
 
-              {!isLeader && !myLeaveRequest && (
-                <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-4 gap-2"
-                      data-testid="button-open-leave"
-                    >
-                      <LogOut className="w-4 h-4" /> Request to leave
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Request to leave team</DialogTitle>
-                      <DialogDescription>
-                        Your team leader will need to approve this. Tell them
-                        why (optional).
-                      </DialogDescription>
-                    </DialogHeader>
-                    <Textarea
-                      value={leaveReason}
-                      onChange={(e) => setLeaveReason(e.target.value)}
-                      rows={3}
-                      placeholder="Reason (optional)…"
-                      data-testid="input-leave-reason"
-                    />
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setLeaveOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleRequestLeave}
-                        disabled={requestLeave.isPending}
-                        data-testid="button-submit-leave"
-                      >
-                        Send request
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-
-              {myLeaveRequest && (
-                <p
-                  className="text-xs text-muted-foreground mt-4 p-2 bg-muted rounded"
-                  data-testid="text-leave-pending"
+              {!isLeader && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-4 gap-2"
+                  data-testid="button-open-leave"
+                  onClick={() => setLeaveOpen(true)}
                 >
-                  Your leave request is pending leader approval.
-                </p>
+                  <LogOut className="w-4 h-4" /> Leave team
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -1235,6 +1189,45 @@ function TeamView({
             >
               {cancelInvite.isPending && <Spinner className="w-4 h-4 mr-2" />}
               Cancel invitation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={leaveOpen}
+        onOpenChange={(open) => {
+          if (!open && !requestLeave.isPending) setLeaveOpen(false);
+        }}
+      >
+        <AlertDialogContent data-testid="dialog-confirm-leave-team">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Are you sure you want to leave team {team.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You'll lose access to this team immediately. You can join another
+              team or create your own afterwards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              data-testid="button-cancel-leave-team"
+              disabled={requestLeave.isPending}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmLeave();
+              }}
+              disabled={requestLeave.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90"
+              data-testid="button-confirm-leave-team"
+            >
+              {requestLeave.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Leave
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

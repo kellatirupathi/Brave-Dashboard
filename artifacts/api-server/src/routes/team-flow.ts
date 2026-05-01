@@ -20,13 +20,20 @@ import {
 } from "@workspace/api-zod";
 import { z } from "zod/v4";
 import { createNotification } from "../lib/notifications";
-import { getTeamMemberLimit, getTeamMemberCount, teamFullMessage } from "../lib/team-limits";
+import {
+  getTeamMemberLimit,
+  getTeamMemberCount,
+  teamFullMessage,
+} from "../lib/team-limits";
 
 const router: IRouter = Router();
 
 const IdParam = z.object({ id: z.coerce.number().int().positive() });
 
-function requireAuth(req: Request, res: Response): req is Request & { user: NonNullable<Request["user"]> } {
+function requireAuth(
+  req: Request,
+  res: Response,
+): req is Request & { user: NonNullable<Request["user"]> } {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return false;
@@ -35,7 +42,10 @@ function requireAuth(req: Request, res: Response): req is Request & { user: NonN
 }
 
 async function getMembership(userId: string) {
-  const [m] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, userId));
+  const [m] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, userId));
   return m ?? null;
 }
 
@@ -45,7 +55,10 @@ async function getTeamOrNull(id: number) {
 }
 
 async function userDisplayName(userId: string): Promise<string> {
-  const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const [u] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
   if (!u) return "Unknown";
   const name = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
   return name || u.email;
@@ -53,17 +66,32 @@ async function userDisplayName(userId: string): Promise<string> {
 
 // Re-export getTeamWithStats logic; instead of importing across files, do a minimal version
 async function getTeamDetail(teamId: number) {
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, teamId));
   if (!team) return null;
-  const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId));
-  const [leader] = await db.select().from(usersTable).where(eq(usersTable.id, team.leaderId));
+  const [campus] = await db
+    .select()
+    .from(campusesTable)
+    .where(eq(campusesTable.id, team.campusId));
+  const [leader] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, team.leaderId));
   const members = await db
-    .select({ userId: teamMembersTable.userId, memberRole: teamMembersTable.memberRole })
+    .select({
+      userId: teamMembersTable.userId,
+      memberRole: teamMembersTable.memberRole,
+    })
     .from(teamMembersTable)
     .where(eq(teamMembersTable.teamId, teamId));
   const memberDetails = await Promise.all(
     members.map(async (m) => {
-      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, m.userId));
+      const [u] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, m.userId));
       return {
         userId: m.userId,
         email: u?.email ?? "",
@@ -73,7 +101,7 @@ async function getTeamDetail(teamId: number) {
         memberRole: m.memberRole,
         isLeader: m.userId === team.leaderId,
       };
-    })
+    }),
   );
   return {
     ...team,
@@ -90,7 +118,10 @@ async function getTeamDetail(teamId: number) {
 }
 
 async function shapeInvitation(inv: typeof teamInvitationsTable.$inferSelect) {
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, inv.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, inv.teamId));
   return {
     id: inv.id,
     teamId: inv.teamId,
@@ -107,7 +138,10 @@ async function shapeInvitation(inv: typeof teamInvitationsTable.$inferSelect) {
 }
 
 async function shapeJoinRequest(jr: typeof teamJoinRequestsTable.$inferSelect) {
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, jr.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, jr.teamId));
   return {
     id: jr.id,
     teamId: jr.teamId,
@@ -121,7 +155,9 @@ async function shapeJoinRequest(jr: typeof teamJoinRequestsTable.$inferSelect) {
   };
 }
 
-async function shapeLeaveRequest(lr: typeof teamLeaveRequestsTable.$inferSelect) {
+async function shapeLeaveRequest(
+  lr: typeof teamLeaveRequestsTable.$inferSelect,
+) {
   return {
     id: lr.id,
     teamId: lr.teamId,
@@ -135,16 +171,27 @@ async function shapeLeaveRequest(lr: typeof teamLeaveRequestsTable.$inferSelect)
 }
 
 // Cancel all other pending invites + outgoing join requests for a user (used after they join a team)
-async function cancelOtherPendingForUser(userId: string, opts?: { keepInvitationId?: number; keepJoinRequestId?: number }) {
-  const invConds = [eq(teamInvitationsTable.inviteeId, userId), eq(teamInvitationsTable.status, "pending")];
-  if (opts?.keepInvitationId != null) invConds.push(ne(teamInvitationsTable.id, opts.keepInvitationId));
+async function cancelOtherPendingForUser(
+  userId: string,
+  opts?: { keepInvitationId?: number; keepJoinRequestId?: number },
+) {
+  const invConds = [
+    eq(teamInvitationsTable.inviteeId, userId),
+    eq(teamInvitationsTable.status, "pending"),
+  ];
+  if (opts?.keepInvitationId != null)
+    invConds.push(ne(teamInvitationsTable.id, opts.keepInvitationId));
   await db
     .update(teamInvitationsTable)
     .set({ status: "cancelled", respondedAt: new Date() })
     .where(and(...invConds));
 
-  const jrConds = [eq(teamJoinRequestsTable.requesterId, userId), eq(teamJoinRequestsTable.status, "pending")];
-  if (opts?.keepJoinRequestId != null) jrConds.push(ne(teamJoinRequestsTable.id, opts.keepJoinRequestId));
+  const jrConds = [
+    eq(teamJoinRequestsTable.requesterId, userId),
+    eq(teamJoinRequestsTable.status, "pending"),
+  ];
+  if (opts?.keepJoinRequestId != null)
+    jrConds.push(ne(teamJoinRequestsTable.id, opts.keepJoinRequestId));
   await db
     .update(teamJoinRequestsTable)
     .set({ status: "cancelled", respondedAt: new Date() })
@@ -155,7 +202,12 @@ async function isTeamMember(userId: string, teamId: number) {
   const [m] = await db
     .select()
     .from(teamMembersTable)
-    .where(and(eq(teamMembersTable.userId, userId), eq(teamMembersTable.teamId, teamId)));
+    .where(
+      and(
+        eq(teamMembersTable.userId, userId),
+        eq(teamMembersTable.teamId, teamId),
+      ),
+    );
   return !!m;
 }
 
@@ -171,31 +223,46 @@ router.get("/teams/browse", async (req, res): Promise<void> => {
   const teams = await db
     .select()
     .from(teamsTable)
-    .where(and(eq(teamsTable.campusId, campusId), eq(teamsTable.isHidden, false)))
+    .where(
+      and(eq(teamsTable.campusId, campusId), eq(teamsTable.isHidden, false)),
+    )
     .orderBy(desc(teamsTable.createdAt));
 
   const result = await Promise.all(
     teams.map(async (team) => {
-      const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId));
-      const [leader] = await db.select().from(usersTable).where(eq(usersTable.id, team.leaderId));
+      const [campus] = await db
+        .select()
+        .from(campusesTable)
+        .where(eq(campusesTable.id, team.campusId));
+      const [leader] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, team.leaderId));
       const [mc] = await db
         .select({ count: sql<number>`count(*)` })
         .from(teamMembersTable)
         .where(eq(teamMembersTable.teamId, team.id));
       // Strip invite code + internal coordinator/rejection metadata
-      const { inviteCode: _ic, coordinatorComment: _cc, rejectionReason: _rr, ...safe } = team as any;
+      const {
+        inviteCode: _ic,
+        coordinatorComment: _cc,
+        rejectionReason: _rr,
+        ...safe
+      } = team as any;
       return {
         ...safe,
         inviteCode: null,
         campusName: campus?.name ?? "",
-        leaderName: leader ? `${leader.firstName} ${leader.lastName}`.trim() : "",
+        leaderName: leader
+          ? `${leader.firstName} ${leader.lastName}`.trim()
+          : "",
         memberCount: Number(mc?.count ?? 0),
         projectCount: 0,
         totalRevenue: 0,
         totalOrderBook: 0,
         nationalRank: null as number | null,
       };
-    })
+    }),
   );
   res.json(result);
 });
@@ -220,8 +287,8 @@ router.get("/students/search", async (req, res): Promise<void> => {
       and(
         eq(rosterTable.campusId, campusId),
         eq(rosterTable.isWhitelisted, true),
-        or(ilike(rosterTable.fullName, like), ilike(rosterTable.niatId, like))
-      )
+        or(ilike(rosterTable.fullName, like), ilike(rosterTable.niatId, like)),
+      ),
     )
     .limit(25);
 
@@ -231,7 +298,12 @@ router.get("/students/search", async (req, res): Promise<void> => {
       const [u] = await db
         .select()
         .from(usersTable)
-        .where(or(eq(usersTable.formsUserId, r.studentId), eq(usersTable.email, r.email ?? "__none__")));
+        .where(
+          or(
+            eq(usersTable.formsUserId, r.studentId),
+            eq(usersTable.email, r.email ?? "__none__"),
+          ),
+        );
       let onTeam = false;
       if (u) {
         const [m] = await db
@@ -249,7 +321,7 @@ router.get("/students/search", async (req, res): Promise<void> => {
         hasAccount: !!u,
         onTeam,
       };
-    })
+    }),
   );
   // Exclude students already on a team
   res.json(out.filter((s) => !s.onTeam).map(({ onTeam, ...rest }) => rest));
@@ -265,7 +337,10 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
   // Bug 2 fix: trim + uppercase server-side too (defence in depth — frontend
   // already does this, but the API is the source of truth for normalization).
   const code = parsed.data.code.trim().toUpperCase();
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.inviteCode, code));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.inviteCode, code));
   if (!team) {
     res.status(404).json({ error: "Invalid invite code" });
     return;
@@ -276,7 +351,10 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
   // even when the team is at their actual campus.
   let userCampusId = req.user.campusId ?? null;
   if (userCampusId == null) {
-    const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+    const [dbUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user.id));
     if (dbUser) {
       const matchClauses = [eq(rosterTable.email, dbUser.email)];
       if (dbUser.formsUserId) {
@@ -301,7 +379,8 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
   // Bug 2 fix: distinct error messages for "no campus" vs "different campus".
   if (userCampusId == null) {
     res.status(403).json({
-      error: "Your account has no campus assigned yet. Ask your campus coordinator to add you to the roster, then try again.",
+      error:
+        "Your account has no campus assigned yet. Ask your campus coordinator to add you to the roster, then try again.",
     });
     return;
   }
@@ -317,27 +396,43 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
   }
   // Enforce team capacity atomically (lock the team row, recount under lock).
   const joinResult = await db.transaction(async (tx) => {
-    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, team.id)).for("update");
+    await tx
+      .select({ id: teamsTable.id })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, team.id))
+      .for("update");
     const limit = await getTeamMemberLimit(tx);
     const count = await getTeamMemberCount(team.id, tx);
     if (count >= limit) return { kind: "full" as const, count, limit };
     try {
-      await tx.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
+      await tx
+        .insert(teamMembersTable)
+        .values({ teamId: team.id, userId: req.user.id });
     } catch {
       return { kind: "duplicate" as const };
     }
     return { kind: "ok" as const };
   });
   if (joinResult.kind === "full") {
-    res.status(400).json({ error: teamFullMessage(joinResult.count, joinResult.limit) });
+    res
+      .status(400)
+      .json({ error: teamFullMessage(joinResult.count, joinResult.limit) });
     return;
   }
   if (joinResult.kind === "duplicate") {
-    res.status(400).json({ error: "Could not join team (already a member of one)" });
+    res
+      .status(400)
+      .json({ error: "Could not join team (already a member of one)" });
     return;
   }
   await cancelOtherPendingForUser(req.user.id);
-  await createNotification(team.leaderId, "New teammate joined", `${req.user.firstName} ${req.user.lastName} joined your team via invite code.`, "team_member_joined", "/team");
+  await createNotification(
+    team.leaderId,
+    "New teammate joined",
+    `${req.user.firstName} ${req.user.lastName} joined your team via invite code.`,
+    "team_member_joined",
+    "/team",
+  );
   const detail = await getTeamDetail(team.id);
   res.json(detail);
 });
@@ -347,9 +442,15 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
 router.get("/teams/:id/invitations", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
   const memberOK = await isTeamMember(req.user.id, params.data.id);
-  if (!memberOK && req.user.role !== "admin") { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!memberOK && req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   const invites = await db
     .select()
     .from(teamInvitationsTable)
@@ -361,19 +462,34 @@ router.get("/teams/:id/invitations", async (req, res): Promise<void> => {
 router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
   const parsed = CreateTeamInvitationBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
 
   const team = await getTeamOrNull(params.data.id);
-  if (!team) { res.status(404).json({ error: "Team not found" }); return; }
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
   const memberOK = await isTeamMember(req.user.id, team.id);
-  if (!memberOK) { res.status(403).json({ error: "Only team members can send invites" }); return; }
+  if (!memberOK) {
+    res.status(403).json({ error: "Only team members can send invites" });
+    return;
+  }
 
   // Bug 1 fix: accept either `inviteeId` (existing user) OR `rosterId`
   // (auto-provision a placeholder user from the roster row so the invite
   // is stored against the invited student even if they haven't logged in).
-  const body = parsed.data as { inviteeId?: string | null; rosterId?: number | null };
+  const body = parsed.data as {
+    inviteeId?: string | null;
+    rosterId?: number | null;
+  };
   let inviteeUserId: string | null = body.inviteeId ?? null;
   if (!inviteeUserId && body.rosterId != null) {
     const [rosterRow] = await db
@@ -385,7 +501,9 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
       return;
     }
     if (!rosterRow.isWhitelisted) {
-      res.status(403).json({ error: "Student is not whitelisted to join the program yet" });
+      res
+        .status(403)
+        .json({ error: "Student is not whitelisted to join the program yet" });
       return;
     }
     if (rosterRow.campusId && rosterRow.campusId !== team.campusId) {
@@ -394,11 +512,16 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
     }
     // Try to find an existing linked user first.
     const orClauses = [] as Array<ReturnType<typeof eq>>;
-    if (rosterRow.studentId) orClauses.push(eq(usersTable.formsUserId, rosterRow.studentId));
+    if (rosterRow.studentId)
+      orClauses.push(eq(usersTable.formsUserId, rosterRow.studentId));
     if (rosterRow.email) orClauses.push(eq(usersTable.email, rosterRow.email));
     let existing: typeof usersTable.$inferSelect | undefined;
     if (orClauses.length > 0) {
-      [existing] = await db.select().from(usersTable).where(or(...orClauses)!).limit(1);
+      [existing] = await db
+        .select()
+        .from(usersTable)
+        .where(or(...orClauses)!)
+        .limit(1);
     }
     if (existing) {
       inviteeUserId = existing.id;
@@ -406,7 +529,12 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
       // Provision a placeholder users row keyed off the roster studentId
       // so subsequent SSO logins reconcile to the same account.
       if (!rosterRow.studentId) {
-        res.status(400).json({ error: "Roster entry is missing a student id; cannot create placeholder account" });
+        res
+          .status(400)
+          .json({
+            error:
+              "Roster entry is missing a student id; cannot create placeholder account",
+          });
         return;
       }
       const { user: placeholder } = await createOrGetUserByFormsId(
@@ -417,10 +545,15 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
       const updates: Partial<typeof usersTable.$inferInsert> = {};
       const parts = (rosterRow.fullName ?? "").trim().split(/\s+/);
       if (!placeholder.firstName && parts[0]) updates.firstName = parts[0];
-      if (!placeholder.lastName && parts.slice(1).length > 0) updates.lastName = parts.slice(1).join(" ");
-      if (!placeholder.campusId && rosterRow.campusId) updates.campusId = rosterRow.campusId;
+      if (!placeholder.lastName && parts.slice(1).length > 0)
+        updates.lastName = parts.slice(1).join(" ");
+      if (!placeholder.campusId && rosterRow.campusId)
+        updates.campusId = rosterRow.campusId;
       if (Object.keys(updates).length > 0) {
-        await db.update(usersTable).set({ ...updates, updatedAt: new Date() }).where(eq(usersTable.id, placeholder.id));
+        await db
+          .update(usersTable)
+          .set({ ...updates, updatedAt: new Date() })
+          .where(eq(usersTable.id, placeholder.id));
       }
       inviteeUserId = placeholder.id;
     }
@@ -430,16 +563,29 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
     return;
   }
 
-  const [invitee] = await db.select().from(usersTable).where(eq(usersTable.id, inviteeUserId));
-  if (!invitee) { res.status(404).json({ error: "User not found" }); return; }
-  if (invitee.id === req.user.id) { res.status(400).json({ error: "You cannot invite yourself" }); return; }
+  const [invitee] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, inviteeUserId));
+  if (!invitee) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (invitee.id === req.user.id) {
+    res.status(400).json({ error: "You cannot invite yourself" });
+    return;
+  }
 
   // Cross-campus check (allow if invitee has no campus yet — they'll inherit on first login)
   if (invitee.campusId && invitee.campusId !== team.campusId) {
-    res.status(403).json({ error: "Invitee is on a different campus" }); return;
+    res.status(403).json({ error: "Invitee is on a different campus" });
+    return;
   }
   const existing = await getMembership(invitee.id);
-  if (existing) { res.status(400).json({ error: "That student is already on a team" }); return; }
+  if (existing) {
+    res.status(400).json({ error: "That student is already on a team" });
+    return;
+  }
 
   // Don't duplicate a pending invite for the same team
   const [dup] = await db
@@ -449,10 +595,15 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
       and(
         eq(teamInvitationsTable.teamId, team.id),
         eq(teamInvitationsTable.inviteeId, invitee.id),
-        eq(teamInvitationsTable.status, "pending")
-      )
+        eq(teamInvitationsTable.status, "pending"),
+      ),
     );
-  if (dup) { res.status(400).json({ error: "An invitation is already pending for this student" }); return; }
+  if (dup) {
+    res
+      .status(400)
+      .json({ error: "An invitation is already pending for this student" });
+    return;
+  }
 
   // Block new invitations when the team is already at capacity.
   {
@@ -469,7 +620,13 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
     .values({ teamId: team.id, inviterId: req.user.id, inviteeId: invitee.id })
     .returning();
 
-  await createNotification(invitee.id, "Team Invitation", `${req.user.firstName} ${req.user.lastName} invited you to join "${team.name}".`, "team_invitation", "/invitations");
+  await createNotification(
+    invitee.id,
+    "Team Invitation",
+    `${req.user.firstName} ${req.user.lastName} invited you to join "${team.name}".`,
+    "team_invitation",
+    "/invitations",
+  );
   res.status(201).json(await shapeInvitation(inv));
 });
 
@@ -478,7 +635,12 @@ router.get("/invitations/mine", async (req, res): Promise<void> => {
   const invites = await db
     .select()
     .from(teamInvitationsTable)
-    .where(and(eq(teamInvitationsTable.inviteeId, req.user.id), eq(teamInvitationsTable.status, "pending")))
+    .where(
+      and(
+        eq(teamInvitationsTable.inviteeId, req.user.id),
+        eq(teamInvitationsTable.status, "pending"),
+      ),
+    )
     .orderBy(desc(teamInvitationsTable.createdAt));
   res.json(await Promise.all(invites.map(shapeInvitation)));
 });
@@ -486,35 +648,64 @@ router.get("/invitations/mine", async (req, res): Promise<void> => {
 router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [inv] = await db.select().from(teamInvitationsTable).where(eq(teamInvitationsTable.id, params.data.id));
-  if (!inv) { res.status(404).json({ error: "Invitation not found" }); return; }
-  if (inv.inviteeId !== req.user.id) { res.status(403).json({ error: "Not your invitation" }); return; }
-  if (inv.status !== "pending") { res.status(400).json({ error: "Invitation is no longer pending" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [inv] = await db
+    .select()
+    .from(teamInvitationsTable)
+    .where(eq(teamInvitationsTable.id, params.data.id));
+  if (!inv) {
+    res.status(404).json({ error: "Invitation not found" });
+    return;
+  }
+  if (inv.inviteeId !== req.user.id) {
+    res.status(403).json({ error: "Not your invitation" });
+    return;
+  }
+  if (inv.status !== "pending") {
+    res.status(400).json({ error: "Invitation is no longer pending" });
+    return;
+  }
 
   const team = await getTeamOrNull(inv.teamId);
-  if (!team) { res.status(404).json({ error: "Team no longer exists" }); return; }
+  if (!team) {
+    res.status(404).json({ error: "Team no longer exists" });
+    return;
+  }
 
   const existing = await getMembership(req.user.id);
-  if (existing) { res.status(400).json({ error: "You are already on a team" }); return; }
+  if (existing) {
+    res.status(400).json({ error: "You are already on a team" });
+    return;
+  }
 
   // Enforce team capacity atomically: lock the team row, recount members
   // under the lock, then insert. This prevents two concurrent acceptances
   // from racing past the limit.
   const acceptResult = await db.transaction(async (tx) => {
-    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, team.id)).for("update");
+    await tx
+      .select({ id: teamsTable.id })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, team.id))
+      .for("update");
     const limit = await getTeamMemberLimit(tx);
     const count = await getTeamMemberCount(team.id, tx);
     if (count >= limit) return { kind: "full" as const, count, limit };
     try {
-      await tx.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
+      await tx
+        .insert(teamMembersTable)
+        .values({ teamId: team.id, userId: req.user.id });
     } catch {
       return { kind: "duplicate" as const };
     }
     return { kind: "ok" as const };
   });
   if (acceptResult.kind === "full") {
-    res.status(400).json({ error: teamFullMessage(acceptResult.count, acceptResult.limit) });
+    res
+      .status(400)
+      .json({ error: teamFullMessage(acceptResult.count, acceptResult.limit) });
     return;
   }
   if (acceptResult.kind === "duplicate") {
@@ -527,7 +718,13 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
     .where(eq(teamInvitationsTable.id, inv.id));
   await cancelOtherPendingForUser(req.user.id, { keepInvitationId: inv.id });
 
-  await createNotification(inv.inviterId, "Invitation Accepted", `${req.user.firstName} ${req.user.lastName} joined "${team.name}".`, "invitation_accepted", "/team");
+  await createNotification(
+    inv.inviterId,
+    "Invitation Accepted",
+    `${req.user.firstName} ${req.user.lastName} joined "${team.name}".`,
+    "invitation_accepted",
+    "/team",
+  );
   const detail = await getTeamDetail(team.id);
   res.json(detail);
 });
@@ -535,17 +732,38 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
 router.post("/invitations/:id/decline", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [inv] = await db.select().from(teamInvitationsTable).where(eq(teamInvitationsTable.id, params.data.id));
-  if (!inv) { res.status(404).json({ error: "Invitation not found" }); return; }
-  if (inv.inviteeId !== req.user.id) { res.status(403).json({ error: "Not your invitation" }); return; }
-  if (inv.status !== "pending") { res.status(400).json({ error: "Invitation is no longer pending" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [inv] = await db
+    .select()
+    .from(teamInvitationsTable)
+    .where(eq(teamInvitationsTable.id, params.data.id));
+  if (!inv) {
+    res.status(404).json({ error: "Invitation not found" });
+    return;
+  }
+  if (inv.inviteeId !== req.user.id) {
+    res.status(403).json({ error: "Not your invitation" });
+    return;
+  }
+  if (inv.status !== "pending") {
+    res.status(400).json({ error: "Invitation is no longer pending" });
+    return;
+  }
   const [updated] = await db
     .update(teamInvitationsTable)
     .set({ status: "declined", respondedAt: new Date() })
     .where(eq(teamInvitationsTable.id, inv.id))
     .returning();
-  await createNotification(inv.inviterId, "Invitation Declined", `${req.user.firstName} ${req.user.lastName} declined your invitation.`, "invitation_declined", "/team");
+  await createNotification(
+    inv.inviterId,
+    "Invitation Declined",
+    `${req.user.firstName} ${req.user.lastName} declined your invitation.`,
+    "invitation_declined",
+    "/team",
+  );
   res.json(await shapeInvitation(updated));
 });
 
@@ -554,9 +772,15 @@ router.post("/invitations/:id/decline", async (req, res): Promise<void> => {
 router.get("/teams/:id/join-requests", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
   const memberOK = await isTeamMember(req.user.id, params.data.id);
-  if (!memberOK && req.user.role !== "admin") { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!memberOK && req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   const reqs = await db
     .select()
     .from(teamJoinRequestsTable)
@@ -568,17 +792,30 @@ router.get("/teams/:id/join-requests", async (req, res): Promise<void> => {
 router.post("/teams/:id/join-requests", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
   const parsed = RequestToJoinTeamBody.safeParse(req.body ?? {});
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
 
   const team = await getTeamOrNull(params.data.id);
-  if (!team) { res.status(404).json({ error: "Team not found" }); return; }
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
   if (!req.user.campusId || team.campusId !== req.user.campusId) {
-    res.status(403).json({ error: "Team is at a different campus" }); return;
+    res.status(403).json({ error: "Team is at a different campus" });
+    return;
   }
   const existing = await getMembership(req.user.id);
-  if (existing) { res.status(400).json({ error: "You are already on a team" }); return; }
+  if (existing) {
+    res.status(400).json({ error: "You are already on a team" });
+    return;
+  }
 
   const [dup] = await db
     .select()
@@ -587,20 +824,38 @@ router.post("/teams/:id/join-requests", async (req, res): Promise<void> => {
       and(
         eq(teamJoinRequestsTable.teamId, team.id),
         eq(teamJoinRequestsTable.requesterId, req.user.id),
-        eq(teamJoinRequestsTable.status, "pending")
-      )
+        eq(teamJoinRequestsTable.status, "pending"),
+      ),
     );
-  if (dup) { res.status(400).json({ error: "You already have a pending request for this team" }); return; }
+  if (dup) {
+    res
+      .status(400)
+      .json({ error: "You already have a pending request for this team" });
+    return;
+  }
 
   const [jr] = await db
     .insert(teamJoinRequestsTable)
-    .values({ teamId: team.id, requesterId: req.user.id, message: parsed.data.message ?? null })
+    .values({
+      teamId: team.id,
+      requesterId: req.user.id,
+      message: parsed.data.message ?? null,
+    })
     .returning();
 
   // Notify all team members
-  const members = await db.select().from(teamMembersTable).where(eq(teamMembersTable.teamId, team.id));
+  const members = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.teamId, team.id));
   for (const m of members) {
-    await createNotification(m.userId, "New Join Request", `${req.user.firstName} ${req.user.lastName} wants to join "${team.name}".`, "join_request", "/team");
+    await createNotification(
+      m.userId,
+      "New Join Request",
+      `${req.user.firstName} ${req.user.lastName} wants to join "${team.name}".`,
+      "join_request",
+      "/team",
+    );
   }
   res.status(201).json(await shapeJoinRequest(jr));
 });
@@ -618,39 +873,73 @@ router.get("/join-requests/mine", async (req, res): Promise<void> => {
 router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [jr] = await db.select().from(teamJoinRequestsTable).where(eq(teamJoinRequestsTable.id, params.data.id));
-  if (!jr) { res.status(404).json({ error: "Request not found" }); return; }
-  if (jr.status !== "pending") { res.status(400).json({ error: "Request is no longer pending" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [jr] = await db
+    .select()
+    .from(teamJoinRequestsTable)
+    .where(eq(teamJoinRequestsTable.id, params.data.id));
+  if (!jr) {
+    res.status(404).json({ error: "Request not found" });
+    return;
+  }
+  if (jr.status !== "pending") {
+    res.status(400).json({ error: "Request is no longer pending" });
+    return;
+  }
   const memberOK = await isTeamMember(req.user.id, jr.teamId);
-  if (!memberOK) { res.status(403).json({ error: "Only team members can approve" }); return; }
+  if (!memberOK) {
+    res.status(403).json({ error: "Only team members can approve" });
+    return;
+  }
 
   const team = await getTeamOrNull(jr.teamId);
-  if (!team) { res.status(404).json({ error: "Team no longer exists" }); return; }
+  if (!team) {
+    res.status(404).json({ error: "Team no longer exists" });
+    return;
+  }
   const existing = await getMembership(jr.requesterId);
   if (existing) {
     await db
       .update(teamJoinRequestsTable)
-      .set({ status: "cancelled", respondedAt: new Date(), decidedById: req.user.id })
+      .set({
+        status: "cancelled",
+        respondedAt: new Date(),
+        decidedById: req.user.id,
+      })
       .where(eq(teamJoinRequestsTable.id, jr.id));
-    res.status(400).json({ error: "Requester has already joined another team" });
+    res
+      .status(400)
+      .json({ error: "Requester has already joined another team" });
     return;
   }
   // Enforce team capacity atomically (lock the team row, recount under lock).
   const approveResult = await db.transaction(async (tx) => {
-    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, team.id)).for("update");
+    await tx
+      .select({ id: teamsTable.id })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, team.id))
+      .for("update");
     const limit = await getTeamMemberLimit(tx);
     const count = await getTeamMemberCount(team.id, tx);
     if (count >= limit) return { kind: "full" as const, count, limit };
     try {
-      await tx.insert(teamMembersTable).values({ teamId: team.id, userId: jr.requesterId });
+      await tx
+        .insert(teamMembersTable)
+        .values({ teamId: team.id, userId: jr.requesterId });
     } catch {
       return { kind: "duplicate" as const };
     }
     return { kind: "ok" as const };
   });
   if (approveResult.kind === "full") {
-    res.status(400).json({ error: teamFullMessage(approveResult.count, approveResult.limit) });
+    res
+      .status(400)
+      .json({
+        error: teamFullMessage(approveResult.count, approveResult.limit),
+      });
     return;
   }
   if (approveResult.kind === "duplicate") {
@@ -659,30 +948,65 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
   }
   await db
     .update(teamJoinRequestsTable)
-    .set({ status: "approved", respondedAt: new Date(), decidedById: req.user.id })
+    .set({
+      status: "approved",
+      respondedAt: new Date(),
+      decidedById: req.user.id,
+    })
     .where(eq(teamJoinRequestsTable.id, jr.id));
   await cancelOtherPendingForUser(jr.requesterId, { keepJoinRequestId: jr.id });
 
-  await createNotification(jr.requesterId, "Join Request Approved", `You're now a member of "${team.name}".`, "join_approved", "/team");
+  await createNotification(
+    jr.requesterId,
+    "Join Request Approved",
+    `You're now a member of "${team.name}".`,
+    "join_approved",
+    "/team",
+  );
   res.json(await getTeamDetail(team.id));
 });
 
 router.post("/join-requests/:id/decline", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [jr] = await db.select().from(teamJoinRequestsTable).where(eq(teamJoinRequestsTable.id, params.data.id));
-  if (!jr) { res.status(404).json({ error: "Request not found" }); return; }
-  if (jr.status !== "pending") { res.status(400).json({ error: "Request is no longer pending" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [jr] = await db
+    .select()
+    .from(teamJoinRequestsTable)
+    .where(eq(teamJoinRequestsTable.id, params.data.id));
+  if (!jr) {
+    res.status(404).json({ error: "Request not found" });
+    return;
+  }
+  if (jr.status !== "pending") {
+    res.status(400).json({ error: "Request is no longer pending" });
+    return;
+  }
   const memberOK = await isTeamMember(req.user.id, jr.teamId);
-  if (!memberOK) { res.status(403).json({ error: "Only team members can decline" }); return; }
+  if (!memberOK) {
+    res.status(403).json({ error: "Only team members can decline" });
+    return;
+  }
   const [updated] = await db
     .update(teamJoinRequestsTable)
-    .set({ status: "declined", respondedAt: new Date(), decidedById: req.user.id })
+    .set({
+      status: "declined",
+      respondedAt: new Date(),
+      decidedById: req.user.id,
+    })
     .where(eq(teamJoinRequestsTable.id, jr.id))
     .returning();
   const team = await getTeamOrNull(jr.teamId);
-  await createNotification(jr.requesterId, "Join Request Declined", `Your request to join "${team?.name ?? "the team"}" was declined.`, "join_declined", "/team");
+  await createNotification(
+    jr.requesterId,
+    "Join Request Declined",
+    `Your request to join "${team?.name ?? "the team"}" was declined.`,
+    "join_declined",
+    "/team",
+  );
   res.json(await shapeJoinRequest(updated));
 });
 
@@ -691,11 +1015,18 @@ router.post("/join-requests/:id/decline", async (req, res): Promise<void> => {
 router.get("/teams/:id/leave-requests", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
   const team = await getTeamOrNull(params.data.id);
-  if (!team) { res.status(404).json({ error: "Team not found" }); return; }
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
   if (team.leaderId !== req.user.id && req.user.role !== "admin") {
-    res.status(403).json({ error: "Only the leader can view leave requests" }); return;
+    res.status(403).json({ error: "Only the leader can view leave requests" });
+    return;
   }
   const reqs = await db
     .select()
@@ -708,80 +1039,170 @@ router.get("/teams/:id/leave-requests", async (req, res): Promise<void> => {
 router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
   const parsed = RequestToLeaveTeamBody.safeParse(req.body ?? {});
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
 
   const team = await getTeamOrNull(params.data.id);
-  if (!team) { res.status(404).json({ error: "Team not found" }); return; }
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
   if (team.leaderId === req.user.id) {
-    res.status(400).json({ error: "The leader cannot leave the team. Transfer leadership first." }); return;
+    res
+      .status(400)
+      .json({
+        error: "The leader cannot leave the team. Transfer leadership first.",
+      });
+    return;
   }
   const memberOK = await isTeamMember(req.user.id, team.id);
-  if (!memberOK) { res.status(403).json({ error: "You are not a member of this team" }); return; }
+  if (!memberOK) {
+    res.status(403).json({ error: "You are not a member of this team" });
+    return;
+  }
 
-  const [dup] = await db
-    .select()
-    .from(teamLeaveRequestsTable)
-    .where(
-      and(
-        eq(teamLeaveRequestsTable.teamId, team.id),
-        eq(teamLeaveRequestsTable.requesterId, req.user.id),
-        eq(teamLeaveRequestsTable.status, "pending")
-      )
-    );
-  if (dup) { res.status(400).json({ error: "You already have a pending leave request" }); return; }
+  // Members leave instantly — no leader approval. We still write a row to
+  // teamLeaveRequestsTable as an audit trail (status=approved, decided by
+  // the requester themselves) so leader-side history queries keep working.
+  const now = new Date();
+  const lr = await db.transaction(async (tx) => {
+    await tx
+      .delete(teamMembersTable)
+      .where(
+        and(
+          eq(teamMembersTable.teamId, team.id),
+          eq(teamMembersTable.userId, req.user.id),
+        ),
+      );
+    const [row] = await tx
+      .insert(teamLeaveRequestsTable)
+      .values({
+        teamId: team.id,
+        requesterId: req.user.id,
+        reason: parsed.data.reason ?? null,
+        status: "approved",
+        respondedAt: now,
+        decidedById: req.user.id,
+      })
+      .returning();
+    return row;
+  });
 
-  const [lr] = await db
-    .insert(teamLeaveRequestsTable)
-    .values({ teamId: team.id, requesterId: req.user.id, reason: parsed.data.reason ?? null })
-    .returning();
-
-  await createNotification(team.leaderId, "Leave Request", `${req.user.firstName} ${req.user.lastName} requested to leave "${team.name}".`, "leave_request", "/team");
+  await createNotification(
+    team.leaderId,
+    "Member left team",
+    `${req.user.firstName} ${req.user.lastName} left "${team.name}".`,
+    "leave_approved",
+    "/team",
+  );
   res.status(201).json(await shapeLeaveRequest(lr));
 });
 
 router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [lr] = await db.select().from(teamLeaveRequestsTable).where(eq(teamLeaveRequestsTable.id, params.data.id));
-  if (!lr) { res.status(404).json({ error: "Request not found" }); return; }
-  if (lr.status !== "pending") { res.status(400).json({ error: "Request is no longer pending" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [lr] = await db
+    .select()
+    .from(teamLeaveRequestsTable)
+    .where(eq(teamLeaveRequestsTable.id, params.data.id));
+  if (!lr) {
+    res.status(404).json({ error: "Request not found" });
+    return;
+  }
+  if (lr.status !== "pending") {
+    res.status(400).json({ error: "Request is no longer pending" });
+    return;
+  }
   const team = await getTeamOrNull(lr.teamId);
-  if (!team) { res.status(404).json({ error: "Team no longer exists" }); return; }
+  if (!team) {
+    res.status(404).json({ error: "Team no longer exists" });
+    return;
+  }
   if (team.leaderId !== req.user.id && req.user.role !== "admin") {
-    res.status(403).json({ error: "Only the leader can approve" }); return;
+    res.status(403).json({ error: "Only the leader can approve" });
+    return;
   }
   await db
     .delete(teamMembersTable)
-    .where(and(eq(teamMembersTable.teamId, team.id), eq(teamMembersTable.userId, lr.requesterId)));
+    .where(
+      and(
+        eq(teamMembersTable.teamId, team.id),
+        eq(teamMembersTable.userId, lr.requesterId),
+      ),
+    );
   await db
     .update(teamLeaveRequestsTable)
-    .set({ status: "approved", respondedAt: new Date(), decidedById: req.user.id })
+    .set({
+      status: "approved",
+      respondedAt: new Date(),
+      decidedById: req.user.id,
+    })
     .where(eq(teamLeaveRequestsTable.id, lr.id));
-  await createNotification(lr.requesterId, "Leave Request Approved", `You have been removed from "${team.name}".`, "leave_approved", "/team");
+  await createNotification(
+    lr.requesterId,
+    "Leave Request Approved",
+    `You have been removed from "${team.name}".`,
+    "leave_approved",
+    "/team",
+  );
   res.json(await getTeamDetail(team.id));
 });
 
 router.post("/leave-requests/:id/decline", async (req, res): Promise<void> => {
   if (!requireAuth(req, res)) return;
   const params = IdParam.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [lr] = await db.select().from(teamLeaveRequestsTable).where(eq(teamLeaveRequestsTable.id, params.data.id));
-  if (!lr) { res.status(404).json({ error: "Request not found" }); return; }
-  if (lr.status !== "pending") { res.status(400).json({ error: "Request is no longer pending" }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [lr] = await db
+    .select()
+    .from(teamLeaveRequestsTable)
+    .where(eq(teamLeaveRequestsTable.id, params.data.id));
+  if (!lr) {
+    res.status(404).json({ error: "Request not found" });
+    return;
+  }
+  if (lr.status !== "pending") {
+    res.status(400).json({ error: "Request is no longer pending" });
+    return;
+  }
   const team = await getTeamOrNull(lr.teamId);
-  if (!team) { res.status(404).json({ error: "Team no longer exists" }); return; }
+  if (!team) {
+    res.status(404).json({ error: "Team no longer exists" });
+    return;
+  }
   if (team.leaderId !== req.user.id && req.user.role !== "admin") {
-    res.status(403).json({ error: "Only the leader can decline" }); return;
+    res.status(403).json({ error: "Only the leader can decline" });
+    return;
   }
   const [updated] = await db
     .update(teamLeaveRequestsTable)
-    .set({ status: "declined", respondedAt: new Date(), decidedById: req.user.id })
+    .set({
+      status: "declined",
+      respondedAt: new Date(),
+      decidedById: req.user.id,
+    })
     .where(eq(teamLeaveRequestsTable.id, lr.id))
     .returning();
-  await createNotification(lr.requesterId, "Leave Request Declined", `Your request to leave "${team.name}" was declined.`, "leave_declined", "/team");
+  await createNotification(
+    lr.requesterId,
+    "Leave Request Declined",
+    `Your request to leave "${team.name}" was declined.`,
+    "leave_declined",
+    "/team",
+  );
   res.json(await shapeLeaveRequest(updated));
 });
 
