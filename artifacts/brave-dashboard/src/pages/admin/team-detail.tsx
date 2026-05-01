@@ -15,7 +15,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { formatINR } from "@/lib/format";
+import { formatINR, formatDateTime } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -72,7 +72,8 @@ export default function AdminTeamDetail() {
       : user?.role === "coordinator"
         ? "/coordinator/leaderboard"
         : "/leaderboard";
-  const backLabel = user?.role === "admin" ? "Back to Teams" : "Back to Leaderboard";
+  const backLabel =
+    user?.role === "admin" ? "Back to Teams" : "Back to Leaderboard";
 
   const { data: team, isLoading: teamLoading } = useGetTeam(teamId, {
     query: {
@@ -120,7 +121,8 @@ export default function AdminTeamDetail() {
         onError: (err: ErrorType<unknown>) => {
           toast({
             title: "Delete failed",
-            description: err instanceof Error ? err.message : "Please try again.",
+            description:
+              err instanceof Error ? err.message : "Please try again.",
             variant: "destructive",
           });
         },
@@ -154,8 +156,12 @@ export default function AdminTeamDetail() {
   }
 
   const knownProjectIds = new Set(projects.map((p) => p.id));
-  const orphanedOB = (orderBook as any[]).filter((e) => !knownProjectIds.has(e.projectId));
-  const orphanedRev = (revenue as any[]).filter((e) => !knownProjectIds.has(e.projectId));
+  const orphanedOB = (orderBook as any[]).filter(
+    (e) => !knownProjectIds.has(e.projectId),
+  );
+  const orphanedRev = (revenue as any[]).filter(
+    (e) => !knownProjectIds.has(e.projectId),
+  );
 
   const statusVariant = team.status === "active" ? "default" : "destructive";
 
@@ -177,15 +183,33 @@ export default function AdminTeamDetail() {
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-team-name">
+          <h1
+            className="text-3xl font-bold tracking-tight"
+            data-testid="text-team-name"
+          >
             {team.name}
           </h1>
           <p className="text-muted-foreground mt-1">
             {team.tagline || "—"} · {team.campusName}
           </p>
+          {isAdmin && (
+            <p
+              className="text-xs text-muted-foreground mt-1"
+              data-testid="text-team-last-updated"
+            >
+              Last updated:{" "}
+              {formatDateTime(
+                (team as unknown as { updatedAt?: string | Date | null })
+                  .updatedAt ?? team.createdAt,
+              )}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={statusVariant as any} className="text-xs uppercase tracking-wide">
+          <Badge
+            variant={statusVariant as any}
+            className="text-xs uppercase tracking-wide"
+          >
             {team.status}
           </Badge>
           {isAdmin && (
@@ -208,9 +232,9 @@ export default function AdminTeamDetail() {
             <AlertDialogTitle>Delete team "{team.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently deletes the team and ALL associated data —
-              members, projects, revenue entries, order book entries, milestones,
-              demo day applications, invitations and join/leave requests.
-              This action cannot be undone.
+              members, projects, revenue entries, order book entries,
+              milestones, demo day applications, invitations and join/leave
+              requests. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -258,7 +282,9 @@ export default function AdminTeamDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Members ({team.members?.length ?? 0})</CardTitle>
+          <CardTitle className="text-lg">
+            Members ({team.members?.length ?? 0})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {team.members?.length ? (
@@ -272,15 +298,17 @@ export default function AdminTeamDetail() {
                   <Avatar>
                     <AvatarImage src={m.profileImage || undefined} />
                     <AvatarFallback>
-                      {(m.firstName?.[0] ?? "?")}
-                      {(m.lastName?.[0] ?? "")}
+                      {m.firstName?.[0] ?? "?"}
+                      {m.lastName?.[0] ?? ""}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
                       {m.firstName} {m.lastName}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate">{m.niatId ?? m.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {m.niatId ?? m.email}
+                    </p>
                   </div>
                   {m.isLeader && (
                     <Badge variant="secondary" className="text-[10px]">
@@ -301,7 +329,8 @@ export default function AdminTeamDetail() {
           Projects ({projects.length})
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Each project below shows the order book and revenue entries it has produced.
+          Each project below shows the order book and revenue entries it has
+          produced.
         </p>
 
         {projects.length === 0 ? (
@@ -434,45 +463,62 @@ function EntryTable({
         <p className="text-xs text-muted-foreground">{emptyText}</p>
       ) : (
         <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Client</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Attachments</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.map((e) => {
-              const attachments = [
-                docLink(e.supportingDocUrl, "Supporting doc", `${testIdPrefix}-${e.id}-support`),
-                docLink(e.brdUrl, "BRD", `${testIdPrefix}-${e.id}-brd`),
-                docLink(e.testimonialUrl, "Testimonial", `${testIdPrefix}-${e.id}-testimonial`),
-              ].filter(Boolean);
-              return (
-                <TableRow key={e.id} data-testid={`${testIdPrefix}-${e.id}`}>
-                  <TableCell className="text-sm">{e.clientName ?? "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-[10px] capitalize">
-                      {e.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatINR(e.verifiedAmount ?? e.amount ?? 0)}
-                  </TableCell>
-                  <TableCell>
-                    {attachments.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">{attachments}</div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">None</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Attachments</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((e) => {
+                const attachments = [
+                  docLink(
+                    e.supportingDocUrl,
+                    "Supporting doc",
+                    `${testIdPrefix}-${e.id}-support`,
+                  ),
+                  docLink(e.brdUrl, "BRD", `${testIdPrefix}-${e.id}-brd`),
+                  docLink(
+                    e.testimonialUrl,
+                    "Testimonial",
+                    `${testIdPrefix}-${e.id}-testimonial`,
+                  ),
+                ].filter(Boolean);
+                return (
+                  <TableRow key={e.id} data-testid={`${testIdPrefix}-${e.id}`}>
+                    <TableCell className="text-sm">
+                      {e.clientName ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] capitalize"
+                      >
+                        {e.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatINR(e.verifiedAmount ?? e.amount ?? 0)}
+                    </TableCell>
+                    <TableCell>
+                      {attachments.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {attachments}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          None
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

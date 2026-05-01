@@ -7,7 +7,7 @@ import {
   getGetAdminReviewQueueQueryKey,
 } from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
-import { formatINR, formatDate } from "@/lib/format";
+import { formatINR, formatDate, formatDateTime } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,12 +105,23 @@ export default function AdminProjectDetail() {
                 <FolderKanban className="w-4 h-4" />
                 <span>{project.teamName}</span>
               </div>
-              <CardTitle className="text-3xl mt-2" data-testid="text-project-title">
+              <CardTitle
+                className="text-3xl mt-2"
+                data-testid="text-project-title"
+              >
                 {project.title}
               </CardTitle>
               <p className="text-muted-foreground mt-2 max-w-2xl">
                 {project.description}
               </p>
+              {user?.role === "admin" && (
+                <p
+                  className="text-xs text-muted-foreground mt-2"
+                  data-testid="text-project-last-updated"
+                >
+                  Last updated: {formatDateTime(project.updatedAt)}
+                </p>
+              )}
             </div>
             <Badge
               variant={project.status === "active" ? "default" : "secondary"}
@@ -130,7 +141,10 @@ export default function AdminProjectDetail() {
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                 <Wallet className="w-3.5 h-3.5" /> Verified revenue
               </div>
-              <div className="font-semibold text-lg" data-testid="text-project-revenue">
+              <div
+                className="font-semibold text-lg"
+                data-testid="text-project-revenue"
+              >
                 {formatINR(project.verifiedRevenue)}
               </div>
             </div>
@@ -138,7 +152,10 @@ export default function AdminProjectDetail() {
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                 <Activity className="w-3.5 h-3.5" /> Verified order book
               </div>
-              <div className="font-semibold text-lg" data-testid="text-project-orderbook">
+              <div
+                className="font-semibold text-lg"
+                data-testid="text-project-orderbook"
+              >
                 {formatINR(project.verifiedOrderBook)}
               </div>
             </div>
@@ -160,47 +177,58 @@ export default function AdminProjectDetail() {
         </CardHeader>
         <CardContent>
           {project.orderBookEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No order book entries yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No order book entries yet.
+            </p>
           ) : (
             <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Verified</TableHead>
-                  <TableHead className="text-right">Created</TableHead>
-                  {user?.role === "admin" ? (
-                    <TableHead className="text-right">Actions</TableHead>
-                  ) : null}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {project.orderBookEntries.map((e) => (
-                  <TableRow key={e.id} data-testid={`row-orderbook-${e.id}`}>
-                    <TableCell className="font-medium">{e.clientName}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {e.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{formatINR(e.amount)}</TableCell>
-                    <TableCell className="text-right">{formatINR(e.verifiedAmount ?? 0)}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {formatDate(e.createdAt)}
-                    </TableCell>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Verified</TableHead>
+                    <TableHead className="text-right">Created</TableHead>
                     {user?.role === "admin" ? (
-                      <TableCell className="text-right">
-                        {e.status === "verified" ? (
-                          <OrderBookUnverifyButton entryId={e.id} projectId={id} />
-                        ) : null}
-                      </TableCell>
+                      <TableHead className="text-right">Actions</TableHead>
                     ) : null}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {project.orderBookEntries.map((e) => (
+                    <TableRow key={e.id} data-testid={`row-orderbook-${e.id}`}>
+                      <TableCell className="font-medium">
+                        {e.clientName}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {e.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatINR(e.amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatINR(e.verifiedAmount ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {formatDate(e.createdAt)}
+                      </TableCell>
+                      {user?.role === "admin" ? (
+                        <TableCell className="text-right">
+                          {e.status === "verified" ? (
+                            <OrderBookUnverifyButton
+                              entryId={e.id}
+                              projectId={id}
+                            />
+                          ) : null}
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -212,47 +240,55 @@ export default function AdminProjectDetail() {
         </CardHeader>
         <CardContent>
           {project.revenueEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No revenue entries yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No revenue entries yet.
+            </p>
           ) : (
             <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Verified</TableHead>
-                  <TableHead className="text-right">Created</TableHead>
-                  {user?.role === "admin" ? (
-                    <TableHead className="text-right">Actions</TableHead>
-                  ) : null}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {project.revenueEntries.map((e) => (
-                  <TableRow key={e.id} data-testid={`row-revenue-${e.id}`}>
-                    <TableCell className="font-medium">{e.clientName}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {e.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{formatINR(e.amount)}</TableCell>
-                    <TableCell className="text-right">{formatINR(e.verifiedAmount ?? 0)}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {formatDate(e.createdAt)}
-                    </TableCell>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Verified</TableHead>
+                    <TableHead className="text-right">Created</TableHead>
                     {user?.role === "admin" ? (
-                      <TableCell className="text-right">
-                        {e.status === "verified" ? (
-                          <UnverifyButton entryId={e.id} projectId={id} />
-                        ) : null}
-                      </TableCell>
+                      <TableHead className="text-right">Actions</TableHead>
                     ) : null}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {project.revenueEntries.map((e) => (
+                    <TableRow key={e.id} data-testid={`row-revenue-${e.id}`}>
+                      <TableCell className="font-medium">
+                        {e.clientName}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {e.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatINR(e.amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatINR(e.verifiedAmount ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {formatDate(e.createdAt)}
+                      </TableCell>
+                      {user?.role === "admin" ? (
+                        <TableCell className="text-right">
+                          {e.status === "verified" ? (
+                            <UnverifyButton entryId={e.id} projectId={id} />
+                          ) : null}
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -329,9 +365,8 @@ function UnverifyButton({
             <AlertDialogTitle>Move entry back to review?</AlertDialogTitle>
             <AlertDialogDescription>
               This will clear the verified amount and admin notes, move the
-              entry back to <strong>Pending review</strong>, and notify the
-              team leader. You can re-verify or reject it from the pending
-              tab.
+              entry back to <strong>Pending review</strong>, and notify the team
+              leader. You can re-verify or reject it from the pending tab.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

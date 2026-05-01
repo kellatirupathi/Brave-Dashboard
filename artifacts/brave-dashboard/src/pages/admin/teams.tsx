@@ -9,11 +9,19 @@ import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { formatINR } from "@/lib/format";
+import { formatINR, formatDateTime } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Search, Filter, Trash2, UserPlus, Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Search,
+  Filter,
+  Trash2,
+  UserPlus,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { AddTeamDialog } from "./components/AddTeamDialog";
 import { ImportTeamsDialog } from "./components/ImportTeamsDialog";
 import { Badge } from "@/components/ui/badge";
@@ -62,7 +70,10 @@ export default function AdminTeams() {
       : "all";
   })();
   const [status, setStatus] = useState<string>(initialStatus);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -116,7 +127,8 @@ export default function AdminTeams() {
         onError: (err: ErrorType<unknown>) => {
           toast({
             title: "Delete failed",
-            description: err instanceof Error ? err.message : "Please try again.",
+            description:
+              err instanceof Error ? err.message : "Please try again.",
             variant: "destructive",
           });
           setDeleteTarget(null);
@@ -165,7 +177,13 @@ export default function AdminTeams() {
             />
           </div>
 
-          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
+          <Select
+            value={status}
+            onValueChange={(v) => {
+              setStatus(v);
+              setPage(1);
+            }}
+          >
             <SelectTrigger className="w-[140px]">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4" />
@@ -188,95 +206,115 @@ export default function AdminTeams() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Team</TableHead>
-                <TableHead>Campus</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Revenue</TableHead>
-                <TableHead className="text-right">Members</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {teamItems.map((team) => {
-                return (
-                  <TableRow
-                    key={team.id}
-                    className="hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => setLocation(`/teams/${team.id}`)}
-                    data-testid={`row-team-${team.id}`}
-                  >
-                    <TableCell>
-                      <div className="font-semibold">{team.name}</div>
-                      <div className="text-xs text-muted-foreground truncate max-w-[200px]">
-                        {team.tagline || "-"}
-                      </div>
-                    </TableCell>
-                    <TableCell>{team.campusName}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={team.status === "active" ? "default" : "secondary"}
-                        className={
-                          team.status === "active"
-                            ? "capitalize bg-green-600 hover:bg-green-600 text-white dark:bg-green-500 dark:hover:bg-green-500 dark:text-white"
-                            : "capitalize"
-                        }
-                      >
-                        {team.status.replace("_", " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatINR(team.totalRevenue)}
-                    </TableCell>
-                    <TableCell className="text-right">{team.memberCount}</TableCell>
-                    <TableCell className="text-right">
-                      <div
-                        className="flex items-center justify-end gap-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span
-                          className="text-primary text-sm font-medium hover:underline cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setLocation(`/teams/${team.id}`);
-                          }}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Team</TableHead>
+                  <TableHead>Campus</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead className="text-right">Members</TableHead>
+                  <TableHead>Last updated</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {teamItems.map((team) => {
+                  return (
+                    <TableRow
+                      key={team.id}
+                      className="hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => setLocation(`/teams/${team.id}`)}
+                      data-testid={`row-team-${team.id}`}
+                    >
+                      <TableCell>
+                        <div className="font-semibold">{team.name}</div>
+                        <div className="text-xs text-muted-foreground truncate max-w-[200px]">
+                          {team.tagline || "-"}
+                        </div>
+                      </TableCell>
+                      <TableCell>{team.campusName}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            team.status === "active" ? "default" : "secondary"
+                          }
+                          className={
+                            team.status === "active"
+                              ? "capitalize bg-green-600 hover:bg-green-600 text-white dark:bg-green-500 dark:hover:bg-green-500 dark:text-white"
+                              : "capitalize"
+                          }
                         >
-                          View
-                        </span>
-                        {isAdmin && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
+                          {team.status.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatINR(team.totalRevenue)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {team.memberCount}
+                      </TableCell>
+                      <TableCell
+                        className="text-sm text-muted-foreground whitespace-nowrap"
+                        data-testid={`text-team-updated-${team.id}`}
+                      >
+                        {formatDateTime(
+                          (
+                            team as unknown as {
+                              updatedAt?: string | Date | null;
+                            }
+                          ).updatedAt ?? team.createdAt,
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div
+                          className="flex items-center justify-end gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span
+                            className="text-primary text-sm font-medium hover:underline cursor-pointer"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setDeleteTarget({ id: team.id, name: team.name });
+                              setLocation(`/teams/${team.id}`);
                             }}
-                            data-testid={`button-delete-team-${team.id}`}
-                            aria-label="Delete team"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                            View
+                          </span>
+                          {isAdmin && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget({
+                                  id: team.id,
+                                  name: team.name,
+                                });
+                              }}
+                              data-testid={`button-delete-team-${team.id}`}
+                              aria-label="Delete team"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {teamItems.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={7}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      No teams found matching your criteria.
                     </TableCell>
                   </TableRow>
-                );
-              })}
-              {teamItems.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    No teams found matching your criteria.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
           </div>
         )}
       </Card>
@@ -315,9 +353,7 @@ export default function AdminTeams() {
               variant="outline"
               size="sm"
               onClick={() => setPage((p) => p + 1)}
-              disabled={
-                isLoading || teams.page * teams.pageSize >= teams.total
-              }
+              disabled={isLoading || teams.page * teams.pageSize >= teams.total}
               data-testid="button-teams-next-page"
             >
               Next
@@ -340,9 +376,9 @@ export default function AdminTeams() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               This permanently deletes the team and ALL associated data —
-              members, projects, revenue entries, order book entries, milestones,
-              demo day applications, invitations and join/leave requests.
-              This action cannot be undone.
+              members, projects, revenue entries, order book entries,
+              milestones, demo day applications, invitations and join/leave
+              requests. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
