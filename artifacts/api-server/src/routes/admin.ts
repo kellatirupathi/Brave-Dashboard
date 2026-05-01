@@ -40,16 +40,33 @@ const router: IRouter = Router();
 let reseedInFlight = false;
 
 // Review Queue
+// Admins see everything (or filter by `?campusId=`). Coordinators are
+// hard-locked to their own campus — any campusId query string is ignored
+// for them so they can never peek at another campus's entries.
 router.get("/admin/review-queue", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const isAdmin = req.user.role === "admin";
+  const isCoordinator = req.user.role === "coordinator";
+  if (!isAdmin && !isCoordinator) {
     res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (isCoordinator && req.user.campusId == null) {
+    res.json({ items: [], overdueCount: 0, totalCount: 0 });
     return;
   }
   const type = req.query.type as string | undefined;
   const statusParam = req.query.status as string | undefined;
   const status: "submitted" | "verified" =
     statusParam === "verified" ? "verified" : "submitted";
-  const campusId = req.query.campusId ? Number(req.query.campusId) : undefined;
+  const campusId = isCoordinator
+    ? (req.user.campusId ?? undefined)
+    : req.query.campusId
+      ? Number(req.query.campusId)
+      : undefined;
   const search =
     typeof req.query.search === "string" ? req.query.search.trim() : "";
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);

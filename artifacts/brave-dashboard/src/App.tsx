@@ -42,6 +42,7 @@ import CoordinatorDashboard from "@/pages/coordinator/dashboard";
 import CoordinatorTeams from "@/pages/coordinator/teams";
 import CoordinatorLeaderboard from "@/pages/coordinator/leaderboard";
 import CoordinatorAnnouncements from "@/pages/coordinator/announcements";
+import CoordinatorQueue from "@/pages/coordinator/queue";
 
 // Admin
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -222,6 +223,12 @@ function Router() {
       <Route path="/coordinator">
         <ProtectedRoute
           component={CoordinatorDashboard}
+          allowedRoles={["coordinator"]}
+        />
+      </Route>
+      <Route path="/coordinator/queue">
+        <ProtectedRoute
+          component={CoordinatorQueue}
           allowedRoles={["coordinator"]}
         />
       </Route>

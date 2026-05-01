@@ -95,6 +95,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         ],
     coordinator: [
       { name: "Dashboard", href: "/coordinator", icon: LayoutDashboard },
+      { name: "Review Queue", href: "/coordinator/queue", icon: CheckSquare },
       { name: "Teams", href: "/coordinator/teams", icon: Users },
       { name: "Projects", href: "/coordinator/projects", icon: FolderKanban },
       { name: "Leaderboard", href: "/coordinator/leaderboard", icon: Trophy },
