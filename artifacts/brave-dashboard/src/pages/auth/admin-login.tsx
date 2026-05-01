@@ -16,7 +16,7 @@ import { Eye, EyeOff, ShieldCheck, ArrowLeft } from "lucide-react";
  * SSO and are rejected by the API if they attempt password login.
  */
 export default function AdminLogin() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, login } = useAuth();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -173,13 +173,14 @@ export default function AdminLogin() {
             >
               <ArrowLeft className="w-3 h-3" /> Back home
             </button>
-            <a
-              href="/api/login"
+            <button
+              type="button"
+              onClick={() => login()}
               className="text-muted-foreground hover:text-foreground"
               data-testid="link-admin-login-sso"
             >
               Use Forms SSO instead →
-            </a>
+            </button>
           </div>
         </Card>
       </div>
