@@ -276,6 +276,52 @@ router.get("/admin/users", async (req, res): Promise<void> => {
   });
 });
 
+// Keep `campuses.coordinator_id` in sync with `users.campus_id` for users
+// whose role is `coordinator`. Both columns model the same relationship and
+// must agree, otherwise the Campuses page renders "Unassigned" even though
+// a coordinator account is wired to that campus.
+//
+// Pass the BEFORE state (or `null`/undefined for a fresh insert) and the
+// AFTER state to compute the right pair of writes:
+//   - if the old campus had this user as its coordinator, clear it
+//   - if the new role is coordinator and there's a campus, set it
+async function syncCampusCoordinatorLink(opts: {
+  userId: string;
+  before: { role: string | null; campusId: number | null } | null;
+  after: { role: string; campusId: number | null };
+}): Promise<void> {
+  const { userId, before, after } = opts;
+  const wasCoord = before?.role === "coordinator";
+  const isCoord = after.role === "coordinator";
+  const oldCampusId = before?.campusId ?? null;
+  const newCampusId = after.campusId ?? null;
+
+  // Clear the link on the OLD campus if this user was its registered
+  // coordinator and either the user is no longer a coordinator or has moved
+  // to a different campus.
+  if (wasCoord && oldCampusId != null && oldCampusId !== newCampusId) {
+    await db
+      .update(campusesTable)
+      .set({ coordinatorId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(campusesTable.id, oldCampusId),
+          eq(campusesTable.coordinatorId, userId),
+        ),
+      );
+  }
+
+  // Stamp the link on the NEW campus if the user is currently a coordinator
+  // with a campus assigned. Overwrites any prior coordinator on that campus
+  // — the admin's most recent assignment wins.
+  if (isCoord && newCampusId != null) {
+    await db
+      .update(campusesTable)
+      .set({ coordinatorId: userId, updatedAt: new Date() })
+      .where(eq(campusesTable.id, newCampusId));
+  }
+}
+
 // Resolve a campus by name (case-insensitive). Returns null if not found.
 async function resolveCampusByName(name: string | null | undefined) {
   if (!name) return null;
@@ -381,6 +427,21 @@ router.post("/admin/users", async (req, res): Promise<void> => {
       .onConflictDoNothing();
   }
 
+  // Mirror the relationship onto campuses.coordinator_id so the Campuses
+  // page reflects the assignment immediately. No-op for non-coordinators.
+  try {
+    await syncCampusCoordinatorLink({
+      userId: user.id,
+      before: null,
+      after: { role: user.role, campusId: user.campusId ?? null },
+    });
+  } catch (err) {
+    req.log.warn(
+      { err, userId: user.id },
+      "Failed to sync campuses.coordinator_id after create_user",
+    );
+  }
+
   await logAudit(
     req.user.id,
     "create_user",
@@ -477,6 +538,23 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
       );
     }
   }
+
+  // Mirror the role/campus change onto campuses.coordinator_id. Handles all
+  // the transition cases: coordinator gaining/losing the role, and a
+  // coordinator switching campuses.
+  try {
+    await syncCampusCoordinatorLink({
+      userId: user.id,
+      before: { role: existing.role, campusId: existing.campusId ?? null },
+      after: { role: user.role, campusId: user.campusId ?? null },
+    });
+  } catch (err) {
+    req.log.warn(
+      { err, userId: user.id },
+      "Failed to sync campuses.coordinator_id after update_user",
+    );
+  }
+
   await logAudit(
     req.user.id,
     "update_user",
@@ -560,6 +638,27 @@ router.delete("/admin/users/:id", async (req, res): Promise<void> => {
         .status(400)
         .json({ error: "Cannot delete the last remaining admin." });
       return;
+    }
+  }
+  // If this user was the registered coordinator on a campus, clear that
+  // link first so the Campuses page doesn't dangle a reference to a deleted
+  // user. Done before the user delete so the WHERE-by-coordinatorId works.
+  if (target.role === "coordinator" && target.campusId != null) {
+    try {
+      await db
+        .update(campusesTable)
+        .set({ coordinatorId: null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(campusesTable.id, target.campusId),
+            eq(campusesTable.coordinatorId, target.id),
+          ),
+        );
+    } catch (err) {
+      req.log.warn(
+        { err, userId: target.id },
+        "Failed to clear campuses.coordinator_id before delete_user",
+      );
     }
   }
   await db.delete(usersTable).where(eq(usersTable.id, id));
