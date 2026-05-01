@@ -28,7 +28,11 @@ import {
   MoreVertical,
   ChevronLeft,
   ChevronRight,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,6 +88,10 @@ const createUserSchema = z.object({
   campusId: z.string().optional(),
   niatId: z.string().optional(),
   batchSectionName: z.string().optional(),
+  // Auth basis for admin / coordinator. Locked to "sso" for students.
+  authMethod: z.enum(["sso", "password"]).default("sso"),
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
 });
 
 type ProvisionedVia = "roster" | "csv_import" | "manual" | "auto_forms_sso";
@@ -101,6 +109,9 @@ type AnyUser = {
   profileImage?: string | null;
   isActive: boolean;
   provisionedVia: ProvisionedVia;
+  // Surfaced by the API list when the row has a password_hash set.
+  // Used to decide whether to show the "Change password" row action.
+  hasPassword?: boolean;
 };
 
 type RoleFilter = "all" | "admin" | "coordinator" | "student";
@@ -259,9 +270,20 @@ export default function AdminUsers() {
       campusId: "",
       niatId: "",
       batchSectionName: "",
+      authMethod: "sso",
+      password: "",
+      confirmPassword: "",
     },
   });
   const role = form.watch("role");
+  const authMethod = form.watch("authMethod");
+  // Students are SSO-only — force the toggle back to "sso" if the role
+  // changes to student, so a stray "password" selection doesn't leak through.
+  const effectiveAuthMethod = role === "student" ? "sso" : authMethod;
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false);
+  const [changePasswordTarget, setChangePasswordTarget] =
+    useState<AnyUser | null>(null);
 
   const onCreate = (values: z.infer<typeof createUserSchema>) => {
     if (
@@ -274,8 +296,29 @@ export default function AdminUsers() {
       });
       return;
     }
+    // Students are always SSO. Only admin / coordinator can be password-basis.
+    const useMethod = values.role === "student" ? "sso" : values.authMethod;
+    if (useMethod === "password") {
+      const pwd = values.password ?? "";
+      const confirm = values.confirmPassword ?? "";
+      if (pwd.length < 8) {
+        toast({
+          title: "Password must be at least 8 characters",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (pwd !== confirm) {
+        toast({
+          title: "Passwords do not match",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     const payload = {
-      formsUserId: values.formsUserId?.trim() || null,
+      formsUserId:
+        useMethod === "sso" ? values.formsUserId?.trim() || null : null,
       email: values.email,
       firstName: values.firstName,
       lastName: values.lastName,
@@ -288,7 +331,7 @@ export default function AdminUsers() {
             : null,
       niatId: values.niatId?.trim() || null,
       batchSectionName: values.batchSectionName?.trim() || null,
-      password: null,
+      password: useMethod === "password" ? (values.password ?? null) : null,
     };
     createUser.mutate(
       { data: payload },
@@ -684,22 +727,24 @@ export default function AdminUsers() {
                   onSubmit={form.handleSubmit(onCreate)}
                   className="space-y-4"
                 >
-                  <FormField
-                    control={form.control}
-                    name="formsUserId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Forms User ID (UUID)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="00000000-0000-0000-0000-000000000000"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {effectiveAuthMethod === "sso" && (
+                    <FormField
+                      control={form.control}
+                      name="formsUserId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Forms User ID (UUID)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="00000000-0000-0000-0000-000000000000"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -768,6 +813,120 @@ export default function AdminUsers() {
                       </FormItem>
                     )}
                   />
+                  {role !== "student" && (
+                    <FormField
+                      control={form.control}
+                      name="authMethod"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sign-in method</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-auth-method">
+                                <SelectValue placeholder="Select sign-in method" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="sso">Forms SSO</SelectItem>
+                              <SelectItem value="password">
+                                Email + password
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  {effectiveAuthMethod === "password" && role !== "student" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={
+                                    showCreatePassword ? "text" : "password"
+                                  }
+                                  autoComplete="new-password"
+                                  className="pr-10"
+                                  data-testid="input-create-password"
+                                  {...field}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setShowCreatePassword((v) => !v)
+                                  }
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                  aria-label={
+                                    showCreatePassword
+                                      ? "Hide password"
+                                      : "Show password"
+                                  }
+                                  tabIndex={-1}
+                                >
+                                  {showCreatePassword ? (
+                                    <EyeOff className="w-4 h-4" />
+                                  ) : (
+                                    <Eye className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Confirm password</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={showCreateConfirm ? "text" : "password"}
+                                  autoComplete="new-password"
+                                  className="pr-10"
+                                  data-testid="input-create-confirm-password"
+                                  {...field}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setShowCreateConfirm((v) => !v)
+                                  }
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                  aria-label={
+                                    showCreateConfirm
+                                      ? "Hide password"
+                                      : "Show password"
+                                  }
+                                  tabIndex={-1}
+                                >
+                                  {showCreateConfirm ? (
+                                    <EyeOff className="w-4 h-4" />
+                                  ) : (
+                                    <Eye className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
                   {role !== "admin" && campuses && (
                     <FormField
                       control={form.control}
@@ -847,105 +1006,115 @@ export default function AdminUsers() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Forms User ID</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Campus</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allUsers.map((user) => (
-                <TableRow
-                  key={user.id}
-                  className="hover:bg-muted/50 transition-colors"
-                >
-                  <TableCell>
-                    <div className="font-semibold">
-                      {user.firstName} {user.lastName}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <Mail className="w-3 h-3" /> {user.niatId ?? user.email}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {user.formsUserId ?? "—"}
-                  </TableCell>
-                  <TableCell>{renderRoleBadge(user.role)}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {user.role === "admin" ? "—" : user.campusName || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      data-testid={`badge-source-${user.id}`}
-                    >
-                      {SOURCE_LABEL[user.provisionedVia] ?? user.provisionedVia}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.isActive ? (
-                      <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">
-                        <span className="w-2 h-2 rounded-full bg-green-600"></span>{" "}
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
-                        <span className="w-2 h-2 rounded-full bg-muted-foreground"></span>{" "}
-                        Inactive
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          data-testid={`button-actions-${user.id}`}
-                          aria-label="Open actions"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => openEdit(user)}
-                          data-testid={`button-edit-${user.id}`}
-                        >
-                          <Pencil className="w-4 h-4 mr-2" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setDeleteTarget(user)}
-                          className="text-destructive focus:text-destructive"
-                          data-testid={`button-delete-${user.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {allUsers.length === 0 && (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    No users found.
-                  </TableCell>
+                  <TableHead>User</TableHead>
+                  <TableHead>Forms User ID</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Campus</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {allUsers.map((user) => (
+                  <TableRow
+                    key={user.id}
+                    className="hover:bg-muted/50 transition-colors"
+                  >
+                    <TableCell>
+                      <div className="font-semibold">
+                        {user.firstName} {user.lastName}
+                      </div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Mail className="w-3 h-3" /> {user.niatId ?? user.email}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {user.formsUserId ?? "—"}
+                    </TableCell>
+                    <TableCell>{renderRoleBadge(user.role)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {user.role === "admin" ? "—" : user.campusName || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        data-testid={`badge-source-${user.id}`}
+                      >
+                        {SOURCE_LABEL[user.provisionedVia] ??
+                          user.provisionedVia}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.isActive ? (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">
+                          <span className="w-2 h-2 rounded-full bg-green-600"></span>{" "}
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
+                          <span className="w-2 h-2 rounded-full bg-muted-foreground"></span>{" "}
+                          Inactive
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            data-testid={`button-actions-${user.id}`}
+                            aria-label="Open actions"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => openEdit(user)}
+                            data-testid={`button-edit-${user.id}`}
+                          >
+                            <Pencil className="w-4 h-4 mr-2" /> Edit
+                          </DropdownMenuItem>
+                          {user.role !== "student" && user.hasPassword && (
+                            <DropdownMenuItem
+                              onClick={() => setChangePasswordTarget(user)}
+                              data-testid={`button-change-password-${user.id}`}
+                            >
+                              <KeyRound className="w-4 h-4 mr-2" /> Change
+                              password
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onClick={() => setDeleteTarget(user)}
+                            className="text-destructive focus:text-destructive"
+                            data-testid={`button-delete-${user.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {allUsers.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={7}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      No users found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         )}
       </Card>
@@ -1262,6 +1431,24 @@ export default function AdminUsers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ChangePasswordDialog
+        open={changePasswordTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setChangePasswordTarget(null);
+        }}
+        mode={
+          changePasswordTarget
+            ? {
+                kind: "admin",
+                targetUserId: changePasswordTarget.id,
+                targetLabel:
+                  `${changePasswordTarget.firstName} ${changePasswordTarget.lastName}`.trim() ||
+                  changePasswordTarget.email,
+              }
+            : { kind: "admin", targetUserId: "", targetLabel: "" }
+        }
+      />
     </div>
   );
 }

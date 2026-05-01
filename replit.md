@@ -144,3 +144,13 @@ The dashboard surfaces the server's `error` string in a destructive toast on rej
 ## First-Time Setup
 
 To create the first admin user, set role to 'admin' manually in the database after logging in via Replit Auth.
+
+## Production Startup
+
+The api-server (`artifacts/api-server/src/index.ts`) calls `app.listen()` BEFORE running
+bootstrap (`bootstrapCanonicalCampuses`, `bootstrapAdmins`, `backfillOrderBookEntries`,
+`reportUsersWithoutCampus`). Bootstrap runs after the port is open so the
+`/api/healthz` startup probe can pass within the deployer's 60s window even if a
+bootstrap query is slow. Each bootstrap step is wrapped in try/catch so a single
+failure cannot crash the server. Do not move bootstrap back in front of `listen()` —
+that previously caused deployment publish failures (port never opened in time).

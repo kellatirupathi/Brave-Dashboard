@@ -1,15 +1,25 @@
-import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
+import {
+  Switch,
+  Route,
+  Router as WouterRouter,
+  useLocation,
+  Redirect,
+} from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@workspace/replit-auth-web";
-import { useGetMyTeam, getGetMyTeamQueryKey } from "@workspace/api-client-react";
+import {
+  useGetMyTeam,
+  getGetMyTeamQueryKey,
+} from "@workspace/api-client-react";
 import NotFound from "@/pages/not-found";
 
 // Auth
 import Login from "@/pages/auth/login";
 import NotOnRoster from "@/pages/auth/not-on-roster";
 import DevLogin from "@/pages/auth/dev-login";
+import AdminLogin from "@/pages/auth/admin-login";
 
 // Marketing
 import Landing from "@/pages/marketing/landing";
@@ -69,7 +79,13 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType, allowedRoles: string[] }) {
+function ProtectedRoute({
+  component: Component,
+  allowedRoles,
+}: {
+  component: React.ComponentType;
+  allowedRoles: string[];
+}) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -110,7 +126,11 @@ function StudentDashboardOrGetStarted() {
     query: { queryKey: getGetMyTeamQueryKey(), retry: false },
   });
   if (isLoading) {
-    return <div className="min-h-screen w-full flex items-center justify-center bg-background"><Spinner className="size-10" /></div>;
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <Spinner className="size-10" />
+      </div>
+    );
   }
   // First-time profile completion: students with no team and who have never
   // saved their profile go to /profile first; the profile page then sends
@@ -159,6 +179,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/admin/login" component={AdminLogin} />
       <Route path="/not-on-roster" component={NotOnRoster} />
       {import.meta.env.DEV && <Route path="/dev/login" component={DevLogin} />}
 
@@ -199,22 +220,40 @@ function Router() {
 
       {/* Coordinator Routes */}
       <Route path="/coordinator">
-        <ProtectedRoute component={CoordinatorDashboard} allowedRoles={["coordinator"]} />
+        <ProtectedRoute
+          component={CoordinatorDashboard}
+          allowedRoles={["coordinator"]}
+        />
       </Route>
       <Route path="/coordinator/teams">
-        <ProtectedRoute component={CoordinatorTeams} allowedRoles={["coordinator"]} />
+        <ProtectedRoute
+          component={CoordinatorTeams}
+          allowedRoles={["coordinator"]}
+        />
       </Route>
       <Route path="/coordinator/projects">
-        <ProtectedRoute component={CoordinatorProjects} allowedRoles={["coordinator"]} />
+        <ProtectedRoute
+          component={CoordinatorProjects}
+          allowedRoles={["coordinator"]}
+        />
       </Route>
       <Route path="/coordinator/projects/:id">
-        <ProtectedRoute component={AdminProjectDetail} allowedRoles={["coordinator"]} />
+        <ProtectedRoute
+          component={AdminProjectDetail}
+          allowedRoles={["coordinator"]}
+        />
       </Route>
       <Route path="/coordinator/leaderboard">
-        <ProtectedRoute component={CoordinatorLeaderboard} allowedRoles={["coordinator"]} />
+        <ProtectedRoute
+          component={CoordinatorLeaderboard}
+          allowedRoles={["coordinator"]}
+        />
       </Route>
       <Route path="/coordinator/announcements">
-        <ProtectedRoute component={CoordinatorAnnouncements} allowedRoles={["coordinator"]} />
+        <ProtectedRoute
+          component={CoordinatorAnnouncements}
+          allowedRoles={["coordinator"]}
+        />
       </Route>
 
       {/* Admin Routes */}
@@ -231,13 +270,19 @@ function Router() {
         <ProtectedRoute component={AdminTeamDetail} allowedRoles={["admin"]} />
       </Route>
       <Route path="/teams/:id">
-        <ProtectedRoute component={AdminTeamDetail} allowedRoles={["student", "coordinator", "admin"]} />
+        <ProtectedRoute
+          component={AdminTeamDetail}
+          allowedRoles={["student", "coordinator", "admin"]}
+        />
       </Route>
       <Route path="/admin/projects">
         <ProtectedRoute component={AdminProjects} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/projects/:id">
-        <ProtectedRoute component={AdminProjectDetail} allowedRoles={["admin"]} />
+        <ProtectedRoute
+          component={AdminProjectDetail}
+          allowedRoles={["admin"]}
+        />
       </Route>
       <Route path="/admin/leaderboard">
         <ProtectedRoute component={AdminLeaderboard} allowedRoles={["admin"]} />
@@ -252,7 +297,10 @@ function Router() {
         <ProtectedRoute component={AdminCampuses} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/campuses/:id">
-        <ProtectedRoute component={AdminCampusDetail} allowedRoles={["admin"]} />
+        <ProtectedRoute
+          component={AdminCampusDetail}
+          allowedRoles={["admin"]}
+        />
       </Route>
       <Route path="/admin/config">
         <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
@@ -264,12 +312,18 @@ function Router() {
         <ProtectedRoute component={AdminAuditLog} allowedRoles={["admin"]} />
       </Route>
       <Route path="/admin/announcements">
-        <ProtectedRoute component={AdminAnnouncements} allowedRoles={["admin"]} />
+        <ProtectedRoute
+          component={AdminAnnouncements}
+          allowedRoles={["admin"]}
+        />
       </Route>
 
       {/* Shared */}
       <Route path="/profile">
-        <ProtectedRoute component={Profile} allowedRoles={["student", "coordinator", "admin"]} />
+        <ProtectedRoute
+          component={Profile}
+          allowedRoles={["student", "coordinator", "admin"]}
+        />
       </Route>
 
       <Route component={NotFound} />

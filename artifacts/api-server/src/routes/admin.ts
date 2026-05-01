@@ -32,6 +32,7 @@ import { logAudit } from "../lib/audit";
 import { deleteSessionsForUser } from "../lib/auth";
 import { runSeed } from "../seed";
 import * as bcrypt from "bcryptjs";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
@@ -49,15 +50,24 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
   const status: "submitted" | "verified" =
     statusParam === "verified" ? "verified" : "submitted";
   const campusId = req.query.campusId ? Number(req.query.campusId) : undefined;
-  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const search =
+    typeof req.query.search === "string" ? req.query.search.trim() : "";
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
   const searchLower = search.toLowerCase();
   const searchAmount = search && /^\d+$/.test(search) ? Number(search) : null;
 
   const items: Array<{
-    id: number; type: "revenue"; teamId: number; teamName: string;
-    campusName: string; projectTitle: string; clientName: string; amount: number;
-    submittedAt: Date; isOverdue: boolean; supportingDocUrl: string | null;
+    id: number;
+    type: "revenue";
+    teamId: number;
+    teamName: string;
+    campusName: string;
+    projectTitle: string;
+    clientName: string;
+    amount: number;
+    submittedAt: Date;
+    isOverdue: boolean;
+    supportingDocUrl: string | null;
     brdUrl: string | null;
     status: "submitted" | "verified";
     verifiedAmount: number | null;
@@ -76,13 +86,31 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
           : desc(revenueEntriesTable.submittedAt),
       );
     for (const e of revEntries) {
-      const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, e.teamId));
+      const [team] = await db
+        .select()
+        .from(teamsTable)
+        .where(eq(teamsTable.id, e.teamId));
       if (campusId && team?.campusId !== campusId) continue;
-      const [campus] = team ? await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId)) : [null];
-      const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, e.projectId));
+      const [campus] = team
+        ? await db
+            .select()
+            .from(campusesTable)
+            .where(eq(campusesTable.id, team.campusId))
+        : [null];
+      const [project] = await db
+        .select()
+        .from(projectsTable)
+        .where(eq(projectsTable.id, e.projectId));
       // submitter: prefer the team leader as the submitter context
-      const [submitter] = team ? await db.select().from(usersTable).where(eq(usersTable.id, team.leaderId)) : [null];
-      const submitterName = submitter ? `${submitter.firstName ?? ""} ${submitter.lastName ?? ""}`.trim() : "";
+      const [submitter] = team
+        ? await db
+            .select()
+            .from(usersTable)
+            .where(eq(usersTable.id, team.leaderId))
+        : [null];
+      const submitterName = submitter
+        ? `${submitter.firstName ?? ""} ${submitter.lastName ?? ""}`.trim()
+        : "";
       if (search) {
         const haystack = [
           team?.name ?? "",
@@ -91,7 +119,9 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
           e.clientName ?? "",
           submitterName,
           submitter?.email ?? "",
-        ].join(" \u0001 ").toLowerCase();
+        ]
+          .join(" \u0001 ")
+          .toLowerCase();
         const textMatch = haystack.includes(searchLower);
         const amountMatch =
           searchAmount !== null &&
@@ -99,12 +129,19 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
         if (!textMatch && !amountMatch) continue;
       }
       items.push({
-        id: e.id, type: "revenue", teamId: e.teamId, teamName: team?.name ?? "",
-        campusName: campus?.name ?? "", projectTitle: project?.title ?? "",
-        clientName: e.clientName, amount: e.amount,
+        id: e.id,
+        type: "revenue",
+        teamId: e.teamId,
+        teamName: team?.name ?? "",
+        campusName: campus?.name ?? "",
+        projectTitle: project?.title ?? "",
+        clientName: e.clientName,
+        amount: e.amount,
         submittedAt: e.submittedAt ?? new Date(),
-        isOverdue: status === "submitted" && (e.submittedAt ?? new Date()) < cutoff,
-        supportingDocUrl: null, brdUrl: e.brdUrl ?? null,
+        isOverdue:
+          status === "submitted" && (e.submittedAt ?? new Date()) < cutoff,
+        supportingDocUrl: null,
+        brdUrl: e.brdUrl ?? null,
         status: e.status as "submitted" | "verified",
         verifiedAmount: e.verifiedAmount ?? null,
         verifiedAt: e.verifiedAt ?? null,
@@ -120,11 +157,14 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
       return bv - av;
     });
   } else {
-    items.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    items.sort(
+      (a, b) =>
+        new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
+    );
   }
   res.json({
     items,
-    overdueCount: items.filter(i => i.isOverdue).length,
+    overdueCount: items.filter((i) => i.isOverdue).length,
     totalCount: items.length,
   });
 });
@@ -140,49 +180,77 @@ router.get("/admin/users", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { role, campusId, search, provisionedVia, page, pageSize } = queryParams.data;
+  const { role, campusId, search, provisionedVia, page, pageSize } =
+    queryParams.data;
   const effectivePage = page && page >= 1 ? page : 1;
-  const effectivePageSize = pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
+  const effectivePageSize =
+    pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
   const offset = (effectivePage - 1) * effectivePageSize;
 
   let conditions: ReturnType<typeof and>[] = [];
   if (role) conditions.push(eq(usersTable.role, role));
   if (campusId) conditions.push(eq(usersTable.campusId, campusId));
-  if (provisionedVia) conditions.push(eq(usersTable.provisionedVia, provisionedVia));
+  if (provisionedVia)
+    conditions.push(eq(usersTable.provisionedVia, provisionedVia));
   if (search) {
     const pattern = `%${search}%`;
     const orFilter = or(
       ilike(usersTable.email, pattern),
       ilike(usersTable.firstName, pattern),
       ilike(usersTable.lastName, pattern),
-      ilike(sql`(${usersTable.firstName} || ' ' || ${usersTable.lastName})`, pattern),
+      ilike(
+        sql`(${usersTable.firstName} || ' ' || ${usersTable.lastName})`,
+        pattern,
+      ),
     );
     if (orFilter) conditions.push(orFilter);
   }
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [{ count: totalCount }] = whereClause
-    ? await db.select({ count: sql<number>`count(*)::int` }).from(usersTable).where(whereClause)
+    ? await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(usersTable)
+        .where(whereClause)
     : await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
 
   const users = whereClause
-    ? await db.select().from(usersTable).where(whereClause).orderBy(usersTable.createdAt).limit(effectivePageSize).offset(offset)
-    : await db.select().from(usersTable).orderBy(usersTable.createdAt).limit(effectivePageSize).offset(offset);
+    ? await db
+        .select()
+        .from(usersTable)
+        .where(whereClause)
+        .orderBy(usersTable.createdAt)
+        .limit(effectivePageSize)
+        .offset(offset)
+    : await db
+        .select()
+        .from(usersTable)
+        .orderBy(usersTable.createdAt)
+        .limit(effectivePageSize)
+        .offset(offset);
 
-  const items = await Promise.all(users.map(async (u) => {
-    let campusName: string | null = null;
-    if (u.role !== "admin" && u.campusId) {
-      const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, u.campusId));
-      campusName = campus?.name ?? null;
-    }
-    const { passwordHash, ...safe } = u;
-    return {
-      ...safe,
-      campusId: u.role === "admin" ? null : safe.campusId,
-      campusName,
-      niatId: u.niatId ?? null,
-    };
-  }));
+  const items = await Promise.all(
+    users.map(async (u) => {
+      let campusName: string | null = null;
+      if (u.role !== "admin" && u.campusId) {
+        const [campus] = await db
+          .select()
+          .from(campusesTable)
+          .where(eq(campusesTable.id, u.campusId));
+        campusName = campus?.name ?? null;
+      }
+      const { passwordHash, ...safe } = u;
+      return {
+        ...safe,
+        campusId: u.role === "admin" ? null : safe.campusId,
+        campusName,
+        niatId: u.niatId ?? null,
+        // Surface auth-method to the admin UI without leaking the hash itself.
+        // True iff this account can log in with email + password.
+        hasPassword: !!passwordHash,
+      };
+    }),
+  );
   res.json({
     items,
     total: totalCount,
@@ -213,7 +281,14 @@ router.post("/admin/users", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { password, campusName, niatId, batchSectionName, formsUserId, ...userData } = parsed.data;
+  const {
+    password,
+    campusName,
+    niatId,
+    batchSectionName,
+    formsUserId,
+    ...userData
+  } = parsed.data;
 
   // Resolve campusId from name when provided
   let resolvedCampusId: number | null | undefined = userData.campusId;
@@ -228,8 +303,13 @@ router.post("/admin/users", async (req, res): Promise<void> => {
 
   if (userData.role === "admin") {
     resolvedCampusId = null;
-  } else if ((userData.role === "coordinator" || userData.role === "student") && resolvedCampusId == null) {
-    res.status(400).json({ error: `A ${userData.role} must be assigned to a campus.` });
+  } else if (
+    (userData.role === "coordinator" || userData.role === "student") &&
+    resolvedCampusId == null
+  ) {
+    res
+      .status(400)
+      .json({ error: `A ${userData.role} must be assigned to a campus.` });
     return;
   }
 
@@ -244,11 +324,16 @@ router.post("/admin/users", async (req, res): Promise<void> => {
 
   let user;
   try {
-    [user] = await db.insert(usersTable).values(insertValues as typeof usersTable.$inferInsert).returning();
+    [user] = await db
+      .insert(usersTable)
+      .values(insertValues as typeof usersTable.$inferInsert)
+      .returning();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("unique") || msg.includes("duplicate")) {
-      res.status(409).json({ error: "A user with this email or Forms ID already exists." });
+      res
+        .status(409)
+        .json({ error: "A user with this email or Forms ID already exists." });
       return;
     }
     throw err;
@@ -258,21 +343,34 @@ router.post("/admin/users", async (req, res): Promise<void> => {
   // roster-based UI sees them.
   if (user.role === "student") {
     const campus = resolvedCampusId
-      ? await db.select().from(campusesTable).where(eq(campusesTable.id, resolvedCampusId)).then(r => r[0])
+      ? await db
+          .select()
+          .from(campusesTable)
+          .where(eq(campusesTable.id, resolvedCampusId))
+          .then((r) => r[0])
       : null;
-    await db.insert(rosterTable).values({
-      studentId: formsUserId ?? user.id,
-      fullName: `${user.firstName} ${user.lastName}`.trim(),
-      email: user.email,
-      campusName: campus?.name ?? "",
-      campusId: resolvedCampusId ?? null,
-      niatId: niatId ?? null,
-      batchSectionName: batchSectionName ?? null,
-      isWhitelisted: true,
-    }).onConflictDoNothing();
+    await db
+      .insert(rosterTable)
+      .values({
+        studentId: formsUserId ?? user.id,
+        fullName: `${user.firstName} ${user.lastName}`.trim(),
+        email: user.email,
+        campusName: campus?.name ?? "",
+        campusId: resolvedCampusId ?? null,
+        niatId: niatId ?? null,
+        batchSectionName: batchSectionName ?? null,
+        isWhitelisted: true,
+      })
+      .onConflictDoNothing();
   }
 
-  await logAudit(req.user.id, "create_user", "user", undefined, `Created ${user.role} ${user.id}: ${user.email}`);
+  await logAudit(
+    req.user.id,
+    "create_user",
+    "user",
+    undefined,
+    `Created ${user.role} ${user.id}: ${user.email}`,
+  );
   const { passwordHash: _, ...safe } = user;
   res.status(201).json({ ...safe, campusName: null });
 });
@@ -293,9 +391,12 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
     return;
   }
   const updates: typeof parsed.data = { ...parsed.data };
-  if (typeof updates.firstName === "string") updates.firstName = updates.firstName.trim();
-  if (typeof updates.lastName === "string") updates.lastName = updates.lastName.trim();
-  if (typeof updates.email === "string") updates.email = updates.email.trim().toLowerCase();
+  if (typeof updates.firstName === "string")
+    updates.firstName = updates.firstName.trim();
+  if (typeof updates.lastName === "string")
+    updates.lastName = updates.lastName.trim();
+  if (typeof updates.email === "string")
+    updates.email = updates.email.trim().toLowerCase();
   if (typeof updates.niatId === "string") {
     const v = updates.niatId.trim();
     updates.niatId = v.length === 0 ? null : v;
@@ -312,7 +413,10 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Last name cannot be empty." });
     return;
   }
-  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
+  const [existing] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, params.data.id));
   if (!existing) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -325,7 +429,9 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
       updates.campusId === undefined ? existing.campusId : updates.campusId;
     if (finalCampusId == null) {
       const label = finalRole === "coordinator" ? "coordinator" : "student";
-      res.status(400).json({ error: `A ${label} must be assigned to a campus.` });
+      res
+        .status(400)
+        .json({ error: `A ${label} must be assigned to a campus.` });
       return;
     }
   }
@@ -354,9 +460,59 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
       );
     }
   }
-  await logAudit(req.user.id, "update_user", "user", undefined, `${user.id} ${JSON.stringify(updates)}`);
+  await logAudit(
+    req.user.id,
+    "update_user",
+    "user",
+    undefined,
+    `${user.id} ${JSON.stringify(updates)}`,
+  );
   const { passwordHash, ...safe } = user;
   res.json({ ...safe, campusName: null });
+});
+
+// Admin sets a password for any admin / coordinator account. Used both to
+// bootstrap a password on an account that was created SSO-only and to reset
+// a forgotten password. Students are excluded — they remain SSO-only.
+const AdminSetPasswordBody = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+router.post("/admin/users/:id/password", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const id = String(req.params.id);
+  const parsed = AdminSetPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [target] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (target.role === "student") {
+    res.status(400).json({ error: "Students sign in via Forms SSO only." });
+    return;
+  }
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+  await db
+    .update(usersTable)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(usersTable.id, id));
+  await logAudit(
+    req.user.id,
+    "set_user_password",
+    "user",
+    undefined,
+    `Set password for ${target.id}`,
+  );
+  res.json({ ok: true });
 });
 
 router.delete("/admin/users/:id", async (req, res): Promise<void> => {
@@ -369,7 +525,10 @@ router.delete("/admin/users/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "You cannot delete your own account." });
     return;
   }
-  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  const [target] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id));
   if (!target) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -380,7 +539,9 @@ router.delete("/admin/users/:id", async (req, res): Promise<void> => {
       .from(usersTable)
       .where(eq(usersTable.role, "admin"));
     if (Number(adminCount) <= 1) {
-      res.status(400).json({ error: "Cannot delete the last remaining admin." });
+      res
+        .status(400)
+        .json({ error: "Cannot delete the last remaining admin." });
       return;
     }
   }
@@ -408,7 +569,13 @@ router.delete("/admin/users/:id", async (req, res): Promise<void> => {
       await db.delete(rosterTable).where(eq(rosterTable.id, rosterMatch.id));
     }
   }
-  await logAudit(req.user.id, "delete_user", "user", undefined, `Deleted ${target.role} ${target.email}`);
+  await logAudit(
+    req.user.id,
+    "delete_user",
+    "user",
+    undefined,
+    `Deleted ${target.role} ${target.email}`,
+  );
   res.json({ ok: true });
 });
 
@@ -492,7 +659,9 @@ router.get("/admin/leaderboard-export", async (req, res): Promise<void> => {
       COALESCE(rev.total, 0) DESC,
       t.id ASC
   `);
-  const teamRows = (teamsResult as unknown as { rows: LeaderboardExportTeamRow[] }).rows;
+  const teamRows = (
+    teamsResult as unknown as { rows: LeaderboardExportTeamRow[] }
+  ).rows;
 
   const teamIds = teamRows.map((r) => Number(r.team_id));
 
@@ -510,10 +679,15 @@ router.get("/admin/leaderboard-export", async (req, res): Promise<void> => {
         tm.joined_at    AS joined_at
       FROM team_members tm
       JOIN users u ON u.id = tm.user_id
-      WHERE tm.team_id IN (${sql.join(teamIds.map((id) => sql`${id}`), sql`, `)})
+      WHERE tm.team_id IN (${sql.join(
+        teamIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})
       ORDER BY tm.joined_at ASC
     `);
-    memberRows = (membersResult as unknown as { rows: LeaderboardExportMemberRow[] }).rows;
+    memberRows = (
+      membersResult as unknown as { rows: LeaderboardExportMemberRow[] }
+    ).rows;
   }
 
   // Group members by team
@@ -555,7 +729,8 @@ router.get("/admin/leaderboard-export", async (req, res): Promise<void> => {
         name: `${m.first_name ?? ""} ${m.last_name ?? ""}`.trim() || m.email,
         niatId: m.niat_id ?? null,
         email: m.email,
-        role: m.user_id === r.leader_id ? ("Leader" as const) : ("Member" as const),
+        role:
+          m.user_id === r.leader_id ? ("Leader" as const) : ("Member" as const),
         joinedAt: new Date(m.joined_at).toISOString(),
       })),
     };
@@ -584,30 +759,42 @@ router.post("/admin/users/import-csv", async (req, res): Promise<void> => {
 
   // Pre-load all campuses once for fast case-insensitive lookup.
   const allCampuses = await db.select().from(campusesTable);
-  const campusByName = new Map<string, typeof allCampuses[number]>();
+  const campusByName = new Map<string, (typeof allCampuses)[number]>();
   for (const c of allCampuses) campusByName.set(c.name.trim().toLowerCase(), c);
 
   let created = 0;
   let updated = 0;
   let failed = 0;
-  const errors: { rowNumber: number; forms_user_id: string | null; message: string }[] = [];
+  const errors: {
+    rowNumber: number;
+    forms_user_id: string | null;
+    message: string;
+  }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowNumber = i + 2; // 1 header + 1-indexed
     try {
       const formsUserId = String(row.forms_user_id || "").trim();
-      const role = String(row.role || "").trim().toLowerCase();
+      const role = String(row.role || "")
+        .trim()
+        .toLowerCase();
       const name = String(row.name || "").trim();
-      const email = String(row.email || "").trim().toLowerCase();
+      const email = String(row.email || "")
+        .trim()
+        .toLowerCase();
       const campusNameRaw = (row.campus_name ?? "").toString().trim();
       const niatId = (row.niat_id ?? "").toString().trim() || null;
       const batchSection = (row.batch_section ?? "").toString().trim() || null;
 
       if (!formsUserId) throw new Error("forms_user_id is required");
-      if (!["admin", "coordinator", "student"].includes(role)) throw new Error(`role must be admin | coordinator | student (got "${role}")`);
+      if (!["admin", "coordinator", "student"].includes(role))
+        throw new Error(
+          `role must be admin | coordinator | student (got "${role}")`,
+        );
       if (!name) throw new Error("name is required");
-      if (!email || !/^\S+@\S+\.\S+$/.test(email)) throw new Error(`invalid email: "${email}"`);
+      if (!email || !/^\S+@\S+\.\S+$/.test(email))
+        throw new Error(`invalid email: "${email}"`);
 
       let campusId: number | null = null;
       if (role !== "admin") {
@@ -657,7 +844,7 @@ router.post("/admin/users/import-csv", async (req, res): Promise<void> => {
 
       // Mirror students into the roster table.
       if (role === "student" && campusId != null) {
-        const campus = allCampuses.find(c => c.id === campusId);
+        const campus = allCampuses.find((c) => c.id === campusId);
         const [existingRoster] = await db
           .select()
           .from(rosterTable)
@@ -676,16 +863,19 @@ router.post("/admin/users/import-csv", async (req, res): Promise<void> => {
             })
             .where(eq(rosterTable.id, existingRoster.id));
         } else {
-          await db.insert(rosterTable).values({
-            studentId: formsUserId,
-            fullName: name,
-            email,
-            campusName: campus?.name ?? "",
-            campusId,
-            niatId,
-            batchSectionName: batchSection,
-            isWhitelisted: true,
-          }).onConflictDoNothing();
+          await db
+            .insert(rosterTable)
+            .values({
+              studentId: formsUserId,
+              fullName: name,
+              email,
+              campusName: campus?.name ?? "",
+              campusId,
+              niatId,
+              batchSectionName: batchSection,
+              isWhitelisted: true,
+            })
+            .onConflictDoNothing();
         }
       }
     } catch (err) {
@@ -716,7 +906,10 @@ router.get("/admin/programme-config", async (req, res): Promise<void> => {
   }
   let configs = await db.select().from(programmeConfigTable).limit(1);
   if (configs.length === 0) {
-    const [config] = await db.insert(programmeConfigTable).values({}).returning();
+    const [config] = await db
+      .insert(programmeConfigTable)
+      .values({})
+      .returning();
     configs = [config];
   }
   res.json(configs[0]);
@@ -735,7 +928,10 @@ router.patch("/admin/programme-config", async (req, res): Promise<void> => {
   let configs = await db.select().from(programmeConfigTable).limit(1);
   let config;
   if (configs.length === 0) {
-    [config] = await db.insert(programmeConfigTable).values(parsed.data as Partial<typeof programmeConfigTable.$inferInsert>).returning();
+    [config] = await db
+      .insert(programmeConfigTable)
+      .values(parsed.data as Partial<typeof programmeConfigTable.$inferInsert>)
+      .returning();
   } else {
     [config] = await db
       .update(programmeConfigTable)
@@ -743,7 +939,13 @@ router.patch("/admin/programme-config", async (req, res): Promise<void> => {
       .where(eq(programmeConfigTable.id, configs[0].id))
       .returning();
   }
-  await logAudit(req.user.id, "update_programme_config", "programme_config", config?.id, JSON.stringify(parsed.data));
+  await logAudit(
+    req.user.id,
+    "update_programme_config",
+    "programme_config",
+    config?.id,
+    JSON.stringify(parsed.data),
+  );
   res.json(config);
 });
 
@@ -766,10 +968,18 @@ router.get("/admin/audit-log", async (req, res): Promise<void> => {
     .orderBy(sql`created_at desc`)
     .limit(limit)
     .offset(offset);
-  const result = await Promise.all(logs.map(async (log) => {
-    const [actor] = await db.select().from(usersTable).where(eq(usersTable.id, log.actorId));
-    return { ...log, actorName: actor ? `${actor.firstName} ${actor.lastName}` : "System" };
-  }));
+  const result = await Promise.all(
+    logs.map(async (log) => {
+      const [actor] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, log.actorId));
+      return {
+        ...log,
+        actorName: actor ? `${actor.firstName} ${actor.lastName}` : "System",
+      };
+    }),
+  );
   res.json(result);
 });
 
@@ -914,7 +1124,13 @@ router.post("/admin/roster", async (req, res): Promise<void> => {
       .onConflictDoNothing({ target: usersTable.formsUserId });
   }
 
-  await logAudit(req.user.id, "create_roster_entry", "roster", entry.id, `Added ${entry.fullName} (${entry.studentId})`);
+  await logAudit(
+    req.user.id,
+    "create_roster_entry",
+    "roster",
+    entry.id,
+    `Added ${entry.fullName} (${entry.studentId})`,
+  );
   res.status(201).json(entry);
 });
 
@@ -953,29 +1169,33 @@ router.patch("/admin/roster/:id", async (req, res): Promise<void> => {
   if (updates.campusName) {
     const c = await resolveCampusByName(updates.campusName);
     if (!c) {
-      res.status(400).json({ error: `Unknown campus: "${updates.campusName}"` });
+      res
+        .status(400)
+        .json({ error: `Unknown campus: "${updates.campusName}"` });
       return;
     }
     campusId = c.id;
   }
   const set: Record<string, unknown> = {};
-  if (updates.studentId !== undefined && updates.studentId !== null) set.studentId = updates.studentId;
-  if (updates.fullName !== undefined && updates.fullName !== null) set.fullName = updates.fullName;
+  if (updates.studentId !== undefined && updates.studentId !== null)
+    set.studentId = updates.studentId;
+  if (updates.fullName !== undefined && updates.fullName !== null)
+    set.fullName = updates.fullName;
   if (updates.email !== undefined) set.email = updates.email;
-  if (updates.campusName !== undefined && updates.campusName !== null) set.campusName = updates.campusName;
+  if (updates.campusName !== undefined && updates.campusName !== null)
+    set.campusName = updates.campusName;
   if (campusId !== undefined) set.campusId = campusId;
   if (updates.niatId !== undefined) set.niatId = updates.niatId;
-  if (updates.batchSectionName !== undefined) set.batchSectionName = updates.batchSectionName;
-  if (updates.isWhitelisted !== undefined && updates.isWhitelisted !== null) set.isWhitelisted = updates.isWhitelisted;
+  if (updates.batchSectionName !== undefined)
+    set.batchSectionName = updates.batchSectionName;
+  if (updates.isWhitelisted !== undefined && updates.isWhitelisted !== null)
+    set.isWhitelisted = updates.isWhitelisted;
 
   // If we're changing the studentId, pre-check that no OTHER row already
   // has it. We still wrap the actual update in try/catch below so a race
   // (admin A and admin B renaming to the same id concurrently) maps to a
   // clean 409 instead of a 500.
-  if (
-    typeof set.studentId === "string" &&
-    set.studentId !== target.studentId
-  ) {
+  if (typeof set.studentId === "string" && set.studentId !== target.studentId) {
     const [clash] = await db
       .select({ id: rosterTable.id })
       .from(rosterTable)
@@ -1043,14 +1263,25 @@ router.patch("/admin/roster/:id", async (req, res): Promise<void> => {
       userSet.lastName = parts.slice(1).join(" ") || "";
     }
     if (campusId !== undefined) userSet.campusId = campusId;
-    if (updates.email !== undefined && updates.email !== null) userSet.email = updates.email;
-    if (updates.studentId !== undefined && updates.studentId !== null) userSet.formsUserId = updates.studentId;
+    if (updates.email !== undefined && updates.email !== null)
+      userSet.email = updates.email;
+    if (updates.studentId !== undefined && updates.studentId !== null)
+      userSet.formsUserId = updates.studentId;
     if (Object.keys(userSet).length > 0) {
-      await db.update(usersTable).set(userSet).where(eq(usersTable.id, linkedUserId));
+      await db
+        .update(usersTable)
+        .set(userSet)
+        .where(eq(usersTable.id, linkedUserId));
     }
   }
 
-  await logAudit(req.user.id, "update_roster_entry", "roster", updated.id, `Updated ${updated.fullName}`);
+  await logAudit(
+    req.user.id,
+    "update_roster_entry",
+    "roster",
+    updated.id,
+    `Updated ${updated.fullName}`,
+  );
   res.json(updated);
 });
 
@@ -1073,7 +1304,7 @@ router.post("/admin/roster/clear", async (req, res): Promise<void> => {
   if (confirm !== "DELETE ALL ROSTER") {
     res.status(400).json({
       error:
-        "Confirmation phrase missing. Send { confirm: \"DELETE ALL ROSTER\" } to proceed.",
+        'Confirmation phrase missing. Send { confirm: "DELETE ALL ROSTER" } to proceed.',
     });
     return;
   }
@@ -1106,7 +1337,10 @@ router.delete("/admin/roster/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const [target] = await db.select().from(rosterTable).where(eq(rosterTable.id, id));
+  const [target] = await db
+    .select()
+    .from(rosterTable)
+    .where(eq(rosterTable.id, id));
   if (!target) {
     res.status(404).json({ error: "Roster entry not found" });
     return;
@@ -1137,7 +1371,13 @@ router.delete("/admin/roster/:id", async (req, res): Promise<void> => {
     await db.delete(usersTable).where(eq(usersTable.id, linkedUserId));
   }
 
-  await logAudit(req.user.id, "delete_roster_entry", "roster", id, `Deleted ${target.fullName} (${target.studentId})`);
+  await logAudit(
+    req.user.id,
+    "delete_roster_entry",
+    "roster",
+    id,
+    `Deleted ${target.fullName} (${target.studentId})`,
+  );
   res.json({ ok: true });
 });
 
@@ -1156,7 +1396,7 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
   // Pre-resolve campuses so every imported row gets a real campusId — without
   // it the SSO whitelist gate would refuse to log these students in.
   const allCampuses = await db.select().from(campusesTable);
-  const campusByName = new Map<string, typeof allCampuses[number]>();
+  const campusByName = new Map<string, (typeof allCampuses)[number]>();
   for (const c of allCampuses) campusByName.set(c.name.trim().toLowerCase(), c);
 
   // ---------------------------------------------------------------------
@@ -1196,7 +1436,7 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
       studentId: studentUserId,
       fullName: s.studentName?.trim() || studentUserId,
       email,
-      campusName: campus?.name ?? (s.instituteName?.trim() ?? ""),
+      campusName: campus?.name ?? s.instituteName?.trim() ?? "",
       campusId: campus?.id ?? null,
       niatId: s.niatId?.trim() || null,
       batchSectionName: s.batchSectionName?.trim() || null,
@@ -1313,7 +1553,13 @@ router.post("/admin/roster/import", async (req, res): Promise<void> => {
     }
   }
 
-  await logAudit(req.user.id, "bulk_import_roster", "roster", undefined, `Imported ${inserted} students, skipped ${skipped}`);
+  await logAudit(
+    req.user.id,
+    "bulk_import_roster",
+    "roster",
+    undefined,
+    `Imported ${inserted} students, skipped ${skipped}`,
+  );
   res.json({ inserted, skipped, total: students.length });
 });
 
@@ -1325,9 +1571,17 @@ router.get("/admin/access-requests", async (req, res): Promise<void> => {
   }
   const status = req.query.status as string | undefined;
   const requests = status
-    ? await db.select().from(accessRequestsTable).where(eq(accessRequestsTable.status, status))
+    ? await db
+        .select()
+        .from(accessRequestsTable)
+        .where(eq(accessRequestsTable.status, status))
     : await db.select().from(accessRequestsTable);
-  res.json(requests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+  res.json(
+    requests.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    ),
+  );
 });
 
 router.patch("/admin/access-requests/:id", async (req, res): Promise<void> => {
@@ -1335,7 +1589,9 @@ router.patch("/admin/access-requests/:id", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  const params = UpdateAccessRequestParams.safeParse({ id: Number(req.params.id) });
+  const params = UpdateAccessRequestParams.safeParse({
+    id: Number(req.params.id),
+  });
   const body = UpdateAccessRequestBody.safeParse(req.body);
   if (!params.success || !body.success) {
     res.status(400).json({ error: "Invalid request" });
@@ -1350,7 +1606,13 @@ router.patch("/admin/access-requests/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  await logAudit(req.user.id, `access_request_${body.data.status}`, "access_request", updated.id, `${body.data.status}: ${updated.email}`);
+  await logAudit(
+    req.user.id,
+    `access_request_${body.data.status}`,
+    "access_request",
+    updated.id,
+    `${body.data.status}: ${updated.email}`,
+  );
   res.json(updated);
 });
 
@@ -1384,7 +1646,12 @@ router.post("/admin/dev/reseed", async (req, res): Promise<void> => {
     res.json({ ok: true, durationMs });
   } catch (err) {
     req.log.error({ err }, "reseed failed");
-    res.status(500).json({ error: "Reseed failed", detail: err instanceof Error ? err.message : String(err) });
+    res
+      .status(500)
+      .json({
+        error: "Reseed failed",
+        detail: err instanceof Error ? err.message : String(err),
+      });
   } finally {
     reseedInFlight = false;
   }

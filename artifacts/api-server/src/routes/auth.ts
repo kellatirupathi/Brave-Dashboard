@@ -1,8 +1,12 @@
 import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { GetCurrentAuthUserResponse, UpdateCurrentAuthUserBody } from "@workspace/api-zod";
+import {
+  GetCurrentAuthUserResponse,
+  UpdateCurrentAuthUserBody,
+} from "@workspace/api-zod";
 import crypto from "crypto";
+import * as bcrypt from "bcryptjs";
 import {
   db,
   usersTable,
@@ -25,7 +29,10 @@ import {
   ISSUER_URL,
   type SessionData,
 } from "../lib/auth";
-import { getBootstrapAdminFormsIds, getBootstrapAdminEmails } from "../bootstrap-admins";
+import {
+  getBootstrapAdminFormsIds,
+  getBootstrapAdminEmails,
+} from "../bootstrap-admins";
 import { logAudit } from "../lib/audit";
 
 // Returns a roster entry that resolves to a real campus for the given
@@ -37,7 +44,8 @@ async function findUsableRosterMatch(opts: {
   email?: string | null;
 }) {
   const clauses = [] as ReturnType<typeof eq>[];
-  if (opts.formsUserId) clauses.push(eq(rosterTable.studentId, opts.formsUserId));
+  if (opts.formsUserId)
+    clauses.push(eq(rosterTable.studentId, opts.formsUserId));
   if (opts.email) clauses.push(eq(rosterTable.email, opts.email));
   if (clauses.length === 0) return null;
   const [match] = await db
@@ -90,21 +98,29 @@ function setOidcCookie(res: Response, name: string, value: string) {
 }
 
 function getSafeReturnTo(value: unknown): string {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  ) {
     return "/";
   }
   return value;
 }
 
 export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
-  const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, dbUser.id));
+  const [member] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, dbUser.id));
   const matchClauses = [eq(rosterTable.email, dbUser.email)];
   if (dbUser.formsUserId) {
     matchClauses.push(eq(rosterTable.studentId, dbUser.formsUserId));
   }
-  const [rosterEntry] = await db.select().from(rosterTable).where(
-    and(or(...matchClauses), eq(rosterTable.isWhitelisted, true))
-  );
+  const [rosterEntry] = await db
+    .select()
+    .from(rosterTable)
+    .where(and(or(...matchClauses), eq(rosterTable.isWhitelisted, true)));
   // If we matched roster and the user has no campus / name set yet, propagate from roster
   let campusId = dbUser.campusId ?? null;
   let firstName = dbUser.firstName;
@@ -119,11 +135,20 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
       const parts = rosterEntry.fullName.trim().split(/\s+/);
       const fn = parts[0] ?? "";
       const ln = parts.slice(1).join(" ");
-      if (!firstName) { firstName = fn; updates.firstName = fn; }
-      if (!lastName)  { lastName  = ln; updates.lastName  = ln; }
+      if (!firstName) {
+        firstName = fn;
+        updates.firstName = fn;
+      }
+      if (!lastName) {
+        lastName = ln;
+        updates.lastName = ln;
+      }
     }
     if (Object.keys(updates).length > 0) {
-      await db.update(usersTable).set({ ...updates, updatedAt: new Date() }).where(eq(usersTable.id, dbUser.id));
+      await db
+        .update(usersTable)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(usersTable.id, dbUser.id));
     }
   }
   return {
@@ -141,6 +166,9 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
     profileCompletedAt: dbUser.profileCompletedAt
       ? dbUser.profileCompletedAt.toISOString()
       : null,
+    // Whether this account has a password set. Drives the "Change password"
+    // option in the profile dropdown — SSO-only accounts never see it.
+    hasPassword: !!dbUser.passwordHash,
   };
 }
 
@@ -149,9 +177,12 @@ async function upsertUser(claims: Record<string, unknown>) {
   const userData = {
     replitId: claims.sub as string,
     email,
-    firstName: (claims.first_name as string) || (claims.given_name as string) || "",
-    lastName: (claims.last_name as string) || (claims.family_name as string) || "",
-    profileImage: ((claims.profile_image_url || claims.picture) as string) || null,
+    firstName:
+      (claims.first_name as string) || (claims.given_name as string) || "",
+    lastName:
+      (claims.last_name as string) || (claims.family_name as string) || "",
+    profileImage:
+      ((claims.profile_image_url || claims.picture) as string) || null,
   };
 
   const [user] = await db
@@ -361,7 +392,10 @@ router.patch("/auth/me", async (req: Request, res: Response) => {
         .set({ profileCompletedAt: new Date(), updatedAt: new Date() })
         .where(eq(usersTable.id, req.user.id));
     }
-    const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+    const [dbUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user.id));
     if (!dbUser) {
       res.status(404).json({ error: "User not found" });
       return;
@@ -377,7 +411,9 @@ router.patch("/auth/me", async (req: Request, res: Response) => {
       .from(usersTable)
       .where(eq(usersTable.email, updates.email));
     if (emailHit && emailHit.id !== req.user.id) {
-      res.status(409).json({ error: "That email is already in use by another account." });
+      res
+        .status(409)
+        .json({ error: "That email is already in use by another account." });
       return;
     }
   }
@@ -387,7 +423,9 @@ router.patch("/auth/me", async (req: Request, res: Response) => {
       .from(usersTable)
       .where(eq(usersTable.niatId, updates.niatId));
     if (niatHit && niatHit.id !== req.user.id) {
-      res.status(409).json({ error: "That NIAT ID is already in use by another account." });
+      res
+        .status(409)
+        .json({ error: "That NIAT ID is already in use by another account." });
       return;
     }
   }
@@ -396,7 +434,10 @@ router.patch("/auth/me", async (req: Request, res: Response) => {
   // Using the in-flight req.user as the "before" snapshot is sufficient — we
   // only need to know whether the user has ever completed it, not the exact
   // current row state.
-  const finalUpdates: Partial<typeof usersTable.$inferInsert> = { ...updates, updatedAt: new Date() };
+  const finalUpdates: Partial<typeof usersTable.$inferInsert> = {
+    ...updates,
+    updatedAt: new Date(),
+  };
   if (!req.user.profileCompletedAt) {
     finalUpdates.profileCompletedAt = new Date();
   }
@@ -407,7 +448,9 @@ router.patch("/auth/me", async (req: Request, res: Response) => {
       .where(eq(usersTable.id, req.user.id));
   } catch (err) {
     if ((err as { code?: string })?.code === "23505") {
-      res.status(409).json({ error: "That email or NIAT ID is already in use." });
+      res
+        .status(409)
+        .json({ error: "That email or NIAT ID is already in use." });
       return;
     }
     req.log.error({ err }, "PATCH /auth/me failed");
@@ -415,7 +458,10 @@ router.patch("/auth/me", async (req: Request, res: Response) => {
     return;
   }
 
-  const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+  const [dbUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, req.user.id));
   if (!dbUser) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -433,16 +479,24 @@ router.get("/auth/dev-login", async (req: Request, res: Response) => {
   }
   const email = typeof req.query.email === "string" ? req.query.email : "";
   if (!email.endsWith("@brave.seed")) {
-    res.status(400).json({ error: "dev-login only works for seeded @brave.seed accounts" });
+    res
+      .status(400)
+      .json({ error: "dev-login only works for seeded @brave.seed accounts" });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, email));
   if (!user) {
     res.status(404).json({ error: `No seeded user with email ${email}` });
     return;
   }
   const authUser = await buildAuthUser(user);
-  const sessionData: SessionData = { user: authUser, access_token: "dev-login" };
+  const sessionData: SessionData = {
+    user: authUser,
+    access_token: "dev-login",
+  };
   const sid = await createSession(sessionData);
   setSessionCookie(res, sid);
   const returnTo = getSafeReturnTo(req.query.returnTo);
@@ -525,14 +579,24 @@ router.get("/callback", async (req: Request, res: Response) => {
   // roster entry to give them a campus, don't persist a student row at all
   // — that would violate the "no student/coordinator without a campus"
   // invariant.
-  const replitId = (claims as Record<string, unknown>).sub as string | undefined;
-  const claimEmail = ((claims as Record<string, unknown>).email as string | undefined) ?? null;
+  const replitId = (claims as Record<string, unknown>).sub as
+    | string
+    | undefined;
+  const claimEmail =
+    ((claims as Record<string, unknown>).email as string | undefined) ?? null;
   const [preExistingByReplit] = replitId
-    ? await db.select().from(usersTable).where(eq(usersTable.replitId, replitId))
+    ? await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.replitId, replitId))
     : [];
-  const [preExistingByEmail] = !preExistingByReplit && claimEmail
-    ? await db.select().from(usersTable).where(eq(usersTable.email, claimEmail))
-    : [];
+  const [preExistingByEmail] =
+    !preExistingByReplit && claimEmail
+      ? await db
+          .select()
+          .from(usersTable)
+          .where(eq(usersTable.email, claimEmail))
+      : [];
   const preExistingUser = preExistingByReplit ?? preExistingByEmail;
   if (!preExistingUser) {
     const adminEmails = getBootstrapAdminEmails();
@@ -555,7 +619,10 @@ router.get("/callback", async (req: Request, res: Response) => {
   const authUser = await buildAuthUser(dbUser);
 
   if (authUser.role === "student" && authUser.campusId == null) {
-    req.log.warn({ userId: authUser.id, email: authUser.email }, "Blocking SSO login: student has no campus");
+    req.log.warn(
+      { userId: authUser.id, email: authUser.email },
+      "Blocking SSO login: student has no campus",
+    );
     res.redirect("/?error=no_campus");
     return;
   }
@@ -620,14 +687,25 @@ router.post(
         return;
       }
 
-      const replitId = (claims as Record<string, unknown>).sub as string | undefined;
-      const claimEmail = ((claims as Record<string, unknown>).email as string | undefined) ?? null;
+      const replitId = (claims as Record<string, unknown>).sub as
+        | string
+        | undefined;
+      const claimEmail =
+        ((claims as Record<string, unknown>).email as string | undefined) ??
+        null;
       const [preExistingByReplit] = replitId
-        ? await db.select().from(usersTable).where(eq(usersTable.replitId, replitId))
+        ? await db
+            .select()
+            .from(usersTable)
+            .where(eq(usersTable.replitId, replitId))
         : [];
-      const [preExistingByEmail] = !preExistingByReplit && claimEmail
-        ? await db.select().from(usersTable).where(eq(usersTable.email, claimEmail))
-        : [];
+      const [preExistingByEmail] =
+        !preExistingByReplit && claimEmail
+          ? await db
+              .select()
+              .from(usersTable)
+              .where(eq(usersTable.email, claimEmail))
+          : [];
       const preExistingUser = preExistingByReplit ?? preExistingByEmail;
       if (!preExistingUser) {
         const adminEmails = getBootstrapAdminEmails();
@@ -649,11 +727,16 @@ router.post(
         }
       }
 
-      const dbUser = await upsertUser(claims as unknown as Record<string, unknown>);
+      const dbUser = await upsertUser(
+        claims as unknown as Record<string, unknown>,
+      );
       const authUser = await buildAuthUser(dbUser);
 
       if (authUser.role === "student" && authUser.campusId == null) {
-        req.log.warn({ userId: authUser.id, email: authUser.email }, "Blocking mobile SSO login: student has no campus");
+        req.log.warn(
+          { userId: authUser.id, email: authUser.email },
+          "Blocking mobile SSO login: student has no campus",
+        );
         res.status(403).json({
           error:
             "We couldn't match you to a campus. Please contact your campus coordinator to be added to the roster.",
@@ -712,12 +795,118 @@ router.post("/access-request", async (req: Request, res: Response) => {
     }
     const [request] = await db
       .insert(accessRequestsTable)
-      .values({ fullName, email, batch: batch ?? null, niatId: niatId ?? null, campusName, status: "pending" })
+      .values({
+        fullName,
+        email,
+        batch: batch ?? null,
+        niatId: niatId ?? null,
+        campusName,
+        status: "pending",
+      })
       .returning();
     res.status(201).json(request);
   } catch {
     res.status(500).json({ error: "Failed to submit request" });
   }
+});
+
+// ---------- Email + password login (admins / coordinators only) ----------
+// Runs alongside Forms SSO. Never replaces it. Students cannot use this path.
+const PasswordLoginBody = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+router.post("/auth/password-login", async (req: Request, res: Response) => {
+  const parsed = PasswordLoginBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid email or password format" });
+    return;
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+
+  const [dbUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, email));
+  // Generic message — don't leak whether email exists.
+  const invalid = () =>
+    res.status(401).json({ error: "Invalid email or password." });
+  if (!dbUser || !dbUser.passwordHash) return invalid();
+  if (!dbUser.isActive) {
+    res.status(403).json({ error: "Account is inactive." });
+    return;
+  }
+  if (dbUser.role === "student") {
+    res.status(403).json({
+      error: "Student accounts must sign in via Forms SSO.",
+    });
+    return;
+  }
+
+  let ok = false;
+  try {
+    ok = await bcrypt.compare(parsed.data.password, dbUser.passwordHash);
+  } catch {
+    ok = false;
+  }
+  if (!ok) return invalid();
+
+  const authUser = await buildAuthUser(dbUser);
+  const sessionData: SessionData = {
+    user: authUser,
+    access_token: "password-login",
+  };
+  const sid = await createSession(sessionData);
+  setSessionCookie(res, sid);
+  res.json(GetCurrentAuthUserResponse.parse({ user: authUser }));
+});
+
+// ---------- Self change-password ----------
+const ChangePasswordBody = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+router.post("/auth/change-password", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const parsed = ChangePasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [dbUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, req.user.id));
+  if (!dbUser || !dbUser.passwordHash) {
+    res
+      .status(400)
+      .json({ error: "This account does not use password sign-in." });
+    return;
+  }
+  let currentOk = false;
+  try {
+    currentOk = await bcrypt.compare(
+      parsed.data.currentPassword,
+      dbUser.passwordHash,
+    );
+  } catch {
+    currentOk = false;
+  }
+  if (!currentOk) {
+    res.status(401).json({ error: "Current password is incorrect." });
+    return;
+  }
+  const newHash = await bcrypt.hash(parsed.data.newPassword, 10);
+  await db
+    .update(usersTable)
+    .set({ passwordHash: newHash, updatedAt: new Date() })
+    .where(eq(usersTable.id, dbUser.id));
+  res.json({ ok: true });
 });
 
 export default router;

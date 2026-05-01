@@ -68,18 +68,38 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-async function start(): Promise<void> {
-  await bootstrapCanonicalCampuses();
-  await bootstrapAdmins();
-  await backfillOrderBookEntries();
-  await reportUsersWithoutCampus();
+async function runBootstrap(): Promise<void> {
+  try {
+    await bootstrapCanonicalCampuses();
+  } catch (err) {
+    logger.error({ err }, "bootstrapCanonicalCampuses failed");
+  }
+  try {
+    await bootstrapAdmins();
+  } catch (err) {
+    logger.error({ err }, "bootstrapAdmins failed");
+  }
+  try {
+    await backfillOrderBookEntries();
+  } catch (err) {
+    logger.error({ err }, "backfillOrderBookEntries failed");
+  }
+  try {
+    await reportUsersWithoutCampus();
+  } catch (err) {
+    logger.error({ err }, "reportUsersWithoutCampus failed");
+  }
+}
+
+function start(): void {
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
       process.exit(1);
     }
     logger.info({ port }, "Server listening");
+    void runBootstrap();
   });
 }
 
-void start();
+start();

@@ -1,5 +1,8 @@
 import { useAuth } from "@workspace/replit-auth-web";
-import { useGetMyTeam, getGetMyTeamQueryKey } from "@workspace/api-client-react";
+import {
+  useGetMyTeam,
+  getGetMyTeamQueryKey,
+} from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import {
@@ -16,7 +19,9 @@ import {
   CheckSquare,
   UserCog,
   ChevronRight,
+  KeyRound,
 } from "lucide-react";
+import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { cn } from "@/lib/utils";
 import { BraveLogo } from "./brave-logo";
 import {
@@ -47,6 +52,12 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showChangePasswordDialog, setShowChangePasswordDialog] =
+    useState(false);
+  // hasPassword is appended by the API when the account has a password_hash.
+  // It is not yet declared on the generated AuthUser type — read defensively.
+  const hasPassword = !!(user as unknown as { hasPassword?: boolean })
+    ?.hasPassword;
   // Source of truth for "does this student have a team?" is the live
   // useGetMyTeam query — it's already invalidated after every team
   // membership mutation (create, join, leave, etc.), so the sidebar
@@ -87,7 +98,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       { name: "Teams", href: "/coordinator/teams", icon: Users },
       { name: "Projects", href: "/coordinator/projects", icon: FolderKanban },
       { name: "Leaderboard", href: "/coordinator/leaderboard", icon: Trophy },
-      { name: "Announcements", href: "/coordinator/announcements", icon: Megaphone },
+      {
+        name: "Announcements",
+        href: "/coordinator/announcements",
+        icon: Megaphone,
+      },
     ],
     admin: [
       { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -102,7 +117,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       { name: "Announcements", href: "/admin/announcements", icon: Megaphone },
       { name: "Config", href: "/admin/config", icon: Settings },
       { name: "Audit Log", href: "/admin/audit-log", icon: ClipboardList },
-    ]
+    ],
   };
 
   const items = navItems[role as keyof typeof navItems] || [];
@@ -112,28 +127,35 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       <div className="flex h-full flex-col text-sidebar-foreground">
         <div className="p-6">
           <BraveLogo className="text-2xl" />
-          <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-2">Dashboard</p>
+          <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-2">
+            Dashboard
+          </p>
         </div>
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto py-4">
           {items.map((item) => {
             const Icon = item.icon;
             const isExactOnly = items.some(
-              (other) => other.href !== item.href && other.href.startsWith(item.href === '/' ? '/' : item.href + '/')
+              (other) =>
+                other.href !== item.href &&
+                other.href.startsWith(
+                  item.href === "/" ? "/" : item.href + "/",
+                ),
             );
             const isActive = isExactOnly
               ? location === item.href
-              : location === item.href || location.startsWith(item.href + '/');
-            
+              : location === item.href || location.startsWith(item.href + "/");
+
             return (
               <Link key={item.name} href={item.href} onClick={onNavigate}>
                 <span
                   className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
-                  isActive 
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" 
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}>
+                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                >
                   <Icon className="w-4 h-4" />
                   {item.name}
                 </span>
@@ -152,15 +174,24 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 aria-label="Open profile menu"
               >
                 {user.profileImage ? (
-                  <img src={user.profileImage} alt="" className="w-8 h-8 rounded-full" />
+                  <img
+                    src={user.profileImage}
+                    alt=""
+                    className="w-8 h-8 rounded-full"
+                  />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-sidebar-primary/20 text-sidebar-primary flex items-center justify-center text-sm font-bold">
-                    {user.firstName?.[0]}{user.lastName?.[0]}
+                    {user.firstName?.[0]}
+                    {user.lastName?.[0]}
                   </div>
                 )}
                 <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-medium truncate">{user.firstName} {user.lastName}</p>
-                  <p className="text-xs text-sidebar-foreground/50 truncate capitalize">{user.role}</p>
+                  <p className="text-sm font-medium truncate">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="text-xs text-sidebar-foreground/50 truncate capitalize">
+                    {user.role}
+                  </p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-sidebar-foreground/40" />
               </button>
@@ -177,6 +208,18 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                   Edit profile
                 </Link>
               </DropdownMenuItem>
+              {hasPassword && (
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setShowChangePasswordDialog(true);
+                  }}
+                  data-testid="menu-item-change-password"
+                >
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Change password
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={(e) => {
@@ -194,12 +237,19 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         </div>
       </div>
 
+      <ChangePasswordDialog
+        open={showChangePasswordDialog}
+        onOpenChange={setShowChangePasswordDialog}
+        mode={{ kind: "self" }}
+      />
+
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Log out?</AlertDialogTitle>
             <AlertDialogDescription>
-              You will be signed out of the BRAVE Dashboard and redirected to the login page.
+              You will be signed out of the BRAVE Dashboard and redirected to
+              the login page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
