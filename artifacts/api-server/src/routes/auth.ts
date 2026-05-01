@@ -21,6 +21,7 @@ import { eq, and, or } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
+  getSession,
   getSessionId,
   createSession,
   deleteSession,
@@ -641,17 +642,41 @@ router.get("/callback", async (req: Request, res: Response) => {
 });
 
 router.get("/logout", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const origin = getOrigin(req);
-
   const sid = getSessionId(req);
+
+  // Read the session BEFORE clearing it so we can decide whether this is
+  // a Replit-OIDC session (created via /api/login) or a password-basis
+  // session (created via /api/auth/password-login). Password sessions have
+  // no Replit-side session to end, so we skip the OIDC end-session redirect
+  // and just send the user back to the dashboard root.
+  let isPasswordSession = false;
+  if (sid) {
+    try {
+      const session = await getSession(sid);
+      if (session?.access_token === "password-login") {
+        isPasswordSession = true;
+      }
+    } catch {
+      // If session lookup fails, fall through to the SSO end-session path —
+      // that path is also safe for an already-cleared session.
+    }
+  }
+
   await clearSession(res, sid);
 
+  if (isPasswordSession) {
+    res.redirect("/");
+    return;
+  }
+
+  // SSO logout — unchanged from the original behavior. Ends the Replit OIDC
+  // session so the user is fully signed out at the IdP too.
+  const config = await getOidcConfig();
+  const origin = getOrigin(req);
   const endSessionUrl = oidc.buildEndSessionUrl(config, {
     client_id: process.env.REPL_ID!,
     post_logout_redirect_uri: origin,
   });
-
   res.redirect(endSessionUrl.href);
 });
 
