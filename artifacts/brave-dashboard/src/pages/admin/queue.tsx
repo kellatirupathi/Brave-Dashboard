@@ -5,7 +5,7 @@ import {
   useUnverifyRevenueEntry,
   getGetAdminReviewQueueQueryKey,
 } from "@workspace/api-client-react";
-import { formatINR, formatDate } from "@/lib/format";
+import { formatINR, formatDateTime } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -268,8 +268,8 @@ function QueueRow({
               </div>
               <div>
                 {status === "verified" && item.verifiedAt
-                  ? formatDate(item.verifiedAt as string)
-                  : formatDate(item.submittedAt as string)}
+                  ? formatDateTime(item.verifiedAt as string)
+                  : formatDateTime(item.submittedAt as string)}
               </div>
             </div>
           </div>
@@ -324,7 +324,9 @@ function PendingActions({ item }: { item: QueueItem }) {
   const verify = useVerifyRevenueEntry();
   const reject = useRejectRevenueEntry();
   const [open, setOpen] = useState<"approve" | "reject" | null>(null);
-  const [verifiedAmount, setVerifiedAmount] = useState<number | "">(item.amount);
+  const [verifiedAmount, setVerifiedAmount] = useState<number | "">(
+    item.amount,
+  );
   const [adminNotes, setAdminNotes] = useState("");
 
   const isPending = verify.isPending || reject.isPending;
@@ -407,9 +409,7 @@ function PendingActions({ item }: { item: QueueItem }) {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Verified Amount (₹)
-              </label>
+              <label className="text-sm font-medium">Verified Amount (₹)</label>
               <Input
                 type="number"
                 value={verifiedAmount}
@@ -472,8 +472,7 @@ function PendingActions({ item }: { item: QueueItem }) {
                 disabled={isPending || !adminNotes.trim()}
                 data-testid={`button-confirm-reject-${item.id}`}
               >
-                {isPending && <Spinner className="w-4 h-4 mr-2" />} Reject
-                Entry
+                {isPending && <Spinner className="w-4 h-4 mr-2" />} Reject Entry
               </Button>
             </div>
           </div>
@@ -542,9 +541,8 @@ function UnverifyAction({ item }: { item: QueueItem }) {
             <AlertDialogTitle>Move entry back to review?</AlertDialogTitle>
             <AlertDialogDescription>
               This will clear the verified amount and admin notes, move the
-              entry back to <strong>Pending review</strong>, and notify the
-              team leader. You can re-verify or reject it from the pending
-              tab.
+              entry back to <strong>Pending review</strong>, and notify the team
+              leader. You can re-verify or reject it from the pending tab.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

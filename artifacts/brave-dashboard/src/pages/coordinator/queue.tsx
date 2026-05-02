@@ -5,7 +5,7 @@ import {
   useUnverifyRevenueEntry,
   getGetAdminReviewQueueQueryKey,
 } from "@workspace/api-client-react";
-import { formatINR, formatDate } from "@/lib/format";
+import { formatINR, formatDateTime } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -276,8 +276,8 @@ function QueueRow({
               </div>
               <div>
                 {status === "verified" && item.verifiedAt
-                  ? formatDate(item.verifiedAt as string)
-                  : formatDate(item.submittedAt as string)}
+                  ? formatDateTime(item.verifiedAt as string)
+                  : formatDateTime(item.submittedAt as string)}
               </div>
             </div>
           </div>
