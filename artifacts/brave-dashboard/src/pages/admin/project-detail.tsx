@@ -114,7 +114,7 @@ export default function AdminProjectDetail() {
               <p className="text-muted-foreground mt-2 max-w-2xl">
                 {project.description}
               </p>
-              {user?.role === "admin" && (
+              {(user?.role === "admin" || user?.role === "coordinator") && (
                 <p
                   className="text-xs text-muted-foreground mt-2"
                   data-testid="text-project-last-updated"

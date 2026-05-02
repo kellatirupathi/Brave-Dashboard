@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Users } from "lucide-react";
-import { formatINR } from "@/lib/format";
+import { formatINR, formatDateTime } from "@/lib/format";
 
 export default function CoordinatorTeams() {
   const { data: teamsResp, isLoading } = useListTeams({ pageSize: 1000 });
@@ -22,7 +22,9 @@ export default function CoordinatorTeams() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Teams Management</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Teams Management
+          </h1>
           <p className="text-muted-foreground">Manage teams at your campus</p>
         </div>
       </div>
@@ -45,6 +47,16 @@ export default function CoordinatorTeams() {
                   <span>{team.memberCount} Members</span>
                   <span>•</span>
                   <span>{formatINR(team.totalRevenue)} Revenue</span>
+                </div>
+                <div
+                  className="text-xs text-muted-foreground mt-1"
+                  data-testid={`text-team-updated-${team.id}`}
+                >
+                  Last updated:{" "}
+                  {formatDateTime(
+                    (team as unknown as { updatedAt?: string | Date | null })
+                      .updatedAt ?? team.createdAt,
+                  )}
                 </div>
               </div>
             </div>

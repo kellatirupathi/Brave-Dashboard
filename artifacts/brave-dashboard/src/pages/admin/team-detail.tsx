@@ -192,7 +192,7 @@ export default function AdminTeamDetail() {
           <p className="text-muted-foreground mt-1">
             {team.tagline || "—"} · {team.campusName}
           </p>
-          {isAdmin && (
+          {(isAdmin || user?.role === "coordinator") && (
             <p
               className="text-xs text-muted-foreground mt-1"
               data-testid="text-team-last-updated"

@@ -71,6 +71,9 @@ export default function AdminProjects({
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isCoordinator = user?.role === "coordinator";
+  // Staff (admin or coordinator) see the "Last updated" column. Students do not.
+  const showLastUpdated = isAdmin || isCoordinator;
   const allowDelete = isAdmin && !readOnly;
 
   const [searchInput, setSearchInput] = useState("");
@@ -208,7 +211,7 @@ export default function AdminProjects({
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Revenue</TableHead>
                   <TableHead className="text-right">Order Book</TableHead>
-                  {isAdmin && <TableHead>Last updated</TableHead>}
+                  {showLastUpdated && <TableHead>Last updated</TableHead>}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -250,7 +253,7 @@ export default function AdminProjects({
                     <TableCell className="text-right font-medium">
                       {formatINR(p.verifiedOrderBook)}
                     </TableCell>
-                    {isAdmin && (
+                    {showLastUpdated && (
                       <TableCell
                         className="text-sm text-muted-foreground whitespace-nowrap"
                         data-testid={`text-project-updated-${p.id}`}
@@ -294,7 +297,7 @@ export default function AdminProjects({
                 {items.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={isAdmin ? 7 : 6}
+                      colSpan={showLastUpdated ? 7 : 6}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No projects found matching your criteria.
