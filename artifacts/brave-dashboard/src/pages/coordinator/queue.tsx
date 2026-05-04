@@ -322,7 +322,7 @@ function QueueRow({
           ) : null}
 
           {status === "rejected" && item.adminNotes ? (
-            <div className="mt-2 text-xs text-destructive/80 italic line-clamp-2">
+            <div className="mt-2 text-xs text-destructive/80 italic">
               Rejection reason: {item.adminNotes}
             </div>
           ) : null}
