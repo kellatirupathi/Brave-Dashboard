@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, KeyRound, Search, ArrowRight, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { SupportBanner } from "@/components/support-banner";
 
 export default function GetStarted() {
   const { user, refresh: refreshAuth } = useAuth();
@@ -410,6 +411,8 @@ export default function GetStarted() {
         <AvatarFallback>?</AvatarFallback>
       </Avatar>
       <Badge className="hidden">x</Badge>
+
+      <SupportBanner />
     </div>
   );
 }

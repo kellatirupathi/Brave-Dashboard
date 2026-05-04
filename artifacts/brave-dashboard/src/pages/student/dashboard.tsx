@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
+import { SupportBanner } from "@/components/support-banner";
 
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
@@ -239,6 +240,8 @@ export default function TeamDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        <SupportBanner />
       </div>
     </>
   );
