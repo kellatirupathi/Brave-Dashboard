@@ -3,7 +3,14 @@ import { Menu } from "lucide-react";
 import { Sidebar, SidebarBody } from "./sidebar";
 import { BraveLogo } from "./brave-logo";
 import { Button } from "./ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "./ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "./ui/sheet";
+import { HelpMenu } from "./help-menu";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -52,6 +59,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* Floating help menu — students only; component self-gates by role. */}
+      <HelpMenu />
     </div>
   );
 }

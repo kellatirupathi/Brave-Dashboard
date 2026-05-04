@@ -31,14 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Plus,
-  KeyRound,
-  Search,
-  ArrowRight,
-  Mail,
-  HelpCircle,
-} from "lucide-react";
+import { Plus, KeyRound, Search, ArrowRight, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function GetStarted() {
@@ -417,18 +410,6 @@ export default function GetStarted() {
         <AvatarFallback>?</AvatarFallback>
       </Avatar>
       <Badge className="hidden">x</Badge>
-
-      <a
-        href="https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?usp=sharing"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Open help guide in a new tab"
-        title="Help"
-        data-testid="button-help"
-        className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      >
-        <HelpCircle className="h-6 w-6" />
-      </a>
     </div>
   );
 }

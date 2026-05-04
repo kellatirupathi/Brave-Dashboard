@@ -60,6 +60,7 @@ import AdminConfig from "@/pages/admin/config";
 import AdminRoster from "@/pages/admin/roster";
 import AdminAuditLog from "@/pages/admin/audit-log";
 import AdminAnnouncements from "@/pages/admin/announcements";
+import AdminFeedback from "@/pages/admin/feedback";
 
 // Coordinator
 import CoordinatorProjects from "@/pages/coordinator/projects";
@@ -323,6 +324,10 @@ function Router() {
           component={AdminAnnouncements}
           allowedRoles={["admin"]}
         />
+      </Route>
+      {/* Hidden route — not linked from the admin sidebar; reachable only via direct URL. */}
+      <Route path="/admin/feedback">
+        <ProtectedRoute component={AdminFeedback} allowedRoles={["admin"]} />
       </Route>
 
       {/* Shared */}

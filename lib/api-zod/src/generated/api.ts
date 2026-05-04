@@ -2080,6 +2080,32 @@ export const DeleteAnnouncementParams = zod.object({
 });
 
 /**
+ * @summary Submit platform feedback (any authenticated user)
+ */
+export const submitFeedbackBodyRatingMax = 5;
+
+export const SubmitFeedbackBody = zod.object({
+  rating: zod.number().min(1).max(submitFeedbackBodyRatingMax),
+  comments: zod.string().nullish(),
+});
+
+/**
+ * @summary List all submitted feedback (admin)
+ */
+export const ListFeedbackResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  rating: zod.number(),
+  comments: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  userName: zod.string(),
+  userEmail: zod.string(),
+  userRole: zod.string(),
+  niatId: zod.string().nullish(),
+});
+export const ListFeedbackResponse = zod.array(ListFeedbackResponseItem);
+
+/**
  * @summary List all users (admin)
  */
 

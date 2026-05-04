@@ -36,6 +36,8 @@ tags:
     description: Object storage
   - name: roster
     description: Student roster management
+  - name: feedback
+    description: Platform feedback submissions
 
 paths:
   /healthz:
@@ -1603,6 +1605,41 @@ paths:
       responses:
         "204":
           description: Announcement deleted
+
+  # Platform feedback
+  /feedback:
+    post:
+      operationId: submitFeedback
+      tags: [feedback]
+      summary: Submit platform feedback (any authenticated user)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitFeedbackBody"
+      responses:
+        "201":
+          description: Created feedback entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feedback"
+
+  /admin/feedback:
+    get:
+      operationId: listFeedback
+      tags: [feedback]
+      summary: List all submitted feedback (admin)
+      responses:
+        "200":
+          description: Feedback entries with submitter info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeedbackWithUser"
 
   # User management (admin)
   /admin/users:
@@ -4070,6 +4107,69 @@ components:
           type: boolean
       required:
         - success
+
+    SubmitFeedbackBody:
+      type: object
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comments:
+          type: ["string", "null"]
+      required:
+        - rating
+
+    Feedback:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        rating:
+          type: integer
+        comments:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - rating
+        - createdAt
+
+    FeedbackWithUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        rating:
+          type: integer
+        comments:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        userName:
+          type: string
+        userEmail:
+          type: string
+        userRole:
+          type: string
+        niatId:
+          type: ["string", "null"]
+      required:
+        - id
+        - userId
+        - rating
+        - createdAt
+        - userName
+        - userEmail
+        - userRole
 
     ExchangeMobileAuthorizationCodeBody:
       type: object

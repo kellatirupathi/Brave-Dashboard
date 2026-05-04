@@ -1196,6 +1196,39 @@ export interface SuccessResponse {
   success: boolean;
 }
 
+export interface SubmitFeedbackBody {
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rating: number;
+  /** @nullable */
+  comments?: string | null;
+}
+
+export interface Feedback {
+  id: number;
+  userId: string;
+  rating: number;
+  /** @nullable */
+  comments?: string | null;
+  createdAt: string;
+}
+
+export interface FeedbackWithUser {
+  id: number;
+  userId: string;
+  rating: number;
+  /** @nullable */
+  comments?: string | null;
+  createdAt: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  /** @nullable */
+  niatId?: string | null;
+}
+
 export interface ExchangeMobileAuthorizationCodeBody {
   code: string;
   codeVerifier: string;
