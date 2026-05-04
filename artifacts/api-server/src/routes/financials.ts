@@ -9,6 +9,7 @@ import {
   campusesTable,
   milestonesTable,
   programmeConfigTable,
+  usersTable,
 } from "@workspace/db";
 import {
   ListOrderBookEntriesQueryParams,
@@ -32,6 +33,9 @@ import {
 import { logAudit } from "../lib/audit";
 import { createNotification } from "../lib/notifications";
 import { requireTeamLeader } from "../lib/auth";
+import { sendEmail, getAppUrl } from "../lib/email/brevo";
+import { renderRevenueVerifiedEmail } from "../lib/email/templates/revenue-verified";
+import { renderRevenueRejectedEmail } from "../lib/email/templates/revenue-rejected";
 
 const router: IRouter = Router();
 
@@ -488,12 +492,10 @@ router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
     return;
   }
   if (!existing.brdUrl || existing.brdUrl.trim() === "") {
-    res
-      .status(400)
-      .json({
-        error:
-          "Upload a BRD document before submitting this entry for verification.",
-      });
+    res.status(400).json({
+      error:
+        "Upload a BRD document before submitting this entry for verification.",
+    });
     return;
   }
   const [entry] = await db
@@ -572,37 +574,31 @@ router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
   const configs = await db.select().from(programmeConfigTable).limit(1);
   const threshold = configs[0]?.demoEligibilityThreshold ?? 200000;
   if (total >= 50000 && total - (parsed.data.verifiedAmount ?? 0) < 50000) {
-    await db
-      .insert(milestonesTable)
-      .values({
-        teamId: entry.teamId,
-        type: "auto",
-        title: "₹50,000 Revenue Reached",
-        date: new Date(),
-      });
+    await db.insert(milestonesTable).values({
+      teamId: entry.teamId,
+      type: "auto",
+      title: "₹50,000 Revenue Reached",
+      date: new Date(),
+    });
   }
   if (total >= 100000 && total - (parsed.data.verifiedAmount ?? 0) < 100000) {
-    await db
-      .insert(milestonesTable)
-      .values({
-        teamId: entry.teamId,
-        type: "auto",
-        title: "₹1,00,000 Revenue Reached",
-        date: new Date(),
-      });
+    await db.insert(milestonesTable).values({
+      teamId: entry.teamId,
+      type: "auto",
+      title: "₹1,00,000 Revenue Reached",
+      date: new Date(),
+    });
   }
   if (
     total >= threshold &&
     total - (parsed.data.verifiedAmount ?? 0) < threshold
   ) {
-    await db
-      .insert(milestonesTable)
-      .values({
-        teamId: entry.teamId,
-        type: "auto",
-        title: `Demo Day Eligible — ₹${(threshold / 100000).toFixed(0)} Lakh Reached`,
-        date: new Date(),
-      });
+    await db.insert(milestonesTable).values({
+      teamId: entry.teamId,
+      type: "auto",
+      title: `Demo Day Eligible — ₹${(threshold / 100000).toFixed(0)} Lakh Reached`,
+      date: new Date(),
+    });
     if (team)
       await createNotification(
         team.leaderId,
@@ -620,6 +616,37 @@ router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
       "entry_verified",
       "/projects",
     );
+  // Email the team leader. Failures are swallowed inside sendEmail so they
+  // never block the verify response.
+  if (team) {
+    const [leader] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, team.leaderId));
+    const [project] = await db
+      .select()
+      .from(projectsTable)
+      .where(eq(projectsTable.id, entry.projectId));
+    if (leader?.email) {
+      const { subject, text } = renderRevenueVerifiedEmail({
+        recipientName:
+          `${leader.firstName ?? ""} ${leader.lastName ?? ""}`.trim() ||
+          "there",
+        teamName: team.name,
+        amount: parsed.data.verifiedAmount ?? 0,
+        clientName: entry.clientName,
+        projectTitle: project?.title ?? "",
+        totalVerifiedRevenue: total,
+        adminNotes: parsed.data.adminNotes ?? null,
+        appUrl: getAppUrl(),
+      });
+      void sendEmail({
+        to: { email: leader.email, name: leader.firstName ?? undefined },
+        subject,
+        text,
+      });
+    }
+  }
   await logAudit(
     req.user.id,
     "verify_revenue_entry",
@@ -664,6 +691,36 @@ router.post("/revenue-entries/:id/reject", async (req, res): Promise<void> => {
       "entry_rejected",
       "/projects",
     );
+  // Email the team leader. Failures are swallowed inside sendEmail so they
+  // never block the reject response.
+  if (team) {
+    const [leader] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, team.leaderId));
+    const [project] = await db
+      .select()
+      .from(projectsTable)
+      .where(eq(projectsTable.id, entry.projectId));
+    if (leader?.email) {
+      const { subject, text } = renderRevenueRejectedEmail({
+        recipientName:
+          `${leader.firstName ?? ""} ${leader.lastName ?? ""}`.trim() ||
+          "there",
+        teamName: team.name,
+        amount: entry.amount,
+        clientName: entry.clientName,
+        projectTitle: project?.title ?? "",
+        reason: parsed.data.adminNotes,
+        appUrl: getAppUrl(),
+      });
+      void sendEmail({
+        to: { email: leader.email, name: leader.firstName ?? undefined },
+        subject,
+        text,
+      });
+    }
+  }
   await logAudit(
     req.user.id,
     "reject_revenue_entry",
