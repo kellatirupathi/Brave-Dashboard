@@ -529,12 +529,10 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
       // Provision a placeholder users row keyed off the roster studentId
       // so subsequent SSO logins reconcile to the same account.
       if (!rosterRow.studentId) {
-        res
-          .status(400)
-          .json({
-            error:
-              "Roster entry is missing a student id; cannot create placeholder account",
-          });
+        res.status(400).json({
+          error:
+            "Roster entry is missing a student id; cannot create placeholder account",
+        });
         return;
       }
       const { user: placeholder } = await createOrGetUserByFormsId(
@@ -817,6 +815,18 @@ router.post("/teams/:id/join-requests", async (req, res): Promise<void> => {
     return;
   }
 
+  // Block requests to teams that are already at the configured member limit.
+  // The browse-teams UI hides the button in this case, but the API enforces
+  // the same rule so direct calls (or stale clients) cannot bypass it.
+  const [memberCount, memberLimit] = await Promise.all([
+    getTeamMemberCount(team.id),
+    getTeamMemberLimit(),
+  ]);
+  if (memberCount >= memberLimit) {
+    res.status(400).json({ error: teamFullMessage(memberCount, memberLimit) });
+    return;
+  }
+
   const [dup] = await db
     .select()
     .from(teamJoinRequestsTable)
@@ -935,11 +945,9 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     return { kind: "ok" as const };
   });
   if (approveResult.kind === "full") {
-    res
-      .status(400)
-      .json({
-        error: teamFullMessage(approveResult.count, approveResult.limit),
-      });
+    res.status(400).json({
+      error: teamFullMessage(approveResult.count, approveResult.limit),
+    });
     return;
   }
   if (approveResult.kind === "duplicate") {
@@ -1055,11 +1063,9 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     return;
   }
   if (team.leaderId === req.user.id) {
-    res
-      .status(400)
-      .json({
-        error: "The leader cannot leave the team. Transfer leadership first.",
-      });
+    res.status(400).json({
+      error: "The leader cannot leave the team. Transfer leadership first.",
+    });
     return;
   }
   const memberOK = await isTeamMember(req.user.id, team.id);
