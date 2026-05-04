@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
-import { HelpCircle, BookOpen, LifeBuoy, MessageSquare } from "lucide-react";
+import {
+  HelpCircle,
+  BookOpen,
+  LifeBuoy,
+  MessageSquare,
+  ChevronDown,
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -91,12 +97,16 @@ export function HelpMenu() {
         <PopoverTrigger asChild>
           <button
             type="button"
-            aria-label="Open help menu"
-            title="Help"
+            aria-label={open ? "Close help menu" : "Open help menu"}
+            title={open ? "Close" : "Help"}
             data-testid="button-help-menu"
             className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <HelpCircle className="h-6 w-6" />
+            {open ? (
+              <ChevronDown className="h-6 w-6 transition-transform" />
+            ) : (
+              <HelpCircle className="h-6 w-6 transition-transform" />
+            )}
           </button>
         </PopoverTrigger>
         <PopoverContent
