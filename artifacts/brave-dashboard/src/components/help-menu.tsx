@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
   HelpCircle,
@@ -17,6 +17,14 @@ import { FeedbackDialog } from "@/components/feedback-dialog";
 const DOCS_URL =
   "https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?usp=sharing";
 const SUPPORT_EMAIL = "brave.niat@nxtwave.in";
+
+const ROTATING_HINTS = [
+  "📖 Need help? Check the docs",
+  "🛟 Got a question? Contact support",
+  "💬 Share your feedback with us",
+  "✨ Suggest improvements",
+];
+const HINT_INTERVAL_MS = 5000;
 
 function buildSupportMailto(opts: {
   niatId?: string | null;
@@ -48,6 +56,27 @@ export function HelpMenu() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [hintIndex, setHintIndex] = useState(0);
+  const [hintVisible, setHintVisible] = useState(true);
+  const [hintHovered, setHintHovered] = useState(false);
+  const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Rotate hints every HINT_INTERVAL_MS, with a brief fade-out/in transition.
+  // Pauses when the popover is open or the user is hovering the hint pill.
+  useEffect(() => {
+    if (open || hintHovered) return;
+    const tick = setInterval(() => {
+      setHintVisible(false);
+      fadeTimer.current = setTimeout(() => {
+        setHintIndex((i) => (i + 1) % ROTATING_HINTS.length);
+        setHintVisible(true);
+      }, 300);
+    }, HINT_INTERVAL_MS);
+    return () => {
+      clearInterval(tick);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+    };
+  }, [open, hintHovered]);
 
   if (!user || user.role !== "student") return null;
 
@@ -93,6 +122,36 @@ export function HelpMenu() {
 
   return (
     <>
+      {/* Rotating hint pill — sits to the LEFT of the floating help button.
+          Hidden when the menu is open, on small screens, or while hovered (pauses rotation). */}
+      {!open && (
+        <div
+          className="hidden md:flex fixed bottom-6 right-20 z-50 items-center pointer-events-auto"
+          onMouseEnter={() => setHintHovered(true)}
+          onMouseLeave={() => setHintHovered(false)}
+          aria-hidden="true"
+          data-testid="help-hint"
+        >
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className={`max-w-xs whitespace-nowrap rounded-full border border-primary/20 bg-background px-3.5 py-2 text-xs font-medium text-foreground shadow-md transition-all duration-300 hover:bg-accent hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              hintVisible
+                ? "opacity-100 translate-x-0"
+                : "opacity-0 translate-x-2"
+            }`}
+          >
+            {ROTATING_HINTS[hintIndex]}
+          </button>
+          {/* Small triangle pointer toward the help button */}
+          <span
+            className={`ml-[-1px] h-0 w-0 border-y-[6px] border-l-[6px] border-y-transparent border-l-background transition-opacity duration-300 ${
+              hintVisible ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        </div>
+      )}
+
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
