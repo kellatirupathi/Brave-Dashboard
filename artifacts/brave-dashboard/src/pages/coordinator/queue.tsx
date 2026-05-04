@@ -37,6 +37,7 @@ import {
   Search,
   RotateCcw,
   CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 import { useQueryClient } from "@tanstack/react-query";
@@ -66,13 +67,13 @@ type QueueItem = {
   isOverdue: boolean;
   supportingDocUrl?: string | null;
   brdUrl?: string | null;
-  status: "submitted" | "verified";
+  status: "submitted" | "verified" | "rejected";
   verifiedAmount?: number | null;
   verifiedAt?: string | Date | null;
   adminNotes?: string | null;
 };
 
-type Tab = "pending" | "approved";
+type Tab = "pending" | "approved" | "rejected";
 
 export default function CoordinatorQueue() {
   const [tab, setTab] = useState<Tab>("pending");
@@ -119,6 +120,9 @@ export default function CoordinatorQueue() {
           <TabsTrigger value="approved" data-testid="tab-approved">
             Approved
           </TabsTrigger>
+          <TabsTrigger value="rejected" data-testid="tab-rejected">
+            Rejected
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="mt-6">
@@ -127,6 +131,10 @@ export default function CoordinatorQueue() {
 
         <TabsContent value="approved" className="mt-6">
           <QueueList status="verified" search={search} />
+        </TabsContent>
+
+        <TabsContent value="rejected" className="mt-6">
+          <QueueList status="rejected" search={search} />
         </TabsContent>
       </Tabs>
     </div>
@@ -137,13 +145,13 @@ function QueueList({
   status,
   search,
 }: {
-  status: "submitted" | "verified";
+  status: "submitted" | "verified" | "rejected";
   search: string;
 }) {
   const type = "revenue" as const;
   const { data: queue, isLoading } = useGetAdminReviewQueue({
     type,
-    status,
+    status: status as "submitted" | "verified",
     search: search || undefined,
   });
 
@@ -183,7 +191,22 @@ function QueueList({
   );
 }
 
-function EmptyState({ status }: { status: "submitted" | "verified" }) {
+function EmptyState({
+  status,
+}: {
+  status: "submitted" | "verified" | "rejected";
+}) {
+  if (status === "rejected") {
+    return (
+      <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-lg">
+        <XCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-40" />
+        <h3 className="text-lg font-semibold text-foreground">
+          No rejected entries
+        </h3>
+        <p>No revenue entries from your campus have been rejected.</p>
+      </div>
+    );
+  }
   return (
     <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-lg">
       <Check className="w-12 h-12 mx-auto mb-4 text-green-500 opacity-50" />
@@ -206,7 +229,7 @@ function QueueRow({
   status,
 }: {
   item: QueueItem;
-  status: "submitted" | "verified";
+  status: "submitted" | "verified" | "rejected";
 }) {
   return (
     <Card
@@ -231,6 +254,10 @@ function QueueRow({
             {status === "verified" ? (
               <Badge className="h-5 px-1.5 bg-green-600 hover:bg-green-600 text-white">
                 <CheckCircle2 className="w-3 h-3 mr-1" /> Verified
+              </Badge>
+            ) : status === "rejected" ? (
+              <Badge className="h-5 px-1.5 bg-destructive hover:bg-destructive text-destructive-foreground">
+                <XCircle className="w-3 h-3 mr-1" /> Rejected
               </Badge>
             ) : item.isOverdue ? (
               <Badge variant="destructive" className="h-5 px-1.5">
@@ -293,6 +320,12 @@ function QueueRow({
               Notes: {item.adminNotes}
             </div>
           ) : null}
+
+          {status === "rejected" && item.adminNotes ? (
+            <div className="mt-2 text-xs text-destructive/80 italic line-clamp-2">
+              Rejection reason: {item.adminNotes}
+            </div>
+          ) : null}
         </div>
 
         <div
@@ -316,6 +349,8 @@ function QueueRow({
 
           {status === "submitted" ? (
             <PendingActions item={item} />
+          ) : status === "rejected" ? (
+            <ReopenAction item={item} />
           ) : (
             <UnverifyAction item={item} />
           )}
@@ -355,6 +390,12 @@ function PendingActions({ item }: { item: QueueItem }) {
       queryKey: getGetAdminReviewQueueQueryKey({
         type: "revenue",
         status: "verified",
+      }),
+    });
+    queryClient.invalidateQueries({
+      queryKey: getGetAdminReviewQueueQueryKey({
+        type: "revenue",
+        status: "rejected" as "submitted" | "verified",
       }),
     });
   };
@@ -575,6 +616,88 @@ function UnverifyAction({ item }: { item: QueueItem }) {
             >
               {unverify.isPending && <Spinner className="w-4 h-4 mr-2" />}
               Unverify
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+function ReopenAction({ item }: { item: QueueItem }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const unverify = useUnverifyRevenueEntry();
+  const [open, setOpen] = useState(false);
+
+  const onConfirm = () => {
+    unverify.mutate(
+      { id: item.id },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Entry re-opened",
+            description:
+              "The entry was moved back to the pending review queue.",
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetAdminReviewQueueQueryKey({
+              type: "revenue",
+              status: "submitted",
+            }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetAdminReviewQueueQueryKey({
+              type: "revenue",
+              status: "rejected" as "submitted" | "verified",
+            }),
+          });
+          setOpen(false);
+        },
+        onError: (err: unknown) => {
+          const message =
+            err instanceof Error ? err.message : "Failed to re-open entry";
+          toast({
+            title: "Re-open failed",
+            description: message,
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        data-testid={`button-reopen-${item.id}`}
+      >
+        <RotateCcw className="w-4 h-4 mr-1" /> Re-open
+      </Button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Re-open this entry for review?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move the entry back to <strong>Pending review</strong>{" "}
+              so it can be verified or rejected again. The team leader will be
+              notified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unverify.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onConfirm}
+              disabled={unverify.isPending}
+              data-testid={`button-confirm-reopen-${item.id}`}
+            >
+              {unverify.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Re-open
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

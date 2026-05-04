@@ -657,6 +657,7 @@ export type AdminReviewQueueItemStatus =
 export const AdminReviewQueueItemStatus = {
   submitted: "submitted",
   verified: "verified",
+  rejected: "rejected",
 } as const;
 
 export interface AdminReviewQueueItem {
@@ -1343,6 +1344,7 @@ export type GetAdminReviewQueueStatus =
 export const GetAdminReviewQueueStatus = {
   submitted: "submitted",
   verified: "verified",
+  rejected: "rejected",
 } as const;
 
 export type GetLeaderboardParams = {

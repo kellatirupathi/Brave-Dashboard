@@ -1600,7 +1600,7 @@ export const UnverifyOrderBookEntryResponse = zod.object({
 export const GetAdminReviewQueueQueryParams = zod.object({
   type: zod.enum(["revenue"]).optional(),
   status: zod
-    .enum(["submitted", "verified"])
+    .enum(["submitted", "verified", "rejected"])
     .optional()
     .describe('Filter by status. Defaults to \"submitted\" (pending review).'),
   campusId: zod.coerce.number().optional(),

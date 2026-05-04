@@ -60,8 +60,12 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
   }
   const type = req.query.type as string | undefined;
   const statusParam = req.query.status as string | undefined;
-  const status: "submitted" | "verified" =
-    statusParam === "verified" ? "verified" : "submitted";
+  const status: "submitted" | "verified" | "rejected" =
+    statusParam === "verified"
+      ? "verified"
+      : statusParam === "rejected"
+        ? "rejected"
+        : "submitted";
   const campusId = isCoordinator
     ? (req.user.campusId ?? undefined)
     : req.query.campusId
@@ -86,7 +90,7 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     isOverdue: boolean;
     supportingDocUrl: string | null;
     brdUrl: string | null;
-    status: "submitted" | "verified";
+    status: "submitted" | "verified" | "rejected";
     verifiedAmount: number | null;
     verifiedAt: Date | null;
     adminNotes: string | null;
@@ -159,7 +163,7 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
           status === "submitted" && (e.submittedAt ?? new Date()) < cutoff,
         supportingDocUrl: null,
         brdUrl: e.brdUrl ?? null,
-        status: e.status as "submitted" | "verified",
+        status: e.status as "submitted" | "verified" | "rejected",
         verifiedAmount: e.verifiedAmount ?? null,
         verifiedAt: e.verifiedAt ?? null,
         adminNotes: e.adminNotes ?? null,
@@ -1762,12 +1766,10 @@ router.post("/admin/dev/reseed", async (req, res): Promise<void> => {
     res.json({ ok: true, durationMs });
   } catch (err) {
     req.log.error({ err }, "reseed failed");
-    res
-      .status(500)
-      .json({
-        error: "Reseed failed",
-        detail: err instanceof Error ? err.message : String(err),
-      });
+    res.status(500).json({
+      error: "Reseed failed",
+      detail: err instanceof Error ? err.message : String(err),
+    });
   } finally {
     reseedInFlight = false;
   }

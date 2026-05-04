@@ -752,7 +752,8 @@ router.post(
         .where(eq(revenueEntriesTable.id, params.data.id))
         .for("update");
       if (!existing) return { kind: "not_found" as const };
-      if (existing.status !== "verified") return { kind: "conflict" as const };
+      if (existing.status !== "verified" && existing.status !== "rejected")
+        return { kind: "conflict" as const };
       const previousVerifiedAmount = existing.verifiedAmount;
       const [updated] = await tx
         .update(revenueEntriesTable)
@@ -775,7 +776,7 @@ router.post(
     if (result.kind === "conflict") {
       res
         .status(409)
-        .json({ error: "Only verified entries can be unverified." });
+        .json({ error: "Only verified or rejected entries can be re-opened." });
       return;
     }
     const { entry, previousVerifiedAmount } = result;
@@ -788,7 +789,7 @@ router.post(
       await createNotification(
         team.leaderId,
         "Revenue Entry Re-opened",
-        `Your previously verified revenue entry of ₹${previousVerifiedAmount?.toLocaleString("en-IN") ?? entry.amount.toLocaleString("en-IN")} is back under review.`,
+        `Your revenue entry of ₹${entry.amount.toLocaleString("en-IN")} has been re-opened for review.`,
         "entry_unverified",
         "/projects",
       );
@@ -798,7 +799,7 @@ router.post(
       "unverify_revenue_entry",
       "revenue_entry",
       entry.id,
-      `Unverified (was ₹${previousVerifiedAmount ?? entry.amount}); moved back to submitted`,
+      `Re-opened (was ${previousVerifiedAmount != null ? `verified ₹${previousVerifiedAmount}` : "rejected"}); moved back to submitted`,
     );
     res.json(await enrichRevEntry(entry));
   },

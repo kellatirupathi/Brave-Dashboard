@@ -1221,7 +1221,7 @@ paths:
           description: Filter by status. Defaults to "submitted" (pending review).
           schema:
             type: string
-            enum: [submitted, verified]
+            enum: [submitted, verified, rejected]
         - name: campusId
           in: query
           schema:
@@ -3137,7 +3137,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [submitted, verified]
+          enum: [submitted, verified, rejected]
         verifiedAmount:
           type: ["integer", "null"]
         verifiedAt:
