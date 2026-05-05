@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=supreme@500,700,800&f[]=space-grotesk@300,500,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -60,6 +62,20 @@
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
+
+  /* BRAVE Framer-style typography tokens (used by landing + login) */
+  --font-display: 'Supreme', 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
+  --font-ticker: 'Geist Mono', ui-monospace, monospace;
+
+  /* BRAVE Framer-style color tokens */
+  --color-brave-cream: #fcfaf8;
+  --color-brave-ink: #19191b;
+  --color-brave-ink-soft: #1e0d01;
+  --color-brave-coral: #fa8484;
+  --color-brave-magenta: #fe83f2;
+  --color-brave-accent: #db4750;
+  --color-brave-footer: #070a11;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -133,7 +149,7 @@
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: 0.5rem;
-  
+
   --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --shadow-sm: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
