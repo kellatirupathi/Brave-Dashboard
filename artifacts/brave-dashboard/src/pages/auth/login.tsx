@@ -98,15 +98,6 @@ export default function Login() {
       <Ticker />
 
       {/* Page-level back nav — anchored top-left, just below ticker */}
-      <Link
-        href="/"
-        data-testid="link-back-marketing"
-        className="absolute top-9 left-6 z-20 hidden lg:inline-flex items-center gap-1.5 text-xs font-[family-name:var(--font-body)] font-medium px-3 py-2 rounded-lg bg-white/70 backdrop-blur border border-black/[0.06] hover:bg-white transition-colors"
-        style={{ color: "#5b5b5b" }}
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        Back to BRAVE
-      </Link>
 
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Left — Hero Panel */}
