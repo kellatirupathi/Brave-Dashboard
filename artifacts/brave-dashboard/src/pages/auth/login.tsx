@@ -92,10 +92,21 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex flex-col font-[family-name:var(--font-body)]"
+      className="min-h-screen flex flex-col font-[family-name:var(--font-body)] relative"
       style={{ background: "var(--color-brave-cream)", color: "#1f1f1f" }}
     >
       <Ticker />
+
+      {/* Page-level back nav — anchored top-left, just below ticker */}
+      <Link
+        href="/"
+        data-testid="link-back-marketing"
+        className="absolute top-9 left-6 z-20 hidden lg:inline-flex items-center gap-1.5 text-xs font-[family-name:var(--font-body)] font-medium px-3 py-2 rounded-lg bg-white/70 backdrop-blur border border-black/[0.06] hover:bg-white transition-colors"
+        style={{ color: "#5b5b5b" }}
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        Back to BRAVE
+      </Link>
 
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Left — Hero Panel */}
@@ -216,16 +227,6 @@ export default function Login() {
           style={{ background: "#fcfaf8" }}
         >
           <div className="relative z-10 w-full max-w-md">
-            <Link
-              href="/"
-              data-testid="link-back-marketing"
-              className="hidden lg:inline-flex items-center gap-1.5 text-xs font-[family-name:var(--font-body)] font-medium mb-5 hover:opacity-70 transition-opacity"
-              style={{ color: "#5b5b5b" }}
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back to BRAVE
-            </Link>
-
             <div
               className="bg-white border border-black/[0.04] rounded-3xl p-10"
               style={{
