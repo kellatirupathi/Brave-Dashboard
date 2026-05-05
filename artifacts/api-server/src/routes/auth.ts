@@ -21,7 +21,6 @@ import { eq, and, or } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
-  getSession,
   getSessionId,
   createSession,
   deleteSession,
@@ -647,44 +646,19 @@ router.get("/callback", async (req: Request, res: Response) => {
 });
 
 router.get("/logout", async (req: Request, res: Response) => {
+  // Clear our local session (cookie + DB row) and bounce the user to the
+  // public marketing site, off the dashboard subdomain entirely.
+  //
+  // We intentionally do NOT call Replit's OIDC end-session endpoint here.
+  // That endpoint requires post_logout_redirect_uri to be pre-registered
+  // with the OAuth client, and only the dashboard origin is registered —
+  // sending users to www.brave.niatindia.com from there returns
+  // invalid_request. The user's Replit IdP session lingers, but that is
+  // harmless: /api/login passes prompt="login consent" which forces full
+  // re-authentication on the next sign-in.
   const sid = getSessionId(req);
-
-  // Read the session BEFORE clearing it so we can decide whether this is
-  // a Replit-OIDC session (created via /api/login) or a password-basis
-  // session (created via /api/auth/password-login). Password sessions have
-  // no Replit-side session to end, so we skip the OIDC end-session redirect
-  // and just send the user back to the dashboard root.
-  let isPasswordSession = false;
-  if (sid) {
-    try {
-      const session = await getSession(sid);
-      if (session?.access_token === "password-login") {
-        isPasswordSession = true;
-      }
-    } catch {
-      // If session lookup fails, fall through to the SSO end-session path —
-      // that path is also safe for an already-cleared session.
-    }
-  }
-
   await clearSession(res, sid);
-
-  if (isPasswordSession) {
-    // Send the user to the public marketing site, off the dashboard
-    // subdomain entirely.
-    res.redirect(PUBLIC_SITE_URL);
-    return;
-  }
-
-  // SSO logout — ends the Replit OIDC session so the user is fully signed
-  // out at the IdP, then bounces them to the public marketing site rather
-  // than back to the dashboard origin.
-  const config = await getOidcConfig();
-  const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
-    post_logout_redirect_uri: PUBLIC_SITE_URL,
-  });
-  res.redirect(endSessionUrl.href);
+  res.redirect(PUBLIC_SITE_URL);
 });
 
 router.post(
