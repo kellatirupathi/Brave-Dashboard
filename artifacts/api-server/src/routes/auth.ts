@@ -69,6 +69,11 @@ const LogoutMobileSessionResponse = z.object({ success: z.boolean() });
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 
+// Public marketing site (Framer). Users are redirected here on logout
+// so they leave the dashboard subdomain entirely. Hardcoded by request —
+// do not move to env.
+const PUBLIC_SITE_URL = "https://www.brave.niatindia.com/";
+
 const router: IRouter = Router();
 
 function getOrigin(req: Request): string {
@@ -665,17 +670,19 @@ router.get("/logout", async (req: Request, res: Response) => {
   await clearSession(res, sid);
 
   if (isPasswordSession) {
-    res.redirect("/");
+    // Send the user to the public marketing site, off the dashboard
+    // subdomain entirely.
+    res.redirect(PUBLIC_SITE_URL);
     return;
   }
 
-  // SSO logout — unchanged from the original behavior. Ends the Replit OIDC
-  // session so the user is fully signed out at the IdP too.
+  // SSO logout — ends the Replit OIDC session so the user is fully signed
+  // out at the IdP, then bounces them to the public marketing site rather
+  // than back to the dashboard origin.
   const config = await getOidcConfig();
-  const origin = getOrigin(req);
   const endSessionUrl = oidc.buildEndSessionUrl(config, {
     client_id: process.env.REPL_ID!,
-    post_logout_redirect_uri: origin,
+    post_logout_redirect_uri: PUBLIC_SITE_URL,
   });
   res.redirect(endSessionUrl.href);
 });
