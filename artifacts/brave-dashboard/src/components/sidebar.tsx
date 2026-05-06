@@ -94,7 +94,7 @@ function GroupFlyout({
   };
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -130,7 +130,9 @@ function GroupFlyout({
         className="min-w-[200px]"
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
-        // Don't move focus into the panel automatically — keeps hover UX smooth.
+        // Don't grab focus when the panel opens — focus stealing causes the
+        // trigger to lose its hover state, which closes/re-opens the panel.
+        onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {group.children.map((child) => {

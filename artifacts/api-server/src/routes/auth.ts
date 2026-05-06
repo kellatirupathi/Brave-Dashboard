@@ -352,7 +352,16 @@ router.get("/auth/user", async (req: Request, res: Response) => {
       .where(eq(usersTable.id, req.user.id));
     if (dbUser) {
       const fresh = await buildAuthUser(dbUser);
-      res.json(GetCurrentAuthUserResponse.parse({ user: fresh }));
+      // GetCurrentAuthUserResponse is a Zod schema generated from OpenAPI
+      // and strips fields it doesn't know about — including `hasPassword`,
+      // which the sidebar uses to show/hide the "Change password" option.
+      // Re-attach it after parsing.
+      const parsed = GetCurrentAuthUserResponse.parse({ user: fresh });
+      if (parsed.user) {
+        (parsed.user as { hasPassword?: boolean }).hasPassword =
+          fresh.hasPassword;
+      }
+      res.json(parsed);
       return;
     }
   } catch (err) {
