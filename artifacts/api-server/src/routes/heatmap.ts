@@ -280,4 +280,103 @@ router.post("/heatmap/remind", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+const RemindBulkBody = z.object({
+  teamIds: z.array(z.number().int().positive()).min(1).max(2000),
+});
+
+// Bulk reminder — send the same in-app notification to every team in the
+// list. Used by the heatmap's "Send reminder to N teams" button when
+// admin/coordinator filters the table and wants to ping the filtered set.
+router.post("/heatmap/remind-bulk", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (req.user.role !== "admin" && req.user.role !== "coordinator") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const parsed = RemindBulkBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { notificationsEnabled } = await getReminderSettings();
+  if (!notificationsEnabled) {
+    res.status(409).json({
+      error:
+        "In-app notifications are disabled by admin in /admin/config. Enable the toggle to send reminders.",
+    });
+    return;
+  }
+
+  // Resolve coordinator's campus once so we can scope their bulk send.
+  let coordinatorCampusId: number | null = null;
+  if (req.user.role === "coordinator") {
+    const [me] = await db
+      .select({ campusId: usersTable.campusId })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user.id))
+      .limit(1);
+    if (!me?.campusId) {
+      res.status(403).json({ error: "Coordinator has no campus" });
+      return;
+    }
+    coordinatorCampusId = me.campusId;
+  }
+
+  // Fetch all teams in the request, plus their campus + name.
+  const teams = await db
+    .select({
+      id: teamsTable.id,
+      campusId: teamsTable.campusId,
+      name: teamsTable.name,
+    })
+    .from(teamsTable);
+  const requested = new Set(parsed.data.teamIds);
+  const allowed = teams.filter((t) => {
+    if (!requested.has(t.id)) return false;
+    if (coordinatorCampusId != null && t.campusId !== coordinatorCampusId) {
+      return false;
+    }
+    return true;
+  });
+
+  let sentToTeams = 0;
+  let sentToUsers = 0;
+  for (const team of allowed) {
+    const members = await db
+      .select({ userId: teamMembersTable.userId })
+      .from(teamMembersTable)
+      .where(eq(teamMembersTable.teamId, team.id));
+    if (members.length === 0) continue;
+
+    for (const m of members) {
+      await db.insert(notificationsTable).values({
+        userId: m.userId,
+        title: "Update needed",
+        body: `Your coordinator has flagged ${team.name} as needing an update. Please submit your weekly journal.`,
+        type: "reminder",
+        link: "/journal",
+      });
+      await db.insert(reminderLogTable).values({
+        teamId: team.id,
+        userId: m.userId,
+        reminderType: "silence_7d",
+        channel: "notification",
+      });
+      sentToUsers += 1;
+    }
+    sentToTeams += 1;
+  }
+
+  res.json({
+    ok: true,
+    sentToTeams,
+    sentToUsers,
+    skippedTeams: parsed.data.teamIds.length - sentToTeams,
+  });
+});
+
 export default router;

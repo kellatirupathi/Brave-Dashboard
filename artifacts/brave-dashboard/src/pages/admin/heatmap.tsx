@@ -6,7 +6,9 @@ import {
   AlertTriangle,
   Search,
   CheckCircle2,
+  X,
 } from "lucide-react";
+import { useAuth } from "@workspace/replit-auth-web";
 import {
   Card,
   CardContent,
@@ -18,11 +20,30 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   getHeatmap,
   sendHeatmapReminder,
+  sendBulkHeatmapReminders,
+  listCampusesForFilter,
   type HeatmapTeamRow,
   type HeatmapTeamWeek,
 } from "@/lib/progress-api";
@@ -63,15 +84,39 @@ function cellClass(b: HeatmapTeamWeek): string {
 }
 
 export default function HeatmapPage() {
+  const { user } = useAuth();
+  const isCoordinator = user?.role === "coordinator";
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "silent" | "never">("all");
   const [weeksBack, setWeeksBack] = useState(8);
+  const [selectedCampusId, setSelectedCampusId] = useState<string>("all");
+  const [selectedWeek, setSelectedWeek] = useState<string>("all"); // value = week startDate or "all"
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+
+  // Pass campusId to backend so the rows are pre-scoped (efficient when
+  // there are many campuses). Admin only — coordinator is auto-scoped.
+  const campusFilterForApi =
+    !isCoordinator && selectedCampusId !== "all"
+      ? Number(selectedCampusId)
+      : undefined;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["heatmap", weeksBack],
-    queryFn: () => getHeatmap({ weeksBack }),
+    queryKey: ["heatmap", weeksBack, campusFilterForApi ?? "all"],
+    queryFn: () =>
+      getHeatmap({
+        weeksBack,
+        ...(campusFilterForApi ? { campusId: campusFilterForApi } : {}),
+      }),
+  });
+
+  // Campus list for the dropdown (admin only).
+  const { data: campuses } = useQuery({
+    queryKey: ["campuses-for-heatmap"],
+    queryFn: listCampusesForFilter,
+    enabled: !isCoordinator,
   });
 
   const remindMut = useMutation({
@@ -89,19 +134,48 @@ export default function HeatmapPage() {
     },
   });
 
+  const bulkRemindMut = useMutation({
+    mutationFn: sendBulkHeatmapReminders,
+    onSuccess: (r) => {
+      toast({
+        title: "Bulk reminder sent",
+        description: `Pinged ${r.sentToTeams} team${r.sentToTeams === 1 ? "" : "s"} (${r.sentToUsers} member${r.sentToUsers === 1 ? "" : "s"}).${r.skippedTeams > 0 ? ` Skipped ${r.skippedTeams} (out of scope).` : ""}`,
+      });
+      setBulkDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["heatmap"] });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Bulk reminder failed",
+        description: err.message,
+        variant: "destructive",
+      });
+      setBulkDialogOpen(false);
+    },
+  });
+
+  // Apply text + status + week-specific filters client-side. Campus is
+  // already filtered server-side via the query.
   const filteredTeams = useMemo(() => {
     if (!data?.teams) return [];
     const q = query.trim().toLowerCase();
     return data.teams.filter((t) => {
+      // Status filter
       if (filter === "silent" && t.status !== "silent") return false;
       if (filter === "never" && t.status !== "never_logged") return false;
+      // Week-specific filter — keep only teams that did NOT submit this week.
+      if (selectedWeek !== "all") {
+        const weekRow = t.weeks.find((w) => w.weekStartDate === selectedWeek);
+        if (weekRow?.hasJournal) return false;
+      }
+      // Search
       if (!q) return true;
       return (
         t.teamName.toLowerCase().includes(q) ||
         (t.campusName ?? "").toLowerCase().includes(q)
       );
     });
-  }, [data, query, filter]);
+  }, [data, query, filter, selectedWeek]);
 
   const counts = useMemo(() => {
     const teams = data?.teams ?? [];
@@ -112,6 +186,19 @@ export default function HeatmapPage() {
       never: teams.filter((t) => t.status === "never_logged").length,
     };
   }, [data]);
+
+  const anyFilterActive =
+    query.trim() !== "" ||
+    filter !== "all" ||
+    selectedCampusId !== "all" ||
+    selectedWeek !== "all";
+
+  const clearAllFilters = () => {
+    setQuery("");
+    setFilter("all");
+    setSelectedCampusId("all");
+    setSelectedWeek("all");
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -161,9 +248,71 @@ export default function HeatmapPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
-            <CardTitle>Per-team weekly journal coverage</CardTitle>
-            <div className="flex flex-wrap gap-2">
+          {/* Top toolbar — bulk button (left) + campus / week dropdowns (right) + clear filters (right) */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="default"
+                disabled={
+                  !anyFilterActive ||
+                  filteredTeams.length === 0 ||
+                  bulkRemindMut.isPending
+                }
+                onClick={() => setBulkDialogOpen(true)}
+                data-testid="bulk-remind-button"
+              >
+                <Bell className="w-4 h-4 mr-1" />
+                Send reminder to {filteredTeams.length} team
+                {filteredTeams.length === 1 ? "" : "s"}
+              </Button>
+              <CardTitle className="hidden lg:block ml-2">
+                Per-team weekly journal coverage
+              </CardTitle>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Campus dropdown — admin only */}
+              {!isCoordinator && (
+                <Select
+                  value={selectedCampusId}
+                  onValueChange={setSelectedCampusId}
+                >
+                  <SelectTrigger
+                    className="w-48"
+                    data-testid="heatmap-campus-filter"
+                  >
+                    <SelectValue placeholder="All campuses" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="all">All campuses</SelectItem>
+                    {(campuses ?? []).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Week dropdown */}
+              <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+                <SelectTrigger
+                  className="w-44"
+                  data-testid="heatmap-week-filter"
+                >
+                  <SelectValue placeholder="All weeks" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectItem value="all">All weeks</SelectItem>
+                  {(data?.weeks ?? []).map((w, idx) => (
+                    <SelectItem key={w} value={w}>
+                      Week {idx + 1} ({w.slice(5)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Range buttons */}
               <div className="flex gap-1">
                 {[4, 8, 12, 24].map((n) => (
                   <button
@@ -181,9 +330,24 @@ export default function HeatmapPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Clear filters */}
+              {anyFilterActive && (
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline px-2 py-1 inline-flex items-center gap-1"
+                  data-testid="clear-filters-button"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Clear filters
+                </button>
+              )}
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+
+          {/* Search + status pills row */}
+          <div className="flex flex-col sm:flex-row gap-2 pt-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -230,7 +394,7 @@ export default function HeatmapPage() {
             </div>
           ) : filteredTeams.length === 0 ? (
             <div className="text-sm text-muted-foreground py-12 text-center">
-              No teams match.
+              No teams match the current filters.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -243,7 +407,11 @@ export default function HeatmapPage() {
                     {data!.weeks.map((w) => (
                       <th
                         key={w}
-                        className="text-center px-1 py-2 font-mono text-[10px] text-muted-foreground"
+                        className={cn(
+                          "text-center px-1 py-2 font-mono text-[10px] text-muted-foreground",
+                          selectedWeek === w &&
+                            "text-primary font-semibold underline",
+                        )}
                         title={w}
                       >
                         {w.slice(5)}
@@ -281,6 +449,8 @@ export default function HeatmapPage() {
                             className={cn(
                               "h-6 w-6 mx-auto rounded relative flex items-center justify-center",
                               cellClass(b),
+                              selectedWeek === b.weekStartDate &&
+                                "ring-2 ring-primary",
                             )}
                             title={`${b.weekStartDate} · ${b.hasJournal ? "journal ✓" : "no journal"}`}
                           >
@@ -313,6 +483,37 @@ export default function HeatmapPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk send confirmation */}
+      <AlertDialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Send reminders to {filteredTeams.length} team
+              {filteredTeams.length === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Each team in the current filtered view will get an in-app
+              notification asking them to submit their weekly journal. This
+              action is logged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkRemindMut.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={bulkRemindMut.isPending}
+              onClick={() =>
+                bulkRemindMut.mutate(filteredTeams.map((t) => t.teamId))
+              }
+              data-testid="bulk-remind-confirm"
+            >
+              {bulkRemindMut.isPending ? "Sending…" : "Send reminders"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -236,6 +236,33 @@ export function sendHeatmapReminder(teamId: number): Promise<{ ok: true }> {
   });
 }
 
+export type BulkRemindResponse = {
+  ok: true;
+  sentToTeams: number;
+  sentToUsers: number;
+  skippedTeams: number;
+};
+
+export function sendBulkHeatmapReminders(
+  teamIds: number[],
+): Promise<BulkRemindResponse> {
+  return customFetch<BulkRemindResponse>(`/api/heatmap/remind-bulk`, {
+    method: "POST",
+    body: JSON.stringify({ teamIds }),
+  });
+}
+
+export type CampusOption = {
+  id: number;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+};
+
+export function listCampusesForFilter(): Promise<CampusOption[]> {
+  return customFetch<CampusOption[]>("/api/campuses");
+}
+
 // ---------- Student dashboard widgets ----------
 export type ProgressSummary = {
   teamId: number | null;
