@@ -65,6 +65,13 @@ import AdminFeedback from "@/pages/admin/feedback";
 // Coordinator
 import CoordinatorProjects from "@/pages/coordinator/projects";
 
+// Progress-enforcement modules (new — additive)
+import StudentJournal from "@/pages/student/journal";
+import AdminJournals from "@/pages/admin/journals";
+import AdminHeatmap from "@/pages/admin/heatmap";
+import CoordinatorJournals from "@/pages/coordinator/journals";
+import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
+
 // Shared
 import Profile from "@/pages/profile";
 
@@ -220,6 +227,11 @@ function Router() {
         <ProtectedRoute component={Notifications} allowedRoles={["student"]} />
       </Route>
 
+      {/* Progress enforcement (student) */}
+      <Route path="/journal">
+        <ProtectedRoute component={StudentJournal} allowedRoles={["student"]} />
+      </Route>
+
       {/* Coordinator Routes */}
       <Route path="/coordinator">
         <ProtectedRoute
@@ -260,6 +272,18 @@ function Router() {
       <Route path="/coordinator/announcements">
         <ProtectedRoute
           component={CoordinatorAnnouncements}
+          allowedRoles={["coordinator"]}
+        />
+      </Route>
+      <Route path="/coordinator/journals">
+        <ProtectedRoute
+          component={CoordinatorJournals}
+          allowedRoles={["coordinator"]}
+        />
+      </Route>
+      <Route path="/coordinator/heatmap">
+        <ProtectedRoute
+          component={CoordinatorHeatmap}
           allowedRoles={["coordinator"]}
         />
       </Route>
@@ -328,6 +352,13 @@ function Router() {
       {/* Hidden route — not linked from the admin sidebar; reachable only via direct URL. */}
       <Route path="/admin/feedback">
         <ProtectedRoute component={AdminFeedback} allowedRoles={["admin"]} />
+      </Route>
+      {/* Progress enforcement (admin) */}
+      <Route path="/admin/journals">
+        <ProtectedRoute component={AdminJournals} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/heatmap">
+        <ProtectedRoute component={AdminHeatmap} allowedRoles={["admin"]} />
       </Route>
 
       {/* Shared */}

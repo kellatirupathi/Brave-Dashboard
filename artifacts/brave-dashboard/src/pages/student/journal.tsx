@@ -1,0 +1,342 @@
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  BookOpenCheck,
+  Calendar,
+  CheckCircle2,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import {
+  getJournalStatus,
+  getJournalForWeek,
+  listMyJournals,
+  listOpenWeeks,
+  submitJournal,
+} from "@/lib/progress-api";
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export default function Journal() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [whatWeDid, setWhatWeDid] = useState("");
+  const [blockers, setBlockers] = useState("");
+  const [nextWeekPlan, setNextWeekPlan] = useState("");
+
+  // Default to "current week" status (server picks the right open week).
+  const { data: currentStatus, isLoading: loadingCurrent } = useQuery({
+    queryKey: ["journal", "current-week"],
+    queryFn: getJournalStatus,
+  });
+
+  const { data: openWeeks } = useQuery({
+    queryKey: ["journal", "open-weeks"],
+    queryFn: listOpenWeeks,
+  });
+
+  // The week the user has selected to view/edit (defaults to current).
+  const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
+  useEffect(() => {
+    if (selectedWeekId == null && currentStatus?.weekId) {
+      setSelectedWeekId(currentStatus.weekId);
+    }
+  }, [currentStatus?.weekId, selectedWeekId]);
+
+  // Fetch the journal for the selected week.
+  const { data: weekData, isLoading: loadingWeek } = useQuery({
+    queryKey: ["journal", "by-week", selectedWeekId],
+    queryFn: () => getJournalForWeek(selectedWeekId!),
+    enabled: selectedWeekId != null,
+  });
+
+  const { data: history } = useQuery({
+    queryKey: ["journal", "mine"],
+    queryFn: listMyJournals,
+  });
+
+  // Pre-fill the form whenever a week's existing journal loads.
+  useEffect(() => {
+    if (weekData?.journal) {
+      setWhatWeDid(weekData.journal.whatWeDid);
+      setBlockers(weekData.journal.blockers ?? "");
+      setNextWeekPlan(weekData.journal.nextWeekPlan ?? "");
+    } else if (weekData && !weekData.journal) {
+      // New week — clear the form.
+      setWhatWeDid("");
+      setBlockers("");
+      setNextWeekPlan("");
+    }
+  }, [weekData?.journal, weekData?.weekId]);
+
+  const submitMut = useMutation({
+    mutationFn: submitJournal,
+    onSuccess: () => {
+      toast({ title: "Journal saved" });
+      queryClient.invalidateQueries({ queryKey: ["journal"] });
+      queryClient.invalidateQueries({ queryKey: ["progress-summary"] });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Failed to submit",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (whatWeDid.trim().length < 5) {
+      toast({
+        title: "Tell us at least 5 characters of what you did this week",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (selectedWeekId == null) {
+      toast({ title: "Select a week first", variant: "destructive" });
+      return;
+    }
+    submitMut.mutate({
+      weekId: selectedWeekId,
+      whatWeDid: whatWeDid.trim(),
+      blockers: blockers.trim() || undefined,
+      nextWeekPlan: nextWeekPlan.trim() || undefined,
+    });
+  };
+
+  const noOpenWeeks = !loadingCurrent && (!openWeeks || openWeeks.length === 0);
+
+  const currentWeekId = currentStatus?.weekId ?? null;
+  const isCurrentSelected = selectedWeekId === currentWeekId;
+  const today = todayIso();
+
+  const sortedHistory = useMemo(() => history ?? [], [history]);
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <BookOpenCheck className="h-6 w-6 text-primary" />
+          Weekly Journal
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Submit on any day of the week — Monday through Sunday. Pick a week
+          from the dropdown to view or edit its entry.
+        </p>
+      </div>
+
+      {noOpenWeeks ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-2" />
+            <p className="text-sm font-medium">No weeks are currently open</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Ask your admin to open the current week from /admin/config.
+            </p>
+          </CardContent>
+        </Card>
+      ) : loadingCurrent || loadingWeek ? (
+        <div className="flex justify-center py-12">
+          <Spinner className="size-8" />
+        </div>
+      ) : (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <CardTitle>
+                  {weekData ? `Week ${weekData.weekNumber} journal` : "Journal"}
+                </CardTitle>
+                <CardDescription className="flex items-center gap-1 mt-1">
+                  <Calendar className="w-4 h-4" />
+                  {weekData?.weekStartDate} → {weekData?.weekEndDate}
+                  {isCurrentSelected && (
+                    <Badge className="ml-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-xs">
+                      Current
+                    </Badge>
+                  )}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {weekData?.submitted ? (
+                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    Submitted
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                    Pending
+                  </Badge>
+                )}
+                <Select
+                  value={selectedWeekId ? String(selectedWeekId) : ""}
+                  onValueChange={(v) => setSelectedWeekId(Number(v))}
+                >
+                  <SelectTrigger
+                    className="w-44"
+                    data-testid="journal-week-picker"
+                  >
+                    <SelectValue placeholder="Pick a week" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(openWeeks ?? []).map((w) => {
+                      const isCurrent =
+                        w.startDate <= today && today <= w.endDate;
+                      return (
+                        <SelectItem key={w.id} value={String(w.id)}>
+                          Week {w.weekNumber}
+                          {isCurrent ? " · current" : ""}
+                          <span className="text-muted-foreground ml-1 text-xs">
+                            ({w.startDate.slice(5)} → {w.endDate.slice(5)})
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium block mb-1">
+                  What did your team do this week?{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+                <Textarea
+                  rows={4}
+                  value={whatWeDid}
+                  onChange={(e) => setWhatWeDid(e.target.value)}
+                  placeholder="E.g., Met 5 prospective clients, closed 1 deal worth ₹3,000, finalized our pricing model"
+                  maxLength={2000}
+                  required
+                  data-testid="journal-what"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">
+                  Blockers (optional)
+                </label>
+                <Textarea
+                  rows={3}
+                  value={blockers}
+                  onChange={(e) => setBlockers(e.target.value)}
+                  placeholder="E.g., Cold outreach response rate is low; need help with messaging"
+                  maxLength={2000}
+                  data-testid="journal-blockers"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">
+                  Plan for next week (optional)
+                </label>
+                <Textarea
+                  rows={3}
+                  value={nextWeekPlan}
+                  onChange={(e) => setNextWeekPlan(e.target.value)}
+                  placeholder="E.g., Switch to LinkedIn outreach, schedule 3 demos"
+                  maxLength={2000}
+                  data-testid="journal-next-plan"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={submitMut.isPending}
+                  data-testid="journal-submit"
+                >
+                  {submitMut.isPending
+                    ? "Saving…"
+                    : weekData?.submitted
+                      ? "Update journal"
+                      : "Submit journal"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Past journals</CardTitle>
+          <CardDescription>{sortedHistory.length} entries</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {sortedHistory.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-12 text-center">
+              No past journals yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sortedHistory.map((j) => (
+                <div
+                  key={j.id}
+                  className="border rounded-lg p-4 hover:bg-accent/30"
+                  data-testid={`journal-row-${j.id}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div className="text-sm font-medium flex items-center gap-1">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      {j.weekStartDate} → {j.weekEndDate}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      Submitted {new Date(j.submittedAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <p className="whitespace-pre-wrap">
+                      <span className="text-xs uppercase font-semibold text-muted-foreground">
+                        What we did:{" "}
+                      </span>
+                      {j.whatWeDid}
+                    </p>
+                    {j.blockers && (
+                      <p className="whitespace-pre-wrap">
+                        <span className="text-xs uppercase font-semibold text-muted-foreground">
+                          Blockers:{" "}
+                        </span>
+                        {j.blockers}
+                      </p>
+                    )}
+                    {j.nextWeekPlan && (
+                      <p className="whitespace-pre-wrap">
+                        <span className="text-xs uppercase font-semibold text-muted-foreground">
+                          Next week:{" "}
+                        </span>
+                        {j.nextWeekPlan}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

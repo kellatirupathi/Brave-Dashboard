@@ -17,6 +17,9 @@ import announcementsRouter from "./announcements";
 import adminRouter from "./admin";
 import adminTeamsRouter from "./admin-teams";
 import feedbackRouter from "./feedback";
+import journalsRouter from "./journals";
+import heatmapRouter from "./heatmap";
+import programmeWeeksRouter from "./programme-weeks";
 
 const router: IRouter = Router();
 
@@ -41,5 +44,9 @@ router.use(announcementsRouter);
 router.use(adminRouter);
 router.use(adminTeamsRouter);
 router.use(feedbackRouter);
+// Progress-enforcement modules (new — additive only)
+router.use(programmeWeeksRouter);
+router.use(journalsRouter);
+router.use(heatmapRouter);
 
 export default router;

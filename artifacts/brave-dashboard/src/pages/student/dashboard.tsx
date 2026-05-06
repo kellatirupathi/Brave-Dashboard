@@ -17,6 +17,7 @@ import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SupportBanner } from "@/components/support-banner";
+import { ProgressWidgets } from "@/components/progress-widgets";
 
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
@@ -72,6 +73,8 @@ export default function TeamDashboard() {
             <NotificationsBell />
           </div>
         </div>
+
+        <ProgressWidgets />
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Link

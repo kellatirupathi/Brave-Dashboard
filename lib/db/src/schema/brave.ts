@@ -598,6 +598,23 @@ export const programmeConfigTable = pgTable("programme_config", {
     .default(false),
   demoDayApplicationDeadline: text("demo_day_application_deadline"),
   programmePhase: text("programme_phase").notNull().default("Phase 1 - Launch"),
+  // Module 5 reminder service master toggles. All default ON so the
+  // service behaves as it did before these toggles existed. Admin can
+  // disable any channel independently from /admin/config.
+  // - reminderNotificationsEnabled: in-app notifications to *students*
+  // - reminderEmailsEnabled:        Brevo emails to *students*
+  // - coordinatorNotificationsEnabled: in-app pings to the campus
+  //   coordinator at the day-7 silence threshold. Kept separate so admin
+  //   can silence students without losing coordinator visibility.
+  reminderNotificationsEnabled: boolean("reminder_notifications_enabled")
+    .notNull()
+    .default(true),
+  reminderEmailsEnabled: boolean("reminder_emails_enabled")
+    .notNull()
+    .default(true),
+  coordinatorNotificationsEnabled: boolean("coordinator_notifications_enabled")
+    .notNull()
+    .default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -679,3 +696,106 @@ export const insertAuditLogSchema = createInsertSchema(auditLogTable).omit({
 });
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogTable.$inferSelect;
+
+// ============================================================================
+// PROGRESS ENFORCEMENT MODULES (new — additive, no existing table modified)
+// ============================================================================
+
+// Module 2 — Weekly Progress Journal
+// One journal per team per week (Monday-anchored week start).
+export const weeklyJournalsTable = pgTable(
+  "weekly_journals",
+  {
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id").notNull(),
+    weekStartDate: text("week_start_date").notNull(), // YYYY-MM-DD (Monday)
+    weekEndDate: text("week_end_date").notNull(), // YYYY-MM-DD (Sunday)
+    whatWeDid: text("what_we_did").notNull(),
+    blockers: text("blockers"),
+    nextWeekPlan: text("next_week_plan"),
+    submittedBy: text("submitted_by").notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("weekly_journals_team_week_unique").on(t.teamId, t.weekStartDate),
+    index("weekly_journals_team_idx").on(t.teamId),
+    index("weekly_journals_week_idx").on(t.weekStartDate),
+  ],
+);
+
+export const insertWeeklyJournalSchema = createInsertSchema(
+  weeklyJournalsTable,
+).omit({ id: true, submittedAt: true });
+export type InsertWeeklyJournal = z.infer<typeof insertWeeklyJournalSchema>;
+export type WeeklyJournal = typeof weeklyJournalsTable.$inferSelect;
+
+// Module 2 (extension) — Programme Weeks (admin-controlled toggles)
+// Auto-generated as strict 7-day chunks anchored to programme_config.startDate.
+// Each week has an isOpen toggle. Cron auto-flips isOpen=true when the
+// week's startDate arrives (unless admin already manually overrode it).
+export const programmeWeeksTable = pgTable(
+  "programme_weeks",
+  {
+    id: serial("id").primaryKey(),
+    weekNumber: integer("week_number").notNull(),
+    startDate: text("start_date").notNull(), // YYYY-MM-DD inclusive
+    endDate: text("end_date").notNull(), // YYYY-MM-DD inclusive
+    isOpen: boolean("is_open").notNull().default(false),
+    manualOverride: boolean("manual_override").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    unique("programme_weeks_week_number_unique").on(t.weekNumber),
+    index("programme_weeks_start_date_idx").on(t.startDate),
+  ],
+);
+
+export const insertProgrammeWeekSchema = createInsertSchema(
+  programmeWeeksTable,
+).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertProgrammeWeek = z.infer<typeof insertProgrammeWeekSchema>;
+export type ProgrammeWeek = typeof programmeWeeksTable.$inferSelect;
+
+// Module 5 — Reminder log (de-dup tracking for cron-sent reminders)
+export const reminderTypeEnum = pgEnum("reminder_type", [
+  "silence_5d",
+  "silence_7d",
+  "journal_due",
+  "journal_overdue",
+]);
+
+export const reminderChannelEnum = pgEnum("reminder_channel", [
+  "notification",
+  "email",
+]);
+
+export const reminderLogTable = pgTable(
+  "reminder_log",
+  {
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id"),
+    userId: text("user_id"),
+    reminderType: reminderTypeEnum("reminder_type").notNull(),
+    channel: reminderChannelEnum("channel").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("reminder_log_team_idx").on(t.teamId),
+    index("reminder_log_user_idx").on(t.userId),
+    index("reminder_log_sent_at_idx").on(t.sentAt),
+  ],
+);
+
+export const insertReminderLogSchema = createInsertSchema(
+  reminderLogTable,
+).omit({ id: true, sentAt: true });
+export type InsertReminderLog = z.infer<typeof insertReminderLogSchema>;
+export type ReminderLog = typeof reminderLogTable.$inferSelect;

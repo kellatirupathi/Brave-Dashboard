@@ -20,6 +20,8 @@ import {
   UserCog,
   ChevronRight,
   KeyRound,
+  BookOpenCheck,
+  Activity,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { cn } from "@/lib/utils";
@@ -87,6 +89,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           { name: "Projects", href: "/projects", icon: FolderKanban },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
           { name: "My Team", href: "/team", icon: Users },
+          { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Demo Day", href: "/demo-day", icon: FileText },
         ]
       : [
@@ -99,6 +102,8 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       { name: "Teams", href: "/coordinator/teams", icon: Users },
       { name: "Projects", href: "/coordinator/projects", icon: FolderKanban },
       { name: "Leaderboard", href: "/coordinator/leaderboard", icon: Trophy },
+      { name: "Heatmap", href: "/coordinator/heatmap", icon: Activity },
+      { name: "Journals", href: "/coordinator/journals", icon: BookOpenCheck },
       {
         name: "Announcements",
         href: "/coordinator/announcements",
@@ -111,6 +116,8 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       { name: "Teams", href: "/admin/teams", icon: Users },
       { name: "Projects", href: "/admin/projects", icon: FolderKanban },
       { name: "Leaderboard", href: "/admin/leaderboard", icon: Trophy },
+      { name: "Heatmap", href: "/admin/heatmap", icon: Activity },
+      { name: "Journals", href: "/admin/journals", icon: BookOpenCheck },
       { name: "Demo Day", href: "/admin/demo-day", icon: FileText },
       { name: "Campuses", href: "/admin/campuses", icon: Building2 },
       { name: "Users", href: "/admin/users", icon: Users },
