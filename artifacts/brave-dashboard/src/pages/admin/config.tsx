@@ -162,9 +162,9 @@ export default function AdminConfig() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Two-column layout: Programme Weeks on the left, all other settings on the right. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start mt-0">
         {/* LEFT column — Programme Weeks (auto-saves per row). */}
-        <div className="lg:sticky lg:top-6">
+        <div>
           <ProgrammeWeeksManager />
         </div>
 
