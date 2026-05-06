@@ -62,42 +62,25 @@ function isGroup(item: NavItem): item is NavGroup {
 }
 
 /**
- * Group flyout: opens on hover OR click, anchored to the right of the
- * parent menu item. Click-opened state stays sticky until the user clicks
- * outside; hover-opened state closes when the cursor leaves both the
- * trigger and the flyout.
+ * Group flyout: opens on hover OR click. Built on Radix DropdownMenu so the
+ * panel renders into a portal — escapes the sidebar's overflow boundary and
+ * floats over page content. Hover closes after a short delay (so cursor can
+ * travel from trigger to panel without flicker).
  */
 function GroupFlyout({
   group,
-  isActive,
   childActive,
   currentLocation,
   onNavigate,
 }: {
   group: NavGroup;
-  isActive: boolean;
   childActive: boolean;
   currentLocation: string;
   onNavigate?: () => void;
 }) {
   const Icon = group.icon;
-  const [hoverOpen, setHoverOpen] = useState(false);
-  const [clickOpen, setClickOpen] = useState(false);
-  const open = hoverOpen || clickOpen;
+  const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Close click-opened flyout when clicking anywhere outside it.
-  useEffect(() => {
-    if (!clickOpen) return;
-    function onDocClick(e: MouseEvent) {
-      const target = e.target as HTMLElement | null;
-      if (!target?.closest("[data-sidebar-group='" + group.name + "']")) {
-        setClickOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [clickOpen, group.name]);
 
   const cancelClose = () => {
     if (closeTimer.current) {
@@ -107,81 +90,80 @@ function GroupFlyout({
   };
   const scheduleClose = () => {
     cancelClose();
-    closeTimer.current = setTimeout(() => setHoverOpen(false), 150);
+    closeTimer.current = setTimeout(() => setOpen(false), 200);
   };
 
   return (
-    <div
-      data-sidebar-group={group.name}
-      className="relative"
-      onMouseEnter={() => {
-        cancelClose();
-        setHoverOpen(true);
-      }}
-      onMouseLeave={scheduleClose}
-    >
-      <button
-        type="button"
-        onClick={() => setClickOpen((v) => !v)}
-        className={cn(
-          "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
-          isActive || childActive
-            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        )}
-        data-testid={`sidebar-group-${group.name}`}
-      >
-        <span className="flex items-center gap-3">
-          <Icon className="w-4 h-4" />
-          {group.name}
-        </span>
-        <ChevronRight
-          className={cn(
-            "w-4 h-4 transition-transform",
-            open && "translate-x-0.5",
-          )}
-        />
-      </button>
-
-      {open && (
-        <div
-          className="absolute left-full top-0 ml-2 z-50 min-w-[200px] rounded-md border border-sidebar-border bg-sidebar shadow-lg p-1"
-          onMouseEnter={cancelClose}
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          onMouseEnter={() => {
+            cancelClose();
+            setOpen(true);
+          }}
           onMouseLeave={scheduleClose}
+          className={cn(
+            "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
+            childActive
+              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+              : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          )}
+          data-testid={`sidebar-group-${group.name}`}
         >
-          {group.children.map((child) => {
-            const ChildIcon = child.icon;
-            const active =
-              currentLocation === child.href ||
-              currentLocation.startsWith(child.href + "/");
-            return (
+          <span className="flex items-center gap-3">
+            <Icon className="w-4 h-4" />
+            {group.name}
+          </span>
+          <ChevronRight
+            className={cn(
+              "w-4 h-4 transition-transform",
+              open && "translate-x-0.5",
+            )}
+          />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        side="right"
+        align="start"
+        sideOffset={8}
+        className="min-w-[200px]"
+        onMouseEnter={cancelClose}
+        onMouseLeave={scheduleClose}
+        // Don't move focus into the panel automatically — keeps hover UX smooth.
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        {group.children.map((child) => {
+          const ChildIcon = child.icon;
+          const active =
+            currentLocation === child.href ||
+            currentLocation.startsWith(child.href + "/");
+          return (
+            <DropdownMenuItem
+              key={child.name}
+              asChild
+              className={cn(
+                "cursor-pointer",
+                active &&
+                  "bg-sidebar-primary text-sidebar-primary-foreground focus:bg-sidebar-primary focus:text-sidebar-primary-foreground",
+              )}
+            >
               <Link
-                key={child.name}
                 href={child.href}
                 onClick={() => {
-                  setClickOpen(false);
-                  setHoverOpen(false);
+                  setOpen(false);
                   onNavigate?.();
                 }}
+                data-testid={`sidebar-child-${child.name}`}
               >
-                <span
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium cursor-pointer",
-                    active
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  )}
-                  data-testid={`sidebar-child-${child.name}`}
-                >
-                  <ChildIcon className="w-4 h-4" />
-                  {child.name}
-                </span>
+                <ChildIcon className="w-4 h-4 mr-2" />
+                {child.name}
               </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

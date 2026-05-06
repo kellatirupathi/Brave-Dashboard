@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, asc } from "drizzle-orm";
 import {
   db,
   teamsTable,
@@ -9,26 +9,20 @@ import {
   weeklyJournalsTable,
   notificationsTable,
   reminderLogTable,
+  programmeWeeksTable,
 } from "@workspace/db";
 import { z } from "zod/v4";
 import { getReminderSettings } from "./programme-weeks";
 
 const router: IRouter = Router();
 
-function mondayUtc(d: Date): Date {
-  const day = d.getUTCDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  return new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + offset),
-  );
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 function daysBetween(a: Date, b: Date): number {
   return Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Strip any timestamp suffix that might leak into config-stored dates.
+function dateOnly(s: string | null | undefined): string {
+  return (s ?? "").slice(0, 10);
 }
 
 router.get("/heatmap", async (req, res): Promise<void> => {
@@ -61,13 +55,47 @@ router.get("/heatmap", async (req, res): Promise<void> => {
     if (!Number.isNaN(cid)) campusFilter = cid;
   }
 
-  // Build the list of week-start dates (Monday UTC) in chronological order.
-  const todayMonday = mondayUtc(new Date());
-  const weekStarts: string[] = [];
-  for (let i = weeksBack - 1; i >= 0; i--) {
-    const d = new Date(todayMonday);
-    d.setUTCDate(d.getUTCDate() - i * 7);
-    weekStarts.push(isoDate(d));
+  // Build the list of week-start dates from the admin-managed programme_weeks
+  // table. Heatmap columns must match the dates used when journals are
+  // submitted (which are anchored to the programme start date, not calendar
+  // Mondays). We pick the most recent `weeksBack` weeks ending at the week
+  // containing today, so the rightmost column is always "current or latest".
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const allProgrammeWeeks = await db
+    .select({
+      startDate: programmeWeeksTable.startDate,
+      endDate: programmeWeeksTable.endDate,
+    })
+    .from(programmeWeeksTable)
+    .orderBy(asc(programmeWeeksTable.startDate));
+
+  // Find the week containing today (or most recent past week if today is
+  // outside the programme).
+  let anchorIdx = allProgrammeWeeks.findIndex(
+    (w) => dateOnly(w.startDate) <= todayIso && todayIso <= dateOnly(w.endDate),
+  );
+  if (anchorIdx < 0) {
+    // Today is outside the programme — anchor to the latest week that
+    // started on or before today, otherwise the very last week.
+    for (let i = allProgrammeWeeks.length - 1; i >= 0; i--) {
+      if (dateOnly(allProgrammeWeeks[i].startDate) <= todayIso) {
+        anchorIdx = i;
+        break;
+      }
+    }
+    if (anchorIdx < 0) anchorIdx = allProgrammeWeeks.length - 1;
+  }
+
+  const startIdx = Math.max(0, anchorIdx - weeksBack + 1);
+  const endIdx = anchorIdx;
+  const weekStarts: string[] = allProgrammeWeeks
+    .slice(startIdx, endIdx + 1)
+    .map((w) => dateOnly(w.startDate));
+
+  // If there are no programme weeks at all, fall back to empty heatmap.
+  if (weekStarts.length === 0) {
+    res.json({ weeks: [], teams: [] });
+    return;
   }
   const earliest = new Date(weekStarts[0] + "T00:00:00Z");
 
