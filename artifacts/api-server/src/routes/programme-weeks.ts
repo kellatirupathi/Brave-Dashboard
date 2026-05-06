@@ -51,7 +51,8 @@ const router: IRouter = Router();
 
 // Add `n` whole days (UTC) to a YYYY-MM-DD string.
 function addDays(yyyymmdd: string, n: number): string {
-  const [y, m, d] = yyyymmdd.split("-").map(Number);
+  const dateOnly = (yyyymmdd ?? "").slice(0, 10);
+  const [y, m, d] = dateOnly.split("-").map(Number);
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
   dt.setUTCDate(dt.getUTCDate() + n);
   return dt.toISOString().slice(0, 10);
