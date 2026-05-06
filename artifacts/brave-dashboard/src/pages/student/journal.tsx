@@ -5,6 +5,8 @@ import {
   Calendar,
   CheckCircle2,
   AlertTriangle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   Card,
@@ -26,11 +28,25 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { JournalEditDialog } from "@/components/journal-edit-dialog";
+import {
   getJournalStatus,
   getJournalForWeek,
+  getJournalPermissions,
   listMyJournals,
   listOpenWeeks,
   submitJournal,
+  deleteJournal,
+  type WeeklyJournal,
 } from "@/lib/progress-api";
 
 function todayIso(): string {
@@ -74,6 +90,42 @@ export default function Journal() {
     queryKey: ["journal", "mine"],
     queryFn: listMyJournals,
   });
+
+  const { data: permissions } = useQuery({
+    queryKey: ["journal", "permissions"],
+    queryFn: getJournalPermissions,
+  });
+
+  const [editing, setEditing] = useState<WeeklyJournal | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const deleteMut = useMutation({
+    mutationFn: deleteJournal,
+    onSuccess: () => {
+      toast({ title: "Journal deleted" });
+      queryClient.invalidateQueries({ queryKey: ["journal"] });
+      queryClient.invalidateQueries({ queryKey: ["progress-summary"] });
+      setDeletingId(null);
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Delete failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Decide whether the student is allowed to edit/delete a given past journal.
+  // Open-week journals are always editable via the main form above; here we
+  // gate the per-row Edit/Delete buttons on the past-week toggle.
+  function canMutateRow(row: WeeklyJournal): boolean {
+    if (!permissions) return false;
+    if (permissions.allowPastWeekEdits) return true;
+    // Even when toggle is off, allow editing the *currently open* week's row
+    // for consistency with the main form.
+    return row.weekStartDate === currentStatus?.weekStartDate;
+  }
 
   // Pre-fill the form whenever a week's existing journal loads.
   useEffect(() => {
@@ -303,9 +355,33 @@ export default function Journal() {
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       {j.weekStartDate} → {j.weekEndDate}
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      Submitted {new Date(j.submittedAt).toLocaleString()}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        Submitted {new Date(j.submittedAt).toLocaleString()}
+                      </span>
+                      {canMutateRow(j) && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            onClick={() => setEditing(j)}
+                            data-testid={`student-edit-journal-${j.id}`}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-destructive hover:text-destructive"
+                            onClick={() => setDeletingId(j.id)}
+                            data-testid={`student-delete-journal-${j.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2 text-sm">
                     <p className="whitespace-pre-wrap">
@@ -337,6 +413,45 @@ export default function Journal() {
           )}
         </CardContent>
       </Card>
+
+      <JournalEditDialog
+        open={editing !== null}
+        onOpenChange={(o) => !o && setEditing(null)}
+        journal={editing}
+        invalidateKeys={[
+          ["journal", "mine"],
+          ["journal", "current-week"],
+          ["journal", "by-week", selectedWeekId],
+          ["progress-summary"],
+        ]}
+      />
+
+      <AlertDialog
+        open={deletingId !== null}
+        onOpenChange={(o) => !o && setDeletingId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this journal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the journal for that week. This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                deletingId !== null && deleteMut.mutate(deletingId)
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="student-confirm-delete-journal"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

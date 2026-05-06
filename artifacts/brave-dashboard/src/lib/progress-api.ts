@@ -59,6 +59,38 @@ export function submitJournal(body: {
   });
 }
 
+export function updateJournal(
+  id: number,
+  body: {
+    whatWeDid?: string;
+    blockers?: string | null;
+    nextWeekPlan?: string | null;
+  },
+): Promise<WeeklyJournal> {
+  return customFetch<WeeklyJournal>(`/api/journals/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteJournal(id: number): Promise<{ ok: true; id: number }> {
+  return customFetch<{ ok: true; id: number }>(`/api/journals/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export type JournalPermissions = {
+  role: "student" | "coordinator" | "admin";
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  allowPastWeekEdits: boolean;
+};
+
+export function getJournalPermissions(): Promise<JournalPermissions> {
+  return customFetch<JournalPermissions>("/api/journals/permissions");
+}
+
 // Programme weeks (admin + student-facing read)
 export type ProgrammeWeek = {
   id: number;
@@ -120,6 +152,7 @@ export type ReminderSettings = {
   notificationsEnabled: boolean;
   emailsEnabled: boolean;
   coordinatorNotificationsEnabled: boolean;
+  allowPastWeekEdits: boolean;
 };
 
 export function getReminderSettings(): Promise<ReminderSettings> {

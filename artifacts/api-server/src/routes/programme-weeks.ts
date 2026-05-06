@@ -35,6 +35,18 @@ export async function getReminderSettings(): Promise<{
   };
 }
 
+/**
+ * Returns whether students are allowed to edit/delete past-week journals.
+ * Defaults to false (read-only past weeks for students) when no config row.
+ */
+export async function getAllowPastWeekEdits(): Promise<boolean> {
+  const [config] = await db
+    .select({ allow: programmeConfigTable.allowPastWeekEdits })
+    .from(programmeConfigTable)
+    .limit(1);
+  return config?.allow ?? false;
+}
+
 const router: IRouter = Router();
 
 // Add `n` whole days (UTC) to a YYYY-MM-DD string.
@@ -280,13 +292,15 @@ router.get("/admin/reminder-settings", async (req, res): Promise<void> => {
     return;
   }
   const settings = await getReminderSettings();
-  res.json(settings);
+  const allowPastWeekEdits = await getAllowPastWeekEdits();
+  res.json({ ...settings, allowPastWeekEdits });
 });
 
 const ReminderSettingsBody = z.object({
   notificationsEnabled: z.boolean().optional(),
   emailsEnabled: z.boolean().optional(),
   coordinatorNotificationsEnabled: z.boolean().optional(),
+  allowPastWeekEdits: z.boolean().optional(),
 });
 
 router.patch("/admin/reminder-settings", async (req, res): Promise<void> => {
@@ -302,7 +316,8 @@ router.patch("/admin/reminder-settings", async (req, res): Promise<void> => {
   if (
     parsed.data.notificationsEnabled === undefined &&
     parsed.data.emailsEnabled === undefined &&
-    parsed.data.coordinatorNotificationsEnabled === undefined
+    parsed.data.coordinatorNotificationsEnabled === undefined &&
+    parsed.data.allowPastWeekEdits === undefined
   ) {
     res.status(400).json({ error: "Provide at least one toggle" });
     return;
@@ -329,6 +344,9 @@ router.patch("/admin/reminder-settings", async (req, res): Promise<void> => {
     update.coordinatorNotificationsEnabled =
       parsed.data.coordinatorNotificationsEnabled;
   }
+  if (parsed.data.allowPastWeekEdits !== undefined) {
+    update.allowPastWeekEdits = parsed.data.allowPastWeekEdits;
+  }
 
   await db
     .update(programmeConfigTable)
@@ -336,7 +354,8 @@ router.patch("/admin/reminder-settings", async (req, res): Promise<void> => {
     .where(eq(programmeConfigTable.id, configs[0].id));
 
   const settings = await getReminderSettings();
-  res.json(settings);
+  const allowPastWeekEdits = await getAllowPastWeekEdits();
+  res.json({ ...settings, allowPastWeekEdits });
 });
 
 // Student-facing: list of weeks that are currently open for journal submission.

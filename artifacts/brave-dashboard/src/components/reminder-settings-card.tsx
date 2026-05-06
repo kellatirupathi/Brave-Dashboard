@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Mail, Smartphone, AlertTriangle, UserCog } from "lucide-react";
+import {
+  Bell,
+  Mail,
+  Smartphone,
+  AlertTriangle,
+  UserCog,
+  History,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -139,6 +146,33 @@ export function ReminderSettingsCard() {
                   setField("coordinatorNotificationsEnabled", c)
                 }
                 data-testid="reminder-coordinator-toggle"
+              />
+            </div>
+
+            <div className="text-xs uppercase tracking-wide text-muted-foreground font-semibold pt-1">
+              Journal permissions
+            </div>
+
+            <div className="flex items-center justify-between border p-4 rounded-lg">
+              <div className="flex items-start gap-3 min-w-0">
+                <History className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">
+                    Allow students to edit/delete past-week journals
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    When OFF (default), students can only read past-week
+                    journals. When ON, students get edit and delete buttons on
+                    every past journal of their team. Admin and coordinators can
+                    always edit/delete regardless of this toggle.
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={data.allowPastWeekEdits}
+                disabled={mut.isPending}
+                onCheckedChange={(c) => setField("allowPastWeekEdits", c)}
+                data-testid="allow-past-week-edits-toggle"
               />
             </div>
 

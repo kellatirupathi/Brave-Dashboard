@@ -430,6 +430,8 @@ export const revenueEntriesTable = pgTable(
     brdUrl: text("brd_url"),
     testimonialUrl: text("testimonial_url"),
     adminNotes: text("admin_notes"),
+    // Existing production columns — present in the live DB. Declared here
+    // so drizzle-kit push doesn't propose to drop them.
     paymentProofUrl: text("payment_proof_url"),
     invoiceUrl: text("invoice_url"),
     notes: text("notes"),
@@ -618,6 +620,10 @@ export const programmeConfigTable = pgTable("programme_config", {
   coordinatorNotificationsEnabled: boolean("coordinator_notifications_enabled")
     .notNull()
     .default(true),
+  // When true, students can edit/delete journals from past (closed) weeks.
+  // When false (default), past-week journals are read-only for students;
+  // admin/coordinator can always edit/delete regardless.
+  allowPastWeekEdits: boolean("allow_past_week_edits").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

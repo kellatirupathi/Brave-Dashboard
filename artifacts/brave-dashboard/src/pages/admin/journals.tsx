@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { BookOpenCheck, Search, AlertTriangle } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  BookOpenCheck,
+  Search,
+  AlertTriangle,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -10,14 +16,55 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { listAdminJournals, getJournalCoverage } from "@/lib/progress-api";
+import { JournalEditDialog } from "@/components/journal-edit-dialog";
+import {
+  listAdminJournals,
+  getJournalCoverage,
+  deleteJournal,
+  type JournalRow,
+  type WeeklyJournal,
+} from "@/lib/progress-api";
 
 export default function AdminJournals() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<WeeklyJournal | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
   const { data: journals, isLoading } = useQuery({
     queryKey: ["admin-journals"],
     queryFn: () => listAdminJournals(),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: deleteJournal,
+    onSuccess: () => {
+      toast({ title: "Journal deleted" });
+      queryClient.invalidateQueries({ queryKey: ["admin-journals"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-journals-coverage"] });
+      setDeletingId(null);
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Delete failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
   });
   const { data: coverage } = useQuery({
     queryKey: ["admin-journals-coverage"],
@@ -137,10 +184,32 @@ export default function AdminJournals() {
                           {j.weekEndDate}
                         </div>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        by {j.submittedByName ?? "?"} ·{" "}
-                        {new Date(j.submittedAt).toLocaleString()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          by {j.submittedByName ?? "?"} ·{" "}
+                          {new Date(j.submittedAt).toLocaleString()}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={() =>
+                            setEditing(j as unknown as WeeklyJournal)
+                          }
+                          data-testid={`edit-journal-${j.id}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-destructive hover:text-destructive"
+                          onClick={() => setDeletingId(j.id)}
+                          data-testid={`delete-journal-${j.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
                     <div className="space-y-2 text-sm">
                       <p className="whitespace-pre-wrap">
@@ -237,6 +306,40 @@ export default function AdminJournals() {
           </CardContent>
         </Card>
       )}
+
+      <JournalEditDialog
+        open={editing !== null}
+        onOpenChange={(o) => !o && setEditing(null)}
+        journal={editing}
+        invalidateKeys={[["admin-journals"], ["admin-journals-coverage"]]}
+      />
+
+      <AlertDialog
+        open={deletingId !== null}
+        onOpenChange={(o) => !o && setDeletingId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this journal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the journal entry. The action is logged
+              to the audit log and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                deletingId !== null && deleteMut.mutate(deletingId)
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="confirm-delete-journal"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -8,8 +8,10 @@ import {
   usersTable,
   campusesTable,
   programmeWeeksTable,
+  auditLogTable,
 } from "@workspace/db";
 import { z } from "zod/v4";
+import { getAllowPastWeekEdits } from "./programme-weeks";
 
 const router: IRouter = Router();
 
@@ -481,6 +483,218 @@ router.get("/admin/journals/coverage", async (req, res): Promise<void> => {
   });
   result.sort((a, b) => a.submittedWeeks - b.submittedWeeks);
   res.json(result);
+});
+
+// ----------------- Update / Delete a journal (CRUD) -----------------
+
+const UpdateJournalBody = z.object({
+  whatWeDid: z.string().min(5).max(2000).optional(),
+  blockers: z.string().max(2000).nullable().optional(),
+  nextWeekPlan: z.string().max(2000).nullable().optional(),
+});
+
+// Decide whether the actor is allowed to update/delete a given journal.
+// Returns null if allowed, or an { status, error } pair if not.
+async function authorizeJournalMutation(
+  user: { id: string; role: string },
+  journal: typeof weeklyJournalsTable.$inferSelect,
+): Promise<null | { status: number; error: string }> {
+  if (user.role === "admin") return null;
+
+  if (user.role === "coordinator") {
+    // Coordinator: any journal in their own campus.
+    const [me] = await db
+      .select({ campusId: usersTable.campusId })
+      .from(usersTable)
+      .where(eq(usersTable.id, user.id))
+      .limit(1);
+    if (!me?.campusId)
+      return { status: 403, error: "Coordinator has no campus" };
+    const [team] = await db
+      .select({ campusId: teamsTable.campusId })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, journal.teamId))
+      .limit(1);
+    if (!team || team.campusId !== me.campusId) {
+      return { status: 403, error: "Cross-campus access not allowed" };
+    }
+    return null;
+  }
+
+  if (user.role === "student") {
+    // Student must be on the journal's team.
+    const teamId = await getMyTeamId(user.id);
+    if (teamId !== journal.teamId) {
+      return { status: 403, error: "Not your team's journal" };
+    }
+    // If the journal's week is closed (past), require admin toggle.
+    const [week] = await db
+      .select({ isOpen: programmeWeeksTable.isOpen })
+      .from(programmeWeeksTable)
+      .where(eq(programmeWeeksTable.startDate, journal.weekStartDate))
+      .limit(1);
+    const isOpen = week?.isOpen ?? false;
+    if (!isOpen) {
+      const allow = await getAllowPastWeekEdits();
+      if (!allow) {
+        return {
+          status: 403,
+          error:
+            "Past-week journals are read-only. Ask an admin to enable past-week edits.",
+        };
+      }
+    }
+    return null;
+  }
+
+  return { status: 403, error: "Forbidden" };
+}
+
+// Permissions probe — the frontend calls this to decide which buttons to show.
+router.get("/journals/permissions", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const role = req.user.role;
+  const allowPastWeekEdits = await getAllowPastWeekEdits();
+  res.json({
+    role,
+    canCreate: role === "student",
+    canUpdate: role === "admin" || role === "coordinator" || role === "student",
+    canDelete: role === "admin" || role === "coordinator" || role === "student",
+    allowPastWeekEdits,
+  });
+});
+
+router.patch("/journals/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = UpdateJournalBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(weeklyJournalsTable)
+    .where(eq(weeklyJournalsTable.id, id))
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Journal not found" });
+    return;
+  }
+
+  const denial = await authorizeJournalMutation(req.user, existing);
+  if (denial) {
+    res.status(denial.status).json({ error: denial.error });
+    return;
+  }
+
+  const update: Partial<typeof weeklyJournalsTable.$inferInsert> = {};
+  if (parsed.data.whatWeDid !== undefined)
+    update.whatWeDid = parsed.data.whatWeDid;
+  if (parsed.data.blockers !== undefined)
+    update.blockers = parsed.data.blockers;
+  if (parsed.data.nextWeekPlan !== undefined)
+    update.nextWeekPlan = parsed.data.nextWeekPlan;
+  if (Object.keys(update).length === 0) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(weeklyJournalsTable)
+    .set(update)
+    .where(eq(weeklyJournalsTable.id, id))
+    .returning();
+
+  // Audit log for staff edits (not student self-edits).
+  if (req.user.role === "admin" || req.user.role === "coordinator") {
+    await db.insert(auditLogTable).values({
+      actorId: req.user.id,
+      action: "update_journal",
+      targetType: "weekly_journal",
+      targetId: id,
+      details: JSON.stringify({
+        before: {
+          whatWeDid: existing.whatWeDid,
+          blockers: existing.blockers,
+          nextWeekPlan: existing.nextWeekPlan,
+        },
+        after: {
+          whatWeDid: updated.whatWeDid,
+          blockers: updated.blockers,
+          nextWeekPlan: updated.nextWeekPlan,
+        },
+        teamId: existing.teamId,
+        weekStartDate: existing.weekStartDate,
+      }),
+    });
+  }
+
+  res.json(updated);
+});
+
+router.delete("/journals/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(weeklyJournalsTable)
+    .where(eq(weeklyJournalsTable.id, id))
+    .limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Journal not found" });
+    return;
+  }
+
+  const denial = await authorizeJournalMutation(req.user, existing);
+  if (denial) {
+    res.status(denial.status).json({ error: denial.error });
+    return;
+  }
+
+  await db.delete(weeklyJournalsTable).where(eq(weeklyJournalsTable.id, id));
+
+  if (req.user.role === "admin" || req.user.role === "coordinator") {
+    await db.insert(auditLogTable).values({
+      actorId: req.user.id,
+      action: "delete_journal",
+      targetType: "weekly_journal",
+      targetId: id,
+      details: JSON.stringify({
+        snapshot: {
+          teamId: existing.teamId,
+          weekStartDate: existing.weekStartDate,
+          weekEndDate: existing.weekEndDate,
+          whatWeDid: existing.whatWeDid,
+          blockers: existing.blockers,
+          nextWeekPlan: existing.nextWeekPlan,
+          submittedBy: existing.submittedBy,
+          submittedAt: existing.submittedAt,
+        },
+      }),
+    });
+  }
+
+  res.json({ ok: true, id });
 });
 
 export default router;
