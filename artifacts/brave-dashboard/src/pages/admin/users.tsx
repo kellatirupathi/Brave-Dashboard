@@ -1010,6 +1010,8 @@ export default function AdminUsers() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
+                  <TableHead>NIAT ID</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead>Forms User ID</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Campus</TableHead>
@@ -1024,16 +1026,41 @@ export default function AdminUsers() {
                     key={user.id}
                     className="hover:bg-muted/50 transition-colors"
                   >
-                    <TableCell>
-                      <div className="font-semibold">
+                    {/* User — name only, single line */}
+                    <TableCell className="whitespace-nowrap">
+                      <div
+                        className="font-semibold truncate max-w-[180px]"
+                        title={`${user.firstName ?? ""} ${user.lastName ?? ""}`.trim()}
+                      >
                         {user.firstName} {user.lastName}
                       </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Mail className="w-3 h-3" /> {user.niatId ?? user.email}
-                      </div>
                     </TableCell>
+                    {/* NIAT ID — short, copyable on double-click */}
+                    <TableCell className="font-mono text-xs">
+                      <span
+                        className="inline-block select-all truncate max-w-[120px] align-middle"
+                        title={user.niatId ?? ""}
+                      >
+                        {user.niatId || "—"}
+                      </span>
+                    </TableCell>
+                    {/* Email — truncate but full value selectable on double-click */}
+                    <TableCell className="text-xs">
+                      <span
+                        className="inline-block select-all truncate max-w-[200px] align-middle"
+                        title={user.email}
+                      >
+                        {user.email}
+                      </span>
+                    </TableCell>
+                    {/* Forms User ID — long UUID, truncate + select-all */}
                     <TableCell className="font-mono text-xs text-muted-foreground">
-                      {user.formsUserId ?? "—"}
+                      <span
+                        className="inline-block select-all truncate max-w-[160px] align-middle"
+                        title={user.formsUserId ?? ""}
+                      >
+                        {user.formsUserId ?? "—"}
+                      </span>
                     </TableCell>
                     <TableCell>{renderRoleBadge(user.role)}</TableCell>
                     <TableCell className="text-muted-foreground">

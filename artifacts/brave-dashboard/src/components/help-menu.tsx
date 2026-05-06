@@ -18,10 +18,17 @@ const DOCS_URL =
   "https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?usp=sharing";
 const SUPPORT_EMAIL = "brave.niat@nxtwave.in";
 
-const ROTATING_HINTS = [
+const STUDENT_ROTATING_HINTS = [
   "📖 Need help? Check the docs",
   "🛟 Got a question? Contact support",
   "💬 Share your feedback with us",
+  "✨ Suggest improvements",
+];
+// Admin / coordinator don't need a "contact support" hint — they ARE the
+// support team. Show only docs + feedback prompts.
+const STAFF_ROTATING_HINTS = [
+  "📖 Need help? Read the docs",
+  "💬 Share your feedback",
   "✨ Suggest improvements",
 ];
 const HINT_INTERVAL_MS = 5000;
@@ -61,14 +68,24 @@ export function HelpMenu() {
   const [hintHovered, setHintHovered] = useState(false);
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Show the help menu for students, admins, and coordinators. Hide for
+  // unauthenticated users (rendered nowhere) or any future role we add
+  // without thinking about it.
+  const isStudent = user?.role === "student";
+  const isStaff = user?.role === "admin" || user?.role === "coordinator";
+  const enabled = isStudent || isStaff;
+
+  // Pick the appropriate rotating-hint set based on role.
+  const hints = isStaff ? STAFF_ROTATING_HINTS : STUDENT_ROTATING_HINTS;
+
   // Rotate hints every HINT_INTERVAL_MS, with a brief fade-out/in transition.
   // Pauses when the popover is open or the user is hovering the hint pill.
   useEffect(() => {
-    if (open || hintHovered) return;
+    if (!enabled || open || hintHovered) return;
     const tick = setInterval(() => {
       setHintVisible(false);
       fadeTimer.current = setTimeout(() => {
-        setHintIndex((i) => (i + 1) % ROTATING_HINTS.length);
+        setHintIndex((i) => (i + 1) % hints.length);
         setHintVisible(true);
       }, 300);
     }, HINT_INTERVAL_MS);
@@ -76,9 +93,9 @@ export function HelpMenu() {
       clearInterval(tick);
       if (fadeTimer.current) clearTimeout(fadeTimer.current);
     };
-  }, [open, hintHovered]);
+  }, [enabled, open, hintHovered, hints.length]);
 
-  if (!user || user.role !== "student") return null;
+  if (!user || !enabled) return null;
 
   const fullName =
     `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() ||
@@ -100,15 +117,21 @@ export function HelpMenu() {
         setOpen(false);
       },
     },
-    {
-      icon: LifeBuoy,
-      label: "Support",
-      caption: SUPPORT_EMAIL,
-      onClick: () => {
-        window.location.href = supportHref;
-        setOpen(false);
-      },
-    },
+    // Support email link — students only. Admin and coordinator are NIAT
+    // staff themselves; they don't need to email brave.niat@nxtwave.in.
+    ...(isStudent
+      ? [
+          {
+            icon: LifeBuoy,
+            label: "Support",
+            caption: SUPPORT_EMAIL,
+            onClick: () => {
+              window.location.href = supportHref;
+              setOpen(false);
+            },
+          },
+        ]
+      : []),
     {
       icon: MessageSquare,
       label: "Feedback",
@@ -141,7 +164,7 @@ export function HelpMenu() {
                 : "opacity-0 translate-x-2"
             }`}
           >
-            {ROTATING_HINTS[hintIndex]}
+            {hints[hintIndex % hints.length]}
           </button>
           {/* Small triangle pointer toward the help button */}
           <span

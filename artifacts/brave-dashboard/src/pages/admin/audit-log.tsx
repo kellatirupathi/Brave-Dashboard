@@ -106,7 +106,10 @@ export default function AdminAuditLog() {
               </Button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-auto p-0"
+              // Match the trigger button's width (sm:w-56 = 14rem = 224px)
+              // so the calendar fills the same horizontal footprint as the
+              // "Pick a date" button instead of shrinking to its content.
+              className="w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0"
               align="end"
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
