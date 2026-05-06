@@ -160,152 +160,160 @@ export default function AdminConfig() {
     );
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Programme Configuration
-        </h1>
-        <p className="text-muted-foreground">
-          Manage global settings for the BRAVE programme
-        </p>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Two-column layout: Programme Weeks on the left, all other settings on the right. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* LEFT column — Programme Weeks (auto-saves per row). */}
+        <div className="lg:sticky lg:top-6">
+          <ProgrammeWeeksManager />
+        </div>
+
+        {/* RIGHT column — Key Dates, Thresholds + Save, Notifications & Reminders. */}
+        <div className="space-y-6">
+          {/* SECTION 1 — Programme schedule (saved by the bottom Save button) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" /> Key Dates &
+                Deadlines
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Start Date</label>
+                  <Input
+                    type="date"
+                    value={formData.startDate?.split("T")[0] || ""}
+                    onChange={(e) => handleChange("startDate", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">End Date</label>
+                  <Input
+                    type="date"
+                    value={formData.endDate?.split("T")[0] || ""}
+                    onChange={(e) => handleChange("endDate", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Demo Day Date</label>
+                  <Input
+                    type="date"
+                    value={formData.demoDayDate?.split("T")[0] || ""}
+                    onChange={(e) =>
+                      handleChange("demoDayDate", e.target.value)
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Application Deadline
+                  </label>
+                  <Input
+                    type="date"
+                    value={
+                      formData.demoDayApplicationDeadline?.split("T")[0] || ""
+                    }
+                    onChange={(e) =>
+                      handleChange("demoDayApplicationDeadline", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SECTION 2 — Programme thresholds & visibility (saved by the Save button below). */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-primary" /> Thresholds &
+                Toggles
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Demo Eligibility Threshold (₹)
+                </label>
+                <Input
+                  type="number"
+                  value={formData.demoEligibilityThreshold || ""}
+                  onChange={(e) =>
+                    handleChange(
+                      "demoEligibilityThreshold",
+                      Number(e.target.value),
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Team Members Count Limit
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={formData.teamMemberLimit ?? ""}
+                  onChange={(e) =>
+                    handleChange("teamMemberLimit", Number(e.target.value))
+                  }
+                  data-testid="input-team-member-limit"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Maximum number of students allowed on a single team. New
+                  invites, join requests, and acceptances will be rejected once
+                  a team reaches this limit.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between border p-4 rounded-lg">
+                <div>
+                  <p className="font-medium">Leaderboard Frozen</p>
+                  <p className="text-sm text-muted-foreground">
+                    Hide the leaderboard from students to build suspense.
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.leaderboardFrozen || false}
+                  onCheckedChange={(c) => handleChange("leaderboardFrozen", c)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between border p-4 rounded-lg">
+                <div>
+                  <p className="font-medium">Demo Day Applications Open</p>
+                  <p className="text-sm text-muted-foreground">
+                    Allow eligible teams to submit their pitches.
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.demoDayApplicationsOpen || false}
+                  onCheckedChange={(c) =>
+                    handleChange("demoDayApplicationsOpen", c)
+                  }
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button onClick={handleSave} disabled={updateConfig.isPending}>
+              {updateConfig.isPending ? (
+                <Spinner className="w-4 h-4 mr-2" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              Save Configuration
+            </Button>
+          </div>
+
+          {/* SECTION 3 — Reminder service master toggles (auto-saves per toggle). */}
+          <ReminderSettingsCard />
+        </div>
       </div>
-
-      {/* SECTION 1 — Programme schedule (saved by the bottom Save button) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-primary" /> Key Dates & Deadlines
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Start Date</label>
-              <Input
-                type="date"
-                value={formData.startDate?.split("T")[0] || ""}
-                onChange={(e) => handleChange("startDate", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">End Date</label>
-              <Input
-                type="date"
-                value={formData.endDate?.split("T")[0] || ""}
-                onChange={(e) => handleChange("endDate", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Demo Day Date</label>
-              <Input
-                type="date"
-                value={formData.demoDayDate?.split("T")[0] || ""}
-                onChange={(e) => handleChange("demoDayDate", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Application Deadline
-              </label>
-              <Input
-                type="date"
-                value={formData.demoDayApplicationDeadline?.split("T")[0] || ""}
-                onChange={(e) =>
-                  handleChange("demoDayApplicationDeadline", e.target.value)
-                }
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* SECTION 2 — Programme thresholds & visibility (saved by the bottom Save button) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-primary" /> Thresholds & Toggles
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Demo Eligibility Threshold (₹)
-            </label>
-            <Input
-              type="number"
-              value={formData.demoEligibilityThreshold || ""}
-              onChange={(e) =>
-                handleChange("demoEligibilityThreshold", Number(e.target.value))
-              }
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Team Members Count Limit
-            </label>
-            <Input
-              type="number"
-              min={1}
-              value={formData.teamMemberLimit ?? ""}
-              onChange={(e) =>
-                handleChange("teamMemberLimit", Number(e.target.value))
-              }
-              data-testid="input-team-member-limit"
-            />
-            <p className="text-xs text-muted-foreground">
-              Maximum number of students allowed on a single team. New invites,
-              join requests, and acceptances will be rejected once a team
-              reaches this limit.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between border p-4 rounded-lg">
-            <div>
-              <p className="font-medium">Leaderboard Frozen</p>
-              <p className="text-sm text-muted-foreground">
-                Hide the leaderboard from students to build suspense.
-              </p>
-            </div>
-            <Switch
-              checked={formData.leaderboardFrozen || false}
-              onCheckedChange={(c) => handleChange("leaderboardFrozen", c)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between border p-4 rounded-lg">
-            <div>
-              <p className="font-medium">Demo Day Applications Open</p>
-              <p className="text-sm text-muted-foreground">
-                Allow eligible teams to submit their pitches.
-              </p>
-            </div>
-            <Switch
-              checked={formData.demoDayApplicationsOpen || false}
-              onCheckedChange={(c) =>
-                handleChange("demoDayApplicationsOpen", c)
-              }
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={updateConfig.isPending}>
-          {updateConfig.isPending ? (
-            <Spinner className="w-4 h-4 mr-2" />
-          ) : (
-            <Save className="w-4 h-4 mr-2" />
-          )}
-          Save Configuration
-        </Button>
-      </div>
-
-      {/* SECTION 3 — Programme weeks (auto-saves per row, depends on dates above). */}
-      <ProgrammeWeeksManager />
-
-      {/* SECTION 4 — Reminder service master toggles (auto-saves per toggle). */}
-      <ReminderSettingsCard />
 
       {devEnabled && (
         <Card
