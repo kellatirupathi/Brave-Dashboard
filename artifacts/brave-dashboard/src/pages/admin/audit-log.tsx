@@ -106,10 +106,10 @@ export default function AdminAuditLog() {
               </Button>
             </PopoverTrigger>
             <PopoverContent
-              // Match the trigger button's width (sm:w-56 = 14rem = 224px)
-              // so the calendar fills the same horizontal footprint as the
-              // "Pick a date" button instead of shrinking to its content.
-              className="w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0"
+              // Fixed width that fits the 7-day calendar grid + dropdown
+              // captions comfortably. Smaller than this and the day cells
+              // wrap; larger and there's awkward blank space.
+              className="w-[340px] p-3"
               align="end"
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
@@ -121,6 +121,7 @@ export default function AdminAuditLog() {
                   if (d) setDatePopoverOpen(false);
                 }}
                 captionLayout="dropdown"
+                className="w-full"
                 initialFocus
               />
               {selectedDate && (
