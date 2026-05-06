@@ -82,8 +82,8 @@ export async function regenerateProgrammeWeeks(): Promise<{
   if (!config) {
     return { created: 0, updated: 0, removed: 0, total: 0 };
   }
-  const start = config.startDate;
-  const end = config.endDate;
+  const start = (config.startDate ?? "").slice(0, 10);
+  const end = (config.endDate ?? "").slice(0, 10);
   if (!start || !end) {
     return { created: 0, updated: 0, removed: 0, total: 0 };
   }
