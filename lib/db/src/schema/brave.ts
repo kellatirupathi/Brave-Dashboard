@@ -794,12 +794,18 @@ export const reminderLogTable = pgTable(
     userId: text("user_id"),
     reminderType: reminderTypeEnum("reminder_type").notNull(),
     channel: reminderChannelEnum("channel").notNull(),
+    // The programme-week this reminder belongs to (YYYY-MM-DD of week start).
+    // Nullable so legacy rows from before week-scoped dedup don't break.
+    // Cron uses (teamId, userId, reminderType, weekStartDate) as the dedup
+    // key — one Day-5 + one Day-7 per team-member-week, max.
+    weekStartDate: text("week_start_date"),
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("reminder_log_team_idx").on(t.teamId),
     index("reminder_log_user_idx").on(t.userId),
     index("reminder_log_sent_at_idx").on(t.sentAt),
+    index("reminder_log_week_idx").on(t.weekStartDate),
   ],
 );
 

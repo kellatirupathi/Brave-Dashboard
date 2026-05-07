@@ -1,20 +1,29 @@
 /**
- * Module 5 — Automated Reminder Service (standalone CLI)
+ * Internal cron endpoint — invoked by cron-job.org once daily at 9 AM IST.
+ * Protected by a shared-secret header so random traffic can't trigger sends.
  *
- * Runs once and exits. Mirrors the logic in routes/cron.ts so this script
- * can be invoked as a fallback by `tsx src/cron-reminders.ts` from any
- * external scheduler that prefers running a script over hitting an HTTP
- * endpoint.
+ *   POST /internal/cron/reminders
+ *   Header: X-Cron-Secret: <CRON_SECRET env var>
  *
- * Logic (week-scoped — one Day-5 and one Day-7 per team-member per week):
- *   1. Find current open programme week.
+ * Reminder logic (week-scoped — one Day-5 and one Day-7 per team per week max):
+ *
+ *   1. Find current open programme week (where today is between startDate and
+ *      endDate). If no current week, exit early — nothing to remind about.
  *   2. For each active team:
- *      - Skip if the team already submitted the journal for this week.
- *      - On day 5+ of the week → in-app nudge (once per team-member-week).
- *      - On day 7+ of the week → in-app + email + coordinator (once each).
- *   3. Every send is recorded in reminder_log with weekStartDate so the
- *      same reminder never fires twice in the same week.
+ *        a. Has the team submitted a journal for THIS current week?
+ *           → Yes: skip the team entirely.
+ *        b. Compute dayOfWeek = today - week.startDate + 1 (1..7).
+ *        c. If dayOfWeek >= 7 AND no silence_7d log for this team+week:
+ *              → in-app + email + coordinator notification (per admin toggles)
+ *        d. Else if dayOfWeek >= 5 AND no silence_5d log for this team+week:
+ *              → in-app notification only (per admin toggle)
+ *   3. Every send is logged to reminder_log with weekStartDate so a team
+ *      member never receives the same reminder twice in the same week.
+ *
+ * When the next programme week opens, dedup is automatically scoped to the
+ * new weekStartDate so the cycle restarts naturally — no manual reset needed.
  */
+import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, sql } from "drizzle-orm";
 import {
   db,
@@ -27,22 +36,11 @@ import {
   campusesTable,
   programmeWeeksTable,
 } from "@workspace/db";
-import { sendEmail, getAppUrl } from "./lib/email/brevo";
-import { logger } from "./lib/logger";
-import {
-  autoOpenDueWeeks,
-  getReminderSettings,
-} from "./routes/programme-weeks";
+import { sendEmail, getAppUrl } from "../lib/email/brevo";
+import { logger } from "../lib/logger";
+import { autoOpenDueWeeks, getReminderSettings } from "./programme-weeks";
 
-let _channelsCache: {
-  notificationsEnabled: boolean;
-  emailsEnabled: boolean;
-  coordinatorNotificationsEnabled: boolean;
-} = {
-  notificationsEnabled: true,
-  emailsEnabled: true,
-  coordinatorNotificationsEnabled: true,
-};
+const router: IRouter = Router();
 
 const SILENCE_5D_DAYS = 5;
 const SILENCE_7D_DAYS = 7;
@@ -61,7 +59,12 @@ function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
-async function findCurrentProgrammeWeek() {
+async function findCurrentProgrammeWeek(): Promise<{
+  id: number;
+  weekNumber: number;
+  startDate: string;
+  endDate: string;
+} | null> {
   const today = todayIso();
   const [week] = await db
     .select({
@@ -145,6 +148,11 @@ async function pingTeam(
   team: { teamId: number; teamName: string; campusId: number | null },
   level: "5d" | "7d",
   week: { startDate: string; weekNumber: number },
+  channels: {
+    notificationsEnabled: boolean;
+    emailsEnabled: boolean;
+    coordinatorNotificationsEnabled: boolean;
+  },
 ): Promise<void> {
   const members = await db
     .select({
@@ -163,8 +171,9 @@ async function pingTeam(
     if (!m.id) continue;
     if (
       await alreadySentForWeek(team.teamId, m.id, reminderType, week.startDate)
-    )
+    ) {
       continue;
+    }
 
     const title =
       level === "5d"
@@ -175,7 +184,7 @@ async function pingTeam(
         ? `Team ${team.teamName} hasn't submitted the Week ${week.weekNumber} journal yet. Please add this week's update before the week closes.`
         : `Team ${team.teamName} has not submitted the Week ${week.weekNumber} journal. Your coordinator has been notified — please submit immediately.`;
 
-    if (_channelsCache.notificationsEnabled) {
+    if (channels.notificationsEnabled) {
       await db.insert(notificationsTable).values({
         userId: m.id,
         title,
@@ -192,7 +201,7 @@ async function pingTeam(
       );
     }
 
-    if (level === "7d" && m.email && _channelsCache.emailsEnabled) {
+    if (level === "7d" && m.email && channels.emailsEnabled) {
       const ok = await sendEmail({
         to: { email: m.email, name: m.firstName ?? undefined },
         subject: `[BRAVE] ${title}`,
@@ -204,6 +213,7 @@ async function pingTeam(
     }
   }
 
+  // Coordinator ping at the 7d level — campus-scoped lookup, dedup'd per week.
   if (level === "7d" && team.campusId) {
     const [campus] = await db
       .select({ coordinatorId: campusesTable.coordinatorId })
@@ -217,7 +227,7 @@ async function pingTeam(
         "silence_7d",
         week.startDate,
       );
-      if (!already && _channelsCache.coordinatorNotificationsEnabled) {
+      if (!already && channels.coordinatorNotificationsEnabled) {
         await db.insert(notificationsTable).values({
           userId: campus.coordinatorId,
           title: `Team ${team.teamName} missed Week ${week.weekNumber}`,
@@ -237,49 +247,69 @@ async function pingTeam(
   }
 }
 
-async function run(): Promise<void> {
+async function runReminders(): Promise<{
+  flipped: number;
+  pinged5d: number;
+  pinged7d: number;
+  skippedSubmitted: number;
+  skippedNoCurrentWeek: boolean;
+  currentWeekNumber: number | null;
+  durationMs: number;
+}> {
   const start = Date.now();
-  logger.info("[cron-reminders] starting");
 
+  let channels = {
+    notificationsEnabled: true,
+    emailsEnabled: true,
+    coordinatorNotificationsEnabled: true,
+  };
   try {
-    _channelsCache = await getReminderSettings();
-    logger.info(
-      { ..._channelsCache },
-      "[cron-reminders] loaded channel toggles",
-    );
+    channels = await getReminderSettings();
   } catch (err) {
     logger.error(
       { err },
-      "[cron-reminders] failed to load reminder settings — defaulting all ON",
+      "[cron] failed to load reminder settings — defaulting all ON",
     );
   }
 
+  let flipped = 0;
   try {
-    const flipped = await autoOpenDueWeeks();
-    if (flipped > 0) {
-      logger.info({ flipped }, "[cron-reminders] auto-opened programme weeks");
-    }
+    flipped = await autoOpenDueWeeks();
   } catch (err) {
-    logger.error({ err }, "[cron-reminders] autoOpenDueWeeks failed");
+    logger.error({ err }, "[cron] autoOpenDueWeeks failed");
   }
 
   const currentWeek = await findCurrentProgrammeWeek();
   if (!currentWeek) {
-    logger.info("[cron-reminders] no current programme week — exiting");
-    return;
+    logger.info("[cron] no current programme week — skipping reminders");
+    return {
+      flipped,
+      pinged5d: 0,
+      pinged7d: 0,
+      skippedSubmitted: 0,
+      skippedNoCurrentWeek: true,
+      currentWeekNumber: null,
+      durationMs: Date.now() - start,
+    };
   }
 
   const dayOfWeek = daysBetween(currentWeek.startDate, todayIso()) + 1;
   logger.info(
     { weekNumber: currentWeek.weekNumber, dayOfWeek },
-    "[cron-reminders] processing current programme week",
+    "[cron] processing current programme week",
   );
 
+  // Below day-5 → no team can qualify yet, skip the team scan entirely.
   if (dayOfWeek < SILENCE_5D_DAYS) {
-    logger.info(
-      "[cron-reminders] day-of-week below threshold — nothing to send",
-    );
-    return;
+    return {
+      flipped,
+      pinged5d: 0,
+      pinged7d: 0,
+      skippedSubmitted: 0,
+      skippedNoCurrentWeek: false,
+      currentWeekNumber: currentWeek.weekNumber,
+      durationMs: Date.now() - start,
+    };
   }
 
   const teams = await db
@@ -301,30 +331,49 @@ async function run(): Promise<void> {
       continue;
     }
     if (dayOfWeek >= SILENCE_7D_DAYS) {
-      await pingTeam(team, "7d", currentWeek);
+      await pingTeam(team, "7d", currentWeek, channels);
       pinged7d++;
     } else if (dayOfWeek >= SILENCE_5D_DAYS) {
-      await pingTeam(team, "5d", currentWeek);
+      await pingTeam(team, "5d", currentWeek, channels);
       pinged5d++;
     }
   }
 
-  logger.info(
-    {
-      pinged5d,
-      pinged7d,
-      skippedSubmitted,
-      weekNumber: currentWeek.weekNumber,
-      dayOfWeek,
-      durationMs: Date.now() - start,
-    },
-    "[cron-reminders] done",
-  );
+  return {
+    flipped,
+    pinged5d,
+    pinged7d,
+    skippedSubmitted,
+    skippedNoCurrentWeek: false,
+    currentWeekNumber: currentWeek.weekNumber,
+    durationMs: Date.now() - start,
+  };
 }
 
-run()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    logger.error({ err }, "[cron-reminders] failed");
-    process.exit(1);
-  });
+router.post("/internal/cron/reminders", async (req: Request, res: Response) => {
+  const expected = process.env.CRON_SECRET;
+  if (!expected) {
+    logger.error("[cron] CRON_SECRET is not configured on the server");
+    return res.status(500).json({ error: "cron not configured" });
+  }
+  const provided = req.header("x-cron-secret");
+  if (provided !== expected) {
+    logger.warn(
+      { providedHeaderPresent: !!provided },
+      "[cron] rejected request with bad secret",
+    );
+    return res.status(401).json({ error: "unauthorized" });
+  }
+
+  try {
+    logger.info("[cron] reminders run starting");
+    const result = await runReminders();
+    logger.info(result, "[cron] reminders run done");
+    res.status(200).json({ ok: true, ...result });
+  } catch (err) {
+    logger.error({ err }, "[cron] reminders run failed");
+    res.status(500).json({ ok: false, error: (err as Error).message });
+  }
+});
+
+export default router;
