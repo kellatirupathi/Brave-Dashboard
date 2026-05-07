@@ -14,8 +14,12 @@ import {
 } from "@/components/ui/popover";
 import { FeedbackDialog } from "@/components/feedback-dialog";
 
-const DOCS_URL =
-  "https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?usp=sharing";
+const STUDENT_DOCS_URL =
+  "https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?tab=t.0";
+const ADMIN_DOCS_URL =
+  "https://docs.google.com/document/d/1qMP-1s3k4GD-cuiYGfjBbcfdQU20___Bl6YLrzgYFb4/edit?usp=sharing";
+const COORDINATOR_DOCS_URL =
+  "https://docs.google.com/document/d/1_6c8HjUksm8-Qw7eo_fNehJJMeA61mywKMKxKTiYGos/edit?usp=sharing";
 const SUPPORT_EMAIL = "brave.niat@nxtwave.in";
 
 const STUDENT_ROTATING_HINTS = [
@@ -72,8 +76,17 @@ export function HelpMenu() {
   // unauthenticated users (rendered nowhere) or any future role we add
   // without thinking about it.
   const isStudent = user?.role === "student";
-  const isStaff = user?.role === "admin" || user?.role === "coordinator";
+  const isAdmin = user?.role === "admin";
+  const isCoordinator = user?.role === "coordinator";
+  const isStaff = isAdmin || isCoordinator;
   const enabled = isStudent || isStaff;
+
+  // Pick the docs URL by role so each audience lands on the right guide.
+  const docsUrl = isAdmin
+    ? ADMIN_DOCS_URL
+    : isCoordinator
+      ? COORDINATOR_DOCS_URL
+      : STUDENT_DOCS_URL;
 
   // Pick the appropriate rotating-hint set based on role.
   const hints = isStaff ? STAFF_ROTATING_HINTS : STUDENT_ROTATING_HINTS;
@@ -113,7 +126,7 @@ export function HelpMenu() {
       label: "Documentation",
       caption: "Guide & FAQs",
       onClick: () => {
-        window.open(DOCS_URL, "_blank", "noopener,noreferrer");
+        window.open(docsUrl, "_blank", "noopener,noreferrer");
         setOpen(false);
       },
     },
