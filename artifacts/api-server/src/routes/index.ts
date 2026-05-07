@@ -20,6 +20,7 @@ import feedbackRouter from "./feedback";
 import journalsRouter from "./journals";
 import heatmapRouter from "./heatmap";
 import programmeWeeksRouter from "./programme-weeks";
+import cronRouter from "./cron";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(feedbackRouter);
 router.use(programmeWeeksRouter);
 router.use(journalsRouter);
 router.use(heatmapRouter);
+router.use(cronRouter);
 
 export default router;
