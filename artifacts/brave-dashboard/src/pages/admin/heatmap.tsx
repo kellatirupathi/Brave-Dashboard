@@ -156,25 +156,40 @@ export default function HeatmapPage() {
 
   // Apply text + status + week-specific filters client-side. Campus is
   // already filtered server-side via the query.
+  // Sort priority: Active → Inconsistent → Silent → Never logged.
+  // Within the same status, alphabetical by team name. Surfaces engaged
+  // teams first and pushes problem rows down so admins can scan top-down.
   const filteredTeams = useMemo(() => {
     if (!data?.teams) return [];
     const q = query.trim().toLowerCase();
-    return data.teams.filter((t) => {
-      // Status filter
-      if (filter === "silent" && t.status !== "silent") return false;
-      if (filter === "never" && t.status !== "never_logged") return false;
-      // Week-specific filter — keep only teams that did NOT submit this week.
-      if (selectedWeek !== "all") {
-        const weekRow = t.weeks.find((w) => w.weekStartDate === selectedWeek);
-        if (weekRow?.hasJournal) return false;
-      }
-      // Search
-      if (!q) return true;
-      return (
-        t.teamName.toLowerCase().includes(q) ||
-        (t.campusName ?? "").toLowerCase().includes(q)
-      );
-    });
+    const statusRank: Record<HeatmapTeamRow["status"], number> = {
+      active: 0,
+      inconsistent: 1,
+      silent: 2,
+      never_logged: 3,
+    };
+    return data.teams
+      .filter((t) => {
+        // Status filter
+        if (filter === "silent" && t.status !== "silent") return false;
+        if (filter === "never" && t.status !== "never_logged") return false;
+        // Week-specific filter — keep only teams that did NOT submit this week.
+        if (selectedWeek !== "all") {
+          const weekRow = t.weeks.find((w) => w.weekStartDate === selectedWeek);
+          if (weekRow?.hasJournal) return false;
+        }
+        // Search
+        if (!q) return true;
+        return (
+          t.teamName.toLowerCase().includes(q) ||
+          (t.campusName ?? "").toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => {
+        const r = statusRank[a.status] - statusRank[b.status];
+        if (r !== 0) return r;
+        return a.teamName.localeCompare(b.teamName);
+      });
   }, [data, query, filter, selectedWeek]);
 
   const counts = useMemo(() => {
