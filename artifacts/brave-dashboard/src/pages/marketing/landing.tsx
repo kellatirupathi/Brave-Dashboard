@@ -156,10 +156,7 @@ function BraveWordmark({ className = "" }: { className?: string }) {
 function Ticker() {
   const items = Array.from({ length: 8 });
   return (
-    <div
-      className="w-full overflow-hidden"
-      style={{ background: "var(--color-brave-ink)" }}
-    >
+    <div className="w-full overflow-hidden" style={{ background: "#111111" }}>
       <div className="flex whitespace-nowrap py-1.5 animate-[brave-ticker_35s_linear_infinite]">
         {items.concat(items).map((_, i) => (
           <div
@@ -179,38 +176,49 @@ function Ticker() {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 mb-4">
-      <span className="text-[#707070] text-[10px]">❯</span>
+      <span className="text-[#111111] text-[10px]">❯</span>
       <span
-        className="font-[family-name:var(--font-body)] font-bold uppercase text-xs tracking-[0.08em]"
-        style={{ color: "#707070" }}
+        className="font-bold uppercase text-xs tracking-[0.3em]"
+        style={{
+          color: "#111111",
+          fontFamily: "var(--font-brave-ui)",
+        }}
       >
         {children}
       </span>
-      <span className="text-[#707070] text-[10px]">❮</span>
+      <span className="text-[#111111] text-[10px]">❮</span>
     </div>
   );
 }
 
-const cardClass =
-  "rounded-2xl bg-white border border-black/[0.04] p-7 flex flex-col gap-3";
-const cardShadow = "0 0 24px rgba(255, 244, 219, 0.25)";
+// 2026 BRAVE brand: outlined cards, sharp/minimal corners, no drop shadow.
+// Strict 4-color palette (red / black / bone-white / amber).
+const cardClass = "bg-white border border-black p-7 flex flex-col gap-3";
+const cardShadow = "none";
 
+// Display headlines — Bebas Neue, ALL CAPS, ultra-tight tracking. Per the
+// brand guide, "All caps" is mandatory for headlines.
 const sectionHeading: React.CSSProperties = {
-  fontSize: "clamp(28px, 4.5vw, 44px)",
-  lineHeight: 1.05,
-  color: "#1f1f1f",
-  letterSpacing: "-0.04em",
+  fontSize: "clamp(32px, 5vw, 56px)",
+  lineHeight: 0.95,
+  color: "#111111",
+  letterSpacing: "-0.03em",
+  fontFamily: "var(--font-brave-display)",
+  textTransform: "uppercase",
 };
 
 const cardTitleStyle: React.CSSProperties = {
-  color: "#050a00",
-  letterSpacing: "-0.5px",
-  lineHeight: 1.4,
+  color: "#111111",
+  letterSpacing: "-0.02em",
+  lineHeight: 1.05,
+  fontFamily: "var(--font-brave-display)",
+  textTransform: "uppercase",
 };
 
 const cardBodyStyle: React.CSSProperties = {
-  color: "#6b6b6b",
+  color: "#5b5b5b",
   lineHeight: 1.6,
+  fontFamily: "var(--font-brave-ui)",
 };
 
 /* ====================================================================
@@ -244,7 +252,7 @@ function TopNav() {
               key={l.href}
               href={l.href}
               data-testid={`nav-${l.href.slice(1)}`}
-              className="px-3 py-2 rounded-md text-sm font-[family-name:var(--font-body)] text-[#5b5b5b] hover:text-black transition-colors"
+              className="px-3 py-2 rounded-md text-sm font-[family-name:var(--font-brave-ui)] text-[#5b5b5b] hover:text-black transition-colors"
             >
               {l.label}
             </a>
@@ -253,8 +261,8 @@ function TopNav() {
         <Link
           href="/login"
           data-testid="nav-login"
-          className="inline-flex items-center justify-center px-5 h-10 rounded-xl bg-[#000] text-white text-sm font-[family-name:var(--font-body)] hover:opacity-90 transition-opacity shrink-0"
-          style={{ border: "1px solid rgba(33,33,33,0.53)" }}
+          className="inline-flex items-center justify-center px-5 h-10 text-white text-sm font-[family-name:var(--font-brave-ui)] hover:opacity-90 transition-opacity shrink-0 uppercase tracking-[0.2em]"
+          style={{ background: "#111111" }}
         >
           Login
         </Link>
@@ -267,49 +275,50 @@ function Hero() {
   return (
     <section
       className="relative overflow-hidden"
-      style={{
-        background:
-          "linear-gradient(180deg, #d6d3ce 0%, #e6e0d8 60%, #fafafa 100%)",
-      }}
+      style={{ background: "#F4F1EC" }}
     >
-      <div
-        className="absolute top-1/4 right-[-10%] w-[600px] h-[300px] rounded-full opacity-20 blur-[100px] pointer-events-none"
-        style={{ background: "var(--color-brave-coral)" }}
-      />
-      <div
-        className="absolute bottom-0 left-[10%] w-[500px] h-[300px] rounded-full opacity-15 blur-[100px] pointer-events-none"
-        style={{ background: "rgba(254,131,242,0.4)" }}
-      />
-
       <div className="relative max-w-6xl mx-auto px-6 lg:px-10 pt-14 pb-24 lg:pt-20 lg:pb-32">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/70 backdrop-blur border border-black/[0.06] rounded-full px-4 py-1.5 mb-7">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <div
+            className="inline-flex items-center gap-2 px-4 py-1.5 mb-7"
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #111111",
+            }}
+          >
             <span
-              className="text-xs font-[family-name:var(--font-body)] font-bold tracking-[0.08em] uppercase"
-              style={{ color: "#5b5b5b" }}
+              className="w-2 h-2 rounded-full animate-pulse"
+              style={{ background: "#C0392B" }}
+            />
+            <span
+              className="text-xs font-bold tracking-[0.3em] uppercase"
+              style={{
+                color: "#111111",
+                fontFamily: "var(--font-brave-ui)",
+              }}
             >
               Cohort opens April 15, 2026
             </span>
           </div>
 
           <h1
-            className="font-[family-name:var(--font-display)] font-extrabold tracking-tight mb-6"
+            className="mb-6"
             style={{
               ...sectionHeading,
-              fontSize: "clamp(40px, 7vw, 72px)",
-              lineHeight: 1.04,
+              fontSize: "clamp(48px, 8vw, 88px)",
+              lineHeight: 0.92,
             }}
           >
             Boost revenue for{" "}
-            <span style={{ color: "var(--color-brave-accent)" }}>
-              India's SMEs.
-            </span>
+            <span style={{ color: "#C0392B" }}>India's SMEs.</span>
           </h1>
 
           <p
-            className="font-[family-name:var(--font-body)] text-base md:text-lg leading-relaxed mb-10 max-w-2xl mx-auto"
-            style={{ color: "#5b5b5b" }}
+            className="text-base md:text-lg leading-relaxed mb-10 max-w-2xl mx-auto"
+            style={{
+              color: "#5b5b5b",
+              fontFamily: "var(--font-brave-ui)",
+            }}
           >
             BRAVE is a NIAT program where students partner with small and medium
             businesses to boost their revenue and help them become ready for the
@@ -320,8 +329,11 @@ function Hero() {
             <Link
               href="/login"
               data-testid="hero-login"
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl text-base font-[family-name:var(--font-body)] font-medium bg-[#000] text-white hover:opacity-90 transition-opacity"
-              style={{ border: "1px solid rgba(33,33,33,0.53)" }}
+              className="inline-flex items-center gap-2 px-6 py-3.5 text-base font-medium text-white hover:opacity-90 transition-opacity uppercase tracking-[0.2em]"
+              style={{
+                background: "#111111",
+                fontFamily: "var(--font-brave-ui)",
+              }}
             >
               Login
               <ArrowRight className="w-4 h-4" />
@@ -329,7 +341,13 @@ function Hero() {
             <a
               href="#case-studies"
               data-testid="hero-case-studies"
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl text-base font-[family-name:var(--font-body)] font-medium bg-white border border-black/[0.08] text-[#1f1f1f] hover:bg-[#fcfaf8] transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3.5 text-base font-medium hover:bg-[#F4F1EC] transition-colors uppercase tracking-[0.2em]"
+              style={{
+                background: "#FFFFFF",
+                border: "1px solid #111111",
+                color: "#111111",
+                fontFamily: "var(--font-brave-ui)",
+              }}
             >
               See Case Studies
               <ChevronRight className="w-4 h-4" />
@@ -337,13 +355,13 @@ function Hero() {
           </div>
 
           <div
-            className="mt-10 inline-flex items-center gap-2 text-sm font-[family-name:var(--font-body)]"
-            style={{ color: "#5b5b5b" }}
+            className="mt-10 inline-flex items-center gap-2 text-sm uppercase tracking-[0.2em]"
+            style={{
+              color: "#5b5b5b",
+              fontFamily: "var(--font-brave-ui)",
+            }}
           >
-            <Calendar
-              className="w-4 h-4"
-              style={{ color: "var(--color-brave-accent)" }}
-            />
+            <Calendar className="w-4 h-4" style={{ color: "#C0392B" }} />
             April 15 – July 15, 2026 · Open to all NIAT students
           </div>
         </div>
@@ -356,19 +374,19 @@ function CaseStudies() {
   return (
     <section
       id="case-studies"
-      className="bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20"
+      className="bg-[#F4F1EC] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20"
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <div className="mb-12 lg:mb-14 max-w-2xl">
           <SectionLabel>Case Studies</SectionLabel>
           <h2
-            className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-3"
+            className="font-[family-name:var(--font-brave-display)] font-bold tracking-tight mb-3"
             style={sectionHeading}
           >
             Real SMEs. Real revenue. Real students.
           </h2>
           <p
-            className="font-[family-name:var(--font-body)] text-base"
+            className="font-[family-name:var(--font-brave-ui)] text-base"
             style={{ color: "#5b5b5b", lineHeight: 1.6 }}
           >
             Gold-tier teams from the BRAVE cohort that won SME approval and
@@ -386,11 +404,11 @@ function CaseStudies() {
             >
               <div className="flex items-center justify-between mb-2">
                 <span
-                  className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-[family-name:var(--font-body)] font-bold tracking-widest uppercase"
+                  className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-[family-name:var(--font-brave-ui)] font-bold tracking-widest uppercase"
                   style={{
                     background: "rgba(219, 71, 80, 0.08)",
                     border: "1px solid rgba(219, 71, 80, 0.25)",
-                    color: "var(--color-brave-accent)",
+                    color: "#C0392B",
                   }}
                 >
                   Gold Tier
@@ -403,7 +421,7 @@ function CaseStudies() {
                     Score
                   </p>
                   <p
-                    className="font-[family-name:var(--font-display)] font-bold text-xl leading-none mt-0.5"
+                    className="font-[family-name:var(--font-brave-display)] font-bold text-xl leading-none mt-0.5"
                     style={{ color: "#1f1f1f" }}
                   >
                     {c.score}
@@ -417,27 +435,27 @@ function CaseStudies() {
                 </div>
               </div>
               <h3
-                className="font-[family-name:var(--font-display)] font-medium text-lg"
+                className="font-[family-name:var(--font-brave-display)] font-medium text-lg"
                 style={cardTitleStyle}
               >
                 {c.team}
               </h3>
               <p
-                className="font-[family-name:var(--font-body)] text-sm"
+                className="font-[family-name:var(--font-brave-ui)] text-sm"
                 style={{ color: "#6b6b6b", lineHeight: 1.5 }}
               >
                 {c.sector}
               </p>
               <p
-                className="font-[family-name:var(--font-body)] text-xs font-semibold mt-2"
+                className="font-[family-name:var(--font-brave-ui)] text-xs font-semibold mt-2"
                 style={{ color: "#5b5b5b" }}
               >
                 Approval + Advance Payment
               </p>
               {c.revenue && (
                 <p
-                  className="font-[family-name:var(--font-display)] font-bold text-base"
-                  style={{ color: "var(--color-brave-accent)" }}
+                  className="font-[family-name:var(--font-brave-display)] font-bold text-base"
+                  style={{ color: "#C0392B" }}
                 >
                   Revenue earned: {c.revenue}
                 </p>
@@ -446,7 +464,7 @@ function CaseStudies() {
                 {c.highlights.map((h) => (
                   <li
                     key={h}
-                    className="rounded-full px-2.5 py-1 text-[11px] font-[family-name:var(--font-body)] font-medium"
+                    className="rounded-full px-2.5 py-1 text-[11px] font-[family-name:var(--font-brave-ui)] font-medium"
                     style={{
                       background: "#f5f5f5",
                       border: "1px solid rgba(34,34,34,0.06)",
@@ -467,18 +485,18 @@ function CaseStudies() {
 
 function WhatIsBrave() {
   return (
-    <section className="bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5]">
+    <section className="bg-[#F4F1EC] py-16 lg:py-24 border-t border-[#e5e5e5]">
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <div className="mb-12 max-w-3xl">
           <SectionLabel>What is BRAVE</SectionLabel>
           <h2
-            className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-4"
+            className="font-[family-name:var(--font-brave-display)] font-bold tracking-tight mb-4"
             style={sectionHeading}
           >
             A program designed to boost revenues for SMEs.
           </h2>
           <p
-            className="font-[family-name:var(--font-body)] text-lg"
+            className="font-[family-name:var(--font-brave-ui)] text-lg"
             style={{ color: "#5b5b5b", lineHeight: 1.65 }}
           >
             NIAT students find their own small and medium business partners,
@@ -501,19 +519,16 @@ function WhatIsBrave() {
                   border: "1px solid rgba(219, 71, 80, 0.2)",
                 }}
               >
-                <Icon
-                  className="w-5 h-5"
-                  style={{ color: "var(--color-brave-accent)" }}
-                />
+                <Icon className="w-5 h-5" style={{ color: "#C0392B" }} />
               </div>
               <h3
-                className="font-[family-name:var(--font-display)] font-medium text-xl mt-2"
+                className="font-[family-name:var(--font-brave-display)] font-medium text-xl mt-2"
                 style={cardTitleStyle}
               >
                 {title}
               </h3>
               <p
-                className="font-[family-name:var(--font-body)] text-sm"
+                className="font-[family-name:var(--font-brave-ui)] text-sm"
                 style={{ ...cardBodyStyle, lineHeight: 1.6 }}
               >
                 {body}
@@ -530,18 +545,13 @@ function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="relative bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20 overflow-hidden"
+      className="relative bg-[#F4F1EC] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20 overflow-hidden"
     >
-      <div
-        className="absolute top-1/3 right-[-10%] w-[600px] h-[300px] rounded-full opacity-15 blur-[100px] pointer-events-none"
-        style={{ background: "var(--color-brave-coral)" }}
-      />
-
       <div className="relative max-w-7xl mx-auto px-6 lg:px-10">
         <div className="mb-12 max-w-2xl">
           <SectionLabel>How it works</SectionLabel>
           <h2
-            className="font-[family-name:var(--font-display)] font-bold tracking-tight"
+            className="font-[family-name:var(--font-brave-display)] font-bold tracking-tight"
             style={sectionHeading}
           >
             Three steps from idea to income.
@@ -556,19 +566,19 @@ function HowItWorks() {
               style={{ boxShadow: cardShadow }}
             >
               <p
-                className="font-[family-name:var(--font-display)] font-extrabold text-3xl"
+                className="font-[family-name:var(--font-brave-display)] font-extrabold text-3xl"
                 style={{ color: "rgba(219, 71, 80, 0.4)" }}
               >
                 {s.n}
               </p>
               <h3
-                className="font-[family-name:var(--font-display)] font-medium text-2xl"
+                className="font-[family-name:var(--font-brave-display)] font-medium text-2xl"
                 style={cardTitleStyle}
               >
                 {s.title}
               </h3>
               <p
-                className="font-[family-name:var(--font-body)] text-sm"
+                className="font-[family-name:var(--font-brave-ui)] text-sm"
                 style={{ ...cardBodyStyle, lineHeight: 1.6 }}
               >
                 {s.body}
@@ -589,22 +599,18 @@ function DemoDay() {
   ];
 
   return (
-    <section className="relative bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5] overflow-hidden">
-      <div
-        className="absolute top-1/3 left-1/4 w-[600px] h-[389px] rounded-full opacity-25 blur-[100px] pointer-events-none"
-        style={{ background: "rgba(254,131,242,0.3)" }}
-      />
+    <section className="relative bg-[#F4F1EC] py-16 lg:py-24 border-t border-[#e5e5e5] overflow-hidden">
       <div className="relative max-w-7xl mx-auto px-6 lg:px-10">
         <div className="mb-12 max-w-3xl">
           <SectionLabel>Demo Day</SectionLabel>
           <h2
-            className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-4"
+            className="font-[family-name:var(--font-brave-display)] font-bold tracking-tight mb-4"
             style={sectionHeading}
           >
             Pitch real revenue to real investors.
           </h2>
           <p
-            className="font-[family-name:var(--font-body)] text-lg"
+            className="font-[family-name:var(--font-brave-ui)] text-lg"
             style={{ color: "#5b5b5b", lineHeight: 1.65 }}
           >
             Top teams qualify for the national Demo Day finale — and then move
@@ -620,13 +626,13 @@ function DemoDay() {
               style={{ boxShadow: cardShadow }}
             >
               <p
-                className="font-[family-name:var(--font-display)] font-extrabold text-4xl mb-1"
+                className="font-[family-name:var(--font-brave-display)] font-extrabold text-4xl mb-1"
                 style={{ color: "#1f1f1f" }}
               >
                 {s.value}
               </p>
               <p
-                className="font-[family-name:var(--font-body)] text-sm"
+                className="font-[family-name:var(--font-brave-ui)] text-sm"
                 style={{ ...cardBodyStyle, lineHeight: 1.55 }}
               >
                 {s.label}
@@ -643,13 +649,13 @@ function FAQ() {
   return (
     <section
       id="faq"
-      className="bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20"
+      className="bg-[#F4F1EC] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20"
     >
       <div className="max-w-3xl mx-auto px-6 lg:px-10">
         <div className="mb-10">
           <SectionLabel>FAQ</SectionLabel>
           <h2
-            className="font-[family-name:var(--font-display)] font-bold tracking-tight"
+            className="font-[family-name:var(--font-brave-display)] font-bold tracking-tight"
             style={sectionHeading}
           >
             Quick answers.
@@ -664,11 +670,11 @@ function FAQ() {
               className="rounded-2xl bg-white border border-black/[0.06] px-6 data-[state=open]:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.1)]"
               data-testid={`faq-${i}`}
             >
-              <AccordionTrigger className="text-left hover:no-underline py-5 font-[family-name:var(--font-body)] font-semibold text-[17px] text-[#0a0a0a]">
+              <AccordionTrigger className="text-left hover:no-underline py-5 font-[family-name:var(--font-brave-ui)] font-semibold text-[17px] text-[#0a0a0a]">
                 {f.q}
               </AccordionTrigger>
               <AccordionContent
-                className="font-[family-name:var(--font-body)] text-base pb-5"
+                className="font-[family-name:var(--font-brave-ui)] text-base pb-5"
                 style={{ color: "#5b5b5b", lineHeight: 1.7 }}
               >
                 {f.a}
@@ -683,18 +689,15 @@ function FAQ() {
 
 function Footer() {
   return (
-    <footer
-      className="py-10 px-6"
-      style={{ background: "var(--color-brave-footer)" }}
-    >
+    <footer className="py-10 px-6" style={{ background: "#111111" }}>
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex flex-col gap-2">
-          <BraveWordmark dark />
-          <p className="text-white/70 text-xs font-[family-name:var(--font-body)] font-light">
+          <BraveWordmark />
+          <p className="text-white/70 text-xs font-[family-name:var(--font-brave-ui)] font-light uppercase tracking-[0.2em]">
             Boosting real revenue for India's SMEs.
           </p>
         </div>
-        <p className="text-white/60 text-xs font-[family-name:var(--font-body)]">
+        <p className="text-white/60 text-xs font-[family-name:var(--font-brave-ui)] uppercase tracking-[0.2em]">
           © {new Date().getFullYear()} NIAT India. All rights reserved.
         </p>
       </div>
@@ -709,8 +712,8 @@ function Footer() {
 export default function Landing() {
   return (
     <div
-      className="min-h-screen font-[family-name:var(--font-body)]"
-      style={{ background: "var(--color-brave-cream)", color: "#1f1f1f" }}
+      className="min-h-screen font-[family-name:var(--font-brave-ui)]"
+      style={{ background: "#F4F1EC", color: "#1f1f1f" }}
     >
       <Ticker />
       <TopNav />
