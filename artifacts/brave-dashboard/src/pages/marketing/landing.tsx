@@ -15,6 +15,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { BraveLogo } from "@/components/brave-logo";
 
 /* ====================================================================
    ORIGINAL CONTENT — preserved as-is
@@ -141,55 +142,6 @@ const FAQS = [
    NEW FRAMER-STYLE BUILDING BLOCKS
    ==================================================================== */
 
-function BraveWordmark({
-  className = "",
-  dark = false,
-}: {
-  className?: string;
-  dark?: boolean;
-}) {
-  const ink = dark ? "#fff" : "#1e0d01";
-  const shieldFill = dark ? "#fff" : "#1e0d01";
-  const shieldText = dark ? "#1e0d01" : "#fff";
-  return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <svg
-        viewBox="0 0 28 35"
-        className="w-7 h-9 shrink-0"
-        fill="none"
-        aria-hidden
-      >
-        <path
-          d="M0 4h28v17.5C28 28.4 21.7 35 14 35S0 28.4 0 21.5V4Z"
-          fill={shieldFill}
-        />
-        <text
-          x="14"
-          y="22"
-          textAnchor="middle"
-          fontFamily="Supreme, sans-serif"
-          fontWeight="800"
-          fontSize="11"
-          fill={shieldText}
-          letterSpacing="-0.5"
-        >
-          NIAT
-        </text>
-      </svg>
-      <span
-        className="font-bold text-2xl tracking-tight font-[family-name:var(--font-display)] flex items-center gap-1"
-        style={{ color: ink }}
-      >
-        BRAVE
-        <span
-          className="inline-block w-2 h-2 rotate-45 ml-0.5"
-          style={{ background: "var(--color-brave-accent)" }}
-        />
-      </span>
-    </div>
-  );
-}
-
 function Ticker() {
   const items = Array.from({ length: 8 });
   return (
@@ -273,7 +225,7 @@ function TopNav() {
         }`}
       >
         <Link href="/" data-testid="link-home">
-          <BraveWordmark />
+          <BraveLogo className="text-2xl" />
         </Link>
         <nav className="hidden md:flex items-center gap-1">
           {NAV_LINKS.map((l) => (
@@ -726,7 +678,7 @@ function Footer() {
     >
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex flex-col gap-2">
-          <BraveWordmark dark />
+          <BraveLogo className="text-2xl" />
           <p className="text-white/70 text-xs font-[family-name:var(--font-body)] font-light">
             Boosting real revenue for India's SMEs.
           </p>

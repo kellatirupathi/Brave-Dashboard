@@ -10,50 +10,7 @@ import {
   Sparkles,
   ShieldCheck,
 } from "lucide-react";
-
-/* ---------- Inline BRAVE wordmark ---------- */
-function BraveWordmark({ dark = false }: { dark?: boolean }) {
-  const ink = dark ? "#fff" : "#1e0d01";
-  const shieldFill = dark ? "#fff" : "#1e0d01";
-  const shieldText = dark ? "#1e0d01" : "#fff";
-  return (
-    <div className="flex items-center gap-2">
-      <svg
-        viewBox="0 0 28 35"
-        className="w-7 h-9 shrink-0"
-        fill="none"
-        aria-hidden
-      >
-        <path
-          d="M0 4h28v17.5C28 28.4 21.7 35 14 35S0 28.4 0 21.5V4Z"
-          fill={shieldFill}
-        />
-        <text
-          x="14"
-          y="22"
-          textAnchor="middle"
-          fontFamily="Supreme, sans-serif"
-          fontWeight="800"
-          fontSize="11"
-          fill={shieldText}
-          letterSpacing="-0.5"
-        >
-          NIAT
-        </text>
-      </svg>
-      <span
-        className="font-bold text-2xl tracking-tight font-[family-name:var(--font-display)] flex items-center gap-1"
-        style={{ color: ink }}
-      >
-        BRAVE
-        <span
-          className="inline-block w-2 h-2 rotate-45 ml-0.5"
-          style={{ background: "var(--color-brave-accent)" }}
-        />
-      </span>
-    </div>
-  );
-}
+import { BraveLogo } from "@/components/brave-logo";
 
 function Ticker() {
   const items = Array.from({ length: 8 });
@@ -120,7 +77,7 @@ export default function Login() {
 
           <div className="relative z-10">
             <Link href="/" data-testid="link-back-home">
-              <BraveWordmark />
+              <BraveLogo className="text-2xl" />
             </Link>
           </div>
 
@@ -230,7 +187,7 @@ export default function Login() {
                 data-testid="link-mobile-home"
                 className="flex lg:hidden items-center mb-8"
               >
-                <BraveWordmark />
+                <BraveLogo className="text-2xl" />
               </Link>
 
               <div
