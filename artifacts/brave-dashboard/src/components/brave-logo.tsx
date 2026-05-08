@@ -20,7 +20,12 @@ export function BraveLogo({ className = "", testId }: BraveLogoProps) {
     <span
       data-testid={testId ?? "brave-logo"}
       aria-label="BRAVE"
-      className={`inline-flex items-end font-black tracking-[-0.04em] leading-none select-none ${className}`}
+      className={`inline-flex items-end leading-none select-none ${className}`}
+      style={{
+        fontFamily: "'Supreme', 'Plus Jakarta Sans', system-ui, sans-serif",
+        fontWeight: 800,
+        letterSpacing: "-0.02em",
+      }}
     >
       <span style={{ color: BRAVE_RED }}>BRAVE</span>
       <span
