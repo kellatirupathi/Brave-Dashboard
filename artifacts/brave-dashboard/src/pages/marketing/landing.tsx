@@ -15,6 +15,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { BraveLogo } from "@/components/brave-logo";
 
 /* ====================================================================
    ORIGINAL CONTENT — preserved as-is
@@ -148,7 +149,6 @@ function BraveWordmark({
   className?: string;
   dark?: boolean;
 }) {
-  const ink = dark ? "#fff" : "#1e0d01";
   const shieldFill = dark ? "#fff" : "#1e0d01";
   const shieldText = dark ? "#1e0d01" : "#fff";
   return (
@@ -176,16 +176,7 @@ function BraveWordmark({
           NIAT
         </text>
       </svg>
-      <span
-        className="font-bold text-2xl tracking-tight font-[family-name:var(--font-display)] flex items-center gap-1"
-        style={{ color: ink }}
-      >
-        BRAVE
-        <span
-          className="inline-block w-2 h-2 rotate-45 ml-0.5"
-          style={{ background: "var(--color-brave-accent)" }}
-        />
-      </span>
+      <BraveLogo className="text-2xl" />
     </div>
   );
 }

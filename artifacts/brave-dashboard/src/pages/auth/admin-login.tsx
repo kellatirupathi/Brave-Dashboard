@@ -80,7 +80,7 @@ export default function AdminLogin() {
     <div className="min-h-screen flex items-center justify-center bg-[hsl(0_65%_14%)] p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <BraveLogo className="text-3xl text-white inline-block" />
+          <BraveLogo className="text-3xl inline-block" />
           <p className="text-xs text-white/60 uppercase tracking-widest mt-2">
             Staff sign-in
           </p>
