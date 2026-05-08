@@ -1,6 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import url('https://api.fontshare.com/v2/css?f[]=supreme@500,700,800&f[]=space-grotesk@300,500,700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap');
+/* BRAVE 2026 logo font — Bebas Neue powers the BraveLogo wordmark only.
+   Imported here so the wordmark renders correctly across the app (sidebar,
+   login, homepage, admin login). Other typography is unchanged. */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -68,7 +72,8 @@
   --font-body: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
   --font-ticker: 'Geist Mono', ui-monospace, monospace;
 
-  /* BRAVE Framer-style color tokens */
+  /* BRAVE Framer-style color tokens (legacy — kept so other pages don't
+     break; the landing + login pages use the new official tokens below). */
   --color-brave-cream: #fcfaf8;
   --color-brave-ink: #19191b;
   --color-brave-ink-soft: #1e0d01;
@@ -76,6 +81,20 @@
   --color-brave-magenta: #fe83f2;
   --color-brave-accent: #db4750;
   --color-brave-footer: #070a11;
+
+  /* BRAVE 2026 official brand palette — exact values from the brand guide.
+     Strict 4-color system: red is the brand voice, black is the weight,
+     bone-white is breathing room, amber is the one-element-per-design
+     accent. Do not introduce additional colors on brand-aligned pages. */
+  --brave-red: #C0392B;
+  --brave-black: #111111;
+  --brave-white: #F4F1EC;
+  --brave-amber: #EF9F27;
+
+  /* BRAVE 2026 brand typography — Bebas Neue for ultra-heavy condensed
+     display headlines; Montserrat for body/UI per the brand guide. */
+  --font-brave-display: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
+  --font-brave-ui: 'Montserrat', 'Inter', sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
