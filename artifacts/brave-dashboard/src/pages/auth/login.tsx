@@ -12,41 +12,12 @@ import {
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
 
-/* ---------- Inline NIAT shield + BRAVE wordmark ---------- */
-// NIAT shield stays color-aware (light/dark surfaces flip it). BRAVE part
-// uses the shared BraveLogo component so the wordmark matches the brand
-// across the entire app.
-function BraveWordmark({ dark = false }: { dark?: boolean }) {
-  const shieldFill = dark ? "#fff" : "#1e0d01";
-  const shieldText = dark ? "#1e0d01" : "#fff";
-  return (
-    <div className="flex items-center gap-2">
-      <svg
-        viewBox="0 0 28 35"
-        className="w-7 h-9 shrink-0"
-        fill="none"
-        aria-hidden
-      >
-        <path
-          d="M0 4h28v17.5C28 28.4 21.7 35 14 35S0 28.4 0 21.5V4Z"
-          fill={shieldFill}
-        />
-        <text
-          x="14"
-          y="22"
-          textAnchor="middle"
-          fontFamily="Supreme, sans-serif"
-          fontWeight="800"
-          fontSize="11"
-          fill={shieldText}
-          letterSpacing="-0.5"
-        >
-          NIAT
-        </text>
-      </svg>
-      <BraveLogo className="text-2xl" />
-    </div>
-  );
+/* ---------- BRAVE wordmark ---------- */
+// Thin wrapper around the shared BraveLogo so existing call sites in this
+// page (header + mobile card) keep working unchanged. NIAT shield was
+// removed per brand decision — the BRAVE wordmark stands on its own.
+function BraveWordmark() {
+  return <BraveLogo className="text-2xl" />;
 }
 
 function Ticker() {
