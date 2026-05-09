@@ -181,8 +181,9 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 const cardClass =
-  "rounded-2xl bg-white border border-black/[0.04] p-7 flex flex-col gap-3";
-const cardShadow = "0 0 24px rgba(255, 244, 219, 0.25)";
+  "group/card relative rounded-2xl bg-white border border-black/[0.06] p-7 flex flex-col gap-3 transition-all duration-300 hover:-translate-y-1 hover:border-[#C0392B]/25 hover:shadow-[0_20px_50px_-20px_rgba(192,57,43,0.25)]";
+const cardShadow =
+  "0 4px 20px -8px rgba(17,17,17,0.06), 0 0 24px rgba(255, 244, 219, 0.4)";
 
 const sectionHeading: React.CSSProperties = {
   fontSize: "clamp(28px, 4.5vw, 44px)",
@@ -218,14 +219,14 @@ function TopNav() {
   return (
     <header className="sticky top-0 z-50 pt-4 pb-2 flex justify-center px-4">
       <div
-        className={`flex items-center justify-between gap-6 px-5 py-3 rounded-2xl bg-white border border-black/5 transition-all duration-200 w-full max-w-2xl ${
+        className={`flex items-center justify-between gap-6 px-5 py-2.5 rounded-2xl bg-white/85 backdrop-blur-xl border transition-all duration-300 w-full max-w-2xl ${
           scrolled
-            ? "shadow-[0_10px_30px_-10px_rgba(0,0,0,0.15)]"
-            : "shadow-[0_2px_10px_-2px_rgba(0,0,0,0.08)]"
+            ? "shadow-[0_12px_40px_-12px_rgba(17,17,17,0.18)] border-black/[0.08]"
+            : "shadow-[0_4px_16px_-6px_rgba(17,17,17,0.08)] border-black/[0.04]"
         }`}
       >
-        <Link href="/" data-testid="link-home">
-          <BraveLogo className="text-2xl" />
+        <Link href="/" data-testid="link-home" className="shrink-0">
+          <BraveLogo className="text-[26px]" />
         </Link>
         <nav className="hidden md:flex items-center gap-1">
           {NAV_LINKS.map((l) => (
@@ -233,7 +234,7 @@ function TopNav() {
               key={l.href}
               href={l.href}
               data-testid={`nav-${l.href.slice(1)}`}
-              className="px-3 py-2 rounded-md text-sm font-[family-name:var(--font-body)] text-[#5b5b5b] hover:text-black transition-colors"
+              className="px-3 py-2 rounded-md text-sm font-[family-name:var(--font-body)] font-medium text-[#5b5b5b] hover:text-[#C0392B] transition-colors"
             >
               {l.label}
             </a>
@@ -242,10 +243,14 @@ function TopNav() {
         <Link
           href="/login"
           data-testid="nav-login"
-          className="inline-flex items-center justify-center px-5 h-10 rounded-xl bg-[#000] text-white text-sm font-[family-name:var(--font-body)] hover:opacity-90 transition-opacity shrink-0"
-          style={{ border: "1px solid rgba(33,33,33,0.53)" }}
+          className="group inline-flex items-center gap-1.5 justify-center px-5 h-10 rounded-xl bg-[#111] text-white text-sm font-[family-name:var(--font-body)] font-semibold transition-all duration-200 hover:bg-[#000] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.4)] shrink-0"
+          style={{
+            boxShadow:
+              "0 4px 12px -4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)",
+          }}
         >
           Login
+          <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
     </header>
@@ -258,47 +263,80 @@ function Hero() {
       className="relative overflow-hidden"
       style={{
         background:
-          "linear-gradient(180deg, #d6d3ce 0%, #e6e0d8 60%, #fafafa 100%)",
+          "radial-gradient(ellipse 90% 70% at 50% 0%, #fff 0%, #f4f1ec 55%, #ebe6dd 100%)",
       }}
     >
+      {/* Dotted grid texture */}
       <div
-        className="absolute top-1/4 right-[-10%] w-[600px] h-[300px] rounded-full opacity-20 blur-[100px] pointer-events-none"
-        style={{ background: "var(--color-brave-coral)" }}
+        className="absolute inset-0 opacity-[0.35] pointer-events-none"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, rgba(17,17,17,0.18) 1px, transparent 1px)",
+          backgroundSize: "22px 22px",
+          maskImage:
+            "radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 80%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 80%)",
+        }}
       />
+      {/* Brand red accent blob */}
       <div
-        className="absolute bottom-0 left-[10%] w-[500px] h-[300px] rounded-full opacity-15 blur-[100px] pointer-events-none"
-        style={{ background: "rgba(254,131,242,0.4)" }}
+        className="absolute top-[10%] right-[-8%] w-[620px] h-[340px] rounded-full opacity-25 blur-[110px] pointer-events-none"
+        style={{ background: "#C0392B" }}
+      />
+      {/* Amber spark blob */}
+      <div
+        className="absolute bottom-[-10%] left-[8%] w-[480px] h-[300px] rounded-full opacity-20 blur-[110px] pointer-events-none"
+        style={{ background: "#EF9F27" }}
       />
 
-      <div className="relative max-w-6xl mx-auto px-6 lg:px-10 pt-14 pb-24 lg:pt-20 lg:pb-32">
+      <div className="relative max-w-6xl mx-auto px-6 lg:px-10 pt-16 pb-28 lg:pt-24 lg:pb-36">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/70 backdrop-blur border border-black/[0.06] rounded-full px-4 py-1.5 mb-7">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <div
+            className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-md border rounded-full px-4 py-1.5 mb-8 shadow-[0_4px_20px_-8px_rgba(192,57,43,0.15)]"
+            style={{ borderColor: "rgba(192,57,43,0.18)" }}
+          >
+            <span className="relative flex w-2 h-2">
+              <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-75" />
+              <span className="relative w-2 h-2 rounded-full bg-green-500" />
+            </span>
             <span
-              className="text-xs font-[family-name:var(--font-body)] font-bold tracking-[0.08em] uppercase"
-              style={{ color: "#5b5b5b" }}
+              className="text-xs font-[family-name:var(--font-body)] font-bold tracking-[0.1em] uppercase"
+              style={{ color: "#3d3d3d" }}
             >
               Cohort opens April 15, 2026
             </span>
           </div>
 
           <h1
-            className="font-[family-name:var(--font-display)] font-extrabold tracking-tight mb-6"
+            className="font-[family-name:var(--font-display)] font-extrabold tracking-tight mb-7"
             style={{
               ...sectionHeading,
-              fontSize: "clamp(40px, 7vw, 72px)",
-              lineHeight: 1.04,
+              fontSize: "clamp(44px, 7.5vw, 80px)",
+              lineHeight: 1.02,
+              letterSpacing: "-0.045em",
             }}
           >
             Boost revenue for{" "}
-            <span style={{ color: "var(--color-brave-accent)" }}>
+            <span
+              className="relative inline-block"
+              style={{ color: "#C0392B" }}
+            >
               India's SMEs.
+              <span
+                aria-hidden
+                className="absolute left-0 right-0 -bottom-1 h-[6px] rounded-full opacity-60"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, #EF9F27 50%, transparent 100%)",
+                }}
+              />
             </span>
           </h1>
 
           <p
             className="font-[family-name:var(--font-body)] text-base md:text-lg leading-relaxed mb-10 max-w-2xl mx-auto"
-            style={{ color: "#5b5b5b" }}
+            style={{ color: "#4a4a4a", lineHeight: 1.7 }}
           >
             BRAVE is a NIAT program where students partner with small and medium
             businesses to boost their revenue and help them become ready for the
@@ -309,19 +347,26 @@ function Hero() {
             <Link
               href="/login"
               data-testid="hero-login"
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl text-base font-[family-name:var(--font-body)] font-medium bg-[#000] text-white hover:opacity-90 transition-opacity"
-              style={{ border: "1px solid rgba(33,33,33,0.53)" }}
+              className="group inline-flex items-center gap-2 px-7 py-4 rounded-xl text-base font-[family-name:var(--font-body)] font-semibold bg-[#111111] text-white transition-all duration-200 hover:bg-[#000] hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-10px_rgba(0,0,0,0.4)]"
+              style={{
+                boxShadow:
+                  "0 8px 24px -8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)",
+              }}
             >
               Login
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </Link>
             <a
               href="#case-studies"
               data-testid="hero-case-studies"
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl text-base font-[family-name:var(--font-body)] font-medium bg-white border border-black/[0.08] text-[#1f1f1f] hover:bg-[#fcfaf8] transition-colors"
+              className="group inline-flex items-center gap-2 px-7 py-4 rounded-xl text-base font-[family-name:var(--font-body)] font-semibold bg-white text-[#1f1f1f] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-10px_rgba(0,0,0,0.12)]"
+              style={{
+                border: "1px solid rgba(17,17,17,0.1)",
+                boxShadow: "0 2px 8px -2px rgba(0,0,0,0.04)",
+              }}
             >
               See Case Studies
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </a>
           </div>
 
@@ -345,20 +390,24 @@ function CaseStudies() {
   return (
     <section
       id="case-studies"
-      className="bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20"
+      className="relative bg-[#fcfaf8] py-20 lg:py-28 border-t border-[#e5e5e5] scroll-mt-20 overflow-hidden"
     >
-      <div className="max-w-7xl mx-auto px-6 lg:px-10">
-        <div className="mb-12 lg:mb-14 max-w-2xl">
+      <div
+        className="absolute top-0 right-[-5%] w-[400px] h-[400px] rounded-full opacity-[0.08] blur-[100px] pointer-events-none"
+        style={{ background: "#C0392B" }}
+      />
+      <div className="relative max-w-7xl mx-auto px-6 lg:px-10">
+        <div className="mb-14 lg:mb-16 max-w-2xl">
           <SectionLabel>Case Studies</SectionLabel>
           <h2
-            className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-3"
+            className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-4"
             style={sectionHeading}
           >
             Real SMEs. Real revenue. Real students.
           </h2>
           <p
-            className="font-[family-name:var(--font-body)] text-base"
-            style={{ color: "#5b5b5b", lineHeight: 1.6 }}
+            className="font-[family-name:var(--font-body)] text-base md:text-lg"
+            style={{ color: "#5b5b5b", lineHeight: 1.65 }}
           >
             Gold-tier teams from the BRAVE cohort that won SME approval and
             advance payment.
@@ -456,9 +505,9 @@ function CaseStudies() {
 
 function WhatIsBrave() {
   return (
-    <section className="bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5]">
-      <div className="max-w-7xl mx-auto px-6 lg:px-10">
-        <div className="mb-12 max-w-3xl">
+    <section className="relative bg-white py-20 lg:py-28 border-t border-[#e5e5e5] overflow-hidden">
+      <div className="relative max-w-7xl mx-auto px-6 lg:px-10">
+        <div className="mb-14 max-w-3xl">
           <SectionLabel>What is BRAVE</SectionLabel>
           <h2
             className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-4"
@@ -468,7 +517,7 @@ function WhatIsBrave() {
           </h2>
           <p
             className="font-[family-name:var(--font-body)] text-lg"
-            style={{ color: "#5b5b5b", lineHeight: 1.65 }}
+            style={{ color: "#5b5b5b", lineHeight: 1.7 }}
           >
             NIAT students find their own small and medium business partners,
             build with AI, ship work that earns money for the SME, and log
@@ -484,26 +533,24 @@ function WhatIsBrave() {
               style={{ boxShadow: cardShadow }}
             >
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover/card:scale-110 group-hover/card:rotate-3"
                 style={{
-                  background: "rgba(219, 71, 80, 0.08)",
-                  border: "1px solid rgba(219, 71, 80, 0.2)",
+                  background:
+                    "linear-gradient(135deg, rgba(192,57,43,0.1) 0%, rgba(239,159,39,0.08) 100%)",
+                  border: "1px solid rgba(192,57,43,0.18)",
                 }}
               >
-                <Icon
-                  className="w-5 h-5"
-                  style={{ color: "var(--color-brave-accent)" }}
-                />
+                <Icon className="w-5 h-5" style={{ color: "#C0392B" }} />
               </div>
               <h3
-                className="font-[family-name:var(--font-display)] font-medium text-xl mt-2"
+                className="font-[family-name:var(--font-display)] font-semibold text-xl mt-3"
                 style={cardTitleStyle}
               >
                 {title}
               </h3>
               <p
                 className="font-[family-name:var(--font-body)] text-sm"
-                style={{ ...cardBodyStyle, lineHeight: 1.6 }}
+                style={{ ...cardBodyStyle, lineHeight: 1.65 }}
               >
                 {body}
               </p>
@@ -519,15 +566,19 @@ function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="relative bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20 overflow-hidden"
+      className="relative bg-[#fcfaf8] py-20 lg:py-28 border-t border-[#e5e5e5] scroll-mt-20 overflow-hidden"
     >
       <div
-        className="absolute top-1/3 right-[-10%] w-[600px] h-[300px] rounded-full opacity-15 blur-[100px] pointer-events-none"
-        style={{ background: "var(--color-brave-coral)" }}
+        className="absolute top-1/3 right-[-10%] w-[600px] h-[300px] rounded-full opacity-15 blur-[120px] pointer-events-none"
+        style={{ background: "#C0392B" }}
+      />
+      <div
+        className="absolute bottom-[10%] left-[-5%] w-[400px] h-[280px] rounded-full opacity-10 blur-[100px] pointer-events-none"
+        style={{ background: "#EF9F27" }}
       />
 
       <div className="relative max-w-7xl mx-auto px-6 lg:px-10">
-        <div className="mb-12 max-w-2xl">
+        <div className="mb-14 max-w-2xl">
           <SectionLabel>How it works</SectionLabel>
           <h2
             className="font-[family-name:var(--font-display)] font-bold tracking-tight"
@@ -538,27 +589,41 @@ function HowItWorks() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-5">
-          {STEPS.map((s) => (
+          {STEPS.map((s, idx) => (
             <div
               key={s.n}
               className={cardClass}
               style={{ boxShadow: cardShadow }}
             >
-              <p
-                className="font-[family-name:var(--font-display)] font-extrabold text-3xl"
-                style={{ color: "rgba(219, 71, 80, 0.4)" }}
-              >
-                {s.n}
-              </p>
+              <div className="flex items-center justify-between mb-1">
+                <p
+                  className="font-[family-name:var(--font-display)] font-extrabold text-4xl leading-none"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #C0392B 0%, #EF9F27 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  {s.n}
+                </p>
+                {idx < STEPS.length - 1 && (
+                  <ArrowRight
+                    className="w-5 h-5 hidden md:block opacity-30"
+                    style={{ color: "#C0392B" }}
+                  />
+                )}
+              </div>
               <h3
-                className="font-[family-name:var(--font-display)] font-medium text-2xl"
+                className="font-[family-name:var(--font-display)] font-semibold text-2xl"
                 style={cardTitleStyle}
               >
                 {s.title}
               </h3>
               <p
                 className="font-[family-name:var(--font-body)] text-sm"
-                style={{ ...cardBodyStyle, lineHeight: 1.6 }}
+                style={{ ...cardBodyStyle, lineHeight: 1.65 }}
               >
                 {s.body}
               </p>
@@ -578,13 +643,17 @@ function DemoDay() {
   ];
 
   return (
-    <section className="relative bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5] overflow-hidden">
+    <section className="relative bg-white py-20 lg:py-28 border-t border-[#e5e5e5] overflow-hidden">
       <div
-        className="absolute top-1/3 left-1/4 w-[600px] h-[389px] rounded-full opacity-25 blur-[100px] pointer-events-none"
-        style={{ background: "rgba(254,131,242,0.3)" }}
+        className="absolute top-1/3 left-1/4 w-[600px] h-[389px] rounded-full opacity-15 blur-[120px] pointer-events-none"
+        style={{ background: "#C0392B" }}
+      />
+      <div
+        className="absolute bottom-0 right-[5%] w-[400px] h-[300px] rounded-full opacity-15 blur-[110px] pointer-events-none"
+        style={{ background: "#EF9F27" }}
       />
       <div className="relative max-w-7xl mx-auto px-6 lg:px-10">
-        <div className="mb-12 max-w-3xl">
+        <div className="mb-14 max-w-3xl">
           <SectionLabel>Demo Day</SectionLabel>
           <h2
             className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-4"
@@ -594,7 +663,7 @@ function DemoDay() {
           </h2>
           <p
             className="font-[family-name:var(--font-body)] text-lg"
-            style={{ color: "#5b5b5b", lineHeight: 1.65 }}
+            style={{ color: "#5b5b5b", lineHeight: 1.7 }}
           >
             Top teams qualify for the national Demo Day finale — and then move
             into GRIT, NIAT's long-form mentorship and capital track.
@@ -609,14 +678,21 @@ function DemoDay() {
               style={{ boxShadow: cardShadow }}
             >
               <p
-                className="font-[family-name:var(--font-display)] font-extrabold text-4xl mb-1"
-                style={{ color: "#1f1f1f" }}
+                className="font-[family-name:var(--font-display)] font-extrabold text-5xl mb-2 leading-none"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #111111 0%, #C0392B 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  letterSpacing: "-0.03em",
+                }}
               >
                 {s.value}
               </p>
               <p
                 className="font-[family-name:var(--font-body)] text-sm"
-                style={{ ...cardBodyStyle, lineHeight: 1.55 }}
+                style={{ ...cardBodyStyle, lineHeight: 1.6 }}
               >
                 {s.label}
               </p>
@@ -632,10 +708,10 @@ function FAQ() {
   return (
     <section
       id="faq"
-      className="bg-[#fcfaf8] py-16 lg:py-24 border-t border-[#e5e5e5] scroll-mt-20"
+      className="bg-[#fcfaf8] py-20 lg:py-28 border-t border-[#e5e5e5] scroll-mt-20"
     >
       <div className="max-w-3xl mx-auto px-6 lg:px-10">
-        <div className="mb-10">
+        <div className="mb-12 text-center">
           <SectionLabel>FAQ</SectionLabel>
           <h2
             className="font-[family-name:var(--font-display)] font-bold tracking-tight"
@@ -650,15 +726,15 @@ function FAQ() {
             <AccordionItem
               key={i}
               value={`item-${i}`}
-              className="rounded-2xl bg-white border border-black/[0.06] px-6 data-[state=open]:shadow-[0_4px_20px_-8px_rgba(0,0,0,0.1)]"
+              className="rounded-2xl bg-white border border-black/[0.06] px-6 transition-all duration-300 hover:border-[#C0392B]/25 data-[state=open]:border-[#C0392B]/30 data-[state=open]:shadow-[0_12px_40px_-16px_rgba(192,57,43,0.2)]"
               data-testid={`faq-${i}`}
             >
-              <AccordionTrigger className="text-left hover:no-underline py-5 font-[family-name:var(--font-body)] font-semibold text-[17px] text-[#0a0a0a]">
+              <AccordionTrigger className="text-left hover:no-underline py-5 font-[family-name:var(--font-body)] font-semibold text-[17px] text-[#0a0a0a] hover:text-[#C0392B] transition-colors">
                 {f.q}
               </AccordionTrigger>
               <AccordionContent
                 className="font-[family-name:var(--font-body)] text-base pb-5"
-                style={{ color: "#5b5b5b", lineHeight: 1.7 }}
+                style={{ color: "#5b5b5b", lineHeight: 1.75 }}
               >
                 {f.a}
               </AccordionContent>
@@ -673,17 +749,29 @@ function FAQ() {
 function Footer() {
   return (
     <footer
-      className="py-10 px-6"
+      className="relative py-14 px-6 overflow-hidden"
       style={{ background: "var(--color-brave-footer)" }}
     >
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex flex-col gap-2">
-          <BraveLogo className="text-2xl" />
-          <p className="text-white/70 text-xs font-[family-name:var(--font-body)] font-light">
+      <div
+        aria-hidden
+        className="absolute top-0 left-0 right-0 h-px"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent 0%, rgba(192,57,43,0.6) 30%, rgba(239,159,39,0.6) 70%, transparent 100%)",
+        }}
+      />
+      <div
+        className="absolute bottom-[-30%] right-[-5%] w-[400px] h-[260px] rounded-full opacity-[0.12] blur-[100px] pointer-events-none"
+        style={{ background: "#C0392B" }}
+      />
+      <div className="relative max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="flex flex-col gap-2.5">
+          <BraveLogo className="text-[26px]" />
+          <p className="text-white/65 text-sm font-[family-name:var(--font-body)] font-light tracking-wide">
             Boosting real revenue for India's SMEs.
           </p>
         </div>
-        <p className="text-white/60 text-xs font-[family-name:var(--font-body)]">
+        <p className="text-white/50 text-xs font-[family-name:var(--font-body)] tracking-wide">
           © {new Date().getFullYear()} NIAT India. All rights reserved.
         </p>
       </div>
