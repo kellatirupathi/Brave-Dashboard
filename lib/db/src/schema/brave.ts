@@ -814,3 +814,36 @@ export const insertReminderLogSchema = createInsertSchema(
 ).omit({ id: true, sentAt: true });
 export type InsertReminderLog = z.infer<typeof insertReminderLogSchema>;
 export type ReminderLog = typeof reminderLogTable.$inferSelect;
+
+// ============================================================================
+// RESOURCES (admin-curated reading list — projects/solutions docs)
+// ============================================================================
+// Each row is a resource shown to students (read-only) and managed by admins
+// (full CRUD). `docUrl` is a Google Doc URL that opens in a new tab when the
+// "Open" button is clicked. Public landing page surfaces a preview of these.
+export const resourcesTable = pgTable(
+  "resources",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    docUrl: text("doc_url").notNull(),
+    createdById: text("created_by_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("resources_created_at_idx").on(t.createdAt)],
+);
+
+export const insertResourceSchema = createInsertSchema(resourcesTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertResource = z.infer<typeof insertResourceSchema>;
+export type Resource = typeof resourcesTable.$inferSelect;

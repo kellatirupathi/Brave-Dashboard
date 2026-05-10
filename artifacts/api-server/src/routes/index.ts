@@ -21,6 +21,7 @@ import journalsRouter from "./journals";
 import heatmapRouter from "./heatmap";
 import programmeWeeksRouter from "./programme-weeks";
 import cronRouter from "./cron";
+import resourcesRouter from "./resources";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,7 @@ router.use(programmeWeeksRouter);
 router.use(journalsRouter);
 router.use(heatmapRouter);
 router.use(cronRouter);
+// Resources (admin-curated reading list — additive only)
+router.use(resourcesRouter);
 
 export default router;

@@ -61,12 +61,14 @@ import AdminRoster from "@/pages/admin/roster";
 import AdminAuditLog from "@/pages/admin/audit-log";
 import AdminAnnouncements from "@/pages/admin/announcements";
 import AdminFeedback from "@/pages/admin/feedback";
+import AdminResources from "@/pages/admin/resources";
 
 // Coordinator
 import CoordinatorProjects from "@/pages/coordinator/projects";
 
 // Progress-enforcement modules (new — additive)
 import StudentJournal from "@/pages/student/journal";
+import StudentResourcesLibrary from "@/pages/student/resources";
 import AdminJournals from "@/pages/admin/journals";
 import AdminHeatmap from "@/pages/admin/heatmap";
 import CoordinatorJournals from "@/pages/coordinator/journals";
@@ -232,6 +234,14 @@ function Router() {
         <ProtectedRoute component={StudentJournal} allowedRoles={["student"]} />
       </Route>
 
+      {/* Resources library (read-only for students) */}
+      <Route path="/resources-library">
+        <ProtectedRoute
+          component={StudentResourcesLibrary}
+          allowedRoles={["student"]}
+        />
+      </Route>
+
       {/* Coordinator Routes */}
       <Route path="/coordinator">
         <ProtectedRoute
@@ -353,6 +363,11 @@ function Router() {
       <Route path="/admin/feedback">
         <ProtectedRoute component={AdminFeedback} allowedRoles={["admin"]} />
       </Route>
+      {/* Resources management (admin CRUD) */}
+      <Route path="/admin/resources">
+        <ProtectedRoute component={AdminResources} allowedRoles={["admin"]} />
+      </Route>
+
       {/* Progress enforcement (admin) */}
       <Route path="/admin/journals">
         <ProtectedRoute component={AdminJournals} allowedRoles={["admin"]} />

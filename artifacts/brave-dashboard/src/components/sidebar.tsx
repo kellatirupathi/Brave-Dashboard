@@ -22,6 +22,7 @@ import {
   KeyRound,
   BookOpenCheck,
   Activity,
+  BookOpen,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { cn } from "@/lib/utils";
@@ -216,10 +217,12 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           { name: "My Team", href: "/team", icon: Users },
           { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Demo Day", href: "/demo-day", icon: FileText },
+          { name: "Resources", href: "/resources-library", icon: BookOpen },
         ]
       : [
           { name: "Get started", href: "/get-started", icon: Users },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
+          { name: "Resources", href: "/resources-library", icon: BookOpen },
         ],
     coordinator: [
       { name: "Dashboard", href: "/coordinator", icon: LayoutDashboard },
@@ -278,6 +281,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         ],
       },
       { name: "Config", href: "/admin/config", icon: Settings },
+      { name: "Resources", href: "/admin/resources", icon: BookOpen },
     ],
   };
 

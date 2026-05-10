@@ -8,6 +8,8 @@ import {
   IndianRupee,
   Calendar,
   ChevronRight,
+  ExternalLink,
+  BookOpen,
 } from "lucide-react";
 import {
   Accordion,
@@ -16,6 +18,14 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { BraveLogo } from "@/components/brave-logo";
+import { useAuth } from "@workspace/replit-auth-web";
+
+type Resource = {
+  id: number;
+  title: string;
+  description: string;
+  docUrl: string;
+};
 
 /* ====================================================================
    ORIGINAL CONTENT — preserved as-is
@@ -24,6 +34,7 @@ import { BraveLogo } from "@/components/brave-logo";
 const NAV_LINKS = [
   { label: "Case Studies", href: "#case-studies" },
   { label: "How it works", href: "#how-it-works" },
+  { label: "Resources", href: "#resources" },
   { label: "FAQ", href: "#faq" },
 ];
 
@@ -704,6 +715,169 @@ function DemoDay() {
   );
 }
 
+function ResourcesSection() {
+  const { isAuthenticated, user } = useAuth();
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/resources", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Resource[]) => {
+        if (!cancelled) setResources(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setResources([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const preview = resources.slice(0, 4);
+
+  // Logged-in users go straight to their dashboard's resources page;
+  // logged-out users get sent to login first.
+  const seeAllHref = !isAuthenticated
+    ? "/login"
+    : user?.role === "admin"
+      ? "/admin/resources"
+      : "/resources-library";
+
+  const handleOpen = (docUrl: string) => {
+    if (isAuthenticated) {
+      window.open(docUrl, "_blank", "noopener,noreferrer");
+    } else {
+      window.location.href = "/login";
+    }
+  };
+
+  return (
+    <section
+      id="resources"
+      className="relative bg-[#fcfaf8] py-20 lg:py-28 border-t border-[#e5e5e5] scroll-mt-20 overflow-hidden"
+    >
+      <div
+        className="absolute top-1/4 right-[-8%] w-[500px] h-[300px] rounded-full opacity-[0.1] blur-[110px] pointer-events-none"
+        style={{ background: "#C0392B" }}
+      />
+      <div className="relative max-w-5xl mx-auto px-6 lg:px-10">
+        <div className="mb-12 max-w-3xl">
+          <SectionLabel>Resources</SectionLabel>
+          <h2
+            className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-4"
+            style={sectionHeading}
+          >
+            Projects & solutions to learn from.
+          </h2>
+          <p
+            className="font-[family-name:var(--font-body)] text-base md:text-lg"
+            style={{ color: "#5b5b5b", lineHeight: 1.7 }}
+          >
+            Curated step-by-step playbooks, project breakdowns, and reference
+            builds — open any one to see the full plan.
+          </p>
+        </div>
+
+        {loading ? (
+          <div
+            className="rounded-2xl bg-white border border-black/[0.06] p-8 text-center"
+            style={{ color: "#9b9b9b" }}
+          >
+            Loading resources…
+          </div>
+        ) : preview.length === 0 ? (
+          <div
+            className="rounded-2xl bg-white border border-black/[0.06] p-8 text-center font-[family-name:var(--font-body)]"
+            style={{ color: "#6b6b6b" }}
+          >
+            <BookOpen
+              className="w-8 h-8 mx-auto mb-3"
+              style={{ color: "#C0392B", opacity: 0.5 }}
+            />
+            New resources coming soon.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {preview.map((r) => {
+              const isExpanded = expandedId === r.id;
+              return (
+                <article
+                  key={r.id}
+                  data-testid={`landing-resource-${r.id}`}
+                  className="group/card relative rounded-2xl bg-white border border-black/[0.06] p-6 md:p-7 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#C0392B]/25 hover:shadow-[0_20px_50px_-20px_rgba(192,57,43,0.22)]"
+                  style={{
+                    boxShadow:
+                      "0 4px 20px -8px rgba(17,17,17,0.06), 0 0 24px rgba(255, 244, 219, 0.4)",
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <h3
+                      className="font-[family-name:var(--font-display)] font-semibold text-lg md:text-xl mb-1.5"
+                      style={cardTitleStyle}
+                    >
+                      {r.title}
+                    </h3>
+                    <p
+                      className={`font-[family-name:var(--font-body)] text-sm ${
+                        isExpanded ? "" : "line-clamp-2"
+                      }`}
+                      style={{ ...cardBodyStyle, lineHeight: 1.6 }}
+                    >
+                      {r.description}
+                    </p>
+                    {r.description.length > 120 && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                        className="mt-1.5 text-xs font-semibold font-[family-name:var(--font-body)] hover:underline"
+                        style={{ color: "#C0392B" }}
+                      >
+                        {isExpanded ? "Show less" : "Read more..."}
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpen(r.docUrl)}
+                    data-testid={`landing-resource-open-${r.id}`}
+                    className="group/btn shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold font-[family-name:var(--font-body)] bg-[#111] text-white transition-all duration-200 hover:bg-[#000] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.4)]"
+                    style={{
+                      boxShadow:
+                        "0 4px 12px -4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    Open
+                    <ExternalLink className="w-3.5 h-3.5 transition-transform group-hover/btn:translate-x-0.5" />
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {resources.length > 4 && (
+          <div className="mt-8 flex justify-center">
+            <Link
+              href={seeAllHref}
+              data-testid="landing-resources-see-all"
+              className="group inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold font-[family-name:var(--font-body)] bg-white border border-black/[0.08] text-[#1f1f1f] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-10px_rgba(0,0,0,0.12)] hover:border-[#C0392B]/30 hover:text-[#C0392B]"
+            >
+              See all resources
+              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function FAQ() {
   return (
     <section
@@ -797,6 +971,7 @@ export default function Landing() {
         <WhatIsBrave />
         <HowItWorks />
         <DemoDay />
+        <ResourcesSection />
         <FAQ />
       </main>
       <Footer />
