@@ -4,7 +4,14 @@
 // the entire viewport width.
 
 import { useEffect, useState } from "react";
-import { ExternalLink, Pencil, Trash2, Plus, BookOpen } from "lucide-react";
+import {
+  ExternalLink,
+  Pencil,
+  Trash2,
+  Plus,
+  BookOpen,
+  Clock,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +42,25 @@ type Resource = {
   title: string;
   description: string;
   docUrl: string;
+  createdAt: string;
+  updatedAt: string;
 };
+
+// "May 10, 2026 · 7:41 PM"
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const date = d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${date} · ${time}`;
+}
 
 type FormState = {
   title: string;
@@ -271,6 +296,27 @@ export default function AdminResources() {
                           {isExpanded ? "Show less" : "Read more..."}
                         </button>
                       )}
+                      {/* Timestamps — shows "Added" + "Updated" if it has been
+                          edited since creation; otherwise just "Added". */}
+                      <div
+                        className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground"
+                        data-testid={`admin-resource-meta-${r.id}`}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 opacity-70" />
+                          <span className="font-medium">Added:</span>{" "}
+                          {formatDateTime(r.createdAt)}
+                        </span>
+                        {r.updatedAt &&
+                          new Date(r.updatedAt).getTime() -
+                            new Date(r.createdAt).getTime() >
+                            1000 && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="font-medium">Updated:</span>{" "}
+                              {formatDateTime(r.updatedAt)}
+                            </span>
+                          )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <a

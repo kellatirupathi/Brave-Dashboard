@@ -3,6 +3,7 @@ import {
   useGetMyTeam,
   getGetMyTeamQueryKey,
 } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import {
@@ -204,6 +205,27 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   });
   const hasTeam = teamLoading ? !!user?.teamId : !!myTeam;
 
+  // Public visibility flag — controls whether students see the Resources
+  // sidebar entry. Admin sidebar always shows it regardless. Defaults to
+  // true while loading so the menu doesn't flicker out for students who
+  // already had access.
+  const { data: resourcesSettings } = useQuery<{
+    enabledForStudents: boolean;
+  }>({
+    queryKey: ["public-resources-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/resources-settings", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to load resources settings");
+      return res.json();
+    },
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  const resourcesVisibleForStudent =
+    resourcesSettings?.enabledForStudents ?? true;
+
   if (!user) return null;
 
   const role = user.role;
@@ -217,12 +239,29 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           { name: "My Team", href: "/team", icon: Users },
           { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Demo Day", href: "/demo-day", icon: FileText },
-          { name: "Resources", href: "/resources-library", icon: BookOpen },
+          // Resources entry is gated by the admin-controlled visibility flag.
+          ...(resourcesVisibleForStudent
+            ? [
+                {
+                  name: "Resources",
+                  href: "/resources-library",
+                  icon: BookOpen,
+                },
+              ]
+            : []),
         ]
       : [
           { name: "Get started", href: "/get-started", icon: Users },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
-          { name: "Resources", href: "/resources-library", icon: BookOpen },
+          ...(resourcesVisibleForStudent
+            ? [
+                {
+                  name: "Resources",
+                  href: "/resources-library",
+                  icon: BookOpen,
+                },
+              ]
+            : []),
         ],
     coordinator: [
       { name: "Dashboard", href: "/coordinator", icon: LayoutDashboard },

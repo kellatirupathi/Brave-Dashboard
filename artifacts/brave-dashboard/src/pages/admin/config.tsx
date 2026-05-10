@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ProgrammeWeeksManager } from "@/components/programme-weeks-manager";
 import { ReminderSettingsCard } from "@/components/reminder-settings-card";
+import { ResourcesSettingsCard } from "@/components/resources-settings-card";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
 export default function AdminConfig() {
@@ -312,6 +313,9 @@ export default function AdminConfig() {
 
           {/* SECTION 3 — Reminder service master toggles (auto-saves per toggle). */}
           <ReminderSettingsCard />
+
+          {/* SECTION 4 — Student-facing Resources visibility (auto-saves). */}
+          <ResourcesSettingsCard />
         </div>
       </div>
 

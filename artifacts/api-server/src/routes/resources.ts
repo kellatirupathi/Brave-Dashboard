@@ -13,7 +13,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
-import { db, resourcesTable } from "@workspace/db";
+import { db, resourcesTable, programmeConfigTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -88,6 +88,69 @@ router.patch("/resources/:id", async (req, res): Promise<void> => {
     return;
   }
   res.json(updated);
+});
+
+// ---------------------------------------------------------------------------
+// Resources visibility settings — controls whether students see the Resources
+// sidebar entry + /resources-library route. Admin's /admin/resources is
+// always available regardless of this flag.
+// ---------------------------------------------------------------------------
+
+// Helper: read the flag, creating a default config row on first use.
+async function readResourcesVisibility(): Promise<boolean> {
+  const rows = await db.select().from(programmeConfigTable).limit(1);
+  if (rows.length === 0) {
+    const [created] = await db
+      .insert(programmeConfigTable)
+      .values({})
+      .returning();
+    return created.resourcesEnabledForStudents;
+  }
+  return rows[0].resourcesEnabledForStudents;
+}
+
+// Public — anyone (including students) can ask "is the Resources area
+// enabled for students right now?". Used by the sidebar to conditionally
+// render the menu item and by the route guard.
+router.get("/resources-settings", async (_req, res): Promise<void> => {
+  const enabledForStudents = await readResourcesVisibility();
+  res.json({ enabledForStudents });
+});
+
+// Admin — toggle the flag.
+const ResourcesSettingsBody = z.object({
+  enabledForStudents: z.boolean(),
+});
+
+router.patch("/admin/resources-settings", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const parsed = ResourcesSettingsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const rows = await db.select().from(programmeConfigTable).limit(1);
+  if (rows.length === 0) {
+    const [created] = await db
+      .insert(programmeConfigTable)
+      .values({
+        resourcesEnabledForStudents: parsed.data.enabledForStudents,
+      })
+      .returning();
+    res.json({
+      enabledForStudents: created.resourcesEnabledForStudents,
+    });
+    return;
+  }
+  const [updated] = await db
+    .update(programmeConfigTable)
+    .set({ resourcesEnabledForStudents: parsed.data.enabledForStudents })
+    .where(eq(programmeConfigTable.id, rows[0].id))
+    .returning();
+  res.json({ enabledForStudents: updated.resourcesEnabledForStudents });
 });
 
 // Admin: delete

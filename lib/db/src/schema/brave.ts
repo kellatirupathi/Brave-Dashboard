@@ -624,6 +624,12 @@ export const programmeConfigTable = pgTable("programme_config", {
   // When false (default), past-week journals are read-only for students;
   // admin/coordinator can always edit/delete regardless.
   allowPastWeekEdits: boolean("allow_past_week_edits").notNull().default(false),
+  // When true (default), the Resources sidebar entry + /resources-library
+  // route are visible to students. When false, both are hidden — admin can
+  // still manage resources from /admin/resources regardless of this flag.
+  resourcesEnabledForStudents: boolean("resources_enabled_for_students")
+    .notNull()
+    .default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

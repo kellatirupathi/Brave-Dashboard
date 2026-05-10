@@ -5,7 +5,11 @@ import {
   useLocation,
   Redirect,
 } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -131,6 +135,34 @@ function ProtectedRoute({
   );
 }
 
+// Wraps the student Resources page so it respects the admin-controlled
+// visibility toggle. When the flag is OFF, the student is bounced back
+// to "/" — keeps the URL un-bookmarkable when the feature is hidden.
+function StudentResourcesLibraryGuarded() {
+  const { data, isLoading } = useQuery<{ enabledForStudents: boolean }>({
+    queryKey: ["public-resources-settings"],
+    queryFn: async () => {
+      const r = await fetch("/api/resources-settings", {
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("Failed to load resources settings");
+      return r.json();
+    },
+    staleTime: 60_000,
+  });
+  if (isLoading) {
+    return (
+      <div className="min-h-[40vh] w-full flex items-center justify-center">
+        <Spinner className="size-8" />
+      </div>
+    );
+  }
+  if (data && data.enabledForStudents === false) {
+    return <Redirect to="/" />;
+  }
+  return <StudentResourcesLibrary />;
+}
+
 function StudentDashboardOrGetStarted() {
   const { user } = useAuth();
   const { data: team, isLoading } = useGetMyTeam({
@@ -234,10 +266,12 @@ function Router() {
         <ProtectedRoute component={StudentJournal} allowedRoles={["student"]} />
       </Route>
 
-      {/* Resources library (read-only for students) */}
+      {/* Resources library (read-only for students). Hidden behind the
+          admin Resources-visibility toggle — when OFF, students hitting
+          this URL are redirected to /. */}
       <Route path="/resources-library">
         <ProtectedRoute
-          component={StudentResourcesLibrary}
+          component={StudentResourcesLibraryGuarded}
           allowedRoles={["student"]}
         />
       </Route>
