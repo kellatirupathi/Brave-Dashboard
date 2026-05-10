@@ -100,10 +100,6 @@ export function ResourcesSettingsCard() {
           <div className="flex items-center justify-between border p-4 rounded-lg">
             <div className="pr-4">
               <p className="font-medium">Show Resources to students</p>
-              <p className="text-sm text-muted-foreground">
-                When OFF, the Resources sidebar entry is hidden and the
-                /resources-library URL redirects students away.
-              </p>
             </div>
             <Switch
               checked={data.enabledForStudents}

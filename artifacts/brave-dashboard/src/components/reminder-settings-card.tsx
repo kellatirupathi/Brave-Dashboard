@@ -155,12 +155,6 @@ export function ReminderSettingsCard() {
                   <p className="font-medium">
                     Allow students to edit/delete past-week journals
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    When OFF (default), students can only read past-week
-                    journals. When ON, students get edit and delete buttons on
-                    every past journal of their team. Admin and coordinators can
-                    always edit/delete regardless of this toggle.
-                  </p>
                 </div>
               </div>
               <Switch
