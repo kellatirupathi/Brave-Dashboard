@@ -34,6 +34,8 @@ import {
   Calendar,
   Building2,
   ArrowRight,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +67,136 @@ function relativeTime(iso: string): string {
 function truncate(s: string, n: number): string {
   if (s.length <= n) return s;
   return s.slice(0, n - 1).trimEnd() + "…";
+}
+
+// Top-of-dashboard reminder banner that surfaces pending verifications so an
+// admin can't accidentally forget. Self-hides when everything is clean and is
+// dismissable for the current view via the X button. Dismissal lives in
+// component state only, so a page reload brings it back automatically.
+function PendingReviewBanner({
+  pendingReviewCount,
+  overdueReviewCount,
+  pendingDemoDayCount,
+  pendingAccessRequestCount,
+  oldestPendingAt,
+}: {
+  pendingReviewCount: number;
+  overdueReviewCount: number;
+  pendingDemoDayCount: number;
+  pendingAccessRequestCount: number;
+  oldestPendingAt: string | null | undefined;
+}) {
+  const [dismissed, setDismissed] = useState(false);
+
+  const totalPending =
+    pendingReviewCount + pendingDemoDayCount + pendingAccessRequestCount;
+  if (totalPending === 0 || dismissed) return null;
+
+  const isUrgent = overdueReviewCount > 0;
+  const oldestLabel = oldestPendingAt ? relativeTime(oldestPendingAt) : null;
+
+  // Build a compact human-readable list of what's pending.
+  const parts: string[] = [];
+  if (pendingReviewCount > 0) {
+    parts.push(
+      `${pendingReviewCount} revenue ${pendingReviewCount === 1 ? "entry" : "entries"}`,
+    );
+  }
+  if (pendingDemoDayCount > 0) {
+    parts.push(
+      `${pendingDemoDayCount} Demo Day ${pendingDemoDayCount === 1 ? "application" : "applications"}`,
+    );
+  }
+  if (pendingAccessRequestCount > 0) {
+    parts.push(
+      `${pendingAccessRequestCount} roster ${pendingAccessRequestCount === 1 ? "request" : "requests"}`,
+    );
+  }
+  const summaryLine = parts.join(" · ");
+
+  // Pick the most relevant deep-link target for the "Review now" CTA.
+  const reviewHref =
+    pendingReviewCount > 0
+      ? "/admin/queue"
+      : pendingDemoDayCount > 0
+        ? "/admin/demo-day"
+        : "/admin/roster";
+
+  return (
+    <div
+      role="alert"
+      data-testid="admin-pending-banner"
+      className={cn(
+        "relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border p-4 sm:p-5 shadow-sm",
+        isUrgent
+          ? "border-destructive/40 bg-destructive/[0.06]"
+          : "border-amber-400/50 bg-amber-50 dark:bg-amber-950/20",
+      )}
+    >
+      <div className="flex items-start gap-3 pr-8 sm:pr-10">
+        <div
+          className={cn(
+            "shrink-0 mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center",
+            isUrgent
+              ? "bg-destructive/15 text-destructive"
+              : "bg-amber-200/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+          )}
+        >
+          <AlertTriangle className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <p
+            className={cn(
+              "text-sm font-semibold tracking-tight",
+              isUrgent
+                ? "text-destructive"
+                : "text-amber-900 dark:text-amber-100",
+            )}
+          >
+            {isUrgent
+              ? `${overdueReviewCount} overdue ${
+                  overdueReviewCount === 1 ? "item" : "items"
+                } need your review`
+              : "Pending verifications need your review"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {summaryLine}
+            {oldestLabel ? ` — oldest ${oldestLabel}` : ""}.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 sm:shrink-0">
+        <Link
+          href={reviewHref}
+          data-testid="admin-pending-banner-cta"
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold transition-colors",
+            isUrgent
+              ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              : "bg-amber-500 text-white hover:bg-amber-600",
+          )}
+        >
+          Review now
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+
+      {/* Close — top-right; component state only, so reload re-shows it. */}
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        aria-label="Dismiss"
+        data-testid="admin-pending-banner-close"
+        className={cn(
+          "absolute top-2.5 right-2.5 w-7 h-7 rounded-md inline-flex items-center justify-center transition-colors",
+          "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+        )}
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
 }
 
 export default function AdminDashboard() {
@@ -227,6 +359,17 @@ export default function AdminDashboard() {
             <p className="text-muted-foreground">High-level program overview</p>
           </div>
         </div>
+
+        {/* Pending-verification reminder banner — sits at the top so admin
+            can't miss it. Closeable via X (component state only — reload
+            brings it back). Hidden when there's nothing pending. */}
+        <PendingReviewBanner
+          pendingReviewCount={summary.pendingReviewCount}
+          overdueReviewCount={summary.overdueReviewCount}
+          pendingDemoDayCount={summary.pendingDemoDayCount}
+          pendingAccessRequestCount={summary.pendingAccessRequestCount}
+          oldestPendingAt={summary.pendingReviewOldestAt}
+        />
 
         {/* Row 1 — KPI Cards (UNCHANGED) */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
