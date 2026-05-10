@@ -90,11 +90,6 @@ export function ResourcesSettingsCard() {
           <BookOpen className="w-5 h-5 text-primary" />
           Student Resources Library
         </CardTitle>
-        <CardDescription>
-          Controls whether students see the Resources entry in their sidebar and
-          can open the /resources-library page. Admin can manage resources here
-          regardless of this toggle.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

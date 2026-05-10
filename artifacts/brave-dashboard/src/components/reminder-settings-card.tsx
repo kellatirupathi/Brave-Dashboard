@@ -64,11 +64,6 @@ export function ReminderSettingsCard() {
           <Bell className="w-5 h-5 text-primary" />
           Notifications &amp; Reminders
         </CardTitle>
-        <CardDescription>
-          Master switches for the daily reminder service (Module 5). When a
-          channel is OFF, neither the cron job nor the manual &quot;Remind&quot;
-          button on the heatmap will send through that channel.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {isLoading || !data ? (
