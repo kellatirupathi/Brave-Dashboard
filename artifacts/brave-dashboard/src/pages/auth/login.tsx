@@ -13,63 +13,60 @@ import {
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
 
-/* Dark "AI Value Engineering" theme — matches the landing page. */
+/* Dark "AI Value Engineering" theme — Sora + Inter, tuned for smooth render. */
 function LoginStyles() {
   return (
     <style>{`
-@import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 .bl-root {
   --bl-red: #d4402f;
   --bl-orange: #f7ac2b;
   --bl-cream: #fff3df;
-  --bl-muted: rgba(255,243,223,0.62);
+  --bl-muted: rgba(255,243,223,0.76);
   position: relative;
   overflow: hidden;
   color: var(--bl-cream);
+  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
   background:
     radial-gradient(820px 520px at 14% 0%, rgba(212,64,47,.3), transparent 70%),
     radial-gradient(720px 460px at 92% 100%, rgba(247,172,43,.16), transparent 70%),
     linear-gradient(180deg,#0b0403 0%,#150603 50%,#070201 100%);
 }
-.bl-display { font-family: Anton, Impact, "Arial Narrow", system-ui, sans-serif; font-weight: 400; }
+.bl-display { font-family: 'Sora', 'Inter', system-ui, sans-serif; font-weight: 800; letter-spacing: -.022em; }
 .bl-grid {
   position: absolute; inset: 0; pointer-events: none; z-index: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.016) 1px, transparent 1px);
-  background-size: 58px 58px;
+    linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+  background-size: 60px 60px;
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 30% 36%, black, transparent 86%);
   mask-image: radial-gradient(ellipse 70% 60% at 30% 36%, black, transparent 86%);
 }
-.bl-cursor {
-  position: absolute; inset: 0; pointer-events: none; z-index: 1; mix-blend-mode: screen;
-  background: radial-gradient(320px 320px at var(--blx,50%) var(--bly,40%), rgba(255,120,0,.1), transparent 70%);
-}
 .bl-watermark {
-  position: absolute; left: -7vw; bottom: -10vh; pointer-events: none; z-index: 0; user-select: none;
-  font-size: clamp(240px, 40vw, 600px); line-height: .72; letter-spacing: -.08em;
-  color: transparent; -webkit-text-stroke: 1.5px rgba(212,64,47,.12); transform: rotate(-4deg);
+  position: absolute; left: -6vw; bottom: -8vh; pointer-events: none; z-index: 0; user-select: none;
+  font-size: clamp(150px, 26vw, 360px); line-height: .72; letter-spacing: -.03em;
+  color: transparent; -webkit-text-stroke: 1.4px rgba(212,64,47,.12); transform: rotate(-4deg);
 }
 .bl-eyebrow {
   display: inline-flex; align-items: center; gap: 9px; width: fit-content;
   color: #ffdcab; border: 1px solid rgba(247,172,43,.32);
-  background: rgba(255,132,0,.08); border-radius: 999px; padding: 9px 15px;
-  font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  background: rgba(255,132,0,.08); border-radius: 999px; padding: 8px 15px;
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
 }
 .bl-dot { position: relative; width: 8px; height: 8px; }
 .bl-dot::before, .bl-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #34d36a; }
-.bl-dot::after { animation: blPing 1.8s ease-out infinite; }
+.bl-dot::after { animation: blPing 2s ease-out infinite; }
 @keyframes blPing { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(3); opacity: 0; } }
 .bl-cta {
   position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-  width: 100%; min-height: 54px; border-radius: 14px; font-weight: 800; font-size: 15px;
+  width: 100%; min-height: 54px; border-radius: 14px; font-weight: 700; font-size: 15px;
   color: #1a0500; border: 1px solid rgba(255,228,180,.5);
   background: linear-gradient(135deg, #f7ac2b 0%, #ec5b2b 52%, #d4402f 100%);
-  box-shadow: 0 16px 38px rgba(212,64,47,.42), inset 0 1px 0 rgba(255,255,255,.4);
+  box-shadow: 0 14px 32px rgba(212,64,47,.38), inset 0 1px 0 rgba(255,255,255,.4);
   transition: transform .2s ease, filter .2s ease, box-shadow .2s ease;
 }
-.bl-cta:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 22px 52px rgba(247,172,43,.4), inset 0 1px 0 rgba(255,255,255,.5); }
+.bl-cta:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 20px 44px rgba(247,172,43,.36), inset 0 1px 0 rgba(255,255,255,.5); }
 .bl-cta:active { transform: scale(.99); }
 .bl-icon {
   width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
@@ -78,11 +75,10 @@ function LoginStyles() {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
 }
 .bl-card {
-  position: relative; border-radius: 28px; padding: 38px;
+  position: relative; border-radius: 26px; padding: 36px;
   border: 1px solid rgba(247,172,43,.2);
-  background: linear-gradient(150deg, rgba(38,10,6,.95), rgba(10,3,2,.9));
-  box-shadow: 0 44px 120px rgba(0,0,0,.6);
-  backdrop-filter: blur(16px); overflow: hidden;
+  background: linear-gradient(150deg, rgba(40,11,7,.98), rgba(12,4,3,.96));
+  box-shadow: 0 32px 90px rgba(0,0,0,.55); overflow: hidden;
 }
 .bl-card::after {
   content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
@@ -91,10 +87,10 @@ function LoginStyles() {
 
 /* mini hero scene */
 .bl-scene {
-  position: relative; width: 100%; min-height: 240px; border-radius: 24px; overflow: hidden;
+  position: relative; width: 100%; min-height: 230px; border-radius: 22px; overflow: hidden;
   border: 1px solid rgba(247,172,43,.18);
   background: linear-gradient(180deg, #2a0a05 0%, #160604 48%, #0a0302 100%);
-  box-shadow: 0 30px 80px rgba(0,0,0,.5), inset 0 0 70px rgba(0,0,0,.5);
+  box-shadow: 0 22px 56px rgba(0,0,0,.45);
 }
 .bl-stars {
   position: absolute; inset: 0;
@@ -106,13 +102,13 @@ function LoginStyles() {
     radial-gradient(1.1px 1.1px at 12% 12%, rgba(255,243,223,.65), transparent);
 }
 .bl-sun {
-  position: absolute; left: 50%; top: 38%; transform: translate(-50%,-50%);
-  width: 120px; height: 120px; border-radius: 50%;
+  position: absolute; left: 50%; top: 38%; width: 116px; height: 116px;
+  margin: -58px 0 0 -58px; border-radius: 50%;
   background: radial-gradient(circle, #ffe6a6 0%, #f7ac2b 34%, #ec5b2b 62%, transparent 74%);
-  box-shadow: 0 0 100px 34px rgba(247,172,43,.5);
-  animation: blSun 5s ease-in-out infinite alternate;
+  box-shadow: 0 0 80px 22px rgba(247,172,43,.42);
+  will-change: opacity; animation: blGlow 5s ease-in-out infinite alternate;
 }
-@keyframes blSun { from { transform: translate(-50%,-50%) scale(.94); } to { transform: translate(-50%,-50%) scale(1.06); } }
+@keyframes blGlow { from { opacity: .8; } to { opacity: 1; } }
 .bl-haze {
   position: absolute; left: 0; right: 0; bottom: 0; height: 60%;
   background: linear-gradient(180deg, transparent, rgba(212,64,47,.3) 56%, rgba(247,172,43,.16));
@@ -136,7 +132,7 @@ function LoginStyles() {
 .bl-summit::before {
   content: ""; position: absolute; width: 26px; height: 26px; border-radius: 50%;
   background: radial-gradient(circle, rgba(255,230,166,.7), transparent 68%);
-  animation: blSun 3s ease-in-out infinite alternate;
+  will-change: opacity; animation: blGlow 3s ease-in-out infinite alternate;
 }
 @media (prefers-reduced-motion: reduce) {
   .bl-cta { transition: none; }
@@ -171,19 +167,9 @@ export default function Login() {
     }
   }, [isAuthenticated, isLoading, user, setLocation]);
 
-  useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      document.body.style.setProperty("--blx", `${e.clientX}px`);
-      document.body.style.setProperty("--bly", `${e.clientY}px`);
-    };
-    window.addEventListener("pointermove", onMove);
-    return () => window.removeEventListener("pointermove", onMove);
-  }, []);
-
   return (
     <div className="bl-root min-h-screen flex flex-col lg:flex-row">
       <LoginStyles />
-      <div className="bl-cursor" aria-hidden />
 
       {/* Left — dark hero panel */}
       <div className="relative hidden lg:flex flex-col justify-between lg:w-[55%] xl:w-[57%] px-12 py-12 overflow-hidden">
@@ -205,10 +191,9 @@ export default function Login() {
           <h1
             className="bl-display mt-6"
             style={{
-              fontSize: "clamp(46px, 5vw, 86px)",
-              lineHeight: 0.88,
-              letterSpacing: "-.055em",
-              textTransform: "uppercase",
+              fontSize: "clamp(32px, 3.6vw, 56px)",
+              lineHeight: 1.08,
+              letterSpacing: "-.022em",
             }}
           >
             Boosting Revenue{" "}
@@ -220,9 +205,9 @@ export default function Login() {
             style={{
               maxWidth: 470,
               color: "var(--bl-muted)",
-              fontSize: 16,
-              fontWeight: 600,
-              lineHeight: 1.6,
+              fontSize: 15.5,
+              fontWeight: 400,
+              lineHeight: 1.66,
             }}
           >
             Find a small business. Increase their revenue with AI. Get them to
@@ -246,7 +231,7 @@ export default function Login() {
                     style={{ color: "var(--bl-orange)" }}
                   />
                 </div>
-                <span style={{ fontWeight: 700, fontSize: 13.5 }}>{label}</span>
+                <span style={{ fontWeight: 600, fontSize: 13.5 }}>{label}</span>
               </div>
             ))}
           </div>
@@ -257,7 +242,7 @@ export default function Login() {
             <div key={s.label}>
               <p
                 className="bl-display"
-                style={{ fontSize: 34, color: "var(--bl-orange)" }}
+                style={{ fontSize: 27, color: "var(--bl-orange)" }}
               >
                 {s.value}
               </p>
@@ -265,7 +250,7 @@ export default function Login() {
                 style={{
                   marginTop: 2,
                   fontSize: 12,
-                  fontWeight: 600,
+                  fontWeight: 500,
                   color: "var(--bl-muted)",
                 }}
               >
@@ -321,7 +306,7 @@ export default function Login() {
               <span
                 style={{
                   fontSize: 10,
-                  fontWeight: 800,
+                  fontWeight: 700,
                   letterSpacing: ".1em",
                   textTransform: "uppercase",
                   color: "var(--bl-orange)",
@@ -334,10 +319,9 @@ export default function Login() {
             <h2
               className="bl-display"
               style={{
-                fontSize: "clamp(32px, 4vw, 46px)",
-                lineHeight: 0.92,
-                letterSpacing: "-.04em",
-                textTransform: "uppercase",
+                fontSize: "clamp(26px, 2.8vw, 36px)",
+                lineHeight: 1.1,
+                letterSpacing: "-.022em",
               }}
             >
               Login to <span style={{ color: "var(--bl-orange)" }}>BRAVE</span>
@@ -347,8 +331,8 @@ export default function Login() {
               style={{
                 color: "var(--bl-muted)",
                 fontSize: 14,
-                fontWeight: 500,
-                lineHeight: 1.55,
+                fontWeight: 400,
+                lineHeight: 1.6,
               }}
             >
               Access your dashboard to log orders, see verified revenue, and
@@ -424,7 +408,7 @@ export default function Login() {
                   <span
                     style={{
                       fontSize: 10.5,
-                      fontWeight: 700,
+                      fontWeight: 600,
                       color: "var(--bl-muted)",
                     }}
                   >
@@ -439,7 +423,7 @@ export default function Login() {
               style={{
                 fontSize: 11.5,
                 lineHeight: 1.6,
-                color: "rgba(255,243,223,.4)",
+                color: "rgba(255,243,223,.45)",
               }}
             >
               By logging in, you agree to the NIAT code of conduct and BRAVE
@@ -449,7 +433,7 @@ export default function Login() {
 
           <p
             className="text-center mt-6"
-            style={{ fontSize: 12, color: "rgba(255,243,223,.38)" }}
+            style={{ fontSize: 12, color: "rgba(255,243,223,.42)" }}
           >
             NIAT India · Boosting Revenue through AI Value Engineering
           </p>

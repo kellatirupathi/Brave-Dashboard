@@ -175,64 +175,62 @@ const FAQS = [
 
 /* ====================================================================
    DESIGN SYSTEM — dark "AI Value Engineering" theme, CSS-only
+   Fonts: Sora (display) + Inter (body). Tuned for smooth scrolling.
    ==================================================================== */
 
 function BraveStyles() {
   return (
     <style>{`
-@import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 .bd-root {
   --bd-red: #d4402f;
   --bd-orange: #f7ac2b;
   --bd-cream: #fff3df;
-  --bd-muted: rgba(255,243,223,0.62);
+  --bd-muted: rgba(255,243,223,0.76);
   position: relative;
   overflow-x: hidden;
   color: var(--bd-cream);
+  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
   background:
     radial-gradient(900px 520px at 16% 0%, rgba(212,64,47,.30), transparent 70%),
     radial-gradient(760px 480px at 88% 12%, rgba(247,172,43,.16), transparent 70%),
     linear-gradient(180deg,#0b0403 0%,#150603 44%,#070201 100%);
 }
-.bd-display { font-family: Anton, Impact, "Arial Narrow", system-ui, sans-serif; font-weight: 400; }
+.bd-display { font-family: 'Sora', 'Inter', system-ui, sans-serif; font-weight: 800; letter-spacing: -.022em; }
 
-/* texture + cursor overlays */
+/* texture overlay (static — no scroll cost) */
 .bd-grid {
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.016) 1px, transparent 1px);
-  background-size: 58px 58px;
+    linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+  background-size: 60px 60px;
   -webkit-mask-image: linear-gradient(to bottom, black, transparent 95%);
   mask-image: linear-gradient(to bottom, black, transparent 95%);
-}
-.bd-cursor {
-  position: fixed; inset: 0; pointer-events: none; z-index: 1; mix-blend-mode: screen;
-  background: radial-gradient(360px 360px at var(--mx,50%) var(--my,30%), rgba(255,120,0,.10), transparent 70%);
 }
 
 /* loader */
 .bd-loader {
   position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
-  background: #070101; transition: opacity .7s ease, visibility .7s ease;
+  background: #070101; transition: opacity .6s ease, visibility .6s ease;
 }
 .bd-loader.hide { opacity: 0; visibility: hidden; }
 .bd-loader-mark {
-  font-size: clamp(76px, 16vw, 240px); letter-spacing: -.06em; color: var(--bd-red);
-  animation: bdPunch 1.1s cubic-bezier(.2,.8,.2,1) both;
+  font-size: clamp(56px, 11vw, 142px); letter-spacing: -.03em; color: var(--bd-red);
+  animation: bdPunch 1s cubic-bezier(.2,.8,.2,1) both;
 }
 .bd-loader-mark i { color: var(--bd-orange); font-style: normal; }
 @keyframes bdPunch {
-  0% { transform: scale(.82); filter: blur(16px); opacity: 0; }
-  55% { transform: scale(1.05); filter: blur(0); opacity: 1; }
+  0% { transform: scale(.86); opacity: 0; }
+  55% { transform: scale(1.04); opacity: 1; }
   100% { transform: scale(1); }
 }
 
 .bd-progress {
   position: fixed; top: 0; left: 0; height: 3px; width: 0%;
   background: linear-gradient(90deg, var(--bd-red), var(--bd-orange));
-  z-index: 120; box-shadow: 0 0 16px rgba(247,172,43,.7);
+  z-index: 120; box-shadow: 0 0 14px rgba(247,172,43,.6);
 }
 
 /* nav */
@@ -242,8 +240,8 @@ function BraveStyles() {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 8px 8px 22px; border-radius: 999px;
   border: 1px solid rgba(255,190,110,.16);
-  background: linear-gradient(180deg, rgba(26,8,5,.86), rgba(12,4,3,.78));
-  backdrop-filter: blur(22px); box-shadow: 0 22px 60px rgba(0,0,0,.5);
+  background: linear-gradient(180deg, rgba(26,8,5,.95), rgba(12,4,3,.92));
+  box-shadow: 0 18px 44px rgba(0,0,0,.5);
 }
 .bd-pill {
   display: inline-flex; align-items: center; gap: 7px;
@@ -256,66 +254,66 @@ function BraveStyles() {
 .bd-cta {
   position: relative; display: inline-flex; align-items: center; gap: 9px;
   min-height: 46px; padding: 0 22px; border-radius: 999px;
-  font-weight: 800; font-size: 14.5px; color: #1a0500;
+  font-weight: 700; font-size: 14.5px; color: #1a0500;
   border: 1px solid rgba(255,228,180,.5);
   background: linear-gradient(135deg, #f7ac2b 0%, #ec5b2b 52%, #d4402f 100%);
-  box-shadow: 0 14px 34px rgba(212,64,47,.42), inset 0 1px 0 rgba(255,255,255,.4);
-  transition: transform .22s ease, box-shadow .22s ease, filter .22s ease;
+  box-shadow: 0 12px 28px rgba(212,64,47,.38), inset 0 1px 0 rgba(255,255,255,.4);
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
 }
-.bd-cta:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 22px 50px rgba(247,172,43,.4), inset 0 1px 0 rgba(255,255,255,.5); }
+.bd-cta:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 18px 40px rgba(247,172,43,.36), inset 0 1px 0 rgba(255,255,255,.5); }
 .bd-ghost {
   display: inline-flex; align-items: center; gap: 9px;
-  min-height: 46px; padding: 0 22px; border-radius: 999px; font-weight: 700; font-size: 14.5px;
+  min-height: 46px; padding: 0 22px; border-radius: 999px; font-weight: 600; font-size: 14.5px;
   color: var(--bd-cream); border: 1px solid rgba(255,243,223,.2);
-  background: rgba(255,255,255,.035); transition: border-color .22s ease, transform .22s ease, background .22s ease;
+  background: rgba(255,255,255,.035); transition: border-color .2s ease, transform .2s ease, background .2s ease;
 }
 .bd-ghost:hover { transform: translateY(-2px); border-color: rgba(247,172,43,.5); background: rgba(247,172,43,.07); }
 
 /* section frame */
-.bd-section { position: relative; z-index: 4; padding: 104px 22px; }
+.bd-section { position: relative; z-index: 4; padding: 96px 22px; }
 .bd-wrap { width: min(100%, 1200px); margin: 0 auto; position: relative; }
 .bd-kicker {
   display: inline-flex; align-items: center; gap: 10px;
-  color: var(--bd-orange); font-weight: 800; font-size: 12px;
-  letter-spacing: .16em; text-transform: uppercase; margin-bottom: 18px;
+  color: var(--bd-orange); font-weight: 700; font-size: 12px;
+  letter-spacing: .14em; text-transform: uppercase; margin-bottom: 16px;
 }
-.bd-kicker::before { content: ""; width: 30px; height: 2px; border-radius: 2px;
+.bd-kicker::before { content: ""; width: 28px; height: 2px; border-radius: 2px;
   background: linear-gradient(90deg, var(--bd-red), var(--bd-orange)); }
 .bd-title {
-  font-size: clamp(44px, 6.6vw, 96px); line-height: .9;
-  letter-spacing: -.05em; text-transform: uppercase;
+  font-size: clamp(32px, 4.3vw, 60px); line-height: 1.06;
+  letter-spacing: -.022em;
 }
-.bd-title .stroke { color: transparent; -webkit-text-stroke: 1.5px rgba(255,243,223,.32); }
+.bd-title .stroke { color: transparent; -webkit-text-stroke: 1.4px rgba(255,243,223,.34); }
 .bd-copy {
-  margin-top: 18px; max-width: 600px; color: var(--bd-muted);
-  font-size: 16.5px; line-height: 1.62; font-weight: 500;
+  margin-top: 16px; max-width: 600px; color: var(--bd-muted);
+  font-size: 16px; line-height: 1.68; font-weight: 400;
 }
 .bd-eyebrow {
   display: inline-flex; align-items: center; gap: 9px; width: fit-content;
   color: #ffdcab; border: 1px solid rgba(247,172,43,.32);
-  background: rgba(255,132,0,.08); border-radius: 999px; padding: 9px 15px;
-  font-size: 11.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  background: rgba(255,132,0,.08); border-radius: 999px; padding: 8px 15px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
 }
 .bd-eyebrow .dot { position: relative; width: 8px; height: 8px; }
 .bd-eyebrow .dot::before, .bd-eyebrow .dot::after {
   content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--bd-orange);
 }
-.bd-eyebrow .dot::after { animation: bdPing 1.8s ease-out infinite; }
+.bd-eyebrow .dot::after { animation: bdPing 2s ease-out infinite; }
 @keyframes bdPing { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(3); opacity: 0; } }
 
 /* hero watermark */
 .bd-watermark {
   position: absolute; pointer-events: none; z-index: 0; user-select: none;
-  font-size: clamp(200px, 33vw, 560px); line-height: .72; letter-spacing: -.08em;
-  color: transparent; -webkit-text-stroke: 1.5px rgba(212,64,47,.12);
+  font-size: clamp(130px, 21vw, 320px); line-height: .72; letter-spacing: -.03em;
+  color: transparent; -webkit-text-stroke: 1.4px rgba(212,64,47,.12);
 }
 
 /* ===== hero scene — framed mountain ===== */
 .bd-scene {
-  position: relative; min-height: 540px; border-radius: 30px; overflow: hidden;
+  position: relative; min-height: 520px; border-radius: 28px; overflow: hidden;
   border: 1px solid rgba(247,172,43,.18);
   background: linear-gradient(180deg, #2a0a05 0%, #160604 46%, #0a0302 100%);
-  box-shadow: 0 40px 100px rgba(0,0,0,.6), inset 0 0 90px rgba(0,0,0,.5);
+  box-shadow: 0 32px 80px rgba(0,0,0,.55);
 }
 .bd-stars {
   position: absolute; inset: 0;
@@ -329,19 +327,19 @@ function BraveStyles() {
     radial-gradient(1.3px 1.3px at 9% 32%, rgba(255,243,223,.5), transparent);
 }
 .bd-sun {
-  position: absolute; left: 50%; top: 33%; transform: translate(-50%,-50%);
-  width: 160px; height: 160px; border-radius: 50%;
+  position: absolute; left: 50%; top: 33%; width: 158px; height: 158px;
+  margin: -79px 0 0 -79px; border-radius: 50%;
   background: radial-gradient(circle, #ffe6a6 0%, #f7ac2b 34%, #ec5b2b 62%, transparent 74%);
-  box-shadow: 0 0 130px 44px rgba(247,172,43,.5);
-  animation: bdSun 5s ease-in-out infinite alternate;
+  box-shadow: 0 0 96px 26px rgba(247,172,43,.42);
+  will-change: opacity; animation: bdGlow 5s ease-in-out infinite alternate;
 }
-@keyframes bdSun { from { transform: translate(-50%,-50%) scale(.94); } to { transform: translate(-50%,-50%) scale(1.06); } }
+@keyframes bdGlow { from { opacity: .8; } to { opacity: 1; } }
 .bd-halo {
-  position: absolute; left: 50%; top: 33%; transform: translate(-50%,-50%);
-  border-radius: 50%; border: 1px solid rgba(247,172,43,.2);
+  position: absolute; left: 50%; top: 33%; border-radius: 50%;
+  border: 1px solid rgba(247,172,43,.18);
 }
-.bd-halo.h1 { width: 250px; height: 250px; }
-.bd-halo.h2 { width: 360px; height: 360px; border-color: rgba(247,172,43,.12); }
+.bd-halo.h1 { width: 250px; height: 250px; margin: -125px 0 0 -125px; }
+.bd-halo.h2 { width: 360px; height: 360px; margin: -180px 0 0 -180px; border-color: rgba(247,172,43,.1); }
 .bd-haze {
   position: absolute; left: 0; right: 0; bottom: 0; height: 62%;
   background: linear-gradient(180deg, transparent, rgba(212,64,47,.28) 55%, rgba(247,172,43,.16));
@@ -359,7 +357,7 @@ function BraveStyles() {
   clip-path: polygon(0 100%, 50% 4%, 100% 100%); }
 .bd-ridge.rim { width: 128%; height: 78%;
   background: linear-gradient(180deg, rgba(255,230,166,.9) 0 1.4%, transparent 2.6%);
-  clip-path: polygon(0 100%, 50% 4%, 100% 100%); filter: blur(.4px); }
+  clip-path: polygon(0 100%, 50% 4%, 100% 100%); }
 .bd-summit {
   position: absolute; left: 50%; bottom: 73%; transform: translateX(-50%);
   display: grid; place-items: center; width: 30px; height: 30px;
@@ -367,47 +365,47 @@ function BraveStyles() {
 .bd-summit::before {
   content: ""; position: absolute; width: 30px; height: 30px; border-radius: 50%;
   background: radial-gradient(circle, rgba(255,230,166,.7), transparent 68%);
-  animation: bdSun 3s ease-in-out infinite alternate;
+  will-change: opacity; animation: bdGlow 3s ease-in-out infinite alternate;
 }
 .bd-glasscard {
   position: absolute; z-index: 3; border-radius: 16px; padding: 12px 14px;
   border: 1px solid rgba(255,243,223,.16);
-  background: linear-gradient(160deg, rgba(30,9,6,.88), rgba(12,4,3,.7));
-  backdrop-filter: blur(10px); box-shadow: 0 20px 44px rgba(0,0,0,.5);
+  background: linear-gradient(160deg, rgba(38,11,7,.97), rgba(16,5,4,.95));
+  box-shadow: 0 16px 36px rgba(0,0,0,.5);
 }
 .bd-badge {
   position: absolute; z-index: 3; left: 18px; top: 22px; width: 210px;
   border-radius: 20px; padding: 18px;
   border: 1px solid rgba(247,172,43,.3);
-  background: linear-gradient(140deg, rgba(36,9,5,.94), rgba(88,15,7,.6));
-  box-shadow: 0 28px 64px rgba(212,64,47,.3); backdrop-filter: blur(12px);
-  animation: bdFloat 5.4s ease-in-out infinite;
+  background: linear-gradient(140deg, rgba(44,12,7,.98), rgba(96,18,9,.95));
+  box-shadow: 0 22px 50px rgba(212,64,47,.26);
+  will-change: transform; animation: bdFloat 5.4s ease-in-out infinite;
 }
-@keyframes bdFloat { 0%,100%{transform:translateY(0) rotate(-2deg);} 50%{transform:translateY(-12px) rotate(1.5deg);} }
-.bd-float-a { right: 20px; top: 30px; animation: bdFloat 6s ease-in-out infinite; }
-.bd-float-b { right: 36px; bottom: 30px; animation: bdFloat 7s ease-in-out infinite reverse; }
+@keyframes bdFloat { 0%,100%{transform:translateY(0) rotate(-2deg);} 50%{transform:translateY(-10px) rotate(1.5deg);} }
+.bd-float-a { right: 20px; top: 30px; will-change: transform; animation: bdFloat 6s ease-in-out infinite; }
+.bd-float-b { right: 36px; bottom: 30px; will-change: transform; animation: bdFloat 7s ease-in-out infinite reverse; }
 
 /* cards */
 .bd-card {
-  position: relative; overflow: hidden; border-radius: 24px; padding: 28px;
+  position: relative; overflow: hidden; border-radius: 22px; padding: 28px;
   border: 1px solid rgba(255,164,32,.14);
   background: linear-gradient(160deg, rgba(34,9,6,.9), rgba(9,2,1,.78));
-  box-shadow: 0 24px 60px rgba(0,0,0,.34);
-  transition: transform .32s cubic-bezier(.2,.8,.2,1), border-color .32s ease, box-shadow .32s ease;
+  box-shadow: 0 16px 40px rgba(0,0,0,.3);
+  transition: transform .26s cubic-bezier(.2,.8,.2,1), border-color .26s ease, box-shadow .26s ease;
 }
 .bd-card::after {
   content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
   background: linear-gradient(90deg, var(--bd-red), var(--bd-orange));
-  opacity: 0; transition: opacity .32s ease;
+  opacity: 0; transition: opacity .26s ease;
 }
 .bd-card::before {
   content: ""; position: absolute; inset: -100px auto auto -120px;
-  width: 240px; height: 240px; opacity: .85;
-  background: radial-gradient(circle, rgba(212,64,47,.26), transparent 64%);
+  width: 240px; height: 240px; opacity: .8;
+  background: radial-gradient(circle, rgba(212,64,47,.24), transparent 64%);
 }
 .bd-card:hover {
-  transform: translateY(-9px); border-color: rgba(247,172,43,.42);
-  box-shadow: 0 36px 80px rgba(212,64,47,.24);
+  transform: translateY(-6px); border-color: rgba(247,172,43,.42);
+  box-shadow: 0 26px 56px rgba(212,64,47,.2);
 }
 .bd-card:hover::after { opacity: 1; }
 .bd-icon {
@@ -418,39 +416,40 @@ function BraveStyles() {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
 }
 .bd-num {
-  font-size: clamp(56px, 6.6vw, 92px); line-height: .76; letter-spacing: -.04em;
-  color: transparent; -webkit-text-stroke: 1.8px rgba(247,172,43,.48);
+  font-size: clamp(46px, 5.2vw, 70px); line-height: .8; letter-spacing: -.03em;
+  color: transparent; -webkit-text-stroke: 1.6px rgba(247,172,43,.46);
 }
 
 /* faq */
 .bd-faq-item {
   border: 1px solid rgba(255,164,32,.13); background: rgba(255,255,255,.03);
-  border-radius: 16px; overflow: hidden; transition: border-color .25s ease, background .25s ease;
+  border-radius: 16px; overflow: hidden; transition: border-color .22s ease, background .22s ease;
 }
 .bd-faq-item.open { border-color: rgba(247,172,43,.4); background: rgba(247,120,0,.06); }
 .bd-faq-q {
   width: 100%; border: 0; background: transparent; color: var(--bd-cream);
   padding: 19px 20px; display: flex; justify-content: space-between; align-items: center;
-  gap: 16px; text-align: left; cursor: pointer; font-size: 16px; font-weight: 800;
+  gap: 16px; text-align: left; cursor: pointer; font-size: 15.5px; font-weight: 700;
+  font-family: 'Inter', sans-serif;
 }
 .bd-faq-icon {
   width: 30px; height: 30px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center;
-  background: rgba(247,172,43,.12); color: var(--bd-orange); transition: transform .28s ease;
+  background: rgba(247,172,43,.12); color: var(--bd-orange); transition: transform .26s ease;
 }
 .bd-faq-item.open .bd-faq-icon { transform: rotate(180deg); }
-.bd-faq-a { max-height: 0; overflow: hidden; transition: max-height .35s ease; }
-.bd-faq-a p { padding: 0 20px 20px; color: var(--bd-muted); line-height: 1.62; font-weight: 500; }
+.bd-faq-a { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
+.bd-faq-a p { padding: 0 20px 20px; color: var(--bd-muted); line-height: 1.66; font-weight: 400; }
 
 /* reveal */
-.bd-reveal { opacity: 0; transform: translateY(40px); transition: opacity .8s cubic-bezier(.2,.8,.2,1), transform .8s cubic-bezier(.2,.8,.2,1); }
+.bd-reveal { opacity: 0; transform: translateY(28px); transition: opacity .6s ease, transform .6s ease; }
 .bd-reveal.in { opacity: 1; transform: translateY(0); }
 
 @media (max-width: 900px) {
-  .bd-section { padding: 76px 16px; }
+  .bd-section { padding: 70px 16px; }
   .bd-nav { padding: 8px 8px 8px 16px; }
   .bd-nav .bd-pill { display: none; }
-  .bd-scene { min-height: 420px; margin-top: 28px; }
-  .bd-badge { width: 170px; padding: 14px; }
+  .bd-scene { min-height: 400px; margin-top: 28px; }
+  .bd-badge { width: 168px; padding: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bd-reveal { opacity: 1; transform: none; }
@@ -464,11 +463,14 @@ function BraveStyles() {
   background: linear-gradient(180deg, rgba(247,172,43,.06), rgba(255,255,255,.02));
   transform: rotate(-1.4deg) scale(1.04);
 }
-.bd-marquee-track { display: flex; width: max-content; padding: 16px 0; animation: bdMarquee 26s linear infinite; }
+.bd-marquee-track {
+  display: flex; width: max-content; padding: 16px 0;
+  will-change: transform; animation: bdMarquee 30s linear infinite;
+}
 .bd-marquee-track span {
-  font-size: clamp(32px, 5.4vw, 72px); line-height: .9; text-transform: uppercase;
+  font-size: clamp(24px, 3.6vw, 50px); line-height: .9; text-transform: uppercase;
   padding-right: 34px; white-space: nowrap; color: transparent;
-  -webkit-text-stroke: 1px rgba(255,243,223,.36);
+  -webkit-text-stroke: 1px rgba(255,243,223,.36); letter-spacing: -.01em;
 }
 .bd-marquee-track span:nth-child(even) { color: var(--bd-red); -webkit-text-stroke: 0; }
 @keyframes bdMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -477,28 +479,28 @@ function BraveStyles() {
 }
 
 /* ====================================================================
-   PAGE-LEVEL EFFECTS
+   PAGE-LEVEL EFFECTS — rAF-throttled, no per-frame repaint overlays
    ==================================================================== */
 
 function useBraveEffects() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setLoaded(true), 850);
+    const t = window.setTimeout(() => setLoaded(true), 800);
 
     const progress = document.getElementById("bd-progress");
+    let raf = 0;
     const onScroll = () => {
-      if (!progress) return;
-      const top = window.scrollY;
-      const h = document.documentElement.scrollHeight - window.innerHeight;
-      progress.style.width = `${Math.max(0, Math.min(100, (top / h) * 100))}%`;
-    };
-    const onMove = (e: PointerEvent) => {
-      document.body.style.setProperty("--mx", `${e.clientX}px`);
-      document.body.style.setProperty("--my", `${e.clientY}px`);
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        if (!progress) return;
+        const top = window.scrollY;
+        const h = document.documentElement.scrollHeight - window.innerHeight;
+        progress.style.width = `${Math.max(0, Math.min(100, (top / h) * 100))}%`;
+      });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("pointermove", onMove);
     onScroll();
 
     const io = new IntersectionObserver(
@@ -510,14 +512,14 @@ function useBraveEffects() {
           }
         });
       },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" },
+      { threshold: 0.1, rootMargin: "0px 0px -40px 0px" },
     );
     document.querySelectorAll(".bd-reveal").forEach((el) => io.observe(el));
 
     return () => {
       window.clearTimeout(t);
+      if (raf) window.cancelAnimationFrame(raf);
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("pointermove", onMove);
       io.disconnect();
     };
   }, []);
@@ -551,12 +553,12 @@ function Hero() {
   return (
     <section
       className="bd-section"
-      style={{ paddingTop: 154, paddingBottom: 64 }}
+      style={{ paddingTop: 150, paddingBottom: 60 }}
     >
       <div
         className="bd-watermark bd-display"
         aria-hidden
-        style={{ right: "-5vw", bottom: "-9vh" }}
+        style={{ right: "-4vw", bottom: "-7vh" }}
       >
         BRAVE
       </div>
@@ -566,18 +568,22 @@ function Hero() {
             <span className="dot" /> For NIAT students only
           </div>
           <h1
-            className="bd-display bd-title mt-7"
-            style={{ fontSize: "clamp(52px, 8.6vw, 128px)" }}
+            className="bd-display mt-6"
+            style={{
+              fontSize: "clamp(36px, 5vw, 74px)",
+              lineHeight: 1.04,
+              letterSpacing: "-.022em",
+            }}
           >
             Boosting Revenue{" "}
             <span style={{ color: "var(--bd-red)" }}>through AI</span>{" "}
             <span style={{ color: "var(--bd-orange)" }}>Value Engineering</span>
           </h1>
-          <p className="bd-copy" style={{ fontSize: 18.5, fontWeight: 600 }}>
+          <p className="bd-copy" style={{ fontSize: 17, fontWeight: 500 }}>
             Find a small business. Increase their revenue with AI. Get them to
             pay you. Three months, one real business, built by you.
           </p>
-          <div className="flex flex-wrap gap-3 mt-9">
+          <div className="flex flex-wrap gap-3 mt-8">
             <Link href="/login" data-testid="hero-login" className="bd-cta">
               Login to Dashboard
               <ArrowRight className="w-4 h-4" />
@@ -586,7 +592,7 @@ function Hero() {
               Explore the programme
             </a>
           </div>
-          <div className="flex flex-wrap gap-3 mt-10">
+          <div className="flex flex-wrap gap-3 mt-9">
             {[
               { k: "Hunt", v: "Find a real business problem" },
               { k: "Build", v: "Ship an AI-powered fix" },
@@ -603,7 +609,7 @@ function Hero() {
               >
                 <p
                   className="bd-display"
-                  style={{ fontSize: 27, color: "var(--bd-orange)" }}
+                  style={{ fontSize: 21, color: "var(--bd-orange)" }}
                 >
                   {s.k}
                 </p>
@@ -611,7 +617,8 @@ function Hero() {
                   style={{
                     fontSize: 12.5,
                     color: "var(--bd-muted)",
-                    fontWeight: 600,
+                    fontWeight: 500,
+                    marginTop: 2,
                   }}
                 >
                   {s.v}
@@ -644,17 +651,17 @@ function Hero() {
             <div className="bd-badge">
               <p
                 className="bd-display"
-                style={{ fontSize: 38, color: "var(--bd-red)" }}
+                style={{ fontSize: 26, color: "var(--bd-red)" }}
               >
                 BRAVE
               </p>
               <p
                 style={{
-                  marginTop: 5,
+                  marginTop: 6,
                   fontSize: 12.5,
                   color: "var(--bd-muted)",
-                  fontWeight: 600,
-                  lineHeight: 1.4,
+                  fontWeight: 500,
+                  lineHeight: 1.45,
                 }}
               >
                 Open to all NIAT students · 15 Apr – 15 Jul.
@@ -665,8 +672,8 @@ function Hero() {
               <p
                 style={{
                   fontSize: 10,
-                  fontWeight: 800,
-                  letterSpacing: ".1em",
+                  fontWeight: 700,
+                  letterSpacing: ".09em",
                   textTransform: "uppercase",
                   color: "var(--bd-muted)",
                 }}
@@ -675,7 +682,11 @@ function Hero() {
               </p>
               <p
                 className="bd-display"
-                style={{ fontSize: 26, color: "var(--bd-orange)" }}
+                style={{
+                  fontSize: 19,
+                  color: "var(--bd-orange)",
+                  marginTop: 2,
+                }}
               >
                 ₹ Real money
               </p>
@@ -689,7 +700,7 @@ function Hero() {
                   boxShadow: "0 0 10px #34d36a",
                 }}
               />
-              <span style={{ fontSize: 12.5, fontWeight: 700 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>
                 Reach the summit
               </span>
             </div>
@@ -727,7 +738,7 @@ function Mindset() {
             or just noise.
           </p>
         </div>
-        <div className="grid sm:grid-cols-2 gap-4 mt-12">
+        <div className="grid sm:grid-cols-2 gap-4 mt-10">
           {MINDSET.map(({ tag, icon: Icon, title, body }) => (
             <article key={tag} className="bd-card bd-reveal">
               <div className="flex items-center justify-between">
@@ -740,8 +751,8 @@ function Mindset() {
                 <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 900,
-                    letterSpacing: ".12em",
+                    fontWeight: 700,
+                    letterSpacing: ".1em",
                     textTransform: "uppercase",
                     color: "var(--bd-orange)",
                   }}
@@ -752,8 +763,8 @@ function Mindset() {
               <h3
                 className="bd-display mt-5"
                 style={{
-                  fontSize: "clamp(28px,3.3vw,40px)",
-                  lineHeight: 0.98,
+                  fontSize: "clamp(21px,2.4vw,28px)",
+                  lineHeight: 1.12,
                 }}
               >
                 {title}
@@ -762,8 +773,8 @@ function Mindset() {
                 className="mt-2.5"
                 style={{
                   color: "var(--bd-muted)",
-                  fontWeight: 500,
-                  lineHeight: 1.55,
+                  fontWeight: 400,
+                  lineHeight: 1.6,
                 }}
               >
                 {body}
@@ -790,12 +801,12 @@ function Program() {
             value through real revenue.
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-4 mt-12">
+        <div className="grid md:grid-cols-3 gap-4 mt-10">
           {STEPS.map(({ n, icon: Icon, title, body }) => (
             <article
               key={n}
               className="bd-card bd-reveal flex flex-col"
-              style={{ minHeight: 296 }}
+              style={{ minHeight: 280 }}
             >
               <div className="flex items-start justify-between">
                 <span className="bd-display bd-num">{n}</span>
@@ -809,8 +820,8 @@ function Program() {
               <h3
                 className="bd-display mt-6"
                 style={{
-                  fontSize: "clamp(40px,5vw,60px)",
-                  lineHeight: 0.9,
+                  fontSize: "clamp(28px,3.2vw,40px)",
+                  lineHeight: 1,
                   color: "var(--bd-orange)",
                 }}
               >
@@ -819,9 +830,9 @@ function Program() {
               <p
                 className="mt-3"
                 style={{
-                  color: "rgba(255,243,223,.8)",
-                  fontWeight: 600,
-                  lineHeight: 1.5,
+                  color: "var(--bd-muted)",
+                  fontWeight: 400,
+                  lineHeight: 1.6,
                 }}
               >
                 {body}
@@ -848,12 +859,12 @@ function Businesses() {
             paying client waiting for an AI fix.
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-4 mt-12">
+        <div className="grid md:grid-cols-3 gap-4 mt-10">
           {BUSINESSES.map(({ tag, icon: Icon, problem, fix }) => (
             <article
               key={tag}
               className="bd-card bd-reveal flex flex-col"
-              style={{ minHeight: 300 }}
+              style={{ minHeight: 286 }}
             >
               <div className="flex items-center gap-3">
                 <div className="bd-icon">
@@ -866,8 +877,8 @@ function Businesses() {
                   className="rounded-full px-3 py-1"
                   style={{
                     fontSize: 11,
-                    fontWeight: 900,
-                    letterSpacing: ".08em",
+                    fontWeight: 700,
+                    letterSpacing: ".07em",
                     textTransform: "uppercase",
                     color: "var(--bd-orange)",
                     border: "1px solid rgba(255,255,255,.14)",
@@ -879,16 +890,16 @@ function Businesses() {
               </div>
               <p
                 className="bd-display mt-5"
-                style={{ fontSize: 27, lineHeight: 1.05 }}
+                style={{ fontSize: 21, lineHeight: 1.2 }}
               >
                 {problem}
               </p>
               <p
                 className="mt-auto pt-5 flex items-start gap-2"
                 style={{
-                  color: "rgba(255,243,223,.82)",
-                  fontWeight: 600,
-                  lineHeight: 1.5,
+                  color: "var(--bd-muted)",
+                  fontWeight: 400,
+                  lineHeight: 1.55,
                 }}
               >
                 <ArrowUpRight
@@ -912,12 +923,12 @@ function DemoDay() {
         <div
           className="bd-reveal relative overflow-hidden"
           style={{
-            borderRadius: 34,
+            borderRadius: 30,
             border: "1px solid rgba(247,172,43,.24)",
             background:
-              "radial-gradient(640px 360px at 84% 14%, rgba(247,172,43,.24), transparent 70%), linear-gradient(135deg, rgba(116,14,6,.82), rgba(8,2,1,.9))",
-            padding: "clamp(28px,5vw,62px)",
-            boxShadow: "0 44px 110px rgba(0,0,0,.5)",
+              "radial-gradient(640px 360px at 84% 14%, rgba(247,172,43,.22), transparent 70%), linear-gradient(135deg, rgba(116,14,6,.85), rgba(8,2,1,.92))",
+            padding: "clamp(28px,5vw,58px)",
+            boxShadow: "0 32px 80px rgba(0,0,0,.45)",
           }}
         >
           <div className="grid lg:grid-cols-2 gap-9 items-end">
@@ -926,10 +937,9 @@ function DemoDay() {
               <h2
                 className="bd-display"
                 style={{
-                  fontSize: "clamp(56px,10.5vw,144px)",
-                  lineHeight: 0.82,
-                  letterSpacing: "-.06em",
-                  textTransform: "uppercase",
+                  fontSize: "clamp(44px,6.2vw,92px)",
+                  lineHeight: 1,
+                  letterSpacing: "-.022em",
                 }}
               >
                 Demo <span style={{ color: "var(--bd-orange)" }}>Day</span>
@@ -947,7 +957,6 @@ function DemoDay() {
                   style={{
                     border: "1px solid rgba(255,255,255,.12)",
                     background: "rgba(255,255,255,.05)",
-                    backdropFilter: "blur(10px)",
                   }}
                 >
                   <div className="bd-icon shrink-0">
@@ -959,7 +968,7 @@ function DemoDay() {
                   <div>
                     <h3
                       className="bd-display"
-                      style={{ fontSize: 23, color: "var(--bd-orange)" }}
+                      style={{ fontSize: 18, color: "var(--bd-orange)" }}
                     >
                       {title}
                     </h3>
@@ -967,9 +976,9 @@ function DemoDay() {
                       style={{
                         marginTop: 3,
                         color: "var(--bd-muted)",
-                        fontWeight: 600,
+                        fontWeight: 400,
                         fontSize: 13.5,
-                        lineHeight: 1.45,
+                        lineHeight: 1.5,
                       }}
                     >
                       {body}
@@ -1042,13 +1051,13 @@ function ResourcesSection() {
 
         {loading ? (
           <div
-            className="bd-card bd-reveal mt-10 text-center"
+            className="bd-card bd-reveal mt-9 text-center"
             style={{ color: "var(--bd-muted)" }}
           >
             Loading resources…
           </div>
         ) : (
-          <div className="flex flex-col gap-3 mt-10">
+          <div className="flex flex-col gap-3 mt-9">
             {preview.map((r) => {
               const isExpanded = expandedId === r.id;
               return (
@@ -1058,7 +1067,7 @@ function ResourcesSection() {
                   className="bd-card bd-reveal flex flex-col md:flex-row md:items-center gap-4"
                 >
                   <div className="flex-1 min-w-0">
-                    <h3 className="bd-display" style={{ fontSize: 22 }}>
+                    <h3 className="bd-display" style={{ fontSize: 18 }}>
                       {r.title}
                     </h3>
                     <p
@@ -1066,8 +1075,8 @@ function ResourcesSection() {
                       style={{
                         marginTop: 6,
                         color: "var(--bd-muted)",
-                        fontWeight: 500,
-                        lineHeight: 1.55,
+                        fontWeight: 400,
+                        lineHeight: 1.6,
                       }}
                     >
                       {r.description}
@@ -1076,7 +1085,7 @@ function ResourcesSection() {
                       <button
                         type="button"
                         onClick={() => setExpandedId(isExpanded ? null : r.id)}
-                        className="mt-1.5 text-xs font-bold hover:underline"
+                        className="mt-1.5 text-xs font-semibold hover:underline"
                         style={{ color: "var(--bd-orange)" }}
                       >
                         {isExpanded ? "Show less" : "Read more…"}
@@ -1167,12 +1176,12 @@ function FinalCTA() {
   return (
     <section
       className="bd-section text-center"
-      style={{ paddingTop: 110, paddingBottom: 124 }}
+      style={{ paddingTop: 100, paddingBottom: 116 }}
     >
       <div
         className="bd-watermark bd-display"
         aria-hidden
-        style={{ left: "50%", transform: "translateX(-50%)", bottom: "-6vh" }}
+        style={{ left: "50%", transform: "translateX(-50%)", bottom: "-5vh" }}
       >
         TRY
       </div>
@@ -1180,20 +1189,19 @@ function FinalCTA() {
         <h2
           className="bd-display"
           style={{
-            fontSize: "clamp(54px,10.5vw,150px)",
-            lineHeight: 0.86,
-            letterSpacing: "-.06em",
-            textTransform: "uppercase",
+            fontSize: "clamp(40px,5.4vw,84px)",
+            lineHeight: 1.04,
+            letterSpacing: "-.022em",
           }}
         >
           Are you <span style={{ color: "var(--bd-orange)" }}>brave</span>{" "}
           enough to try?
         </h2>
-        <p className="bd-copy" style={{ marginInline: "auto", marginTop: 22 }}>
+        <p className="bd-copy" style={{ marginInline: "auto", marginTop: 18 }}>
           Hunt a real problem, build with AI, prove the value, and earn from
           real businesses.
         </p>
-        <div className="flex justify-center mt-9">
+        <div className="flex justify-center mt-8">
           <Link href="/login" data-testid="final-login" className="bd-cta">
             Login to Dashboard
             <ArrowRight className="w-4 h-4" />
@@ -1215,10 +1223,10 @@ function Footer() {
     >
       <div className="bd-wrap flex flex-col md:flex-row items-center justify-between gap-4">
         <BraveLogo className="text-[24px]" />
-        <p style={{ color: "var(--bd-muted)", fontSize: 13, fontWeight: 600 }}>
+        <p style={{ color: "var(--bd-muted)", fontSize: 13, fontWeight: 500 }}>
           Boosting Revenue through AI Value Engineering
         </p>
-        <p style={{ color: "rgba(255,243,223,.4)", fontSize: 12.5 }}>
+        <p style={{ color: "rgba(255,243,223,.45)", fontSize: 12.5 }}>
           © {new Date().getFullYear()} NIAT India. All rights reserved.
         </p>
       </div>
@@ -1243,7 +1251,6 @@ export default function Landing() {
       </div>
       <div id="bd-progress" className="bd-progress" />
       <div className="bd-grid" aria-hidden />
-      <div className="bd-cursor" aria-hidden />
 
       <Nav />
       <main>
