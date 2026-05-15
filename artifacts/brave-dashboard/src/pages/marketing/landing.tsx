@@ -308,82 +308,92 @@ function BraveStyles() {
   color: transparent; -webkit-text-stroke: 1.4px rgba(212,64,47,.12);
 }
 
-/* ===== hero scene — framed mountain ===== */
+/* ===== hero scene — animated "Revenue Ascent" ===== */
 .bd-scene {
   position: relative; min-height: 520px; border-radius: 28px; overflow: hidden;
-  border: 1px solid rgba(247,172,43,.18);
-  background: linear-gradient(180deg, #2a0a05 0%, #160604 46%, #0a0302 100%);
-  box-shadow: 0 32px 80px rgba(0,0,0,.55);
+  border: 1px solid rgba(247,172,43,.2);
+  background:
+    radial-gradient(440px 320px at 84% 16%, rgba(247,172,43,.18), transparent 70%),
+    linear-gradient(180deg, #220804 0%, #140503 52%, #080201 100%);
+  box-shadow: 0 32px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
 }
-.bd-stars {
-  position: absolute; inset: 0;
-  background-image:
-    radial-gradient(1.6px 1.6px at 18% 16%, rgba(255,243,223,.95), transparent),
-    radial-gradient(1.4px 1.4px at 72% 11%, rgba(255,243,223,.75), transparent),
-    radial-gradient(1.1px 1.1px at 44% 26%, rgba(255,243,223,.6), transparent),
-    radial-gradient(1.5px 1.5px at 86% 30%, rgba(255,243,223,.55), transparent),
-    radial-gradient(1.1px 1.1px at 30% 8%, rgba(255,243,223,.7), transparent),
-    radial-gradient(1.2px 1.2px at 58% 36%, rgba(255,243,223,.4), transparent),
-    radial-gradient(1.3px 1.3px at 9% 32%, rgba(255,243,223,.5), transparent);
+.bd-scene-head {
+  position: absolute; z-index: 6; left: 22px; top: 18px;
+  display: flex; align-items: center; gap: 9px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--bd-muted);
 }
-.bd-sun {
-  position: absolute; left: 50%; top: 33%; width: 158px; height: 158px;
-  margin: -79px 0 0 -79px; border-radius: 50%;
-  background: radial-gradient(circle, #ffe6a6 0%, #f7ac2b 34%, #ec5b2b 62%, transparent 74%);
-  box-shadow: 0 0 96px 26px rgba(247,172,43,.42);
-  will-change: opacity; animation: bdGlow 5s ease-in-out infinite alternate;
+.bd-live { position: relative; width: 7px; height: 7px; border-radius: 50%; background: #34d36a; }
+.bd-live::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; background: #34d36a;
+  animation: bdPing 2s ease-out infinite;
 }
-@keyframes bdGlow { from { opacity: .8; } to { opacity: 1; } }
-.bd-halo {
-  position: absolute; left: 50%; top: 33%; border-radius: 50%;
-  border: 1px solid rgba(247,172,43,.18);
+.bd-asc-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* svg motion choreography */
+.bd-asc-grid { opacity: 0; animation: bdAppear 1s ease-out .1s forwards; }
+.bd-asc-bar {
+  transform-box: fill-box; transform-origin: 50% 100%; transform: scaleY(0);
+  animation: bdBar 1s cubic-bezier(.2,.8,.2,1) forwards;
 }
-.bd-halo.h1 { width: 250px; height: 250px; margin: -125px 0 0 -125px; }
-.bd-halo.h2 { width: 360px; height: 360px; margin: -180px 0 0 -180px; border-color: rgba(247,172,43,.1); }
-.bd-haze {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 62%;
-  background: linear-gradient(180deg, transparent, rgba(212,64,47,.28) 55%, rgba(247,172,43,.16));
+.bd-asc-area { opacity: 0; animation: bdAppear 1.3s ease-out 1.5s forwards; }
+.bd-asc-line {
+  stroke-dasharray: 720; stroke-dashoffset: 720;
+  filter: drop-shadow(0 3px 9px rgba(247,172,43,.5));
+  animation: bdDraw 2.3s cubic-bezier(.4,0,.2,1) .4s forwards;
 }
-.bd-ridge { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); }
-.bd-ridge.r4 { width: 150%; height: 38%; background: #4a160c;
-  clip-path: polygon(0 100%,14% 52%,30% 78%,46% 38%,62% 70%,80% 30%,100% 66%,100% 100%); opacity: .55; }
-.bd-ridge.r3 { width: 142%; height: 50%; background: #3a0f08;
-  clip-path: polygon(0 100%,20% 44%,40% 74%,58% 26%,78% 60%,100% 36%,100% 100%); opacity: .8; }
-.bd-ridge.r2 { width: 128%; height: 78%;
-  background: linear-gradient(160deg, #6a1c0e 0%, #260805 64%);
-  clip-path: polygon(0 100%, 50% 4%, 100% 100%); }
-.bd-ridge.r1 { width: 128%; height: 78%;
-  background: linear-gradient(120deg, rgba(247,172,43,.5) 0%, rgba(247,172,43,0) 30%);
-  clip-path: polygon(0 100%, 50% 4%, 100% 100%); }
-.bd-ridge.rim { width: 128%; height: 78%;
-  background: linear-gradient(180deg, rgba(255,230,166,.9) 0 1.4%, transparent 2.6%);
-  clip-path: polygon(0 100%, 50% 4%, 100% 100%); }
-.bd-summit {
-  position: absolute; left: 50%; bottom: 73%; transform: translateX(-50%);
-  display: grid; place-items: center; width: 30px; height: 30px;
+.bd-asc-mile {
+  transform-box: fill-box; transform-origin: center; transform: scale(0);
+  animation: bdPop .55s cubic-bezier(.34,1.5,.5,1) forwards;
 }
-.bd-summit::before {
-  content: ""; position: absolute; width: 30px; height: 30px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,230,166,.7), transparent 68%);
-  will-change: opacity; animation: bdGlow 3s ease-in-out infinite alternate;
+.bd-asc-ring {
+  transform-box: fill-box; transform-origin: center; opacity: 0;
+  animation: bdRing 2.6s ease-out infinite;
 }
-.bd-glasscard {
-  position: absolute; z-index: 3; border-radius: 16px; padding: 12px 14px;
-  border: 1px solid rgba(255,243,223,.16);
-  background: linear-gradient(160deg, rgba(38,11,7,.97), rgba(16,5,4,.95));
-  box-shadow: 0 16px 36px rgba(0,0,0,.5);
+.bd-asc-flag {
+  transform-box: fill-box; transform-origin: 50% 100%; transform: scale(0);
+  animation: bdPop .6s cubic-bezier(.34,1.5,.5,1) 2.7s forwards;
 }
-.bd-badge {
-  position: absolute; z-index: 3; left: 18px; top: 22px; width: 210px;
-  border-radius: 20px; padding: 18px;
-  border: 1px solid rgba(247,172,43,.3);
-  background: linear-gradient(140deg, rgba(44,12,7,.98), rgba(96,18,9,.95));
-  box-shadow: 0 22px 50px rgba(212,64,47,.26);
-  will-change: transform; animation: bdFloat 5.4s ease-in-out infinite;
+.bd-asc-label { opacity: 0; animation: bdAppear .6s ease-out 2.5s forwards; }
+.bd-asc-comet {
+  opacity: 0; animation: bdAppear .5s ease-out 2.5s forwards;
+  filter: drop-shadow(0 0 7px rgba(255,230,166,.9));
 }
-@keyframes bdFloat { 0%,100%{transform:translateY(0) rotate(-2deg);} 50%{transform:translateY(-10px) rotate(1.5deg);} }
-.bd-float-a { right: 20px; top: 30px; will-change: transform; animation: bdFloat 6s ease-in-out infinite; }
-.bd-float-b { right: 36px; bottom: 30px; will-change: transform; animation: bdFloat 7s ease-in-out infinite reverse; }
+.bd-asc-sun {
+  transform-box: fill-box; transform-origin: center;
+  animation: bdGlow 5s ease-in-out infinite alternate;
+}
+@keyframes bdDraw { to { stroke-dashoffset: 0; } }
+@keyframes bdAppear { to { opacity: 1; } }
+@keyframes bdBar { to { transform: scaleY(1); } }
+@keyframes bdPop { to { transform: scale(1); } }
+@keyframes bdRing { 0% { transform: scale(.5); opacity: .85; } 70%,100% { transform: scale(2.7); opacity: 0; } }
+@keyframes bdGlow { from { opacity: .55; } to { opacity: 1; } }
+
+/* floating info chips */
+.bd-chip {
+  position: absolute; z-index: 5; border-radius: 16px;
+  border: 1px solid rgba(247,172,43,.26);
+  background: linear-gradient(155deg, rgba(42,13,8,.98), rgba(14,5,4,.97));
+  box-shadow: 0 18px 40px rgba(0,0,0,.55);
+  will-change: transform;
+}
+.bd-chip-a { right: 22px; bottom: 22px; padding: 14px 16px; animation: bdFloat 6s ease-in-out infinite; }
+.bd-chip-b { left: 22px; top: 58px; padding: 9px 13px; animation: bdFloat 7.4s ease-in-out infinite reverse; }
+@keyframes bdFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-9px);} }
+
+/* rising ember particles */
+.bd-ember {
+  position: absolute; bottom: 14%; width: 3px; height: 3px; border-radius: 50%;
+  background: var(--bd-orange); box-shadow: 0 0 8px rgba(247,172,43,.9);
+  will-change: transform, opacity; animation: bdEmber 6.5s linear infinite;
+}
+@keyframes bdEmber {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  14% { opacity: .95; }
+  78% { opacity: .45; }
+  100% { transform: translateY(-300px) scale(.35); opacity: 0; }
+}
 
 /* cards */
 .bd-card {
@@ -448,12 +458,16 @@ function BraveStyles() {
   .bd-section { padding: 70px 16px; }
   .bd-nav { padding: 8px 8px 8px 16px; }
   .bd-nav .bd-pill { display: none; }
-  .bd-scene { min-height: 400px; margin-top: 28px; }
-  .bd-badge { width: 168px; padding: 14px; }
+  .bd-scene { min-height: 380px; margin-top: 26px; }
+  .bd-chip-a { padding: 11px 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bd-reveal { opacity: 1; transform: none; }
-  .bd-sun, .bd-badge, .bd-marquee-track, .bd-float-a, .bd-float-b, .bd-summit::before, .bd-eyebrow .dot::after { animation: none; }
+  .bd-marquee-track, .bd-chip-a, .bd-chip-b, .bd-ember, .bd-asc-sun, .bd-asc-ring,
+  .bd-eyebrow .dot::after, .bd-live::after { animation: none; }
+  .bd-asc-line { stroke-dashoffset: 0; animation: none; }
+  .bd-asc-area, .bd-asc-grid, .bd-asc-label, .bd-asc-comet { opacity: 1; animation: none; }
+  .bd-asc-bar, .bd-asc-mile, .bd-asc-flag { transform: none; animation: none; }
 }
 
 /* marquee */
@@ -628,80 +642,294 @@ function Hero() {
           </div>
         </div>
 
-        {/* Hero scene — framed CSS mountain */}
+        {/* Hero scene — animated "Revenue Ascent" */}
         <div className="bd-reveal">
           <div className="bd-scene">
-            <div className="bd-stars" aria-hidden />
-            <div className="bd-halo h2" aria-hidden />
-            <div className="bd-halo h1" aria-hidden />
-            <div className="bd-sun" aria-hidden />
-            <div className="bd-haze" aria-hidden />
-            <div className="bd-ridge r4" aria-hidden />
-            <div className="bd-ridge r3" aria-hidden />
-            <div className="bd-ridge r2" aria-hidden />
-            <div className="bd-ridge r1" aria-hidden />
-            <div className="bd-ridge rim" aria-hidden />
-            <div className="bd-summit" aria-hidden>
+            <div className="bd-scene-head">
+              <span className="bd-live" /> Revenue ascent · Live
+            </div>
+
+            <svg
+              className="bd-asc-svg"
+              viewBox="0 0 500 520"
+              preserveAspectRatio="xMidYMid slice"
+              aria-hidden
+            >
+              <defs>
+                <linearGradient id="bdStroke" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0" stopColor="#d4402f" />
+                  <stop offset="0.55" stopColor="#f7ac2b" />
+                  <stop offset="1" stopColor="#ffe6a6" />
+                </linearGradient>
+                <linearGradient id="bdArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="rgba(247,172,43,.4)" />
+                  <stop offset="1" stopColor="rgba(247,172,43,0)" />
+                </linearGradient>
+                <linearGradient id="bdBarG" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="rgba(247,172,43,.32)" />
+                  <stop offset="1" stopColor="rgba(212,64,47,.04)" />
+                </linearGradient>
+                <radialGradient id="bdSunG">
+                  <stop offset="0" stopColor="#ffe7a8" />
+                  <stop offset="0.4" stopColor="#f7ac2b" />
+                  <stop offset="0.72" stopColor="rgba(236,91,43,.42)" />
+                  <stop offset="1" stopColor="rgba(236,91,43,0)" />
+                </radialGradient>
+              </defs>
+
+              {/* sun behind the summit */}
+              <circle
+                className="bd-asc-sun"
+                cx="452"
+                cy="92"
+                r="96"
+                fill="url(#bdSunG)"
+              />
+
+              {/* grid */}
+              <g
+                className="bd-asc-grid"
+                stroke="rgba(255,243,223,.07)"
+                strokeWidth="1"
+              >
+                <line x1="40" y1="130" x2="468" y2="130" />
+                <line x1="40" y1="226" x2="468" y2="226" />
+                <line x1="40" y1="322" x2="468" y2="322" />
+                <line x1="40" y1="418" x2="468" y2="418" />
+              </g>
+
+              {/* revenue bars */}
+              <g>
+                {[
+                  { x: 80, h: 70 },
+                  { x: 162, h: 112 },
+                  { x: 244, h: 92 },
+                  { x: 326, h: 158 },
+                  { x: 408, h: 232 },
+                ].map((b, i) => (
+                  <rect
+                    key={i}
+                    className="bd-asc-bar"
+                    x={b.x - 20}
+                    y={466 - b.h}
+                    width="40"
+                    height={b.h}
+                    rx="6"
+                    fill="url(#bdBarG)"
+                    style={{ animationDelay: `${0.15 + i * 0.13}s` }}
+                  />
+                ))}
+              </g>
+
+              {/* area under the ascent line */}
+              <path
+                className="bd-asc-area"
+                d="M44 452 L120 384 L172 410 L256 286 L312 312 L388 178 L456 86 L456 466 L44 466 Z"
+                fill="url(#bdArea)"
+              />
+
+              {/* self-drawing ascent line */}
+              <path
+                className="bd-asc-line"
+                d="M44 452 L120 384 L172 410 L256 286 L312 312 L388 178 L456 86"
+                fill="none"
+                stroke="url(#bdStroke)"
+                strokeWidth="4"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+
+              {/* milestones */}
+              <circle
+                className="bd-asc-ring"
+                cx="120"
+                cy="384"
+                r="9"
+                fill="none"
+                stroke="#f7ac2b"
+                strokeWidth="1.5"
+                style={{ animationDelay: "2.2s" }}
+              />
+              <g className="bd-asc-mile" style={{ animationDelay: "1.9s" }}>
+                <circle
+                  cx="120"
+                  cy="384"
+                  r="5.5"
+                  fill="#1a0604"
+                  stroke="#f7ac2b"
+                  strokeWidth="2.4"
+                />
+              </g>
+              <text
+                className="bd-asc-label"
+                x="120"
+                y="366"
+                textAnchor="middle"
+                fill="rgba(255,243,223,.78)"
+                style={{ font: "700 12px Inter, sans-serif" }}
+              >
+                ₹50K
+              </text>
+
+              <circle
+                className="bd-asc-ring"
+                cx="256"
+                cy="286"
+                r="9"
+                fill="none"
+                stroke="#f7ac2b"
+                strokeWidth="1.5"
+                style={{ animationDelay: "2.6s" }}
+              />
+              <g className="bd-asc-mile" style={{ animationDelay: "2.15s" }}>
+                <circle
+                  cx="256"
+                  cy="286"
+                  r="5.5"
+                  fill="#1a0604"
+                  stroke="#f7ac2b"
+                  strokeWidth="2.4"
+                />
+              </g>
+              <text
+                className="bd-asc-label"
+                x="256"
+                y="268"
+                textAnchor="middle"
+                fill="rgba(255,243,223,.82)"
+                style={{ font: "700 12px Inter, sans-serif" }}
+              >
+                ₹1L
+              </text>
+
+              {/* summit milestone + flag */}
+              <circle
+                className="bd-asc-ring"
+                cx="456"
+                cy="86"
+                r="11"
+                fill="none"
+                stroke="#ffe6a6"
+                strokeWidth="1.8"
+                style={{ animationDelay: "3s" }}
+              />
+              <g className="bd-asc-mile" style={{ animationDelay: "2.4s" }}>
+                <circle
+                  cx="456"
+                  cy="86"
+                  r="6.5"
+                  fill="#ffe6a6"
+                  stroke="#f7ac2b"
+                  strokeWidth="2.4"
+                />
+              </g>
+              <g className="bd-asc-flag">
+                <line
+                  x1="456"
+                  y1="86"
+                  x2="456"
+                  y2="52"
+                  stroke="#ffe6a6"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                />
+                <path d="M456 53 L484 61 L456 70 Z" fill="#f7ac2b" />
+              </g>
+              <text
+                className="bd-asc-label"
+                x="438"
+                y="44"
+                textAnchor="end"
+                fill="#ffe6a6"
+                style={{
+                  font: "800 12px Sora, sans-serif",
+                  letterSpacing: ".06em",
+                }}
+              >
+                DEMO DAY
+              </text>
+
+              {/* comet travelling the ascent */}
+              <g className="bd-asc-comet">
+                <circle r="11" fill="rgba(247,172,43,.34)" />
+                <circle r="4.2" fill="#fff3df" />
+                <animateMotion
+                  dur="5.6s"
+                  repeatCount="indefinite"
+                  path="M44 452 L120 384 L172 410 L256 286 L312 312 L388 178 L456 86"
+                />
+              </g>
+            </svg>
+
+            {/* rising embers */}
+            {[16, 34, 53, 71, 88].map((left, i) => (
+              <span
+                key={i}
+                className="bd-ember"
+                style={{ left: `${left}%`, animationDelay: `${i * 1.2}s` }}
+                aria-hidden
+              />
+            ))}
+
+            {/* floating chips */}
+            <div className="bd-chip bd-chip-a">
+              <div className="flex items-center gap-2">
+                <span
+                  className="grid place-items-center rounded-md"
+                  style={{
+                    width: 22,
+                    height: 22,
+                    background:
+                      "linear-gradient(135deg, rgba(212,64,47,.3), rgba(247,172,43,.18))",
+                    border: "1px solid rgba(247,172,43,.34)",
+                  }}
+                >
+                  <TrendingUp
+                    className="w-3 h-3"
+                    style={{ color: "var(--bd-orange)" }}
+                  />
+                </span>
+                <span
+                  style={{
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    letterSpacing: ".11em",
+                    textTransform: "uppercase",
+                    color: "var(--bd-muted)",
+                  }}
+                >
+                  Total verified
+                </span>
+              </div>
+              <p
+                className="bd-display"
+                style={{
+                  fontSize: 26,
+                  color: "var(--bd-orange)",
+                  marginTop: 7,
+                }}
+              >
+                ₹2,00,000
+              </p>
+              <p
+                style={{
+                  marginTop: 2,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--bd-muted)",
+                }}
+              >
+                Demo Day threshold cleared
+              </p>
+            </div>
+
+            <div className="bd-chip bd-chip-b flex items-center gap-2">
               <Flag
-                className="w-3.5 h-3.5 relative"
+                className="w-3.5 h-3.5"
                 style={{ color: "var(--bd-orange)" }}
               />
-            </div>
-
-            <div className="bd-badge">
-              <p
-                className="bd-display"
-                style={{ fontSize: 26, color: "var(--bd-red)" }}
-              >
-                BRAVE
-              </p>
-              <p
-                style={{
-                  marginTop: 6,
-                  fontSize: 12.5,
-                  color: "var(--bd-muted)",
-                  fontWeight: 500,
-                  lineHeight: 1.45,
-                }}
-              >
-                Open to all NIAT students · 15 Apr – 15 Jul.
-              </p>
-            </div>
-
-            <div className="bd-glasscard bd-float-a">
-              <p
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: ".09em",
-                  textTransform: "uppercase",
-                  color: "var(--bd-muted)",
-                }}
-              >
-                Verified revenue
-              </p>
-              <p
-                className="bd-display"
-                style={{
-                  fontSize: 19,
-                  color: "var(--bd-orange)",
-                  marginTop: 2,
-                }}
-              >
-                ₹ Real money
-              </p>
-            </div>
-
-            <div className="bd-glasscard bd-float-b flex items-center gap-2">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{
-                  background: "#34d36a",
-                  boxShadow: "0 0 10px #34d36a",
-                }}
-              />
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-                Reach the summit
+              <span style={{ fontSize: 12, fontWeight: 600 }}>
+                Summit in sight
               </span>
             </div>
           </div>
