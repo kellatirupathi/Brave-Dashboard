@@ -9,7 +9,6 @@ import {
   Trophy,
   Users,
   ShieldCheck,
-  Flag,
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
 
@@ -85,58 +84,71 @@ function LoginStyles() {
   background: linear-gradient(90deg, var(--bl-red), var(--bl-orange));
 }
 
-/* mini hero scene */
+/* mini "revenue ascent" scene */
 .bl-scene {
-  position: relative; width: 100%; min-height: 178px; border-radius: 22px; overflow: hidden;
-  border: 1px solid rgba(247,172,43,.18);
-  background: linear-gradient(180deg, #2a0a05 0%, #160604 48%, #0a0302 100%);
-  box-shadow: 0 22px 56px rgba(0,0,0,.45);
+  position: relative; width: 100%; min-height: 184px; border-radius: 20px; overflow: hidden;
+  border: 1px solid rgba(247,172,43,.2);
+  background:
+    radial-gradient(260px 180px at 84% 22%, rgba(247,172,43,.2), transparent 70%),
+    linear-gradient(180deg, #240904 0%, #150503 54%, #090201 100%);
+  box-shadow: 0 22px 56px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
 }
-.bl-stars {
-  position: absolute; inset: 0;
-  background-image:
-    radial-gradient(1.5px 1.5px at 20% 22%, rgba(255,243,223,.9), transparent),
-    radial-gradient(1.3px 1.3px at 70% 14%, rgba(255,243,223,.7), transparent),
-    radial-gradient(1.1px 1.1px at 46% 30%, rgba(255,243,223,.55), transparent),
-    radial-gradient(1.4px 1.4px at 86% 28%, rgba(255,243,223,.5), transparent),
-    radial-gradient(1.1px 1.1px at 12% 12%, rgba(255,243,223,.65), transparent);
+.bl-scene-head {
+  position: absolute; z-index: 4; left: 14px; top: 12px;
+  display: flex; align-items: center; gap: 7px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--bl-muted);
 }
-.bl-sun {
-  position: absolute; left: 50%; top: 38%; width: 116px; height: 116px;
-  margin: -58px 0 0 -58px; border-radius: 50%;
-  background: radial-gradient(circle, #ffe6a6 0%, #f7ac2b 34%, #ec5b2b 62%, transparent 74%);
-  box-shadow: 0 0 80px 22px rgba(247,172,43,.42);
-  will-change: opacity; animation: blGlow 5s ease-in-out infinite alternate;
+.bl-live { position: relative; width: 6px; height: 6px; border-radius: 50%; background: #34d36a; }
+.bl-live::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; background: #34d36a;
+  animation: blPing 2s ease-out infinite;
 }
-@keyframes blGlow { from { opacity: .8; } to { opacity: 1; } }
-.bl-haze {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 60%;
-  background: linear-gradient(180deg, transparent, rgba(212,64,47,.3) 56%, rgba(247,172,43,.16));
+.bl-asc-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.bl-asc-grid { opacity: 0; animation: blAppear .9s ease-out .1s forwards; }
+.bl-asc-bar {
+  transform-box: fill-box; transform-origin: 50% 100%; transform: scaleY(0);
+  animation: blBar .9s cubic-bezier(.2,.8,.2,1) forwards;
 }
-.bl-ridge { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); }
-.bl-ridge.r3 { width: 150%; height: 46%; background: #3a0f08;
-  clip-path: polygon(0 100%,20% 44%,40% 74%,58% 26%,78% 60%,100% 36%,100% 100%); opacity: .8; }
-.bl-ridge.r2 { width: 130%; height: 80%;
-  background: linear-gradient(160deg, #6a1c0e 0%, #260805 64%);
-  clip-path: polygon(0 100%, 50% 6%, 100% 100%); }
-.bl-ridge.r1 { width: 130%; height: 80%;
-  background: linear-gradient(120deg, rgba(247,172,43,.5) 0%, rgba(247,172,43,0) 32%);
-  clip-path: polygon(0 100%, 50% 6%, 100% 100%); }
-.bl-ridge.rim { width: 130%; height: 80%;
-  background: linear-gradient(180deg, rgba(255,230,166,.9) 0 1.6%, transparent 3%);
-  clip-path: polygon(0 100%, 50% 6%, 100% 100%); }
-.bl-summit {
-  position: absolute; left: 50%; bottom: 74%; transform: translateX(-50%);
-  display: grid; place-items: center; width: 26px; height: 26px;
+.bl-asc-area { opacity: 0; animation: blAppear 1.1s ease-out 1.3s forwards; }
+.bl-asc-line {
+  stroke-dasharray: 460; stroke-dashoffset: 460;
+  filter: drop-shadow(0 2px 7px rgba(247,172,43,.5));
+  animation: blDraw 2s cubic-bezier(.4,0,.2,1) .35s forwards;
 }
-.bl-summit::before {
-  content: ""; position: absolute; width: 26px; height: 26px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,230,166,.7), transparent 68%);
-  will-change: opacity; animation: blGlow 3s ease-in-out infinite alternate;
+.bl-asc-mile {
+  transform-box: fill-box; transform-origin: center; transform: scale(0);
+  animation: blPop .5s cubic-bezier(.34,1.5,.5,1) forwards;
 }
+.bl-asc-ring {
+  transform-box: fill-box; transform-origin: center; opacity: 0;
+  animation: blRing 2.6s ease-out infinite;
+}
+.bl-asc-flag {
+  transform-box: fill-box; transform-origin: 50% 100%; transform: scale(0);
+  animation: blPop .55s cubic-bezier(.34,1.5,.5,1) 2.35s forwards;
+}
+.bl-asc-label { opacity: 0; animation: blAppear .55s ease-out 2.3s forwards; }
+.bl-asc-comet {
+  opacity: 0; animation: blAppear .5s ease-out 2.2s forwards;
+  filter: drop-shadow(0 0 6px rgba(255,230,166,.9));
+}
+.bl-asc-sun {
+  transform-box: fill-box; transform-origin: center;
+  animation: blGlow 5s ease-in-out infinite alternate;
+}
+@keyframes blDraw { to { stroke-dashoffset: 0; } }
+@keyframes blAppear { to { opacity: 1; } }
+@keyframes blBar { to { transform: scaleY(1); } }
+@keyframes blPop { to { transform: scale(1); } }
+@keyframes blRing { 0% { transform: scale(.5); opacity: .85; } 70%,100% { transform: scale(2.6); opacity: 0; } }
+@keyframes blGlow { from { opacity: .55; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .bl-cta { transition: none; }
-  .bl-sun, .bl-summit::before, .bl-dot::after { animation: none; }
+  .bl-dot::after, .bl-live::after, .bl-asc-sun, .bl-asc-ring { animation: none; }
+  .bl-asc-line { stroke-dashoffset: 0; animation: none; }
+  .bl-asc-area, .bl-asc-grid, .bl-asc-label, .bl-asc-comet { opacity: 1; animation: none; }
+  .bl-asc-bar, .bl-asc-mile, .bl-asc-flag { transform: none; animation: none; }
 }
 `}</style>
   );
@@ -275,21 +287,172 @@ export default function Login() {
           </Link>
 
           <div className="bl-card">
-            {/* mini mountain scene */}
+            {/* mini "revenue ascent" scene */}
             <div className="bl-scene mb-6" aria-hidden>
-              <div className="bl-stars" />
-              <div className="bl-sun" />
-              <div className="bl-haze" />
-              <div className="bl-ridge r3" />
-              <div className="bl-ridge r2" />
-              <div className="bl-ridge r1" />
-              <div className="bl-ridge rim" />
-              <div className="bl-summit">
-                <Flag
-                  className="w-3 h-3 relative"
-                  style={{ color: "var(--bl-orange)" }}
-                />
+              <div className="bl-scene-head">
+                <span className="bl-live" /> Revenue ascent
               </div>
+              <svg
+                className="bl-asc-svg"
+                viewBox="0 0 400 184"
+                preserveAspectRatio="xMidYMid slice"
+              >
+                <defs>
+                  <linearGradient id="blStroke" x1="0" y1="1" x2="1" y2="0">
+                    <stop offset="0" stopColor="#d4402f" />
+                    <stop offset="0.55" stopColor="#f7ac2b" />
+                    <stop offset="1" stopColor="#ffe6a6" />
+                  </linearGradient>
+                  <linearGradient id="blArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="rgba(247,172,43,.4)" />
+                    <stop offset="1" stopColor="rgba(247,172,43,0)" />
+                  </linearGradient>
+                  <linearGradient id="blBarG" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="rgba(247,172,43,.3)" />
+                    <stop offset="1" stopColor="rgba(212,64,47,.04)" />
+                  </linearGradient>
+                  <radialGradient id="blSunG">
+                    <stop offset="0" stopColor="#ffe7a8" />
+                    <stop offset="0.4" stopColor="#f7ac2b" />
+                    <stop offset="0.72" stopColor="rgba(236,91,43,.42)" />
+                    <stop offset="1" stopColor="rgba(236,91,43,0)" />
+                  </radialGradient>
+                </defs>
+
+                <circle
+                  className="bl-asc-sun"
+                  cx="344"
+                  cy="40"
+                  r="58"
+                  fill="url(#blSunG)"
+                />
+
+                <g
+                  className="bl-asc-grid"
+                  stroke="rgba(255,243,223,.07)"
+                  strokeWidth="1"
+                >
+                  <line x1="24" y1="70" x2="376" y2="70" />
+                  <line x1="24" y1="118" x2="376" y2="118" />
+                </g>
+
+                <g>
+                  {[
+                    { x: 56, h: 28 },
+                    { x: 124, h: 50 },
+                    { x: 192, h: 40 },
+                    { x: 260, h: 74 },
+                    { x: 328, h: 104 },
+                  ].map((b, i) => (
+                    <rect
+                      key={i}
+                      className="bl-asc-bar"
+                      x={b.x - 15}
+                      y={158 - b.h}
+                      width="30"
+                      height={b.h}
+                      rx="5"
+                      fill="url(#blBarG)"
+                      style={{ animationDelay: `${0.15 + i * 0.12}s` }}
+                    />
+                  ))}
+                </g>
+
+                <path
+                  className="bl-asc-area"
+                  d="M28 150 L96 116 L150 126 L226 72 L278 84 L344 34 L344 158 L28 158 Z"
+                  fill="url(#blArea)"
+                />
+                <path
+                  className="bl-asc-line"
+                  d="M28 150 L96 116 L150 126 L226 72 L278 84 L344 34"
+                  fill="none"
+                  stroke="url(#blStroke)"
+                  strokeWidth="3.4"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+
+                {/* mid milestone */}
+                <circle
+                  className="bl-asc-ring"
+                  cx="226"
+                  cy="72"
+                  r="8"
+                  fill="none"
+                  stroke="#f7ac2b"
+                  strokeWidth="1.4"
+                  style={{ animationDelay: "2.2s" }}
+                />
+                <g className="bl-asc-mile" style={{ animationDelay: "1.95s" }}>
+                  <circle
+                    cx="226"
+                    cy="72"
+                    r="4.6"
+                    fill="#1a0604"
+                    stroke="#f7ac2b"
+                    strokeWidth="2.2"
+                  />
+                </g>
+
+                {/* summit + flag */}
+                <circle
+                  className="bl-asc-ring"
+                  cx="344"
+                  cy="34"
+                  r="10"
+                  fill="none"
+                  stroke="#ffe6a6"
+                  strokeWidth="1.6"
+                  style={{ animationDelay: "2.6s" }}
+                />
+                <g className="bl-asc-mile" style={{ animationDelay: "2.15s" }}>
+                  <circle
+                    cx="344"
+                    cy="34"
+                    r="5.6"
+                    fill="#ffe6a6"
+                    stroke="#f7ac2b"
+                    strokeWidth="2.2"
+                  />
+                </g>
+                <g className="bl-asc-flag">
+                  <line
+                    x1="344"
+                    y1="34"
+                    x2="344"
+                    y2="12"
+                    stroke="#ffe6a6"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+                  <path d="M344 13 L366 19 L344 25 Z" fill="#f7ac2b" />
+                </g>
+                <text
+                  className="bl-asc-label"
+                  x="330"
+                  y="50"
+                  textAnchor="end"
+                  fill="#ffe6a6"
+                  style={{
+                    font: "800 10px Sora, sans-serif",
+                    letterSpacing: ".06em",
+                  }}
+                >
+                  DEMO DAY
+                </text>
+
+                {/* travelling comet */}
+                <g className="bl-asc-comet">
+                  <circle r="9" fill="rgba(247,172,43,.34)" />
+                  <circle r="3.6" fill="#fff3df" />
+                  <animateMotion
+                    dur="5s"
+                    repeatCount="indefinite"
+                    path="M28 150 L96 116 L150 126 L226 72 L278 84 L344 34"
+                  />
+                </g>
+              </svg>
             </div>
 
             <div
