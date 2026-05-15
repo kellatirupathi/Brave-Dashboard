@@ -4,36 +4,103 @@ import { Link, useLocation } from "wouter";
 import {
   ArrowRight,
   ArrowLeft,
+  Search,
+  Cpu,
   IndianRupee,
-  Users,
   Trophy,
-  Sparkles,
+  Users,
   ShieldCheck,
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
 
-function Ticker() {
-  const items = Array.from({ length: 8 });
+/* Dark "AI Value Engineering" theme — matches the landing page. */
+function LoginStyles() {
   return (
-    <div
-      className="w-full overflow-hidden"
-      style={{ background: "var(--color-brave-ink)" }}
-    >
-      <div className="flex whitespace-nowrap py-1.5 animate-[brave-ticker_35s_linear_infinite]">
-        {items.concat(items).map((_, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 px-8 text-[12px] font-[family-name:var(--font-ticker)] font-light tracking-tight"
-          >
-            <span className="text-white">April 15 – July 15, 2026</span>
-            <span className="text-white/50">· Open to All NIAT Students</span>
-          </div>
-        ))}
-      </div>
-      <style>{`@keyframes brave-ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
-    </div>
+    <style>{`
+@import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
+
+.bl-root {
+  --bl-red: #c73a2e;
+  --bl-orange: #f5a321;
+  --bl-cream: #fff2db;
+  --bl-muted: rgba(255,242,219,0.64);
+  position: relative;
+  overflow: hidden;
+  color: var(--bl-cream);
+  background:
+    radial-gradient(circle at 16% 6%, rgba(197,32,23,.26), transparent 36%),
+    radial-gradient(circle at 86% 90%, rgba(255,164,32,.12), transparent 32%),
+    linear-gradient(180deg,#0a0302 0%,#130402 50%,#080201 100%);
+}
+.bl-display { font-family: Anton, Impact, "Arial Narrow", system-ui, sans-serif; }
+.bl-grid {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+  background-size: 54px 54px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 30% 40%, black, transparent 85%);
+  mask-image: radial-gradient(ellipse 70% 60% at 30% 40%, black, transparent 85%);
+}
+.bl-watermark {
+  position: absolute; left: -6vw; bottom: -8vh; pointer-events: none; z-index: 0;
+  font-size: clamp(220px, 36vw, 560px); line-height: .74; letter-spacing: -.08em;
+  color: rgba(199,58,46,.07); transform: rotate(-4deg);
+}
+.bl-eyebrow {
+  display: inline-flex; align-items: center; gap: 9px; width: fit-content;
+  color: #ffd7ad; border: 1px solid rgba(255,164,32,.26);
+  background: rgba(255,132,0,.07); border-radius: 999px; padding: 9px 14px;
+  font-size: 11.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+}
+.bl-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d36a; box-shadow: 0 0 14px #34d36a; }
+.bl-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 52px; border-radius: 14px; font-weight: 800; font-size: 15px;
+  color: #160100; border: 1px solid rgba(255,230,190,.24);
+  background: linear-gradient(135deg, #d53d2f, #f2a11f);
+  box-shadow: 0 16px 40px rgba(199,58,46,.32);
+  transition: transform .2s ease, filter .2s ease;
+}
+.bl-cta:hover { transform: translateY(-2px); filter: saturate(1.18); }
+.bl-cta:active { transform: scale(.99); }
+.bl-back {
+  display: inline-flex; align-items: center; gap: 7px;
+  color: var(--bl-muted); font-size: 13px; font-weight: 600;
+  transition: color .2s ease;
+}
+.bl-back:hover { color: var(--bl-cream); }
+.bl-icon {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  border: 1px solid rgba(245,163,33,.3);
+  background: linear-gradient(135deg, rgba(199,58,46,.18), rgba(245,163,33,.1));
+}
+.bl-card {
+  border-radius: 26px; padding: 36px;
+  border: 1px solid rgba(255,164,32,.18);
+  background: linear-gradient(140deg, rgba(28,5,3,.92), rgba(9,2,1,.86));
+  box-shadow: 0 40px 110px rgba(0,0,0,.5);
+  backdrop-filter: blur(14px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bl-cta { transition: none; }
+}
+`}</style>
   );
 }
+
+const FEATURES = [
+  { icon: Search, label: "Hunt a real business problem" },
+  { icon: Cpu, label: "Build an AI-powered fix" },
+  { icon: IndianRupee, label: "Earn verified revenue" },
+  { icon: Trophy, label: "Pitch at Demo Day" },
+];
+
+const STATS = [
+  { value: "7,500+", label: "NIAT students" },
+  { value: "19+", label: "Campuses" },
+  { value: "15 Jul", label: "Demo Day" },
+];
 
 export default function Login() {
   const { login, isAuthenticated, isLoading, user, error } = useAuth();
@@ -48,209 +115,187 @@ export default function Login() {
   }, [isAuthenticated, isLoading, user, setLocation]);
 
   return (
-    <div
-      className="min-h-screen flex flex-col font-[family-name:var(--font-body)] relative"
-      style={{ background: "var(--color-brave-cream)", color: "#1f1f1f" }}
-    >
-      <Ticker />
+    <div className="bl-root min-h-screen flex flex-col lg:flex-row">
+      <LoginStyles />
 
-      {/* Page-level back nav — anchored top-left, just below ticker */}
+      {/* Left — dark hero panel */}
+      <div className="relative hidden lg:flex flex-col justify-between lg:w-[56%] xl:w-[58%] px-12 py-12 overflow-hidden">
+        <div className="bl-grid" aria-hidden />
+        <div className="bl-watermark bl-display" aria-hidden>
+          BRAVE
+        </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row">
-        {/* Left — Hero Panel */}
-        <div
-          className="hidden lg:flex flex-col justify-between lg:w-[58%] xl:w-[60%] relative overflow-hidden px-12 py-12"
-          style={{
-            background:
-              "linear-gradient(180deg, #d6d3ce 0%, #e6e0d8 60%, #fafafa 100%)",
-          }}
-        >
-          {/* Soft accent blurs */}
-          <div
-            className="absolute top-1/4 right-[-10%] w-[500px] h-[280px] rounded-full opacity-25 blur-[100px] pointer-events-none"
-            style={{ background: "var(--color-brave-coral)" }}
-          />
-          <div
-            className="absolute bottom-1/4 left-[-5%] w-[480px] h-[280px] rounded-full opacity-20 blur-[100px] pointer-events-none"
-            style={{ background: "rgba(254,131,242,0.4)" }}
-          />
+        <div className="relative z-10 flex items-center justify-between">
+          <Link href="/" data-testid="link-back-home">
+            <BraveLogo className="text-[24px]" />
+          </Link>
+          <Link href="/" data-testid="link-back-landing" className="bl-back">
+            <ArrowLeft className="w-4 h-4" />
+            Back to site
+          </Link>
+        </div>
 
-          <div className="relative z-10">
-            <Link href="/" data-testid="link-back-home">
-              <BraveLogo className="text-2xl" />
-            </Link>
+        <div className="relative z-10 max-w-xl">
+          <div className="bl-eyebrow">
+            <span className="bl-dot" /> BRAVE 2026 · 15 Apr – 15 Jul
           </div>
+          <h1
+            className="bl-display mt-6"
+            style={{
+              fontSize: "clamp(48px, 5.4vw, 92px)",
+              lineHeight: 0.88,
+              letterSpacing: "-.055em",
+              textTransform: "uppercase",
+            }}
+          >
+            Boosting Revenue{" "}
+            <span style={{ color: "var(--bl-red)" }}>through AI</span>{" "}
+            <span style={{ color: "var(--bl-orange)" }}>Value Engineering</span>
+          </h1>
+          <p
+            className="mt-5"
+            style={{
+              maxWidth: 480,
+              color: "var(--bl-muted)",
+              fontSize: 16.5,
+              fontWeight: 600,
+              lineHeight: 1.6,
+            }}
+          >
+            Find a small business. Increase their revenue with AI. Get them to
+            pay you. Log in to track your team, projects, and verified revenue.
+          </p>
 
-          <div className="relative z-10 max-w-lg">
-            <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur border border-black/[0.06] rounded-full px-4 py-1.5 mb-8">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span
-                className="text-xs font-[family-name:var(--font-body)] font-bold tracking-[0.08em] uppercase"
-                style={{ color: "#5b5b5b" }}
-              >
-                BRAVE 2026 — Boost SME revenue
-              </span>
-            </div>
-
-            <h1
-              className="font-[family-name:var(--font-display)] font-extrabold tracking-tight mb-6"
-              style={{
-                fontSize: "clamp(36px, 4.5vw, 56px)",
-                lineHeight: 1.05,
-                color: "#1f1f1f",
-                letterSpacing: "-0.04em",
-              }}
-            >
-              Boost real revenue
-              <br />
-              for{" "}
-              <span style={{ color: "var(--color-brave-accent)" }}>
-                India's SMEs.
-              </span>
-            </h1>
-
-            <p
-              className="font-[family-name:var(--font-body)] text-lg mb-10"
-              style={{ color: "#5b5b5b", lineHeight: 1.65 }}
-            >
-              Login to track your team's progress, log SME orders, see verified
-              revenue, and climb the national leaderboard across 20 NIAT
-              campuses.
-            </p>
-
-            <div className="flex flex-wrap gap-2.5">
-              {[
-                { icon: Sparkles, label: "Build with AI" },
-                { icon: Users, label: "Real SME clients" },
-                { icon: IndianRupee, label: "Verified revenue" },
-                { icon: Trophy, label: "Demo Day finale" },
-              ].map(({ icon: Icon, label }) => (
-                <div
-                  key={label}
-                  className="flex items-center gap-2 bg-white border border-black/[0.06] rounded-full px-4 py-2"
-                  style={{ boxShadow: "0 0 16px rgba(255, 244, 219, 0.3)" }}
-                >
+          <div className="flex flex-col gap-2.5 mt-8">
+            {FEATURES.map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-3">
+                <div className="bl-icon">
                   <Icon
-                    className="w-3.5 h-3.5"
-                    style={{ color: "var(--color-brave-accent)" }}
+                    className="w-[18px] h-[18px]"
+                    style={{ color: "var(--bl-orange)" }}
                   />
-                  <span
-                    className="text-xs font-[family-name:var(--font-body)] font-medium"
-                    style={{ color: "#1f1f1f" }}
-                  >
-                    {label}
-                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative z-10 flex items-center gap-10">
-            {[
-              { value: "7,500+", label: "NIAT Students" },
-              { value: "20", label: "Campuses" },
-              { value: "₹5 Cr", label: "Funding pool" },
-            ].map(({ value, label }) => (
-              <div key={label}>
-                <p
-                  className="font-[family-name:var(--font-display)] font-extrabold text-2xl"
-                  style={{ color: "#1f1f1f" }}
-                >
-                  {value}
-                </p>
-                <p
-                  className="text-xs mt-0.5 font-[family-name:var(--font-body)]"
-                  style={{ color: "#6b6b6b" }}
-                >
-                  {label}
-                </p>
+                <span style={{ fontWeight: 700, fontSize: 14.5 }}>{label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Right — Login Panel */}
-        <div
-          className="flex items-center justify-center w-full lg:w-[42%] xl:w-[40%] px-6 py-10 relative"
-          style={{ background: "#fcfaf8" }}
-        >
-          <div className="relative z-10 w-full max-w-md">
-            <div
-              className="bg-white border border-black/[0.04] rounded-3xl p-10"
-              style={{
-                boxShadow:
-                  "0 10px 60px -10px rgba(0,0,0,0.12), 0 0 24px rgba(255, 244, 219, 0.4)",
-              }}
-            >
-              <Link
-                href="/"
-                data-testid="link-mobile-home"
-                className="flex lg:hidden items-center mb-8"
+        <div className="relative z-10 flex items-center gap-9">
+          {STATS.map((s) => (
+            <div key={s.label}>
+              <p
+                className="bl-display"
+                style={{ fontSize: 34, color: "var(--bl-orange)" }}
               >
-                <BraveLogo className="text-2xl" />
-              </Link>
-
-              <div
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1 mb-6"
+                {s.value}
+              </p>
+              <p
                 style={{
-                  background: "rgba(219, 71, 80, 0.06)",
-                  border: "1px solid rgba(219, 71, 80, 0.2)",
+                  marginTop: 2,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: "var(--bl-muted)",
                 }}
               >
-                <ShieldCheck
-                  className="w-3.5 h-3.5"
-                  style={{ color: "var(--color-brave-accent)" }}
-                />
-                <span
-                  className="text-[10px] font-[family-name:var(--font-body)] font-bold tracking-[0.08em] uppercase"
-                  style={{ color: "var(--color-brave-accent)" }}
-                >
-                  Secure NIAT login
-                </span>
-              </div>
+                {s.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
 
-              <div className="mb-8">
-                <h2
-                  className="font-[family-name:var(--font-display)] font-bold tracking-tight mb-2"
-                  style={{
-                    fontSize: "clamp(26px, 3vw, 32px)",
-                    lineHeight: 1.1,
-                    color: "#1f1f1f",
-                    letterSpacing: "-0.04em",
-                  }}
-                >
-                  Login to{" "}
-                  <span style={{ color: "var(--color-brave-accent)" }}>
-                    BRAVE
-                  </span>
-                </h2>
-                <p
-                  className="font-[family-name:var(--font-body)] text-sm"
-                  style={{ color: "#5b5b5b", lineHeight: 1.6 }}
-                >
-                  Access your dashboard to log SME orders, see verified revenue,
-                  and follow the national leaderboard.
-                </p>
-              </div>
+      {/* Right — login panel */}
+      <div className="relative flex items-center justify-center w-full lg:w-[44%] xl:w-[42%] px-6 py-12">
+        <div className="bl-grid lg:hidden" aria-hidden />
+        <div className="relative z-10 w-full max-w-md">
+          <div className="bl-card">
+            <Link
+              href="/"
+              data-testid="link-mobile-home"
+              className="flex lg:hidden items-center justify-between mb-8"
+            >
+              <BraveLogo className="text-[24px]" />
+              <span className="bl-back">
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </span>
+            </Link>
 
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 mb-6"
+              style={{
+                background: "rgba(245,163,33,.1)",
+                border: "1px solid rgba(245,163,33,.3)",
+              }}
+            >
+              <ShieldCheck
+                className="w-3.5 h-3.5"
+                style={{ color: "var(--bl-orange)" }}
+              />
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: ".09em",
+                  textTransform: "uppercase",
+                  color: "var(--bl-orange)",
+                }}
+              >
+                Secure NIAT login
+              </span>
+            </div>
+
+            <h2
+              className="bl-display"
+              style={{
+                fontSize: "clamp(32px, 4vw, 44px)",
+                lineHeight: 0.92,
+                letterSpacing: "-.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              Login to <span style={{ color: "var(--bl-orange)" }}>BRAVE</span>
+            </h2>
+            <p
+              className="mt-2.5"
+              style={{
+                color: "var(--bl-muted)",
+                fontSize: 14,
+                fontWeight: 500,
+                lineHeight: 1.55,
+              }}
+            >
+              Access your dashboard to log orders, see verified revenue, and
+              follow the national leaderboard.
+            </p>
+
+            <div className="mt-7">
               {isLoading ? (
                 <div
-                  className="w-full h-12 flex items-center justify-center gap-3 text-sm font-[family-name:var(--font-body)]"
-                  style={{ color: "#5b5b5b" }}
+                  className="flex items-center justify-center gap-3 h-[52px]"
+                  style={{ color: "var(--bl-muted)", fontSize: 14 }}
                   data-testid="signing-in-spinner"
                 >
-                  <span className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                  <span
+                    className="w-4 h-4 rounded-full animate-spin"
+                    style={{
+                      border: "2px solid rgba(255,242,219,.2)",
+                      borderTopColor: "var(--bl-orange)",
+                    }}
+                  />
                   Logging you in…
                 </div>
               ) : (
                 <>
                   {error && (
                     <div
-                      className="mb-4 p-3 rounded-xl text-sm font-[family-name:var(--font-body)]"
+                      className="mb-4 p-3 rounded-xl"
                       style={{
-                        background: "rgba(219, 71, 80, 0.08)",
-                        border: "1px solid rgba(219, 71, 80, 0.3)",
-                        color: "var(--color-brave-accent)",
+                        fontSize: 13.5,
+                        background: "rgba(199,58,46,.14)",
+                        border: "1px solid rgba(199,58,46,.4)",
+                        color: "#ffb9a8",
                       }}
                       data-testid="auth-error"
                     >
@@ -260,59 +305,65 @@ export default function Login() {
                   <button
                     onClick={() => login()}
                     data-testid="button-sign-in"
-                    className="w-full h-12 bg-[#000] text-white font-[family-name:var(--font-body)] font-medium rounded-xl flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.99] group"
-                    style={{ border: "1px solid rgba(33,33,33,0.53)" }}
+                    className="bl-cta group"
                   >
-                    Login
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                    Login to Dashboard
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                   </button>
                 </>
               )}
+            </div>
 
-              <div className="mt-6 grid grid-cols-3 gap-2">
-                {[
-                  { icon: Users, label: "Students" },
-                  { icon: ShieldCheck, label: "Coordinators" },
-                  { icon: Trophy, label: "Admins" },
-                ].map(({ icon: Icon, label }) => (
-                  <div
-                    key={label}
-                    className="flex flex-col items-center gap-1 rounded-xl px-2 py-2.5"
+            <div className="grid grid-cols-3 gap-2 mt-6">
+              {[
+                { icon: Users, label: "Students" },
+                { icon: ShieldCheck, label: "Coordinators" },
+                { icon: Trophy, label: "Admins" },
+              ].map(({ icon: Icon, label }) => (
+                <div
+                  key={label}
+                  className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3"
+                  style={{
+                    background: "rgba(255,255,255,.04)",
+                    border: "1px solid rgba(255,164,32,.14)",
+                  }}
+                >
+                  <Icon
+                    className="w-4 h-4"
+                    style={{ color: "var(--bl-orange)" }}
+                  />
+                  <span
                     style={{
-                      background: "#fcfaf8",
-                      border: "1px solid rgba(34,34,34,0.06)",
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      color: "var(--bl-muted)",
                     }}
                   >
-                    <Icon
-                      className="w-3.5 h-3.5"
-                      style={{ color: "var(--color-brave-accent)" }}
-                    />
-                    <span
-                      className="text-[10px] font-[family-name:var(--font-body)] font-medium"
-                      style={{ color: "#5b5b5b" }}
-                    >
-                      {label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <p
-                className="mt-6 text-xs text-center leading-relaxed font-[family-name:var(--font-body)]"
-                style={{ color: "#a6a6a6" }}
-              >
-                By logging in, you agree to the NIAT code of conduct and BRAVE
-                program terms.
-              </p>
+                    {label}
+                  </span>
+                </div>
+              ))}
             </div>
 
             <p
-              className="text-center text-xs mt-6 font-[family-name:var(--font-body)]"
-              style={{ color: "#a6a6a6" }}
+              className="mt-6 text-center"
+              style={{
+                fontSize: 11.5,
+                lineHeight: 1.6,
+                color: "rgba(255,242,219,.4)",
+              }}
             >
-              NIAT India · BRAVE — Boosting revenue for India's SMEs
+              By logging in, you agree to the NIAT code of conduct and BRAVE
+              programme terms.
             </p>
           </div>
+
+          <p
+            className="text-center mt-6"
+            style={{ fontSize: 12, color: "rgba(255,242,219,.38)" }}
+          >
+            NIAT India · BRAVE — Boosting Revenue through AI Value Engineering
+          </p>
         </div>
       </div>
     </div>
