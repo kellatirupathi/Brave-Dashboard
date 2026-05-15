@@ -25,7 +25,7 @@ function LoginStyles() {
   --bl-cream: #fff3df;
   --bl-muted: rgba(255,243,223,0.76);
   position: relative;
-  overflow: hidden;
+  overflow-x: clip;
   color: var(--bl-cream);
   font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
   background:
@@ -75,7 +75,7 @@ function LoginStyles() {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
 }
 .bl-card {
-  position: relative; border-radius: 26px; padding: 36px;
+  position: relative; border-radius: 26px; padding: 28px;
   border: 1px solid rgba(247,172,43,.2);
   background: linear-gradient(150deg, rgba(40,11,7,.98), rgba(12,4,3,.96));
   box-shadow: 0 32px 90px rgba(0,0,0,.55); overflow: hidden;
@@ -87,7 +87,7 @@ function LoginStyles() {
 
 /* mini hero scene */
 .bl-scene {
-  position: relative; width: 100%; min-height: 230px; border-radius: 22px; overflow: hidden;
+  position: relative; width: 100%; min-height: 178px; border-radius: 22px; overflow: hidden;
   border: 1px solid rgba(247,172,43,.18);
   background: linear-gradient(180deg, #2a0a05 0%, #160604 48%, #0a0302 100%);
   box-shadow: 0 22px 56px rgba(0,0,0,.45);
@@ -168,11 +168,11 @@ export default function Login() {
   }, [isAuthenticated, isLoading, user, setLocation]);
 
   return (
-    <div className="bl-root min-h-screen flex flex-col lg:flex-row">
+    <div className="bl-root min-h-screen lg:h-screen lg:overflow-hidden flex flex-col lg:flex-row">
       <LoginStyles />
 
       {/* Left — dark hero panel */}
-      <div className="relative hidden lg:flex flex-col justify-between lg:w-[55%] xl:w-[57%] px-12 py-12 overflow-hidden">
+      <div className="relative hidden lg:flex flex-col justify-between lg:w-[55%] xl:w-[57%] px-12 py-10 overflow-hidden">
         <div className="bl-grid" aria-hidden />
         <div className="bl-watermark bl-display" aria-hidden>
           BRAVE
@@ -262,7 +262,7 @@ export default function Login() {
       </div>
 
       {/* Right — login panel */}
-      <div className="relative flex items-center justify-center w-full lg:w-[45%] xl:w-[43%] px-6 py-12">
+      <div className="relative flex items-center justify-center w-full lg:w-[45%] xl:w-[43%] px-6 py-8">
         <div className="bl-grid lg:hidden" aria-hidden />
         <div className="relative z-10 w-full max-w-md">
           {/* mobile logo */}
@@ -276,7 +276,7 @@ export default function Login() {
 
           <div className="bl-card">
             {/* mini mountain scene */}
-            <div className="bl-scene mb-7" aria-hidden>
+            <div className="bl-scene mb-6" aria-hidden>
               <div className="bl-stars" />
               <div className="bl-sun" />
               <div className="bl-haze" />

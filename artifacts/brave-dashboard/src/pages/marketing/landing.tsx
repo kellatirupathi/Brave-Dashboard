@@ -189,7 +189,7 @@ function BraveStyles() {
   --bd-cream: #fff3df;
   --bd-muted: rgba(255,243,223,0.76);
   position: relative;
-  overflow-x: hidden;
+  overflow-x: clip;
   color: var(--bd-cream);
   font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
   background:
