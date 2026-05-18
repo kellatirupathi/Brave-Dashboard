@@ -19,6 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -35,11 +42,17 @@ import {
   listAdminJournals,
   getJournalCoverage,
   deleteJournal,
-  type JournalRow,
+  listCampusesForFilter,
   type WeeklyJournal,
 } from "@/lib/progress-api";
 
-export default function AdminJournals() {
+type Props = {
+  scope?: "admin" | "coordinator";
+};
+
+const ALL = "all" as const;
+
+export default function AdminJournals({ scope = "admin" }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<WeeklyJournal | null>(null);
@@ -70,36 +83,89 @@ export default function AdminJournals() {
     queryKey: ["admin-journals-coverage"],
     queryFn: getJournalCoverage,
   });
+
+  // Campuses — only fetched for admin scope (coordinators are already
+  // scoped to their own campus by the API).
+  const { data: campuses } = useQuery({
+    queryKey: ["campuses-filter"],
+    queryFn: listCampusesForFilter,
+    enabled: scope === "admin",
+  });
+
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"submitted" | "missed">("submitted");
+  const [weekFilter, setWeekFilter] = useState<string>(ALL);
+  const [campusFilter, setCampusFilter] = useState<string>(ALL);
+
+  // Build the list of unique weeks from the loaded journals so the dropdown
+  // matches what's actually present in the data. Sorted newest first.
+  const weekOptions = useMemo(() => {
+    if (!journals) return [] as Array<{ value: string; label: string }>;
+    const seen = new Map<string, string>();
+    for (const j of journals) {
+      if (!seen.has(j.weekStartDate)) {
+        seen.set(j.weekStartDate, `${j.weekStartDate} → ${j.weekEndDate}`);
+      }
+    }
+    return Array.from(seen.entries())
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([value, label]) => ({ value, label }));
+  }, [journals]);
 
   const filtered = useMemo(() => {
     if (!journals) return [];
     const q = query.trim().toLowerCase();
     return journals.filter((j) => {
-      if (!q) return true;
-      return (
-        (j.teamName ?? "").toLowerCase().includes(q) ||
-        (j.campusName ?? "").toLowerCase().includes(q) ||
-        (j.submittedByName ?? "").toLowerCase().includes(q) ||
-        j.whatWeDid.toLowerCase().includes(q)
-      );
+      if (q) {
+        const hit =
+          (j.teamName ?? "").toLowerCase().includes(q) ||
+          (j.campusName ?? "").toLowerCase().includes(q) ||
+          (j.submittedByName ?? "").toLowerCase().includes(q) ||
+          j.whatWeDid.toLowerCase().includes(q);
+        if (!hit) return false;
+      }
+      if (weekFilter !== ALL && j.weekStartDate !== weekFilter) return false;
+      if (
+        scope === "admin" &&
+        campusFilter !== ALL &&
+        (j.campusName ?? "") !==
+          (campuses?.find((c) => String(c.id) === campusFilter)?.name ?? "")
+      ) {
+        return false;
+      }
+      return true;
     });
-  }, [journals, query]);
+  }, [journals, query, weekFilter, campusFilter, scope, campuses]);
 
   const missedTeams = useMemo(() => {
     if (!coverage) return [];
     const q = query.trim().toLowerCase();
+    const selectedCampusName =
+      scope === "admin" && campusFilter !== ALL
+        ? (campuses?.find((c) => String(c.id) === campusFilter)?.name ?? null)
+        : null;
     return coverage
       .filter((t) => t.missedWeeks > 0)
       .filter((t) => {
-        if (!q) return true;
-        return (
-          t.teamName.toLowerCase().includes(q) ||
-          (t.campusName ?? "").toLowerCase().includes(q)
-        );
+        if (q) {
+          const hit =
+            t.teamName.toLowerCase().includes(q) ||
+            (t.campusName ?? "").toLowerCase().includes(q);
+          if (!hit) return false;
+        }
+        if (selectedCampusName !== null && t.campusName !== selectedCampusName)
+          return false;
+        // Week filter on the missed tab: when a specific week is chosen, show
+        // only teams who didn't submit *for that week*. We approximate this
+        // using `lastSubmittedWeek` — a team is missing the selected week if
+        // they never submitted or their last submission is strictly before it.
+        if (weekFilter !== ALL) {
+          if (!t.lastSubmittedWeek) return true;
+          if (t.lastSubmittedWeek >= weekFilter) return false;
+        }
+        return true;
       });
-  }, [coverage, query]);
+  }, [coverage, query, weekFilter, campusFilter, scope, campuses]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -114,38 +180,78 @@ export default function AdminJournals() {
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by team, campus, member name, or content"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-9"
-            data-testid="journals-search"
-          />
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by team, campus, member name, or content"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="pl-9"
+              data-testid="journals-search"
+            />
+          </div>
+          <div className="flex gap-1">
+            {(
+              [
+                { v: "submitted", label: "Submitted" },
+                { v: "missed", label: "Teams missing journals" },
+              ] as const
+            ).map((b) => (
+              <button
+                key={b.v}
+                type="button"
+                onClick={() => setTab(b.v)}
+                className={cn(
+                  "px-3 py-1.5 text-xs rounded-md border transition-colors",
+                  tab === b.v
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "hover:bg-accent",
+                )}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1">
-          {(
-            [
-              { v: "submitted", label: "Submitted" },
-              { v: "missed", label: "Teams missing journals" },
-            ] as const
-          ).map((b) => (
-            <button
-              key={b.v}
-              type="button"
-              onClick={() => setTab(b.v)}
-              className={cn(
-                "px-3 py-1.5 text-xs rounded-md border transition-colors",
-                tab === b.v
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "hover:bg-accent",
-              )}
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Select value={weekFilter} onValueChange={setWeekFilter}>
+            <SelectTrigger
+              className="sm:w-72"
+              data-testid="journals-week-filter"
             >
-              {b.label}
-            </button>
-          ))}
+              <SelectValue placeholder="All weeks" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All weeks</SelectItem>
+              {weekOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  Week {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {scope === "admin" && (
+            <Select value={campusFilter} onValueChange={setCampusFilter}>
+              <SelectTrigger
+                className="sm:w-64"
+                data-testid="journals-campus-filter"
+              >
+                <SelectValue placeholder="All campuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All campuses</SelectItem>
+                {(campuses ?? []).map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 

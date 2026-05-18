@@ -730,57 +730,90 @@ export default function ProjectDetail() {
                   No revenue entries yet.
                 </div>
               ) : (
-                project.revenueEntries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="p-4 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="space-y-1">
-                      <div className="font-semibold text-lg">
-                        {entry.clientName}
-                      </div>
-                      <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
-                        <span>
-                          Amount:{" "}
-                          <strong className="text-foreground">
-                            {formatINR(entry.amount)}
-                          </strong>
-                        </span>
-                        <span>•</span>
-                        <span>Paid: {formatDate(entry.paymentDate)}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-3 pt-1">
-                        {docLink(entry.brdUrl, "BRD")}
-                        {docLink(entry.testimonialUrl, "Testimonial")}
-                      </div>
-                      {entry.adminNotes && entry.status === "rejected" && (
-                        <div className="text-sm text-destructive mt-2 bg-destructive/10 p-2 rounded-md">
-                          <strong>Admin note:</strong> {entry.adminNotes}
+                project.revenueEntries.map((entry) => {
+                  const isDraft = entry.status === "draft";
+                  return (
+                    <div
+                      key={entry.id}
+                      className={
+                        isDraft
+                          ? "p-4 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center transition-colors border-l-4 border-l-amber-500 bg-amber-50/60 dark:bg-amber-950/20"
+                          : "p-4 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center hover:bg-muted/30 transition-colors"
+                      }
+                      data-testid={`revenue-entry-${entry.id}`}
+                    >
+                      <div className="space-y-1 w-full sm:w-auto">
+                        <div className="font-semibold text-lg">
+                          {entry.clientName}
                         </div>
-                      )}
+                        <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+                          <span>
+                            Amount:{" "}
+                            <strong className="text-foreground">
+                              {formatINR(entry.amount)}
+                            </strong>
+                          </span>
+                          <span>•</span>
+                          <span>Paid: {formatDate(entry.paymentDate)}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-3 pt-1">
+                          {docLink(entry.brdUrl, "BRD")}
+                          {docLink(entry.testimonialUrl, "Testimonial")}
+                        </div>
+                        {entry.adminNotes && entry.status === "rejected" && (
+                          <div className="text-sm text-destructive mt-2 bg-destructive/10 p-2 rounded-md">
+                            <strong>Admin note:</strong> {entry.adminNotes}
+                          </div>
+                        )}
+                        {isDraft && (
+                          <p
+                            className="text-xs text-amber-700 dark:text-amber-300 pt-1 font-medium"
+                            data-testid={`draft-hint-${entry.id}`}
+                          >
+                            Not submitted yet — admins can't review this until
+                            you submit.
+                          </p>
+                        )}
+                      </div>
+                      <div
+                        className={
+                          isDraft
+                            ? "flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto"
+                            : "flex flex-col items-end gap-2"
+                        }
+                      >
+                        {!isDraft && getStatusBadge(entry.status)}
+                        {isLeader && isDraft && (
+                          <div className="relative w-full sm:w-auto">
+                            <Button
+                              size="default"
+                              disabled={
+                                submitRevenue.isPending || !entry.brdUrl
+                              }
+                              onClick={() => handleSubmitRevenue(entry.id)}
+                              title={
+                                !entry.brdUrl
+                                  ? "Upload a BRD before submitting"
+                                  : undefined
+                              }
+                              className="w-full sm:w-auto shadow-md shadow-primary/30 font-semibold"
+                              data-testid={`button-submit-revenue-${entry.id}`}
+                            >
+                              <Send className="w-4 h-4 mr-2" /> Submit for
+                              verification
+                            </Button>
+                            {entry.brdUrl && !submitRevenue.isPending && (
+                              <span
+                                aria-hidden
+                                className="pointer-events-none absolute inset-0 rounded-md ring-2 ring-primary/60 animate-pulse"
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      {getStatusBadge(entry.status)}
-                      {isLeader && entry.status === "draft" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={submitRevenue.isPending || !entry.brdUrl}
-                          onClick={() => handleSubmitRevenue(entry.id)}
-                          title={
-                            !entry.brdUrl
-                              ? "Upload a BRD before submitting"
-                              : undefined
-                          }
-                          data-testid={`button-submit-revenue-${entry.id}`}
-                        >
-                          <Send className="w-3 h-3 mr-1" /> Submit for
-                          verification
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </Card>
