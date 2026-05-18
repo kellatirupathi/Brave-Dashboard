@@ -25,6 +25,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,6 +106,13 @@ export default function AdminJournals({ scope = "admin" }: Props) {
   const [tab, setTab] = useState<"submitted" | "missed">("submitted");
   const [weekFilter, setWeekFilter] = useState<string>(ALL);
   const [campusFilter, setCampusFilter] = useState<string>(ALL);
+  const [campusPopoverOpen, setCampusPopoverOpen] = useState(false);
+
+  const selectedCampusName =
+    campusFilter === ALL
+      ? "All campuses"
+      : (campuses?.find((c) => String(c.id) === campusFilter)?.name ??
+        "All campuses");
 
   // Build the list of unique weeks from the loaded journals so the dropdown
   // matches what's actually present in the data. Sorted newest first.
@@ -235,22 +252,79 @@ export default function AdminJournals({ scope = "admin" }: Props) {
           </Select>
 
           {scope === "admin" && (
-            <Select value={campusFilter} onValueChange={setCampusFilter}>
-              <SelectTrigger
-                className="sm:w-64"
-                data-testid="journals-campus-filter"
+            <Popover
+              open={campusPopoverOpen}
+              onOpenChange={setCampusPopoverOpen}
+            >
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={campusPopoverOpen}
+                  className="sm:w-64 justify-between font-normal"
+                  data-testid="journals-campus-filter"
+                >
+                  <span className="truncate">{selectedCampusName}</span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-[--radix-popover-trigger-width] p-0"
+                align="start"
               >
-                <SelectValue placeholder="All campuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All campuses</SelectItem>
-                {(campuses ?? []).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Command>
+                  <CommandInput
+                    placeholder="Search campuses…"
+                    data-testid="journals-campus-search"
+                  />
+                  <CommandList className="max-h-72">
+                    <CommandEmpty>No campus found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="All campuses"
+                        onSelect={() => {
+                          setCampusFilter(ALL);
+                          setCampusPopoverOpen(false);
+                        }}
+                        data-testid="journals-campus-option-all"
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            campusFilter === ALL ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        All campuses
+                      </CommandItem>
+                      {(campuses ?? []).map((c) => {
+                        const value = String(c.id);
+                        return (
+                          <CommandItem
+                            key={c.id}
+                            value={c.name}
+                            onSelect={() => {
+                              setCampusFilter(value);
+                              setCampusPopoverOpen(false);
+                            }}
+                            data-testid={`journals-campus-option-${c.id}`}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                campusFilter === value
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                            {c.name}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           )}
         </div>
       </div>
