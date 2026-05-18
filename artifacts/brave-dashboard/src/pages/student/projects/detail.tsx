@@ -685,6 +685,7 @@ export default function ProjectDetail() {
                             </p>
                             <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
                               <li>Business Owner Details</li>
+                              <li>Client WhatsApp Chats / Screenshots</li>
                               <li>Problem Identified</li>
                               <li>Solution Proposed</li>
                               <li>Phase-wise Plan</li>
