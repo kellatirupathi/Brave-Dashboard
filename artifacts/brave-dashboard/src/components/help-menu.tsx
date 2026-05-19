@@ -93,9 +93,8 @@ export function HelpMenu({ inline = false }: { inline?: boolean } = {}) {
 
   // Rotate hints every HINT_INTERVAL_MS, with a brief fade-out/in transition.
   // Pauses when the popover is open or the user is hovering the hint pill.
-  // Skipped entirely for the inline header variant (no hint pill there).
   useEffect(() => {
-    if (inline || !enabled || open || hintHovered) return;
+    if (!enabled || open || hintHovered) return;
     const tick = setInterval(() => {
       setHintVisible(false);
       fadeTimer.current = setTimeout(() => {
@@ -168,40 +167,53 @@ export function HelpMenu({ inline = false }: { inline?: boolean } = {}) {
     ? "h-5 w-5 transition-transform"
     : "h-6 w-6 transition-transform";
 
+  // Rotating hint pill content — role-aware (student vs staff). Hidden when
+  // the menu is open or while hovered (pauses rotation). For the inline
+  // header variant, this renders next to the icon as a flex sibling; for the
+  // floating variant, it's absolutely positioned to the left of the button.
+  const hintPill = !open && (
+    <div
+      className={
+        inline
+          ? "hidden md:flex items-center pointer-events-auto"
+          : "hidden md:flex fixed bottom-6 right-[10rem] z-50 items-center pointer-events-auto"
+      }
+      onMouseEnter={() => setHintHovered(true)}
+      onMouseLeave={() => setHintHovered(false)}
+      aria-hidden="true"
+      data-testid="help-hint"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`max-w-xs whitespace-nowrap rounded-full border border-primary/20 bg-background ${
+          inline ? "px-3 py-1.5 text-[11px]" : "px-3.5 py-2 text-xs"
+        } font-medium text-foreground shadow-md transition-all duration-300 hover:bg-accent hover:scale-[1.02] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          hintVisible
+            ? "opacity-100 translate-x-0"
+            : "opacity-0 translate-x-2"
+        }`}
+      >
+        {hints[hintIndex % hints.length]}
+      </button>
+      {/* Small triangle pointer toward the help button */}
+      <span
+        className={`ml-[-1px] h-0 w-0 border-y-[6px] border-l-[6px] border-y-transparent border-l-background transition-opacity duration-300 ${
+          hintVisible ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </div>
+  );
+
   return (
     <>
-      {/* Rotating hint pill — sits to the LEFT of the floating help button.
-          Hidden when the menu is open, on small screens, while hovered (pauses
-          rotation), or in inline mode (the dashboard top-bar doesn't need a hint pill). */}
-      {!inline && !open && (
-        <div
-          className="hidden md:flex fixed bottom-6 right-[10rem] z-50 items-center pointer-events-auto"
-          onMouseEnter={() => setHintHovered(true)}
-          onMouseLeave={() => setHintHovered(false)}
-          aria-hidden="true"
-          data-testid="help-hint"
-        >
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className={`max-w-xs whitespace-nowrap rounded-full border border-primary/20 bg-background px-3.5 py-2 text-xs font-medium text-foreground shadow-md transition-all duration-300 hover:bg-accent hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              hintVisible
-                ? "opacity-100 translate-x-0"
-                : "opacity-0 translate-x-2"
-            }`}
-          >
-            {hints[hintIndex % hints.length]}
-          </button>
-          {/* Small triangle pointer toward the help button */}
-          <span
-            className={`ml-[-1px] h-0 w-0 border-y-[6px] border-l-[6px] border-y-transparent border-l-background transition-opacity duration-300 ${
-              hintVisible ? "opacity-100" : "opacity-0"
-            }`}
-          />
-        </div>
-      )}
+      {/* Floating-variant hint pill (the inline variant renders the pill
+          alongside the trigger button below so they stay together). */}
+      {!inline && hintPill}
 
-      <Popover open={open} onOpenChange={setOpen}>
+      <div className={inline ? "inline-flex items-center gap-1" : "contents"}>
+        {inline && hintPill}
+        <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -255,6 +267,7 @@ export function HelpMenu({ inline = false }: { inline?: boolean } = {}) {
           })}
         </PopoverContent>
       </Popover>
+      </div>
 
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </>
