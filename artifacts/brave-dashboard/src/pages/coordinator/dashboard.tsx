@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { HelpMenu } from "@/components/help-menu";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -214,7 +215,10 @@ export default function CoordinatorDashboard() {
               Overview of your campus performance
             </p>
           </div>
-          <NotificationsBell />
+          <div className="flex items-center gap-2">
+            <HelpMenu inline />
+            <NotificationsBell />
+          </div>
         </div>
 
         {/* Row 1 — KPI Cards (UNCHANGED) */}

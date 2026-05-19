@@ -12,6 +12,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { HelpMenu } from "@/components/help-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -357,6 +358,9 @@ export default function AdminDashboard() {
               National Dashboard
             </h1>
             <p className="text-muted-foreground">High-level program overview</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <HelpMenu inline />
           </div>
         </div>
 

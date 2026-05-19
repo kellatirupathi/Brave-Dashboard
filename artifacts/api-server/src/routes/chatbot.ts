@@ -54,9 +54,18 @@ Rules:
 - Answer ONLY using the knowledge below. If the answer is not in it, say you don't have that info and suggest contacting the Campus Coordinator. Never invent facts.
 - Keep replies concise and easy to read. Use short paragraphs and bullet points when helpful.
 - All amounts are in Indian rupees (₹) using lakh notation (e.g. ₹2,00,000).
-- Respond in STRICT JSON only, no markdown fences, with this exact shape:
-  { "answer": string, "suggestions": string[] }
-  where "suggestions" is 2 to 3 short follow-up questions related to the user's question (each under 70 characters). If you cannot think of follow-ups, use an empty array.
+
+OUTPUT FORMAT — STRICT:
+Reply with a SINGLE valid JSON object and nothing else. No prose before or after. No markdown code fences. No comments. No template-literal syntax. The very first character of your reply MUST be the opening brace { and the very last character MUST be the closing brace }.
+
+The JSON object must have exactly these two keys (and no others):
+{
+  "answer": "<your answer as a plain string>",
+  "suggestions": ["<follow-up question 1>", "<follow-up question 2>", "<optional follow-up question 3>"]
+}
+
+- "answer" is a plain string. Inside it, escape any literal double quotes as \\".
+- "suggestions" is an array of 2 or 3 short follow-up questions related to the user's question, each under 70 characters. If you cannot think of follow-ups, use an empty array [].
 
 === BRAVE KNOWLEDGE BASE ===
 ${knowledge}
@@ -74,8 +83,54 @@ function parseModelReply(raw: string): ParsedReply {
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/```\s*$/i, "")
     .trim();
+
+  // 1) Strict JSON parse first.
+  const direct = tryStrictParse(unfenced);
+  if (direct) return direct;
+
+  // 2) Extract just the first balanced { ... } block and try again — the
+  //    model sometimes prepends a stray character (e.g. ">$" before "answer").
+  const braceStart = unfenced.indexOf("{");
+  const braceEnd = unfenced.lastIndexOf("}");
+  if (braceStart !== -1 && braceEnd > braceStart) {
+    const slice = unfenced.slice(braceStart, braceEnd + 1);
+    const sliced = tryStrictParse(slice);
+    if (sliced) return sliced;
+  }
+
+  // 3) Last-resort regex extraction. Useful when the model emits malformed
+  //    JSON like {">${answer": "..."} — we still want to surface the
+  //    human-readable answer rather than dumping raw JSON into the UI.
+  const answerMatch =
+    /"\s*answer\s*"?\s*:\s*"((?:[^"\\]|\\.)*)"/i.exec(unfenced);
+  if (answerMatch) {
+    const answer = unescapeJsonString(answerMatch[1] ?? "").trim();
+    const suggestionsBlock =
+      /"\s*suggestions\s*"?\s*:\s*\[([\s\S]*?)\]/i.exec(unfenced);
+    const suggestions: string[] = [];
+    if (suggestionsBlock) {
+      const itemRe = /"((?:[^"\\]|\\.)*)"/g;
+      let m: RegExpExecArray | null;
+      while ((m = itemRe.exec(suggestionsBlock[1] ?? "")) !== null) {
+        const s = unescapeJsonString(m[1] ?? "").trim();
+        if (s) suggestions.push(s);
+        if (suggestions.length >= 3) break;
+      }
+    }
+    if (answer) return { answer, suggestions };
+  }
+
+  // 4) Give up — never show raw JSON. Return a generic fallback message.
+  return {
+    answer:
+      "Sorry — I couldn't format that reply. Please try asking again, or rephrase your question.",
+    suggestions: [],
+  };
+}
+
+function tryStrictParse(text: string): ParsedReply | null {
   try {
-    const obj = JSON.parse(unfenced) as unknown;
+    const obj = JSON.parse(text) as unknown;
     if (
       obj &&
       typeof obj === "object" &&
@@ -91,12 +146,21 @@ function parseModelReply(raw: string): ParsedReply {
             .filter((s) => s.length > 0)
             .slice(0, 3)
         : [];
-      return { answer, suggestions };
+      if (answer) return { answer, suggestions };
     }
   } catch {
-    // fall through
+    /* fall through */
   }
-  return { answer: trimmed, suggestions: [] };
+  return null;
+}
+
+function unescapeJsonString(s: string): string {
+  return s
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\r/g, "\r")
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, "\\");
 }
 
 router.post(

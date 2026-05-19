@@ -10,7 +10,6 @@ import {
   SheetTitle,
   SheetDescription,
 } from "./ui/sheet";
-import { HelpMenu } from "./help-menu";
 import { Chatbot } from "./chatbot";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -61,8 +60,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      {/* Floating help menu — students only; component self-gates by role. */}
-      <HelpMenu />
+      {/* Help menu is now rendered inline in each role's dashboard top-bar
+          (next to the notifications bell) instead of floating. */}
 
       {/* Floating BRAVE assistant chatbot — visible to all logged-in users. */}
       <Chatbot variant="light" />

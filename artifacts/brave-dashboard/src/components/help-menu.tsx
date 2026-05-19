@@ -63,7 +63,7 @@ function buildSupportMailto(opts: {
   )}&body=${encodeURIComponent(body)}`;
 }
 
-export function HelpMenu() {
+export function HelpMenu({ inline = false }: { inline?: boolean } = {}) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -93,8 +93,9 @@ export function HelpMenu() {
 
   // Rotate hints every HINT_INTERVAL_MS, with a brief fade-out/in transition.
   // Pauses when the popover is open or the user is hovering the hint pill.
+  // Skipped entirely for the inline header variant (no hint pill there).
   useEffect(() => {
-    if (!enabled || open || hintHovered) return;
+    if (inline || !enabled || open || hintHovered) return;
     const tick = setInterval(() => {
       setHintVisible(false);
       fadeTimer.current = setTimeout(() => {
@@ -156,11 +157,23 @@ export function HelpMenu() {
     },
   ];
 
+  // Inline variant: compact icon-only button matching the notifications bell.
+  // Used in dashboard top bars (next to the bell). No floating positioning,
+  // no rotating hint pill.
+  const triggerClassName = inline
+    ? "relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+    : "fixed bottom-6 right-24 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+  const triggerIconClassName = inline
+    ? "h-5 w-5 transition-transform"
+    : "h-6 w-6 transition-transform";
+
   return (
     <>
       {/* Rotating hint pill — sits to the LEFT of the floating help button.
-          Hidden when the menu is open, on small screens, or while hovered (pauses rotation). */}
-      {!open && (
+          Hidden when the menu is open, on small screens, while hovered (pauses
+          rotation), or in inline mode (the dashboard top-bar doesn't need a hint pill). */}
+      {!inline && !open && (
         <div
           className="hidden md:flex fixed bottom-6 right-[10rem] z-50 items-center pointer-events-auto"
           onMouseEnter={() => setHintHovered(true)}
@@ -195,19 +208,19 @@ export function HelpMenu() {
             aria-label={open ? "Close help menu" : "Open help menu"}
             title={open ? "Close" : "Help"}
             data-testid="button-help-menu"
-            className="fixed bottom-6 right-24 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className={triggerClassName}
           >
             {open ? (
-              <ChevronDown className="h-6 w-6 transition-transform" />
+              <ChevronDown className={triggerIconClassName} />
             ) : (
-              <HelpCircle className="h-6 w-6 transition-transform" />
+              <HelpCircle className={triggerIconClassName} />
             )}
           </button>
         </PopoverTrigger>
         <PopoverContent
-          side="top"
+          side={inline ? "bottom" : "top"}
           align="end"
-          sideOffset={12}
+          sideOffset={inline ? 8 : 12}
           className="w-64 p-2"
           data-testid="menu-help"
         >

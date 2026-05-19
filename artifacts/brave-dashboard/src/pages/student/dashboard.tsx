@@ -15,6 +15,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { HelpMenu } from "@/components/help-menu";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SupportBanner } from "@/components/support-banner";
 import { ProgressWidgets } from "@/components/progress-widgets";
@@ -61,6 +62,7 @@ export default function TeamDashboard() {
             </p>
           </Link>
           <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end">
+            <HelpMenu inline />
             {summary.demoEligible && (
               <Badge
                 variant="default"
