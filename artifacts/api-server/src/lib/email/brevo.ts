@@ -1,6 +1,14 @@
+// Transactional email delivery — Amazon SES.
+//
+// NOTE: This module is still named `brevo.ts` because many callers import
+// from "./lib/email/brevo". Only the implementation has been swapped from
+// Brevo to Amazon SES — exports, types, and signatures are unchanged so
+// nothing else in the codebase needs to change.
+import {
+  SESv2Client,
+  SendEmailCommand,
+} from "@aws-sdk/client-sesv2";
 import { logger } from "../logger";
-
-const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 export type EmailRecipient = {
   email: string;
@@ -14,22 +22,27 @@ export type SendEmailInput = {
 };
 
 /**
- * Send a plain-text transactional email via Brevo.
+ * Send a plain-text transactional email via Amazon SES (SESv2).
  *
- * - Reads BREVO_API_KEY, BREVO_FROM_EMAIL, BREVO_FROM_NAME from env.
- * - If BREVO_API_KEY is missing we log a warning and resolve `false` so the
- *   caller's main flow (e.g. verifying a revenue entry) still succeeds.
- * - Errors from Brevo are caught and logged — they never throw out of here.
+ * - Reads AWS_REGION (default ap-south-1) and EMAIL_FROM
+ *   (default brave.niat@nxtwave.in) from env.
+ * - AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) are picked up
+ *   automatically by the SDK from the environment — never hard-coded.
+ * - From address shown to recipients is `BRAVE Dashboard <EMAIL_FROM>`.
+ * - If required AWS credentials are missing, or there are no valid
+ *   recipients, we log a warning and resolve `false` so the caller's main
+ *   flow (e.g. verifying a revenue entry) still succeeds.
+ * - All SES errors are caught and logged — this function never throws.
  */
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
-  const apiKey = process.env.BREVO_API_KEY;
-  const fromEmail = process.env.BREVO_FROM_EMAIL || "brave.niat@nxtwave.in";
-  const fromName = process.env.BREVO_FROM_NAME || "BRAVE Dashboard";
+  const region = process.env.AWS_REGION || "ap-south-1";
+  const fromEmail = process.env.EMAIL_FROM || "brave.niat@nxtwave.in";
+  const fromAddress = `BRAVE Dashboard <${fromEmail}>`;
 
-  if (!apiKey) {
+  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
     logger.warn(
       { subject: input.subject },
-      "BREVO_API_KEY not set — email skipped",
+      "AWS SES credentials not set — email skipped",
     );
     return false;
   }
@@ -45,36 +58,34 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   }
 
   try {
-    const res = await fetch(BREVO_API_URL, {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        "api-key": apiKey,
-        "content-type": "application/json",
+    const client = new SESv2Client({ region });
+    const command = new SendEmailCommand({
+      FromEmailAddress: fromAddress,
+      Destination: {
+        ToAddresses: valid.map((r) => r.email),
       },
-      body: JSON.stringify({
-        sender: { email: fromEmail, name: fromName },
-        to: valid,
-        subject: input.subject,
-        textContent: input.text,
-      }),
+      Content: {
+        Simple: {
+          Subject: { Data: input.subject, Charset: "UTF-8" },
+          Body: {
+            Text: { Data: input.text, Charset: "UTF-8" },
+          },
+        },
+      },
     });
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      logger.error(
-        { status: res.status, body, subject: input.subject },
-        "Brevo email send failed",
-      );
-      return false;
-    }
+    const result = await client.send(command);
     logger.info(
-      { subject: input.subject, recipients: valid.map((r) => r.email) },
-      "Email sent via Brevo",
+      {
+        subject: input.subject,
+        recipients: valid.map((r) => r.email),
+        messageId: result.MessageId,
+      },
+      "Email sent via Amazon SES",
     );
     return true;
   } catch (err) {
-    logger.error({ err, subject: input.subject }, "Brevo email threw");
+    logger.error({ err, subject: input.subject }, "Amazon SES email threw");
     return false;
   }
 }

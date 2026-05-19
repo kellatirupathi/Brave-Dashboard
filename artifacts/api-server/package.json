@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1048.0",
     "@google-cloud/storage": "^7.19.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
