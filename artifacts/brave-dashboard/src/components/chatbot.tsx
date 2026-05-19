@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Send, Trash2 } from "lucide-react";
+import chatbotIconUrl from "@assets/image_1779221600894.png";
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = {
@@ -172,7 +173,7 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
             className="absolute inset-0 rounded-full"
             style={{
               background:
-                "radial-gradient(circle, rgba(247,172,43,0.55) 0%, rgba(212,64,47,0) 70%)",
+                "radial-gradient(circle, rgba(125,228,255,0.45) 0%, rgba(26,31,77,0) 70%)",
               animation: "brave-chatbot-pulse 2.4s ease-in-out infinite",
             }}
           />
@@ -180,19 +181,24 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
             aria-hidden="true"
             className="absolute -inset-1 rounded-full opacity-70"
             style={{
-              boxShadow: "0 0 0 0 rgba(247,172,43,0.6)",
+              boxShadow: "0 0 0 0 rgba(125,228,255,0.55)",
               animation:
                 "brave-chatbot-ping 2.4s cubic-bezier(0,0,0.2,1) infinite",
             }}
           />
           <span
-            className="relative flex h-14 w-14 items-center justify-center rounded-full text-white shadow-xl transition-transform group-hover:scale-110 group-active:scale-95"
+            className="relative block h-16 w-16 transition-transform group-hover:scale-110 group-active:scale-95"
             style={{
-              background: "linear-gradient(135deg, #d4402f 0%, #f7ac2b 100%)",
-              boxShadow: "0 12px 32px -8px rgba(212,64,47,0.6)",
+              filter: "drop-shadow(0 12px 24px rgba(26,31,77,0.5))",
             }}
           >
-            <BraveLauncherIcon />
+            <img
+              src={chatbotIconUrl}
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              className="h-full w-full select-none object-contain"
+            />
           </span>
         </button>
       )}
