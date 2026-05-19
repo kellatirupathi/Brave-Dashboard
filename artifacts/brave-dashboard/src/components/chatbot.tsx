@@ -163,7 +163,7 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
             className="absolute inset-0 rounded-full"
             style={{
               background:
-                "radial-gradient(circle, rgba(247,172,43,0.55) 0%, rgba(212,64,47,0) 70%)",
+                "radial-gradient(circle, rgba(125,228,255,0.45) 0%, rgba(26,31,77,0) 70%)",
               animation: "brave-chatbot-pulse 2.4s ease-in-out infinite",
             }}
           />
@@ -172,7 +172,7 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
             className="absolute -inset-1 rounded-full opacity-70"
             style={{
               boxShadow:
-                "0 0 0 0 rgba(247,172,43,0.6)",
+                "0 0 0 0 rgba(125,228,255,0.55)",
               animation: "brave-chatbot-ping 2.4s cubic-bezier(0,0,0.2,1) infinite",
             }}
           />
@@ -180,8 +180,8 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
             className="relative flex h-14 w-14 items-center justify-center rounded-full text-white shadow-xl transition-transform group-hover:scale-110 group-active:scale-95"
             style={{
               background:
-                "linear-gradient(135deg, #d4402f 0%, #f7ac2b 100%)",
-              boxShadow: "0 12px 32px -8px rgba(212,64,47,0.6)",
+                "radial-gradient(circle at 30% 30%, #2a3370 0%, #1a1f4d 70%)",
+              boxShadow: "0 12px 32px -8px rgba(26,31,77,0.7)",
             }}
           >
             <BraveLauncherIcon />
@@ -451,30 +451,102 @@ function BraveAssistantAvatar() {
   );
 }
 
-// Custom launcher icon — a stylized chat bubble with a spark inside, more
-// distinctive than the generic MessageCircle. White on the gradient button.
+// Custom launcher icon — a friendly white robot with cyan eyes, antenna,
+// and a small "Hi!" speech bubble. Sits on the dark navy launcher circle.
 function BraveLauncherIcon() {
   return (
     <svg
-      viewBox="0 0 28 28"
-      width="26"
-      height="26"
+      viewBox="0 0 56 56"
+      width="44"
+      height="44"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      {/* Chat bubble outline */}
-      <path
-        d="M4 12.5C4 8.358 7.358 5 11.5 5h5C20.642 5 24 8.358 24 12.5v0c0 4.142-3.358 7.5-7.5 7.5h-3.2l-3.6 3a.6.6 0 0 1-.98-.47V20h-.22A4.5 4.5 0 0 1 4 15.5v-3Z"
-        fill="#fff"
+      {/* Antenna */}
+      <line
+        x1="22"
+        y1="6"
+        x2="22"
+        y2="13"
+        stroke="#ffffff"
+        strokeWidth="2"
+        strokeLinecap="round"
       />
-      {/* Sparkle inside the bubble — the BRAVE accent */}
-      <path
-        d="M14 8.5l1.1 2.4 2.4 1.1-2.4 1.1L14 15.5l-1.1-2.4-2.4-1.1 2.4-1.1L14 8.5Z"
-        fill="#d4402f"
+      <circle
+        cx="22"
+        cy="5"
+        r="2.2"
+        fill="#ffffff"
+        style={{
+          transformOrigin: "22px 5px",
+          animation: "brave-avatar-antenna 1.8s ease-in-out infinite",
+        }}
       />
-      <circle cx="18.5" cy="9" r="0.9" fill="#f7ac2b" />
-      <circle cx="9.5" cy="14.5" r="0.7" fill="#f7ac2b" />
+
+      {/* Robot head */}
+      <rect
+        x="8"
+        y="13"
+        width="28"
+        height="22"
+        rx="7"
+        fill="#ffffff"
+      />
+      {/* Ears */}
+      <rect x="5" y="20" width="3" height="9" rx="1.2" fill="#ffffff" />
+      <rect x="36" y="20" width="3" height="9" rx="1.2" fill="#ffffff" />
+      {/* Eye visor */}
+      <rect x="11" y="19.5" width="22" height="10" rx="4" fill="#1a1f4d" />
+      {/* Eyes — blink via scaleY keyframes */}
+      <g
+        style={{
+          transformOrigin: "17px 24.5px",
+          animation: "brave-avatar-blink 4.2s ease-in-out infinite",
+        }}
+      >
+        <circle cx="17" cy="24.5" r="2.2" fill="#7de4ff" />
+      </g>
+      <g
+        style={{
+          transformOrigin: "27px 24.5px",
+          animation: "brave-avatar-blink 4.2s ease-in-out infinite",
+        }}
+      >
+        <circle cx="27" cy="24.5" r="2.2" fill="#7de4ff" />
+      </g>
+      {/* Tiny smile between the eyes for personality */}
+      <path
+        d="M21 26 Q22 27.2 23 26"
+        stroke="#7de4ff"
+        strokeWidth="0.8"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.7"
+      />
+      {/* Neck + body hint */}
+      <rect x="20" y="35" width="4" height="3" fill="#ffffff" />
+      <path
+        d="M11 39 Q22 36 33 39 L33 40 Q22 37 11 40 Z"
+        fill="#ffffff"
+      />
+
+      {/* "Hi!" speech bubble */}
+      <path
+        d="M37 8 H50 a3 3 0 0 1 3 3 v6 a3 3 0 0 1 -3 3 H44 l-3 3 v-3 h-4 a3 3 0 0 1 -3 -3 v-6 a3 3 0 0 1 3 -3 Z"
+        fill="#7de4ff"
+      />
+      <text
+        x="43.5"
+        y="17"
+        textAnchor="middle"
+        fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+        fontSize="7"
+        fontWeight="800"
+        fill="#1a1f4d"
+      >
+        Hi!
+      </text>
     </svg>
   );
 }

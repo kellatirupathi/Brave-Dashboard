@@ -28,7 +28,6 @@ import {
   Users,
   CheckCircle,
   AlertCircle,
-  HelpCircle,
   BookOpenCheck,
   Activity,
   Bell,
@@ -771,17 +770,6 @@ export default function AdminDashboard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <a
-        href="https://docs.google.com/document/d/1qMP-1s3k4GD-cuiYGfjBbcfdQU20___Bl6YLrzgYFb4/edit?usp=sharing"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Open admin help guide in a new tab"
-        title="Help"
-        data-testid="button-help"
-        className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      >
-        <HelpCircle className="h-6 w-6" />
-      </a>
     </>
   );
 }
