@@ -76,8 +76,11 @@ type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
 type ParsedReply = { answer: string; suggestions: string[] };
 
-function parseModelReply(raw: string): ParsedReply {
+// Returns null when nothing usable could be extracted, so the caller can
+// retry the model before giving up.
+function parseModelReply(raw: string): ParsedReply | null {
   const trimmed = raw.trim();
+  if (!trimmed) return null;
   // Strip ```json fences if the model adds them despite instructions.
   const unfenced = trimmed
     .replace(/^```(?:json)?\s*/i, "")
@@ -98,34 +101,48 @@ function parseModelReply(raw: string): ParsedReply {
     if (sliced) return sliced;
   }
 
-  // 3) Last-resort regex extraction. Useful when the model emits malformed
-  //    JSON like {">${answer": "..."} — we still want to surface the
-  //    human-readable answer rather than dumping raw JSON into the UI.
-  const answerMatch =
-    /"\s*answer\s*"?\s*:\s*"((?:[^"\\]|\\.)*)"/i.exec(unfenced);
-  if (answerMatch) {
-    const answer = unescapeJsonString(answerMatch[1] ?? "").trim();
-    const suggestionsBlock =
-      /"\s*suggestions\s*"?\s*:\s*\[([\s\S]*?)\]/i.exec(unfenced);
-    const suggestions: string[] = [];
-    if (suggestionsBlock) {
-      const itemRe = /"((?:[^"\\]|\\.)*)"/g;
-      let m: RegExpExecArray | null;
-      while ((m = itemRe.exec(suggestionsBlock[1] ?? "")) !== null) {
-        const s = unescapeJsonString(m[1] ?? "").trim();
-        if (s) suggestions.push(s);
-        if (suggestions.length >= 3) break;
-      }
-    }
-    if (answer) return { answer, suggestions };
+  // 3) Regex extraction for malformed JSON like {">${answer": "..."}.
+  //    Handles double- or single-quoted keys and string values.
+  const extracted = extractByRegex(unfenced);
+  if (extracted) return extracted;
+
+  // 4) The model ignored the JSON instruction entirely and just wrote a
+  //    plain prose reply. That reply is still a perfectly good answer, so
+  //    surface it as-is instead of discarding it. Only do this when the
+  //    text has no JSON structure, so we never dump raw JSON into the UI.
+  if (!unfenced.includes("{") && !/["']answer["']/i.test(unfenced)) {
+    return { answer: unfenced, suggestions: [] };
   }
 
-  // 4) Give up — never show raw JSON. Return a generic fallback message.
-  return {
-    answer:
-      "Sorry — I couldn't format that reply. Please try asking again, or rephrase your question.",
-    suggestions: [],
-  };
+  // 5) Genuinely unusable (broken JSON we could not salvage).
+  return null;
+}
+
+// Pulls "answer" / "suggestions" out of malformed JSON via regex. Accepts
+// both double- and single-quoted keys and string values.
+function extractByRegex(text: string): ParsedReply | null {
+  let answer = "";
+  const dq = /["']\s*answer\s*["']?\s*:\s*"((?:[^"\\]|\\.)*)"/i.exec(text);
+  if (dq) {
+    answer = unescapeJsonString(dq[1] ?? "").trim();
+  } else {
+    const sq = /["']\s*answer\s*["']?\s*:\s*'((?:[^'\\]|\\.)*)'/i.exec(text);
+    if (sq) answer = unescapeJsonString(sq[1] ?? "").trim();
+  }
+  if (!answer) return null;
+
+  const suggestions: string[] = [];
+  const block = /["']\s*suggestions\s*["']?\s*:\s*\[([\s\S]*?)\]/i.exec(text);
+  if (block) {
+    const itemRe = /["']((?:[^"'\\]|\\.)*)["']/g;
+    let m: RegExpExecArray | null;
+    while ((m = itemRe.exec(block[1] ?? "")) !== null) {
+      const s = unescapeJsonString(m[1] ?? "").trim();
+      if (s) suggestions.push(s);
+      if (suggestions.length >= 3) break;
+    }
+  }
+  return { answer, suggestions };
 }
 
 function tryStrictParse(text: string): ParsedReply | null {
@@ -161,6 +178,48 @@ function unescapeJsonString(s: string): string {
     .replace(/\\r/g, "\r")
     .replace(/\\"/g, '"')
     .replace(/\\\\/g, "\\");
+}
+
+// Single round-trip to Cerebras. Returns the raw model content string, or
+// null on any transport/HTTP failure (logged by the caller's logger).
+async function callCerebras(
+  messages: ChatMsg[],
+  apiKey: string,
+  log: Request["log"],
+): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25_000);
+  try {
+    const upstream = await fetch(CEREBRAS_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: CEREBRAS_MODEL,
+        messages,
+        temperature: 0.3,
+        max_tokens: 700,
+        response_format: { type: "json_object" },
+      }),
+      signal: controller.signal,
+    });
+    if (!upstream.ok) {
+      const body = await upstream.text().catch(() => "");
+      log.error(
+        { status: upstream.status, body: body.slice(0, 500) },
+        "Cerebras request failed",
+      );
+      return null;
+    }
+    const data = (await upstream.json().catch(() => null)) as {
+      choices?: { message?: { content?: string } }[];
+    } | null;
+    return data?.choices?.[0]?.message?.content ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 router.post(
@@ -200,48 +259,39 @@ router.post(
     ];
 
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 25_000);
-      const upstream = await fetch(CEREBRAS_URL, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: CEREBRAS_MODEL,
-          messages,
-          temperature: 0.3,
-          max_tokens: 700,
-          response_format: { type: "json_object" },
-        }),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timer));
+      // First attempt.
+      let content = await callCerebras(messages, apiKey, req.log);
+      let out = content ? parseModelReply(content) : null;
 
-      if (!upstream.ok) {
-        const body = await upstream.text().catch(() => "");
-        req.log.error(
-          { status: upstream.status, body: body.slice(0, 500) },
-          "Cerebras request failed",
+      // The 8B model occasionally emits malformed JSON. Retry once — a fresh
+      // sample (temperature > 0) usually returns clean JSON. When we have the
+      // bad reply on hand, feed it back with a firm correction so the retry
+      // is far more likely to comply.
+      if (!out) {
+        req.log.warn(
+          { contentPreview: (content ?? "").slice(0, 200) },
+          "Chatbot reply unparseable — retrying once",
         );
+        const retryMessages: ChatMsg[] = [...messages];
+        if (content) {
+          retryMessages.push({ role: "assistant", content });
+          retryMessages.push({
+            role: "user",
+            content:
+              "Your previous reply was not valid JSON. Reply again with ONLY a " +
+              "single valid JSON object of the form " +
+              '{"answer": "...", "suggestions": ["..."]} and nothing else.',
+          });
+        }
+        content = await callCerebras(retryMessages, apiKey, req.log);
+        out = content ? parseModelReply(content) : null;
+      }
+
+      if (!out || !out.answer) {
         res.status(200).json({ answer: FALLBACK_ERROR, suggestions: [] });
         return;
       }
 
-      const data = (await upstream.json().catch(() => null)) as {
-        choices?: { message?: { content?: string } }[];
-      } | null;
-      const content = data?.choices?.[0]?.message?.content ?? "";
-      if (!content) {
-        res.status(200).json({ answer: FALLBACK_ERROR, suggestions: [] });
-        return;
-      }
-
-      const out = parseModelReply(content);
-      if (!out.answer) {
-        res.status(200).json({ answer: FALLBACK_ERROR, suggestions: [] });
-        return;
-      }
       // Provide gentle defaults for logged-out empty state if model
       // returned no suggestions and there is no prior conversation.
       if (out.suggestions.length === 0 && history.length === 0 && !loggedIn) {

@@ -40,7 +40,9 @@ export function NotificationsBell() {
   const unreadCount = all.filter((n) => !n.isRead).length;
 
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey({}) });
+    queryClient.invalidateQueries({
+      queryKey: getListNotificationsQueryKey({}),
+    });
 
   const handleMarkOne = (id: number) => {
     markRead.mutate({ id }, { onSuccess: invalidate });
@@ -94,7 +96,11 @@ export function NotificationsBell() {
           </Button>
         </div>
 
-        <ScrollArea className="max-h-[24rem]">
+        {/* [&_[data-radix-scroll-area-viewport]>div]:!block — Radix wraps the
+            scroll content in a display:table div that shrink-wraps to its
+            widest content, which breaks truncate/min-w-0 and lets rows
+            overflow the popover. Forcing block makes it fill the width. */}
+        <ScrollArea className="max-h-[24rem] [&_[data-radix-scroll-area-viewport]>div]:!block">
           {recent.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-muted-foreground">
               You're all caught up.
