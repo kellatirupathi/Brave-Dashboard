@@ -11,6 +11,7 @@ import {
   SheetDescription,
 } from "./ui/sheet";
 import { HelpMenu } from "./help-menu";
+import { Chatbot } from "./chatbot";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -62,6 +63,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Floating help menu — students only; component self-gates by role. */}
       <HelpMenu />
+
+      {/* Floating BRAVE assistant chatbot — visible to all logged-in users. */}
+      <Chatbot variant="light" />
     </div>
   );
 }

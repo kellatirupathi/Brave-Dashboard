@@ -22,6 +22,7 @@ import {
   Flag,
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
+import { Chatbot } from "@/components/chatbot";
 import { useAuth } from "@workspace/replit-auth-web";
 
 type Resource = {
@@ -1493,6 +1494,7 @@ export default function Landing() {
         <FinalCTA />
       </main>
       <Footer />
+      <Chatbot variant="dark" />
     </div>
   );
 }

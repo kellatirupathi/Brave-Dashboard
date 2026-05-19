@@ -162,7 +162,7 @@ export function HelpMenu() {
           Hidden when the menu is open, on small screens, or while hovered (pauses rotation). */}
       {!open && (
         <div
-          className="hidden md:flex fixed bottom-6 right-20 z-50 items-center pointer-events-auto"
+          className="hidden md:flex fixed bottom-6 right-[10rem] z-50 items-center pointer-events-auto"
           onMouseEnter={() => setHintHovered(true)}
           onMouseLeave={() => setHintHovered(false)}
           aria-hidden="true"
@@ -195,7 +195,7 @@ export function HelpMenu() {
             aria-label={open ? "Close help menu" : "Open help menu"}
             title={open ? "Close" : "Help"}
             data-testid="button-help-menu"
-            className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="fixed bottom-6 right-24 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             {open ? (
               <ChevronDown className="h-6 w-6 transition-transform" />

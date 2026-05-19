@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
+import { Chatbot } from "@/components/chatbot";
 
 /* Dark "AI Value Engineering" theme — Sora + Inter, tuned for smooth render. */
 function LoginStyles() {
@@ -602,6 +603,7 @@ export default function Login() {
           </p>
         </div>
       </div>
+      <Chatbot variant="dark" />
     </div>
   );
 }

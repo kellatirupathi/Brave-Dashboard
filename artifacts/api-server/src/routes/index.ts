@@ -22,6 +22,7 @@ import heatmapRouter from "./heatmap";
 import programmeWeeksRouter from "./programme-weeks";
 import cronRouter from "./cron";
 import resourcesRouter from "./resources";
+import chatbotRouter from "./chatbot";
 
 const router: IRouter = Router();
 
@@ -53,5 +54,7 @@ router.use(heatmapRouter);
 router.use(cronRouter);
 // Resources (admin-curated reading list — additive only)
 router.use(resourcesRouter);
+// Chatbot (Cerebras-powered Q&A widget — additive only)
+router.use(chatbotRouter);
 
 export default router;

@@ -1,0 +1,284 @@
+BRAVE PROGRAMME — KNOWLEDGE BASE
+================================
+(Used by the BRAVE Dashboard chatbot. Answer ONLY from this content.)
+
+
+# 1. WHAT IS BRAVE?
+
+BRAVE is NIAT's 3-month entrepreneurship programme. The mission is to turn
+NIAT students into early-stage software entrepreneurs by getting them to
+build AI-powered products for real local businesses and earn real revenue
+in rupees during the programme.
+
+Tagline: "Boosting Revenue through AI Value Engineering."
+
+- Duration: 3 months.
+- Scale: ~7,500 NIAT student entrepreneurs across 19–20 NIAT campuses.
+- Cost: Completely free for all NIAT students.
+- Equity / IP: NIAT takes NO equity, NO IP, and NO cut of revenue. The
+  business stays yours after the programme ends.
+- Customer model: The customer is a real local business paying for real
+  software. This is not a "make money online" challenge.
+
+
+# 2. ROLES IN THE PROGRAMME
+
+There are 3 roles:
+1. Student / Team — NIAT students enrolled on the roster who form teams,
+   build projects, and earn revenue.
+2. Campus Coordinator — manages teams on a single NIAT campus, monitors
+   silent teams, posts announcements.
+3. NIAT Admin — runs the programme nationally, configures dates and
+   thresholds, reviews revenue submissions, manages the roster, audits
+   actions.
+
+
+# 3. TEAMS
+
+- Team size: 2–4 members works best; up to 5 members allowed. Solo is
+  allowed.
+- Same-campus only: every member of a team must be from the same NIAT
+  campus. The platform strictly enforces this.
+- Every team gets a unique invite code in the form BRAVE-XXXXX.
+- A team is automatically Active as soon as it is created — there is no
+  pending/approval wait.
+- A "Team Registered" milestone is inserted automatically when the team
+  is created.
+- A student can be a member of only one team at a time.
+
+How students join a team:
+- Create a new team (becomes the team leader).
+- Browse same-campus teams on the Get Started page and Request to Join.
+- Join by invite code (BRAVE-XXXXX).
+- Accept an incoming invitation from another team.
+
+Membership requests:
+- Outgoing invitations from a team member to a specific student.
+- Incoming join requests from a student to a team.
+- Leave requests: a member requests to leave; the team leader approves
+  or declines.
+- Accepting one pending invite/request automatically cancels the others
+  for that student.
+
+If a student is not yet on a team, the Get Started page is the hub: it
+shows pending invitations, the Create Team option, the same-campus team
+list, and the Join-by-code option.
+
+
+# 4. PROJECTS, ORDER BOOK, AND REVENUE
+
+A team can have one or more projects (business projects with real
+clients).
+
+Order Book vs Revenue:
+- Order book entry — a deal/order the team has lined up with a client.
+  States: draft → submitted → verified or rejected.
+- Revenue entry — money the team has actually received from a client.
+  Requires a BRD (Business Requirements Document) attached.
+  States: draft → submitted → verified or rejected.
+
+Only the verified_amount on revenue entries with status = "verified"
+counts toward the leaderboard and Demo Day eligibility. Draft and
+submitted entries do NOT count yet.
+
+Submitting an entry:
+- Students create a draft, fill in client, amount, supporting documents.
+- Submit it for admin review.
+- Admins on the Review Queue verify (or reject with a reason). Verified
+  amounts move the team up the leaderboard.
+
+What counts as "AI in the build":
+The solution must use AI as the working mechanism — voice agents,
+automation, AI-powered chat, AI-built apps, and so on. A simple website
+with no AI does not count. If unsure, ask your mentor.
+
+
+# 5. WEEKLY JOURNALS
+
+Each student writes a weekly journal entry per programme week. Journals
+capture progress, learnings, blockers, and customer interactions.
+
+- Students can edit/delete past journals only if the admin has enabled
+  the "Allow students to edit/delete past-week journals" setting in
+  Programme Config. Otherwise past weeks are read-only.
+- Journals roll up into a heatmap that shows team activity.
+- A team is considered "silent" when no journal has been written for
+  several days.
+
+
+# 6. SILENT-TEAM NUDGES (NOTIFICATIONS & REMINDERS)
+
+The system pings silent teams at day-5 and day-7 thresholds.
+
+Channels (each independently toggle-able by the admin):
+- Student in-app notifications — bell-icon notification at day 5 and
+  day 7. Also gates the heatmap "Remind" button.
+- Student email reminders — email to silent team members at the day-7
+  threshold. No emails at day 5 even if in-app is on.
+- Coordinator silent-team alerts — pings the campus coordinator at the
+  day-7 threshold so they can intervene. Independent from the student
+  channels.
+
+
+# 7. LEADERBOARD
+
+- Ranked by verified revenue (sum of verified_amount on revenue entries
+  with status = "verified").
+- National leaderboard and per-campus leaderboard available.
+- Admin can freeze the leaderboard so students cannot see it — useful to
+  build suspense before Demo Day.
+
+
+# 8. DEMO DAY
+
+- Demo Day is the finale event of the programme.
+- A team is Demo Day eligible when its verified revenue meets or exceeds
+  the configured threshold (default ₹2,00,000 — two lakh rupees).
+- The threshold is set in Programme Config and can be changed by admins.
+- Demo Day applications open when the admin flips "Demo Day Applications
+  Open" on. Eligible teams can then submit a pitch application before
+  the configured application deadline.
+- Admins review and shortlist Demo Day applicants.
+- Top teams pitch on Demo Day. Even if your team is not in the Top 10,
+  you keep everything you built, every customer you signed, and every
+  rupee you earned.
+
+
+# 9. CURRENCY FORMAT
+
+All amounts are in Indian Rupees (₹) using lakh notation. For example:
+- ₹50,000 = fifty thousand rupees
+- ₹1,00,000 = one lakh rupees
+- ₹2,00,000 = two lakh rupees (default Demo Day threshold)
+
+
+# 10. MILESTONES (AUTO + MANUAL)
+
+Auto milestones are inserted by the system when:
+- A team is registered.
+- A team's first project is created.
+- A team's first verified revenue entry is approved.
+- The team crosses ₹50K, ₹1L, or the Demo Day threshold in verified
+  revenue.
+
+Admins or coordinators can also add manual milestones.
+
+
+# 11. ANNOUNCEMENTS
+
+Admins and coordinators can broadcast announcements. Targets:
+- All — every user.
+- Campus — only that campus's users.
+- Team — only a specific team.
+
+Pinned announcements appear at the top of the dashboard.
+
+
+# 12. DASHBOARD PAGES (for students)
+
+- "/" — Team dashboard: revenue progress and Demo Day threshold meter.
+- "/projects" — list of your projects.
+- "/projects/:id" — project detail with order book + revenue entries.
+- "/leaderboard" — national leaderboard.
+- "/get-started" — hub for students without a team.
+- "/team" — team profile, members, invite code, requests, milestone
+  timeline.
+- "/demo-day" — Demo Day application.
+- "/notifications" — your notifications.
+
+Coordinator-only pages: /coordinator, /coordinator/teams,
+/coordinator/leaderboard, /coordinator/announcements.
+
+Admin-only pages: /admin (national dashboard), /admin/queue (review
+queue), /admin/teams, /admin/leaderboard, /admin/demo-day,
+/admin/users, /admin/campuses, /admin/config, /admin/roster,
+/admin/audit-log, /admin/announcements.
+
+
+# 13. STUDENT RESOURCES LIBRARY
+
+Admins curate a Resources Library — a reading list of useful links
+(articles, tutorials, tools). Students can view the resources from the
+dashboard.
+
+
+# 14. FILE UPLOADS
+
+Limits on documents uploaded as part of order book / revenue entries:
+- Max file size: 25 MB.
+- Allowed types: PDF, JPG, PNG, GIF, WEBP, DOC, DOCX.
+
+The dashboard will show a clear error toast if a file is too large or
+the wrong type.
+
+
+# 15. AUTHENTICATION & ACCESS
+
+Students log in via Replit Auth (the "Continue with Replit" button).
+- Only students on the roster can log in. If you are not on the roster,
+  contact your Campus Coordinator to be added.
+- The first admin user is provisioned manually after first login.
+- Coordinators are seeded by NIAT.
+
+
+# 16. COMMON STUDENT QUESTIONS
+
+Q: How big is the team?
+A: 2–4 works best, up to 5 members allowed. Solo is allowed too.
+
+Q: Is there a fee?
+A: No — BRAVE is completely free for all NIAT students.
+
+Q: Do I need to know AI already?
+A: No. You'll learn as you build. The goal is to use AI as leverage,
+not to be an expert first.
+
+Q: How do I start?
+A: Walk into a small business near you. Tell them you're a student
+building things and ask what's slowing them down. That's day one.
+
+Q: What about my classes?
+A: BRAVE runs alongside your classes, not instead of them. Plan your
+work so both move forward.
+
+Q: What if I don't make the Top 10?
+A: You still walk away with everything you built, every customer you
+signed, and every rupee you earned. The business is yours.
+
+Q: Will NIAT take equity?
+A: No. NIAT takes no equity, no IP, and no cut of your revenue.
+
+Q: Can I keep working on it after?
+A: Yes. The business is yours — keep serving the client and improving
+the product.
+
+Q: How does my revenue show up on the leaderboard?
+A: Only verified revenue counts. You submit a revenue entry with the
+BRD attached, an admin verifies it on the Review Queue, and then the
+verified amount moves you up the leaderboard.
+
+Q: I lost access / I am not on the roster — what do I do?
+A: Contact your Campus Coordinator. They can request the admin to add
+you to the roster.
+
+Q: How do I form a team across campuses?
+A: You cannot. Teams must be from a single NIAT campus.
+
+Q: What does "silent team" mean?
+A: A team that hasn't written a journal entry or made progress for
+several days. The system nudges silent teams at day 5 and day 7 so
+they can get back on track.
+
+
+# 17. WHAT TO TELL STUDENTS WHO ASK FOR ACCOUNT-SPECIFIC DETAILS
+
+This chatbot does not have access to a specific student's team, revenue
+totals, journal entries, or notifications. For account-specific
+information ("how much revenue have I logged?", "which team am I in?",
+"what is my campus rank?"), tell the user to log in to the BRAVE
+dashboard — those numbers are on the team dashboard, leaderboard, and
+team pages.
+
+For anything the chatbot truly doesn't know (programme dates, specific
+deadlines, etc.), say so honestly and suggest the student contact their
+Campus Coordinator.
