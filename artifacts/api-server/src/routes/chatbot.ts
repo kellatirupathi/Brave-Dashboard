@@ -28,7 +28,10 @@ const HistoryItem = z.object({
 
 const AskBody = z.object({
   message: z.string().min(1).max(1500),
-  history: z.array(HistoryItem).max(20).optional(),
+  // Generous cap so a long conversation is never rejected outright — the
+  // route itself only ever uses the last 10 entries (history.slice(-10)).
+  // A too-strict limit here previously 400'd every message past ~10 turns.
+  history: z.array(HistoryItem).max(100).optional(),
 });
 
 const chatbotLimiter = rateLimit({
@@ -121,12 +124,14 @@ function parseModelReply(raw: string): ParsedReply | null {
 // Pulls "answer" / "suggestions" out of malformed JSON via regex. Accepts
 // both double- and single-quoted keys and string values.
 function extractByRegex(text: string): ParsedReply | null {
+  // No leading-quote requirement: tolerates garbled keys the model emits
+  // such as ".answer", ">$answer", "];answer", ")))answer".
   let answer = "";
-  const dq = /["']\s*answer\s*["']?\s*:\s*"((?:[^"\\]|\\.)*)"/i.exec(text);
+  const dq = /answer\s*["']?\s*:\s*"((?:[^"\\]|\\.)*)"/i.exec(text);
   if (dq) {
     answer = unescapeJsonString(dq[1] ?? "").trim();
   } else {
-    const sq = /["']\s*answer\s*["']?\s*:\s*'((?:[^'\\]|\\.)*)'/i.exec(text);
+    const sq = /answer\s*["']?\s*:\s*'((?:[^'\\]|\\.)*)'/i.exec(text);
     if (sq) answer = unescapeJsonString(sq[1] ?? "").trim();
   }
   if (!answer) return null;
@@ -145,30 +150,46 @@ function extractByRegex(text: string): ParsedReply | null {
   return { answer, suggestions };
 }
 
+// Parses a JSON object reply. The 8B model reliably gets the JSON
+// *structure* right but frequently garbles the key name — emitting
+// ".answer", ">$answer", "];answer", or even an unrelated key like
+// "indices" / "data". So we don't insist on a key literally named
+// "answer": we accept any key that contains "answer", and as a last
+// resort the first string-valued property that isn't the suggestions.
 function tryStrictParse(text: string): ParsedReply | null {
+  let obj: unknown;
   try {
-    const obj = JSON.parse(text) as unknown;
-    if (
-      obj &&
-      typeof obj === "object" &&
-      "answer" in obj &&
-      typeof (obj as { answer: unknown }).answer === "string"
-    ) {
-      const answer = (obj as { answer: string }).answer.trim();
-      const rawSugg = (obj as { suggestions?: unknown }).suggestions;
-      const suggestions = Array.isArray(rawSugg)
-        ? rawSugg
-            .filter((s): s is string => typeof s === "string")
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0)
-            .slice(0, 3)
-        : [];
-      if (answer) return { answer, suggestions };
-    }
+    obj = JSON.parse(text);
   } catch {
-    /* fall through */
+    return null;
   }
-  return null;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+  const record = obj as Record<string, unknown>;
+  const keys = Object.keys(record);
+
+  // Suggestions: a key named (or containing) "suggestion".
+  const suggKey = keys.find((k) => /suggestion/i.test(k));
+  const suggestions =
+    suggKey && Array.isArray(record[suggKey])
+      ? (record[suggKey] as unknown[])
+          .filter((s): s is string => typeof s === "string")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+          .slice(0, 3)
+      : [];
+
+  // Answer: exact "answer" key → any key containing "answer" → first
+  // string-valued property that isn't the suggestions key.
+  const answerKey =
+    keys.find((k) => k.toLowerCase() === "answer") ??
+    keys.find((k) => /answer/i.test(k)) ??
+    keys.find((k) => k !== suggKey && typeof record[k] === "string");
+  if (!answerKey) return null;
+  const rawAnswer = record[answerKey];
+  if (typeof rawAnswer !== "string") return null;
+  const answer = rawAnswer.trim();
+  if (!answer) return null;
+  return { answer, suggestions };
 }
 
 function unescapeJsonString(s: string): string {

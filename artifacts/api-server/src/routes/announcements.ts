@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import {
   db,
   announcementsTable,
@@ -16,6 +16,9 @@ import {
   DismissAnnouncementParams,
 } from "@workspace/api-zod";
 import { createNotification } from "../lib/notifications";
+import { sendEmail, getAppUrl } from "../lib/email/brevo";
+import { renderAnnouncementEmail } from "../lib/email/templates/announcement";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -89,6 +92,94 @@ async function fanOutNotifications(
   );
 }
 
+// How many announcement emails to send concurrently per wave, and how long
+// to pause between waves. Kept conservative so a large fan-out (potentially
+// thousands of students) stays within Amazon SES sending-rate limits.
+const ANNOUNCEMENT_EMAIL_BATCH_SIZE = 10;
+const ANNOUNCEMENT_EMAIL_BATCH_DELAY_MS = 1000;
+
+// Emails every student recipient of an announcement. Runs detached (not
+// awaited) from the POST handler because emailing thousands of students can
+// take several minutes and must not block the admin's response. Recipients
+// are the same students who receive the in-app notification, resolved by
+// the announcement's target (all / campus / team). One personalised email
+// is sent per student — addresses are never shared across recipients.
+async function fanOutAnnouncementEmails(announcement: {
+  id: number;
+  authorId: string;
+  target: "all" | "campus" | "team";
+  campusId: number | null;
+  teamId: number | null;
+  title: string;
+  body: string;
+  authorName: string;
+}): Promise<void> {
+  const recipientIds = (
+    await resolveNotificationRecipients(announcement)
+  ).filter((id) => id !== announcement.authorId);
+  if (recipientIds.length === 0) return;
+
+  // Only active students with a usable email address are emailed.
+  const rows = await db
+    .select({
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+    })
+    .from(usersTable)
+    .where(
+      and(
+        inArray(usersTable.id, recipientIds),
+        eq(usersTable.role, "student"),
+        eq(usersTable.isActive, true),
+      ),
+    );
+  const valid = rows.filter(
+    (r) => typeof r.email === "string" && r.email.includes("@"),
+  );
+  if (valid.length === 0) {
+    logger.warn(
+      { announcementId: announcement.id },
+      "Announcement email fan-out: no valid student recipients",
+    );
+    return;
+  }
+
+  const appUrl = getAppUrl();
+  let sent = 0;
+  let failed = 0;
+  for (let i = 0; i < valid.length; i += ANNOUNCEMENT_EMAIL_BATCH_SIZE) {
+    const batch = valid.slice(i, i + ANNOUNCEMENT_EMAIL_BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map((r) => {
+        const name = `${r.firstName} ${r.lastName}`.trim();
+        const { subject, text } = renderAnnouncementEmail({
+          recipientName: name,
+          title: announcement.title,
+          body: announcement.body,
+          authorName: announcement.authorName,
+          appUrl,
+        });
+        // sendEmail never throws — it returns false on failure.
+        return sendEmail({ to: { email: r.email, name }, subject, text });
+      }),
+    );
+    for (const ok of results) {
+      if (ok) sent++;
+      else failed++;
+    }
+    if (i + ANNOUNCEMENT_EMAIL_BATCH_SIZE < valid.length) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, ANNOUNCEMENT_EMAIL_BATCH_DELAY_MS),
+      );
+    }
+  }
+  logger.info(
+    { announcementId: announcement.id, total: valid.length, sent, failed },
+    "Announcement email fan-out complete",
+  );
+}
+
 // Enforce audience consistency: target=all clears campus/team; target=campus
 // requires a campusId; target=team requires a teamId. Returns null if valid
 // or an error message otherwise.
@@ -98,7 +189,10 @@ function validateAudience(input: {
   teamId?: number | null;
 }): string | null {
   if (input.target === "all") return null;
-  if (input.target === "campus" && (input.campusId == null || input.campusId <= 0))
+  if (
+    input.target === "campus" &&
+    (input.campusId == null || input.campusId <= 0)
+  )
     return "campusId is required when target='campus'";
   if (input.target === "team" && (input.teamId == null || input.teamId <= 0))
     return "teamId is required when target='team'";
@@ -113,17 +207,25 @@ router.get("/announcements", async (req, res): Promise<void> => {
   let campusId = req.user.campusId;
   let teamId: number | null = null;
   if (req.user.role === "student") {
-    const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
+    const [member] = await db
+      .select()
+      .from(teamMembersTable)
+      .where(eq(teamMembersTable.userId, req.user.id));
     if (member) {
       teamId = member.teamId;
-      const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, member.teamId));
+      const [team] = await db
+        .select()
+        .from(teamsTable)
+        .where(eq(teamsTable.id, member.teamId));
       if (team) campusId = team.campusId;
     }
   }
 
   let whereClause = sql`target = 'all'`;
-  if (campusId) whereClause = sql`target = 'all' or (target = 'campus' and campus_id = ${campusId})`;
-  if (teamId) whereClause = sql`target = 'all' or (target = 'campus' and campus_id = ${campusId}) or (target = 'team' and team_id = ${teamId})`;
+  if (campusId)
+    whereClause = sql`target = 'all' or (target = 'campus' and campus_id = ${campusId})`;
+  if (teamId)
+    whereClause = sql`target = 'all' or (target = 'campus' and campus_id = ${campusId}) or (target = 'team' and team_id = ${teamId})`;
 
   const announcements = await db
     .select()
@@ -131,10 +233,18 @@ router.get("/announcements", async (req, res): Promise<void> => {
     .where(whereClause)
     .orderBy(sql`created_at desc`);
 
-  const result = await Promise.all(announcements.map(async (a) => {
-    const [author] = await db.select().from(usersTable).where(eq(usersTable.id, a.authorId));
-    return { ...a, authorName: author ? `${author.firstName} ${author.lastName}` : "Admin" };
-  }));
+  const result = await Promise.all(
+    announcements.map(async (a) => {
+      const [author] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, a.authorId));
+      return {
+        ...a,
+        authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
+      };
+    }),
+  );
   res.json(result);
 });
 
@@ -208,7 +318,10 @@ router.get("/announcements/pinned", async (req, res): Promise<void> => {
 });
 
 router.post("/announcements", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+  if (
+    !req.isAuthenticated() ||
+    !["coordinator", "admin"].includes(req.user.role ?? "")
+  ) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -226,14 +339,18 @@ router.post("/announcements", async (req, res): Promise<void> => {
   // resolution and notification fan-out cannot match the wrong scope.
   const normalized = {
     ...parsed.data,
-    campusId: parsed.data.target === "all" ? null : parsed.data.campusId ?? null,
-    teamId: parsed.data.target === "team" ? parsed.data.teamId ?? null : null,
+    campusId:
+      parsed.data.target === "all" ? null : (parsed.data.campusId ?? null),
+    teamId: parsed.data.target === "team" ? (parsed.data.teamId ?? null) : null,
   };
   const [announcement] = await db
     .insert(announcementsTable)
     .values({ ...normalized, authorId: req.user.id })
     .returning();
-  const [author] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+  const [author] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, req.user.id));
 
   // Fire-and-record the fan-out. We await it so a failure surfaces in logs,
   // but individual createNotification failures don't block the response.
@@ -257,42 +374,66 @@ router.post("/announcements", async (req, res): Promise<void> => {
     );
   }
 
-  res.status(201).json({ ...announcement, authorName: author ? `${author.firstName} ${author.lastName}` : "Admin" });
+  // Email the same students who got the in-app notification. Detached on
+  // purpose — a large fan-out can take several minutes and must not block
+  // the admin's response. sendEmail() no-ops cleanly if SES is unconfigured.
+  void fanOutAnnouncementEmails({
+    id: announcement.id,
+    authorId: announcement.authorId,
+    target: announcement.target,
+    campusId: announcement.campusId,
+    teamId: announcement.teamId,
+    title: announcement.title,
+    body: announcement.body,
+    authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
+  }).catch((err) =>
+    req.log.error(
+      { err, announcementId: announcement.id },
+      "Announcement email fan-out failed",
+    ),
+  );
+
+  res
+    .status(201)
+    .json({
+      ...announcement,
+      authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
+    });
 });
 
 // Permanently dismiss a pinned announcement for the current user. Idempotent.
-router.post(
-  "/announcements/:id/dismiss",
-  async (req, res): Promise<void> => {
-    if (!req.isAuthenticated()) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-    const params = DismissAnnouncementParams.safeParse(req.params);
-    if (!params.success) {
-      res.status(400).json({ error: params.error.message });
-      return;
-    }
-    // If the announcement was already deleted, treat dismiss as a no-op
-    // rather than returning a 500 from the FK violation.
-    const [existing] = await db
-      .select({ id: announcementsTable.id })
-      .from(announcementsTable)
-      .where(eq(announcementsTable.id, params.data.id));
-    if (!existing) {
-      res.status(204).end();
-      return;
-    }
-    await db
-      .insert(announcementDismissalsTable)
-      .values({ userId: req.user.id, announcementId: params.data.id })
-      .onConflictDoNothing();
+router.post("/announcements/:id/dismiss", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const params = DismissAnnouncementParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  // If the announcement was already deleted, treat dismiss as a no-op
+  // rather than returning a 500 from the FK violation.
+  const [existing] = await db
+    .select({ id: announcementsTable.id })
+    .from(announcementsTable)
+    .where(eq(announcementsTable.id, params.data.id));
+  if (!existing) {
     res.status(204).end();
-  },
-);
+    return;
+  }
+  await db
+    .insert(announcementDismissalsTable)
+    .values({ userId: req.user.id, announcementId: params.data.id })
+    .onConflictDoNothing();
+  res.status(204).end();
+});
 
 router.patch("/announcements/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+  if (
+    !req.isAuthenticated() ||
+    !["coordinator", "admin"].includes(req.user.role ?? "")
+  ) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -325,7 +466,9 @@ router.patch("/announcements/:id", async (req, res): Promise<void> => {
   const merged = {
     target: parsed.data.target ?? existing.target,
     campusId:
-      parsed.data.campusId !== undefined ? parsed.data.campusId : existing.campusId,
+      parsed.data.campusId !== undefined
+        ? parsed.data.campusId
+        : existing.campusId,
     teamId:
       parsed.data.teamId !== undefined ? parsed.data.teamId : existing.teamId,
   };
@@ -350,12 +493,21 @@ router.patch("/announcements/:id", async (req, res): Promise<void> => {
     .set(updateValues as Partial<typeof announcementsTable.$inferInsert>)
     .where(eq(announcementsTable.id, params.data.id))
     .returning();
-  const [author] = await db.select().from(usersTable).where(eq(usersTable.id, announcement.authorId));
-  res.json({ ...announcement, authorName: author ? `${author.firstName} ${author.lastName}` : "Admin" });
+  const [author] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, announcement.authorId));
+  res.json({
+    ...announcement,
+    authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
+  });
 });
 
 router.delete("/announcements/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+  if (
+    !req.isAuthenticated() ||
+    !["coordinator", "admin"].includes(req.user.role ?? "")
+  ) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -378,7 +530,9 @@ router.delete("/announcements/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  await db.delete(announcementsTable).where(eq(announcementsTable.id, params.data.id));
+  await db
+    .delete(announcementsTable)
+    .where(eq(announcementsTable.id, params.data.id));
   res.status(204).end();
 });
 
