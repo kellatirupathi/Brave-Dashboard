@@ -14,7 +14,15 @@ import {
   Save,
   RotateCcw,
   AlertTriangle,
+  Mail,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -43,6 +51,60 @@ export default function AdminConfig() {
   const [formData, setFormData] = useState<any>({});
   const [devEnabled, setDevEnabled] = useState<boolean>(false);
   const [reseeding, setReseeding] = useState<boolean>(false);
+
+  // SES test-email state.
+  const [testEmail, setTestEmail] = useState<string>("");
+  const [testTemplate, setTestTemplate] = useState<
+    "plain" | "revenue_verified" | "revenue_rejected"
+  >("plain");
+  const [sendingTestEmail, setSendingTestEmail] = useState<boolean>(false);
+
+  const handleSendTestEmail = async () => {
+    const email = testEmail.trim();
+    if (!email) {
+      toast({
+        title: "Email required",
+        description: "Enter a recipient email first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSendingTestEmail(true);
+    try {
+      const res = await fetch("/api/admin/test-email", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, template: testTemplate }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        toast({
+          title: "Test email failed",
+          description:
+            data.error || "Email failed — check SES config/logs.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Test email sent",
+        description: "Check the inbox (and the spam folder).",
+      });
+    } catch (err) {
+      toast({
+        title: "Test email failed",
+        description: err instanceof Error ? err.message : "Network error",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
+
   const [reseedResult, setReseedResult] = useState<
     | { ok: true; durationMs: number; at: number }
     | { ok: false; error: string; at: number }
@@ -164,9 +226,81 @@ export default function AdminConfig() {
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Two-column layout: Programme Weeks on the left, all other settings on the right. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start mt-0">
-        {/* LEFT column — Programme Weeks (auto-saves per row). */}
-        <div>
+        {/* LEFT column — Programme Weeks (auto-saves per row) + email self-test. */}
+        <div className="space-y-6">
           <ProgrammeWeeksManager />
+
+          {/* Email delivery self-test (Amazon SES). */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="w-5 h-5 text-primary" />
+                Email delivery test (Amazon SES)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Send a sample transactional email to confirm Amazon SES is
+                delivering correctly. Use your own inbox first; results show
+                up in a toast.
+              </p>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Recipient email</label>
+                <Input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  disabled={sendingTestEmail}
+                  data-testid="input-test-email"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Template</label>
+                <Select
+                  value={testTemplate}
+                  onValueChange={(v) =>
+                    setTestTemplate(
+                      v as "plain" | "revenue_verified" | "revenue_rejected",
+                    )
+                  }
+                  disabled={sendingTestEmail}
+                >
+                  <SelectTrigger data-testid="select-test-template">
+                    <SelectValue placeholder="Pick a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plain">Plain test email</SelectItem>
+                    <SelectItem value="revenue_verified">
+                      Revenue verified
+                    </SelectItem>
+                    <SelectItem value="revenue_rejected">
+                      Revenue rejected
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                onClick={handleSendTestEmail}
+                disabled={sendingTestEmail || !testEmail.trim()}
+                className="gap-2"
+                data-testid="button-send-test-email"
+              >
+                {sendingTestEmail ? (
+                  <Spinner className="w-4 h-4" />
+                ) : (
+                  <Mail className="w-4 h-4" />
+                )}
+                {sendingTestEmail ? "Sending…" : "Send test email"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                If the email doesn't arrive, the SES account may still be in
+                sandbox mode — in that case it can only deliver to verified
+                addresses until production access is granted.
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* RIGHT column — Key Dates, Thresholds + Save, Notifications & Reminders. */}

@@ -31,6 +31,9 @@ import {
 import { logAudit } from "../lib/audit";
 import { deleteSessionsForUser } from "../lib/auth";
 import { runSeed } from "../seed";
+import { sendEmail, getAppUrl } from "../lib/email/brevo";
+import { renderRevenueVerifiedEmail } from "../lib/email/templates/revenue-verified";
+import { renderRevenueRejectedEmail } from "../lib/email/templates/revenue-rejected";
 import * as bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -1773,6 +1776,87 @@ router.post("/admin/dev/reseed", async (req, res): Promise<void> => {
   } finally {
     reseedInFlight = false;
   }
+});
+
+// ---------------------------------------------------------------------------
+// Admin self-test for transactional email (Amazon SES).
+// Admin enters an email + picks a template; we render it with sample data
+// and call sendEmail(). Returns 502 if delivery fails so the UI can surface
+// the SES/credentials/sandbox problem.
+// ---------------------------------------------------------------------------
+const TestEmailBody = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .email("Enter a valid email"),
+  template: z.enum(["revenue_verified", "revenue_rejected", "plain"]),
+});
+
+router.post("/admin/test-email", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const parsed = TestEmailBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { email, template } = parsed.data;
+  const appUrl = getAppUrl();
+
+  let subject: string;
+  let text: string;
+
+  if (template === "revenue_verified") {
+    const rendered = renderRevenueVerifiedEmail({
+      recipientName: "Test User",
+      teamName: "Test Team",
+      amount: 50_000,
+      clientName: "Sample Client",
+      projectTitle: "Test Project",
+      totalVerifiedRevenue: 100_000,
+      adminNotes: null,
+      appUrl,
+    });
+    subject = `[TEST] ${rendered.subject}`;
+    text = `(This is a test email triggered from the admin Config page.)\n\n${rendered.text}`;
+  } else if (template === "revenue_rejected") {
+    const rendered = renderRevenueRejectedEmail({
+      recipientName: "Test User",
+      teamName: "Test Team",
+      amount: 50_000,
+      clientName: "Sample Client",
+      projectTitle: "Test Project",
+      reason: "Sample rejection reason — BRD attachment was unclear.",
+      appUrl,
+    });
+    subject = `[TEST] ${rendered.subject}`;
+    text = `(This is a test email triggered from the admin Config page.)\n\n${rendered.text}`;
+  } else {
+    subject = "BRAVE — SES test email";
+    text = [
+      "This is a test email from the BRAVE Dashboard.",
+      "",
+      "If you're reading this, Amazon SES is delivering transactional",
+      "email correctly from this environment.",
+      "",
+      `Dashboard: ${appUrl}`,
+      "",
+      "— BRAVE Team",
+    ].join("\n");
+  }
+
+  const ok = await sendEmail({ to: { email }, subject, text });
+  if (!ok) {
+    res
+      .status(502)
+      .json({ ok: false, error: "Email failed — check SES config/logs" });
+    return;
+  }
+  res.json({ ok: true });
 });
 
 export default router;
