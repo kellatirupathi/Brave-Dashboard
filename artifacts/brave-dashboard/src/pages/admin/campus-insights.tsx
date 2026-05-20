@@ -12,18 +12,25 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -40,6 +47,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 
 type CampusRow = {
@@ -447,22 +456,12 @@ export default function AdminCampusInsights() {
             />
           </div>
 
-          <Select value={urlCampus} onValueChange={selectCampus}>
-            <SelectTrigger className="w-[220px]" data-testid="select-campus">
-              <SelectValue placeholder="All campuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All campuses</SelectItem>
-              {(campusesList ?? [])
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+          <CampusFilterPopover
+            value={urlCampus}
+            campuses={campusesList ?? []}
+            onChange={selectCampus}
+          />
+
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -760,6 +759,93 @@ export default function AdminCampusInsights() {
         </div>
       )}
     </div>
+  );
+}
+
+function CampusFilterPopover({
+  value,
+  campuses,
+  onChange,
+}: {
+  value: string;
+  campuses: { id: number; name: string }[];
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedLabel =
+    value === "all"
+      ? "All campuses"
+      : (campuses.find((c) => String(c.id) === value)?.name ?? "All campuses");
+  const sorted = [...campuses].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="sm:w-64 justify-between font-normal"
+          data-testid="select-campus"
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+      >
+        <Command>
+          <CommandInput
+            placeholder="Search campuses…"
+            data-testid="campus-insights-campus-search"
+          />
+          <CommandList className="max-h-72">
+            <CommandEmpty>No campus found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="All campuses"
+                onSelect={() => {
+                  onChange("all");
+                  setOpen(false);
+                }}
+                data-testid="campus-insights-campus-option-all"
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value === "all" ? "opacity-100" : "opacity-0",
+                  )}
+                />
+                All campuses
+              </CommandItem>
+              {sorted.map((c) => {
+                const v = String(c.id);
+                return (
+                  <CommandItem
+                    key={c.id}
+                    value={c.name}
+                    onSelect={() => {
+                      onChange(v);
+                      setOpen(false);
+                    }}
+                    data-testid={`campus-insights-campus-option-${c.id}`}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === v ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {c.name}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
