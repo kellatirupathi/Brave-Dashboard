@@ -1,0 +1,71 @@
+Add a "Week" filter to the Campus Insights page (/admin/campus-insights).
+
+PLACEMENT
+- In the top-bar filter row, immediately to the RIGHT of the existing
+  "Campus" filter dropdown (so order is: Search · Campus filter · Week
+  filter · Export).
+
+DROPDOWN CONTENTS
+- Default option: "All weeks" (selected by default — current page
+  behaviour, totals across the full programme).
+- Followed by one option per programme week, rendered as:
+      "Week 1 (2026-04-07 → 2026-04-13)"
+      "Week 2 (2026-04-14 → 2026-04-20)"
+      ...
+  Use the `programme_weeks` table for week number + start/end dates.
+  Sort ascending by week number. Format dates as YYYY-MM-DD.
+
+BEHAVIOUR
+- When "All weeks" is selected: tables and CSV exports behave exactly
+  as today (no week filter applied).
+- When a specific week is selected: every count and sum on the page
+  is scoped to journals/order-book/revenue rows whose week
+  (or createdAt) falls within that week's [startDate, endDate]
+  inclusive range.
+    * Journals submitted / Clients visited / Active conversations /
+      Projects started / Projects closed → restricted to weekly_journals
+      rows for that week.
+    * Order book submitted (count) → order_book_entries where
+      createdAt is within the week.
+    * Verified revenue (count) and Total verified amount →
+      revenue_entries where status='verified' AND verifiedAt is within
+      the week.
+    * Rejected revenue (count) → revenue_entries where status='rejected'
+      AND updatedAt is within the week.
+    * No. of teams and Journal-weeks-submitted denominator are NOT
+      scoped — they remain programme-wide so the table is still
+      readable.
+- The week filter applies to BOTH VIEW A (all campuses) and VIEW B
+  (single-campus team breakdown).
+- Sort tiering, search, and the Campus filter are unchanged.
+
+URL STATE
+- Persist the selected week in the URL query string as `&week=<n>`
+  (e.g. `?campus=3&week=5`). "All weeks" omits the param. Refresh and
+  deep-linking restore the same view.
+
+CSV EXPORTS
+- Both "Campus-wise" and "All campuses (single CSV)" exports respect
+  the current week selection.
+- Filename includes the week when one is selected, e.g.
+  `campus-insights-all-campuses-week5-2026-05-20.csv`.
+- Add the active week (or "All weeks") as a small note line at the
+  top of the CSV before the header row, e.g.:
+      # Week: Week 5 (2026-05-13 → 2026-05-19)
+
+API
+- Extend the existing endpoints to accept an optional `week` query
+  param (programme week number):
+      GET /api/admin/campus-insights?week=5
+      GET /api/admin/campus-insights/:campusId?week=5
+  Server validates the week exists in programme_weeks; invalid → 400.
+  Aggregations are still computed in a single SQL query per view —
+  no N+1.
+
+ACCEPTANCE
+- Default load shows "All weeks" and matches today's behaviour exactly.
+- Selecting Week N updates every count/sum in the visible table to the
+  scoped value, and the URL reflects `&week=N`.
+- CSV exports for a specific week contain only that week's scoped data
+  and the filename/header note reflect the selection.
+- `pnpm run typecheck` is clean.
