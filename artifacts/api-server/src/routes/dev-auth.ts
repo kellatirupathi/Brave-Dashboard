@@ -34,8 +34,13 @@ function isDev(): boolean {
 }
 
 // Hard gate: any request to /api/dev/* in production returns 404 before
-// the route handlers even run.
+// the route handlers even run. Scoped to /dev/* paths only so requests
+// for unrelated routes (mounted after this router) still fall through.
 router.use((req: Request, res: Response, next) => {
+  if (!req.path.startsWith("/dev/") && req.path !== "/dev") {
+    next();
+    return;
+  }
   if (!isDev()) {
     res.status(404).json({ error: "Not found" });
     return;
