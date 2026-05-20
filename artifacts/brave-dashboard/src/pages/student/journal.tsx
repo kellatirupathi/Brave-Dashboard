@@ -59,6 +59,10 @@ export default function Journal() {
   const [whatWeDid, setWhatWeDid] = useState("");
   const [blockers, setBlockers] = useState("");
   const [nextWeekPlan, setNextWeekPlan] = useState("");
+  const [clientsVisited, setClientsVisited] = useState<string>("0");
+  const [activeConversations, setActiveConversations] = useState<string>("0");
+  const [projectsStarted, setProjectsStarted] = useState<string>("0");
+  const [projectsClosed, setProjectsClosed] = useState<string>("0");
 
   // Default to "current week" status (server picks the right open week).
   const { data: currentStatus, isLoading: loadingCurrent } = useQuery({
@@ -133,11 +137,21 @@ export default function Journal() {
       setWhatWeDid(weekData.journal.whatWeDid);
       setBlockers(weekData.journal.blockers ?? "");
       setNextWeekPlan(weekData.journal.nextWeekPlan ?? "");
+      setClientsVisited(String(weekData.journal.clientsVisited ?? 0));
+      setActiveConversations(
+        String(weekData.journal.activeConversations ?? 0),
+      );
+      setProjectsStarted(String(weekData.journal.projectsStarted ?? 0));
+      setProjectsClosed(String(weekData.journal.projectsClosed ?? 0));
     } else if (weekData && !weekData.journal) {
       // New week — clear the form.
       setWhatWeDid("");
       setBlockers("");
       setNextWeekPlan("");
+      setClientsVisited("0");
+      setActiveConversations("0");
+      setProjectsStarted("0");
+      setProjectsClosed("0");
     }
   }, [weekData?.journal, weekData?.weekId]);
 
@@ -170,11 +184,19 @@ export default function Journal() {
       toast({ title: "Select a week first", variant: "destructive" });
       return;
     }
+    const toCount = (s: string): number => {
+      const n = parseInt(s, 10);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    };
     submitMut.mutate({
       weekId: selectedWeekId,
       whatWeDid: whatWeDid.trim(),
       blockers: blockers.trim() || undefined,
       nextWeekPlan: nextWeekPlan.trim() || undefined,
+      clientsVisited: toCount(clientsVisited),
+      activeConversations: toCount(activeConversations),
+      projectsStarted: toCount(projectsStarted),
+      projectsClosed: toCount(projectsClosed),
     });
   };
 
@@ -313,6 +335,53 @@ export default function Journal() {
                   maxLength={2000}
                   data-testid="journal-next-plan"
                 />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {(
+                  [
+                    {
+                      label: "Clients visited",
+                      value: clientsVisited,
+                      setValue: setClientsVisited,
+                      testId: "journal-clients-visited",
+                    },
+                    {
+                      label: "Active conversations",
+                      value: activeConversations,
+                      setValue: setActiveConversations,
+                      testId: "journal-active-conversations",
+                    },
+                    {
+                      label: "Projects started",
+                      value: projectsStarted,
+                      setValue: setProjectsStarted,
+                      testId: "journal-projects-started",
+                    },
+                    {
+                      label: "Projects closed",
+                      value: projectsClosed,
+                      setValue: setProjectsClosed,
+                      testId: "journal-projects-closed",
+                    },
+                  ] as const
+                ).map((f) => (
+                  <div key={f.label}>
+                    <label className="text-xs font-medium block mb-1 text-muted-foreground">
+                      {f.label}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100000}
+                      step={1}
+                      inputMode="numeric"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      value={f.value}
+                      onChange={(e) => f.setValue(e.target.value)}
+                      data-testid={f.testId}
+                    />
+                  </div>
+                ))}
               </div>
               <div className="flex justify-end">
                 <Button

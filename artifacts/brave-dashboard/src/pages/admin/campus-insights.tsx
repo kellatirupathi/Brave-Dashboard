@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import JSZip from "jszip";
+import { useListCampuses } from "@workspace/api-client-react";
 import {
-  useGetCampusInsightsOverview,
-  useGetCampusInsightsByCampus,
-  useListCampuses,
-  getGetCampusInsightsOverviewQueryKey,
-  getGetCampusInsightsByCampusQueryKey,
-} from "@workspace/api-client-react";
+  fetchCampusInsightsOverview,
+  fetchCampusInsightsByCampus,
+  listCampusInsightsWeeks,
+  type CampusInsightsCampusRow,
+  type CampusInsightsTeamRow,
+} from "@/lib/progress-api";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -51,25 +53,8 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 
-type CampusRow = {
-  campusId: number;
-  campusName: string;
-  teamsCount: number;
-  journalsSubmitted: number;
-  verifiedRevenueCount: number;
-  rejectedRevenueCount: number;
-  totalVerifiedAmount: number;
-};
-
-type TeamRow = {
-  teamId: number;
-  teamName: string;
-  journalWeeksSubmitted: number;
-  orderBookSubmittedCount: number;
-  verifiedRevenueCount: number;
-  rejectedRevenueCount: number;
-  totalVerifiedAmount: number;
-};
+type CampusRow = CampusInsightsCampusRow;
+type TeamRow = CampusInsightsTeamRow;
 
 type SortDir = "asc" | "desc";
 type CampusSortKey = keyof CampusRow | "tier";
@@ -144,17 +129,29 @@ export default function AdminCampusInsights() {
   const params = new URLSearchParams(searchString);
   const urlCampus = params.get("campus") ?? "all";
   const urlQ = params.get("q") ?? "";
+  const urlWeekRaw = params.get("week");
+  const urlWeek =
+    urlWeekRaw && /^\d+$/.test(urlWeekRaw) ? Number(urlWeekRaw) : null;
 
   const [searchInput, setSearchInput] = useState(urlQ);
   const [search, setSearch] = useState(urlQ);
 
   // Keep URL in sync as state changes.
-  function pushUrl(nextCampus: string, nextQ: string) {
+  function pushUrl(
+    nextCampus: string,
+    nextQ: string,
+    nextWeek: number | null = urlWeek,
+  ) {
     const p = new URLSearchParams();
     if (nextCampus && nextCampus !== "all") p.set("campus", nextCampus);
     if (nextQ) p.set("q", nextQ);
+    if (nextWeek != null) p.set("week", String(nextWeek));
     const qs = p.toString();
     setLocation(qs ? `${location}?${qs}` : location, { replace: true });
+  }
+
+  function selectWeek(next: number | null) {
+    pushUrl(urlCampus, search, next);
   }
 
   // Debounced search (250ms).
@@ -183,21 +180,21 @@ export default function AdminCampusInsights() {
     selectedCampusId != null && Number.isInteger(selectedCampusId);
 
   const { data: campusesList } = useListCampuses();
-  const { data: overview, isLoading: loadingOverview } =
-    useGetCampusInsightsOverview({
-      query: {
-        queryKey: getGetCampusInsightsOverviewQueryKey(),
-        enabled: isOverview,
-      },
-    });
+  const { data: weeksList } = useQuery({
+    queryKey: ["campus-insights-weeks"],
+    queryFn: listCampusInsightsWeeks,
+  });
+  const { data: overview, isLoading: loadingOverview } = useQuery({
+    queryKey: ["campus-insights-overview", urlWeek],
+    queryFn: () => fetchCampusInsightsOverview(urlWeek),
+    enabled: isOverview,
+  });
   const campusIdForQuery = campusIdValid ? selectedCampusId! : 0;
-  const { data: campusView, isLoading: loadingCampus } =
-    useGetCampusInsightsByCampus(campusIdForQuery, {
-      query: {
-        queryKey: getGetCampusInsightsByCampusQueryKey(campusIdForQuery),
-        enabled: !isOverview && campusIdValid,
-      },
-    });
+  const { data: campusView, isLoading: loadingCampus } = useQuery({
+    queryKey: ["campus-insights-by-campus", campusIdForQuery, urlWeek],
+    queryFn: () => fetchCampusInsightsByCampus(campusIdForQuery, urlWeek),
+    enabled: !isOverview && campusIdValid,
+  });
 
   const isLoading = isOverview ? loadingOverview : loadingCampus;
   const programmeWeeksTotal =
@@ -299,6 +296,10 @@ export default function AdminCampusInsights() {
     "Verified revenue (count)",
     "Rejected revenue (count)",
     "Total verified amount (INR)",
+    "Clients visited",
+    "Active conversations",
+    "Projects started",
+    "Projects closed",
   ];
   const teamHeaders = [
     "Team",
@@ -307,7 +308,50 @@ export default function AdminCampusInsights() {
     "Verified revenue (count)",
     "Rejected revenue (count)",
     "Total verified amount (INR)",
+    "Clients visited",
+    "Active conversations",
+    "Projects started",
+    "Projects closed",
   ];
+
+  const weekTag = urlWeek != null ? `Week: ${urlWeek}` : "All weeks";
+  const weekFileSuffix = urlWeek != null ? `-week${urlWeek}` : "";
+
+  // Prepend a `# Week: N` comment row (CSV ignored by most consumers, but
+  // visible in plain-text views and Excel's first-column).
+  function withWeekHeader(csv: string): string {
+    return `# ${weekTag}\n${csv}`;
+  }
+
+  function campusCsvRow(r: CampusRow): (string | number)[] {
+    return [
+      r.campusName,
+      r.teamsCount,
+      r.journalsSubmitted,
+      r.verifiedRevenueCount,
+      r.rejectedRevenueCount,
+      r.totalVerifiedAmount,
+      r.clientsVisited,
+      r.activeConversations,
+      r.projectsStarted,
+      r.projectsClosed,
+    ];
+  }
+
+  function teamCsvRow(r: TeamRow): (string | number)[] {
+    return [
+      r.teamName,
+      `${r.journalWeeksSubmitted} / ${programmeWeeksTotal}`,
+      r.orderBookSubmittedCount,
+      r.verifiedRevenueCount,
+      r.rejectedRevenueCount,
+      r.totalVerifiedAmount,
+      r.clientsVisited,
+      r.activeConversations,
+      r.projectsStarted,
+      r.projectsClosed,
+    ];
+  }
 
   function exportCampusWise() {
     const date = todayIso();
@@ -317,56 +361,37 @@ export default function AdminCampusInsights() {
       if (allCampuses.length === 0) return;
       const zip = new JSZip();
       // Add an overview.csv at the root for convenience.
-      const overviewCsv = toCsv(
-        campusOverviewHeaders,
-        allCampuses.map((r) => [
-          r.campusName,
-          r.teamsCount,
-          r.journalsSubmitted,
-          r.verifiedRevenueCount,
-          r.rejectedRevenueCount,
-          r.totalVerifiedAmount,
-        ]),
+      const overviewCsv = withWeekHeader(
+        toCsv(campusOverviewHeaders, allCampuses.map(campusCsvRow)),
       );
-      zip.file(`campus-insights-overview-${date}.csv`, overviewCsv);
+      zip.file(
+        `campus-insights-overview${weekFileSuffix}-${date}.csv`,
+        overviewCsv,
+      );
       // For per-campus team data we fetch on-demand via parallel requests.
       // To keep things simple and avoid touching every campus serially we
       // include just the campus summary row in each per-campus file. The
       // user can drill into a specific campus and export the team-level CSV
       // there for the granular view.
       for (const c of allCampuses) {
-        const csv = toCsv(campusOverviewHeaders, [
-          [
-            c.campusName,
-            c.teamsCount,
-            c.journalsSubmitted,
-            c.verifiedRevenueCount,
-            c.rejectedRevenueCount,
-            c.totalVerifiedAmount,
-          ],
-        ]);
-        zip.file(`${safeFilename(c.campusName)}-${date}.csv`, csv);
+        const csv = withWeekHeader(
+          toCsv(campusOverviewHeaders, [campusCsvRow(c)]),
+        );
+        zip.file(
+          `${safeFilename(c.campusName)}${weekFileSuffix}-${date}.csv`,
+          csv,
+        );
       }
       zip.generateAsync({ type: "blob" }).then((blob) => {
-        downloadBlob(blob, `campus-insights-${date}.zip`);
+        downloadBlob(blob, `campus-insights${weekFileSuffix}-${date}.zip`);
       });
     } else {
       const rows = (campusView?.rows ?? []) as TeamRow[];
-      const csv = toCsv(
-        teamHeaders,
-        rows.map((r) => [
-          r.teamName,
-          `${r.journalWeeksSubmitted} / ${programmeWeeksTotal}`,
-          r.orderBookSubmittedCount,
-          r.verifiedRevenueCount,
-          r.rejectedRevenueCount,
-          r.totalVerifiedAmount,
-        ]),
-      );
+      const csv = withWeekHeader(toCsv(teamHeaders, rows.map(teamCsvRow)));
       const name = safeFilename(campusView?.campusName ?? "campus");
       downloadBlob(
         new Blob([csv], { type: "text/csv;charset=utf-8" }),
-        `campus-insights-${name}-${date}.csv`,
+        `campus-insights-${name}${weekFileSuffix}-${date}.csv`,
       );
     }
   }
@@ -375,41 +400,27 @@ export default function AdminCampusInsights() {
     const date = todayIso();
     if (isOverview) {
       const rows = (overview?.rows ?? []) as CampusRow[];
-      const csv = toCsv(
-        ["Campus", ...campusOverviewHeaders.slice(1)],
-        rows.map((r) => [
-          r.campusName,
-          r.teamsCount,
-          r.journalsSubmitted,
-          r.verifiedRevenueCount,
-          r.rejectedRevenueCount,
-          r.totalVerifiedAmount,
-        ]),
+      const csv = withWeekHeader(
+        toCsv(campusOverviewHeaders, rows.map(campusCsvRow)),
       );
       downloadBlob(
         new Blob([csv], { type: "text/csv;charset=utf-8" }),
-        `campus-insights-all-${date}.csv`,
+        `campus-insights-all${weekFileSuffix}-${date}.csv`,
       );
     } else {
       // For drilldown view, a "single CSV" is just this campus's team CSV
       // with a Campus column on every row so the data stays pivotable.
       const rows = (campusView?.rows ?? []) as TeamRow[];
       const name = campusView?.campusName ?? "";
-      const csv = toCsv(
-        ["Campus", ...teamHeaders],
-        rows.map((r) => [
-          name,
-          r.teamName,
-          `${r.journalWeeksSubmitted} / ${programmeWeeksTotal}`,
-          r.orderBookSubmittedCount,
-          r.verifiedRevenueCount,
-          r.rejectedRevenueCount,
-          r.totalVerifiedAmount,
-        ]),
+      const csv = withWeekHeader(
+        toCsv(
+          ["Campus", ...teamHeaders],
+          rows.map((r) => [name, ...teamCsvRow(r)]),
+        ),
       );
       downloadBlob(
         new Blob([csv], { type: "text/csv;charset=utf-8" }),
-        `campus-insights-${safeFilename(name)}-teams-${date}.csv`,
+        `campus-insights-${safeFilename(name)}-teams${weekFileSuffix}-${date}.csv`,
       );
     }
   }
@@ -462,6 +473,11 @@ export default function AdminCampusInsights() {
             onChange={selectCampus}
           />
 
+          <WeekFilterDropdown
+            value={urlWeek}
+            weeks={weeksList ?? []}
+            onChange={selectWeek}
+          />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -595,13 +611,53 @@ export default function AdminCampusInsights() {
                       dir={campusSort.dir}
                     />
                   </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleCampusSort("clientsVisited")}
+                  >
+                    Clients visited
+                    <SortIcon
+                      active={campusSort.key === "clientsVisited"}
+                      dir={campusSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleCampusSort("activeConversations")}
+                  >
+                    Active convos
+                    <SortIcon
+                      active={campusSort.key === "activeConversations"}
+                      dir={campusSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleCampusSort("projectsStarted")}
+                  >
+                    Projects started
+                    <SortIcon
+                      active={campusSort.key === "projectsStarted"}
+                      dir={campusSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleCampusSort("projectsClosed")}
+                  >
+                    Projects closed
+                    <SortIcon
+                      active={campusSort.key === "projectsClosed"}
+                      dir={campusSort.dir}
+                    />
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {campusRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={10}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No campuses match this filter.
@@ -632,6 +688,18 @@ export default function AdminCampusInsights() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
                         {formatINR(r.totalVerifiedAmount)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.clientsVisited.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.activeConversations.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.projectsStarted.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.projectsClosed.toLocaleString()}
                       </TableCell>
                     </TableRow>
                   ))
@@ -704,13 +772,53 @@ export default function AdminCampusInsights() {
                       dir={teamSort.dir}
                     />
                   </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleTeamSort("clientsVisited")}
+                  >
+                    Clients visited
+                    <SortIcon
+                      active={teamSort.key === "clientsVisited"}
+                      dir={teamSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleTeamSort("activeConversations")}
+                  >
+                    Active convos
+                    <SortIcon
+                      active={teamSort.key === "activeConversations"}
+                      dir={teamSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleTeamSort("projectsStarted")}
+                  >
+                    Projects started
+                    <SortIcon
+                      active={teamSort.key === "projectsStarted"}
+                      dir={teamSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleTeamSort("projectsClosed")}
+                  >
+                    Projects closed
+                    <SortIcon
+                      active={teamSort.key === "projectsClosed"}
+                      dir={teamSort.dir}
+                    />
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {teamRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={10}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No teams match this filter.
@@ -741,6 +849,18 @@ export default function AdminCampusInsights() {
                       <TableCell className="text-right tabular-nums font-medium">
                         {formatINR(r.totalVerifiedAmount)}
                       </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.clientsVisited.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.activeConversations.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.projectsStarted.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.projectsClosed.toLocaleString()}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -759,6 +879,94 @@ export default function AdminCampusInsights() {
         </div>
       )}
     </div>
+  );
+}
+
+function WeekFilterDropdown({
+  value,
+  weeks,
+  onChange,
+}: {
+  value: number | null;
+  weeks: { weekNumber: number; startDate: string; endDate: string }[];
+  onChange: (next: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const label =
+    value == null
+      ? "All weeks"
+      : `Week ${value}`;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="sm:w-44 justify-between font-normal"
+          data-testid="select-week"
+        >
+          <span className="truncate">{label}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+      >
+        <Command>
+          <CommandInput
+            placeholder="Search weeks…"
+            data-testid="campus-insights-week-search"
+          />
+          <CommandList className="max-h-72">
+            <CommandEmpty>No weeks available.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="All weeks"
+                onSelect={() => {
+                  onChange(null);
+                  setOpen(false);
+                }}
+                data-testid="campus-insights-week-option-all"
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value == null ? "opacity-100" : "opacity-0",
+                  )}
+                />
+                All weeks
+              </CommandItem>
+              {weeks.map((w) => (
+                <CommandItem
+                  key={w.weekNumber}
+                  value={`Week ${w.weekNumber}`}
+                  onSelect={() => {
+                    onChange(w.weekNumber);
+                    setOpen(false);
+                  }}
+                  data-testid={`campus-insights-week-option-${w.weekNumber}`}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === w.weekNumber ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  <span>
+                    Week {w.weekNumber}
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {w.startDate} → {w.endDate}
+                    </span>
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -15,11 +15,17 @@ import { getAllowPastWeekEdits } from "./programme-weeks";
 
 const router: IRouter = Router();
 
+const counterField = z.number().int().min(0).max(100000).optional();
+
 const SubmitJournalBody = z.object({
   weekId: z.number().int().positive().optional(),
   whatWeDid: z.string().min(5).max(2000),
   blockers: z.string().max(2000).optional(),
   nextWeekPlan: z.string().max(2000).optional(),
+  clientsVisited: counterField,
+  activeConversations: counterField,
+  projectsStarted: counterField,
+  projectsClosed: counterField,
 });
 
 function todayIso(): string {
@@ -324,6 +330,10 @@ router.post("/journals", async (req, res): Promise<void> => {
       whatWeDid: parsed.data.whatWeDid,
       blockers: parsed.data.blockers ?? null,
       nextWeekPlan: parsed.data.nextWeekPlan ?? null,
+      clientsVisited: parsed.data.clientsVisited ?? 0,
+      activeConversations: parsed.data.activeConversations ?? 0,
+      projectsStarted: parsed.data.projectsStarted ?? 0,
+      projectsClosed: parsed.data.projectsClosed ?? 0,
       submittedBy: req.user.id,
     })
     .onConflictDoUpdate({
@@ -332,6 +342,10 @@ router.post("/journals", async (req, res): Promise<void> => {
         whatWeDid: parsed.data.whatWeDid,
         blockers: parsed.data.blockers ?? null,
         nextWeekPlan: parsed.data.nextWeekPlan ?? null,
+        clientsVisited: parsed.data.clientsVisited ?? 0,
+        activeConversations: parsed.data.activeConversations ?? 0,
+        projectsStarted: parsed.data.projectsStarted ?? 0,
+        projectsClosed: parsed.data.projectsClosed ?? 0,
         submittedBy: req.user.id,
         submittedAt: new Date(),
       },
@@ -381,6 +395,10 @@ router.get("/admin/journals", async (req, res): Promise<void> => {
       whatWeDid: weeklyJournalsTable.whatWeDid,
       blockers: weeklyJournalsTable.blockers,
       nextWeekPlan: weeklyJournalsTable.nextWeekPlan,
+      clientsVisited: weeklyJournalsTable.clientsVisited,
+      activeConversations: weeklyJournalsTable.activeConversations,
+      projectsStarted: weeklyJournalsTable.projectsStarted,
+      projectsClosed: weeklyJournalsTable.projectsClosed,
       submittedBy: weeklyJournalsTable.submittedBy,
       submittedAt: weeklyJournalsTable.submittedAt,
       teamName: teamsTable.name,
@@ -491,6 +509,10 @@ const UpdateJournalBody = z.object({
   whatWeDid: z.string().min(5).max(2000).optional(),
   blockers: z.string().max(2000).nullable().optional(),
   nextWeekPlan: z.string().max(2000).nullable().optional(),
+  clientsVisited: counterField,
+  activeConversations: counterField,
+  projectsStarted: counterField,
+  projectsClosed: counterField,
 });
 
 // Decide whether the actor is allowed to update/delete a given journal.
@@ -606,6 +628,14 @@ router.patch("/journals/:id", async (req, res): Promise<void> => {
     update.blockers = parsed.data.blockers;
   if (parsed.data.nextWeekPlan !== undefined)
     update.nextWeekPlan = parsed.data.nextWeekPlan;
+  if (parsed.data.clientsVisited !== undefined)
+    update.clientsVisited = parsed.data.clientsVisited;
+  if (parsed.data.activeConversations !== undefined)
+    update.activeConversations = parsed.data.activeConversations;
+  if (parsed.data.projectsStarted !== undefined)
+    update.projectsStarted = parsed.data.projectsStarted;
+  if (parsed.data.projectsClosed !== undefined)
+    update.projectsClosed = parsed.data.projectsClosed;
   if (Object.keys(update).length === 0) {
     res.status(400).json({ error: "No fields to update" });
     return;

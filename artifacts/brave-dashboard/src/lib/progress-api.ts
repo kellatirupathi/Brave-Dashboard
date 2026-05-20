@@ -12,6 +12,10 @@ export type WeeklyJournal = {
   whatWeDid: string;
   blockers: string | null;
   nextWeekPlan: string | null;
+  clientsVisited: number;
+  activeConversations: number;
+  projectsStarted: number;
+  projectsClosed: number;
   submittedBy: string;
   submittedAt: string;
 };
@@ -52,6 +56,10 @@ export function submitJournal(body: {
   whatWeDid: string;
   blockers?: string;
   nextWeekPlan?: string;
+  clientsVisited?: number;
+  activeConversations?: number;
+  projectsStarted?: number;
+  projectsClosed?: number;
 }): Promise<WeeklyJournal> {
   return customFetch<WeeklyJournal>("/api/journals", {
     method: "POST",
@@ -65,6 +73,10 @@ export function updateJournal(
     whatWeDid?: string;
     blockers?: string | null;
     nextWeekPlan?: string | null;
+    clientsVisited?: number;
+    activeConversations?: number;
+    projectsStarted?: number;
+    projectsClosed?: number;
   },
 ): Promise<WeeklyJournal> {
   return customFetch<WeeklyJournal>(`/api/journals/${id}`, {
@@ -282,4 +294,139 @@ export type ProgressSummary = {
 
 export function getProgressSummary(): Promise<ProgressSummary> {
   return customFetch<ProgressSummary>("/api/progress-summary");
+}
+
+// ---------- Admin: overdue notification subscribers ----------
+export type NotificationSubscriber = {
+  id: number;
+  email: string;
+  name: string | null;
+  isActive: boolean;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function listNotificationSubscribers(): Promise<
+  NotificationSubscriber[]
+> {
+  return customFetch<NotificationSubscriber[]>(
+    "/api/admin/notification-subscribers",
+  );
+}
+
+export function createNotificationSubscriber(body: {
+  email: string;
+  name?: string;
+  isActive?: boolean;
+}): Promise<NotificationSubscriber> {
+  return customFetch<NotificationSubscriber>(
+    "/api/admin/notification-subscribers",
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+export function updateNotificationSubscriber(
+  id: number,
+  body: { email?: string; name?: string | null; isActive?: boolean },
+): Promise<NotificationSubscriber> {
+  return customFetch<NotificationSubscriber>(
+    `/api/admin/notification-subscribers/${id}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+export function deleteNotificationSubscriber(
+  id: number,
+): Promise<{ ok: true; id: number }> {
+  return customFetch<{ ok: true; id: number }>(
+    `/api/admin/notification-subscribers/${id}`,
+    { method: "DELETE" },
+  );
+}
+
+// ---------- Admin: Campus Insights — programme weeks list ----------
+export type CampusInsightsWeek = {
+  weekNumber: number;
+  startDate: string;
+  endDate: string;
+};
+
+export function listCampusInsightsWeeks(): Promise<CampusInsightsWeek[]> {
+  return customFetch<CampusInsightsWeek[]>("/api/admin/campus-insights-weeks");
+}
+
+// ---------- Admin: Campus Insights data with optional ?week= filter ----------
+export type CampusInsightsCampusRow = {
+  campusId: number;
+  campusName: string;
+  teamsCount: number;
+  journalsSubmitted: number;
+  verifiedRevenueCount: number;
+  rejectedRevenueCount: number;
+  totalVerifiedAmount: number;
+  clientsVisited: number;
+  activeConversations: number;
+  projectsStarted: number;
+  projectsClosed: number;
+};
+
+export type CampusInsightsWeekRef = {
+  weekNumber: number;
+  startDate: string;
+  endDate: string;
+};
+
+export type CampusInsightsOverview = {
+  programmeWeeksTotal: number;
+  week: CampusInsightsWeekRef | null;
+  totals: {
+    totalTeams: number;
+    totalJournalsSubmitted: number;
+    totalVerifiedRevenue: number;
+  };
+  rows: CampusInsightsCampusRow[];
+};
+
+export type CampusInsightsTeamRow = {
+  teamId: number;
+  teamName: string;
+  journalWeeksSubmitted: number;
+  orderBookSubmittedCount: number;
+  verifiedRevenueCount: number;
+  rejectedRevenueCount: number;
+  totalVerifiedAmount: number;
+  clientsVisited: number;
+  activeConversations: number;
+  projectsStarted: number;
+  projectsClosed: number;
+};
+
+export type CampusInsightsByCampus = {
+  campusId: number;
+  campusName: string;
+  programmeWeeksTotal: number;
+  week: CampusInsightsWeekRef | null;
+  rows: CampusInsightsTeamRow[];
+};
+
+function weekQs(week?: number | null): string {
+  return week != null && Number.isFinite(week) ? `?week=${week}` : "";
+}
+
+export function fetchCampusInsightsOverview(
+  week?: number | null,
+): Promise<CampusInsightsOverview> {
+  return customFetch<CampusInsightsOverview>(
+    `/api/admin/campus-insights${weekQs(week)}`,
+  );
+}
+
+export function fetchCampusInsightsByCampus(
+  campusId: number,
+  week?: number | null,
+): Promise<CampusInsightsByCampus> {
+  return customFetch<CampusInsightsByCampus>(
+    `/api/admin/campus-insights/${campusId}${weekQs(week)}`,
+  );
 }

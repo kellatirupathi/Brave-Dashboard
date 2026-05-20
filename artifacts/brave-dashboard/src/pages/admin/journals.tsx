@@ -391,6 +391,28 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                         </Button>
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                      {(
+                        [
+                          ["Clients visited", j.clientsVisited],
+                          ["Active conversations", j.activeConversations],
+                          ["Projects started", j.projectsStarted],
+                          ["Projects closed", j.projectsClosed],
+                        ] as const
+                      ).map(([label, value]) => (
+                        <div
+                          key={label}
+                          className="rounded border bg-muted/30 px-2 py-1.5"
+                        >
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {label}
+                          </div>
+                          <div className="text-sm font-semibold tabular-nums">
+                            {(value ?? 0).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                     <div className="space-y-2 text-sm">
                       <p className="whitespace-pre-wrap">
                         <span className="text-xs uppercase font-semibold text-muted-foreground">

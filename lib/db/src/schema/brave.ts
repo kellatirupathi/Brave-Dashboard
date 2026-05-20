@@ -728,6 +728,10 @@ export const weeklyJournalsTable = pgTable(
     whatWeDid: text("what_we_did").notNull(),
     blockers: text("blockers"),
     nextWeekPlan: text("next_week_plan"),
+    clientsVisited: integer("clients_visited").notNull().default(0),
+    activeConversations: integer("active_conversations").notNull().default(0),
+    projectsStarted: integer("projects_started").notNull().default(0),
+    projectsClosed: integer("projects_closed").notNull().default(0),
     submittedBy: text("submitted_by").notNull(),
     submittedAt: timestamp("submitted_at", { withTimezone: true })
       .notNull()
@@ -853,3 +857,38 @@ export const insertResourceSchema = createInsertSchema(resourcesTable).omit({
 });
 export type InsertResource = z.infer<typeof insertResourceSchema>;
 export type Resource = typeof resourcesTable.$inferSelect;
+
+// ============================================================================
+// ADMIN OVERDUE NOTIFICATION SUBSCRIBERS (additive)
+// ============================================================================
+// Email subscribers for daily digest of overdue review-queue items.
+export const overdueNotificationSubscribersTable = pgTable(
+  "overdue_notification_subscribers",
+  {
+    id: serial("id").primaryKey(),
+    email: text("email").notNull(),
+    name: text("name"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: text("created_by_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    unique("overdue_notification_subscribers_email_unique").on(t.email),
+    index("overdue_notification_subscribers_active_idx").on(t.isActive),
+  ],
+);
+
+export const insertOverdueNotificationSubscriberSchema = createInsertSchema(
+  overdueNotificationSubscribersTable,
+).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertOverdueNotificationSubscriber = z.infer<
+  typeof insertOverdueNotificationSubscriberSchema
+>;
+export type OverdueNotificationSubscriber =
+  typeof overdueNotificationSubscribersTable.$inferSelect;

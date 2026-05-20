@@ -76,6 +76,7 @@ import StudentResourcesLibrary from "@/pages/student/resources";
 import AdminJournals from "@/pages/admin/journals";
 import AdminHeatmap from "@/pages/admin/heatmap";
 import AdminCampusInsights from "@/pages/admin/campus-insights";
+import AdminNotifications from "@/pages/admin/notifications";
 import CoordinatorJournals from "@/pages/coordinator/journals";
 import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
 
@@ -403,10 +404,18 @@ function Router() {
         <ProtectedRoute component={AdminResources} allowedRoles={["admin"]} />
       </Route>
 
-      {/* Hidden admin-only Campus Insights — no sidebar link; reachable only via direct URL. */}
+      {/* Admin Campus Insights (now sidebar-linked). */}
       <Route path="/admin/campus-insights">
         <ProtectedRoute
           component={AdminCampusInsights}
+          allowedRoles={["admin"]}
+        />
+      </Route>
+
+      {/* Admin Notifications — overdue review-queue email subscribers. */}
+      <Route path="/admin/notifications">
+        <ProtectedRoute
+          component={AdminNotifications}
           allowedRoles={["admin"]}
         />
       </Route>

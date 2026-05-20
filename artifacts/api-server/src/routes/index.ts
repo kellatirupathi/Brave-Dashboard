@@ -24,6 +24,8 @@ import cronRouter from "./cron";
 import resourcesRouter from "./resources";
 import chatbotRouter from "./chatbot";
 import campusInsightsRouter from "./campus-insights";
+import adminNotificationsRouter from "./admin-notifications";
+import cronOverdueNotificationsRouter from "./cron-overdue-notifications";
 
 const router: IRouter = Router();
 
@@ -59,5 +61,8 @@ router.use(resourcesRouter);
 router.use(chatbotRouter);
 // Campus Insights (hidden admin-only page — additive only)
 router.use(campusInsightsRouter);
+// Admin notification subscribers + daily overdue cron (additive only)
+router.use(adminNotificationsRouter);
+router.use(cronOverdueNotificationsRouter);
 
 export default router;

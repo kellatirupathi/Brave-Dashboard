@@ -24,6 +24,9 @@ import {
   BookOpenCheck,
   Activity,
   BookOpen,
+  BarChart3,
+  MessageSquare,
+  Bell,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { cn } from "@/lib/utils";
@@ -316,8 +319,14 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             href: "/admin/announcements",
             icon: Megaphone,
           },
+          { name: "Feedback", href: "/admin/feedback", icon: MessageSquare },
           { name: "Audit Log", href: "/admin/audit-log", icon: ClipboardList },
         ],
+      },
+      {
+        name: "Campus Insights",
+        href: "/admin/campus-insights",
+        icon: BarChart3,
       },
       { name: "Config", href: "/admin/config", icon: Settings },
       { name: "Resources", href: "/admin/resources", icon: BookOpen },
@@ -432,6 +441,17 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                   Edit profile
                 </Link>
               </DropdownMenuItem>
+              {role === "admin" && (
+                <DropdownMenuItem
+                  asChild
+                  data-testid="menu-item-admin-notifications"
+                >
+                  <Link href="/admin/notifications" onClick={onNavigate}>
+                    <Bell className="w-4 h-4 mr-2" />
+                    Notifications
+                  </Link>
+                </DropdownMenuItem>
+              )}
               {hasPassword && (
                 <DropdownMenuItem
                   onSelect={(e) => {
