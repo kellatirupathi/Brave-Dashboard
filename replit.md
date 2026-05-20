@@ -86,6 +86,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `notifications.ts` — User notifications
 - `announcements.ts` — Announcements broadcast
 - `admin.ts` — Admin: users, config, audit log, roster, review queue
+- `campus-insights.ts` — Admin-only aggregates feeding the hidden `/admin/campus-insights` page. Two endpoints: overview (per-campus) and `:campusId` (per-team). Each view uses 4 parallel `GROUP BY` aggregates merged in JS — no N+1.
 
 ## Frontend Pages (artifacts/brave-dashboard/src/pages/)
 
@@ -107,6 +108,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ### Admin:
 - `/admin` — National dashboard with stats
+- `/admin/campus-insights` — **Hidden** admin-only page (no sidebar/nav link; reachable only via direct URL). Per-campus aggregate metrics by default; selecting a campus (or clicking a row) drills into team-level metrics. URL query params `?campus=<id>&q=<search>` keep the view shareable.
 - `/admin/queue` — Revenue/order book review queue
 - `/admin/teams` — Team directory
 - `/admin/leaderboard` — National leaderboard with admin controls

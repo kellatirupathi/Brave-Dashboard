@@ -1622,7 +1622,7 @@ export const GetAdminReviewQueueResponse = zod.object({
       isOverdue: zod.boolean(),
       supportingDocUrl: zod.string().nullish(),
       brdUrl: zod.string().nullish(),
-      status: zod.enum(["submitted", "verified"]),
+      status: zod.enum(["submitted", "verified", "rejected"]),
       verifiedAmount: zod.number().nullish(),
       verifiedAt: zod.coerce.date().nullish(),
       adminNotes: zod.string().nullish(),
@@ -2623,4 +2623,53 @@ export const GetUploadedFileMetadataResponse = zod.object({
  */
 export const GetStorageObjectParams = zod.object({
   objectPath: zod.coerce.string(),
+});
+
+/**
+ * @summary Per-campus aggregate metrics (admin only)
+ */
+export const GetCampusInsightsOverviewResponse = zod.object({
+  rows: zod.array(
+    zod.object({
+      campusId: zod.number(),
+      campusName: zod.string(),
+      teamsCount: zod.number(),
+      journalsSubmitted: zod.number(),
+      verifiedRevenueCount: zod.number(),
+      rejectedRevenueCount: zod.number(),
+      totalVerifiedAmount: zod.number(),
+    }),
+  ),
+  programmeWeeksTotal: zod.number(),
+  totals: zod.object({
+    totalTeams: zod.number(),
+    totalJournalsSubmitted: zod.number(),
+    totalVerifiedRevenue: zod.number(),
+    totalVerifiedCount: zod.number(),
+    totalRejectedCount: zod.number(),
+  }),
+});
+
+/**
+ * @summary Per-team aggregate metrics for one campus (admin only)
+ */
+export const GetCampusInsightsByCampusParams = zod.object({
+  campusId: zod.coerce.number(),
+});
+
+export const GetCampusInsightsByCampusResponse = zod.object({
+  campusId: zod.number(),
+  campusName: zod.string(),
+  programmeWeeksTotal: zod.number(),
+  rows: zod.array(
+    zod.object({
+      teamId: zod.number(),
+      teamName: zod.string(),
+      journalWeeksSubmitted: zod.number(),
+      orderBookSubmittedCount: zod.number(),
+      verifiedRevenueCount: zod.number(),
+      rejectedRevenueCount: zod.number(),
+      totalVerifiedAmount: zod.number(),
+    }),
+  ),
 });

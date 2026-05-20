@@ -12,4 +12,5 @@ export type AdminReviewQueueItemStatus =
 export const AdminReviewQueueItemStatus = {
   submitted: "submitted",
   verified: "verified",
+  rejected: "rejected",
 } as const;

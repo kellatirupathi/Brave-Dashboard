@@ -1237,6 +1237,47 @@ export interface ExchangeMobileAuthorizationCodeBody {
   nonce: string;
 }
 
+export interface CampusInsightsRow {
+  campusId: number;
+  campusName: string;
+  teamsCount: number;
+  journalsSubmitted: number;
+  verifiedRevenueCount: number;
+  rejectedRevenueCount: number;
+  totalVerifiedAmount: number;
+}
+
+export type CampusInsightsOverviewResponseTotals = {
+  totalTeams: number;
+  totalJournalsSubmitted: number;
+  totalVerifiedRevenue: number;
+  totalVerifiedCount: number;
+  totalRejectedCount: number;
+};
+
+export interface CampusInsightsOverviewResponse {
+  rows: CampusInsightsRow[];
+  programmeWeeksTotal: number;
+  totals: CampusInsightsOverviewResponseTotals;
+}
+
+export interface CampusInsightsTeamRow {
+  teamId: number;
+  teamName: string;
+  journalWeeksSubmitted: number;
+  orderBookSubmittedCount: number;
+  verifiedRevenueCount: number;
+  rejectedRevenueCount: number;
+  totalVerifiedAmount: number;
+}
+
+export interface CampusInsightsCampusResponse {
+  campusId: number;
+  campusName: string;
+  programmeWeeksTotal: number;
+  rows: CampusInsightsTeamRow[];
+}
+
 export type ListTeamsParams = {
   campusId?: number;
   status?: ListTeamsStatus;

@@ -2127,6 +2127,39 @@ paths:
         "200":
           description: Object file content
 
+  # Campus Insights (hidden admin-only page) — server-side aggregates.
+  /admin/campus-insights:
+    get:
+      operationId: getCampusInsightsOverview
+      tags: [admin]
+      summary: Per-campus aggregate metrics (admin only)
+      responses:
+        "200":
+          description: Campus-level aggregates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CampusInsightsOverviewResponse"
+
+  /admin/campus-insights/{campusId}:
+    get:
+      operationId: getCampusInsightsByCampus
+      tags: [admin]
+      summary: Per-team aggregate metrics for one campus (admin only)
+      parameters:
+        - name: campusId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Team-level aggregates for the campus
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CampusInsightsCampusResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -4187,3 +4220,107 @@ components:
         - codeVerifier
         - state
         - nonce
+
+    CampusInsightsRow:
+      type: object
+      properties:
+        campusId:
+          type: integer
+        campusName:
+          type: string
+        teamsCount:
+          type: integer
+        journalsSubmitted:
+          type: integer
+        verifiedRevenueCount:
+          type: integer
+        rejectedRevenueCount:
+          type: integer
+        totalVerifiedAmount:
+          type: integer
+      required:
+        - campusId
+        - campusName
+        - teamsCount
+        - journalsSubmitted
+        - verifiedRevenueCount
+        - rejectedRevenueCount
+        - totalVerifiedAmount
+
+    CampusInsightsOverviewResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampusInsightsRow"
+        programmeWeeksTotal:
+          type: integer
+        totals:
+          type: object
+          properties:
+            totalTeams:
+              type: integer
+            totalJournalsSubmitted:
+              type: integer
+            totalVerifiedRevenue:
+              type: integer
+            totalVerifiedCount:
+              type: integer
+            totalRejectedCount:
+              type: integer
+          required:
+            - totalTeams
+            - totalJournalsSubmitted
+            - totalVerifiedRevenue
+            - totalVerifiedCount
+            - totalRejectedCount
+      required:
+        - rows
+        - programmeWeeksTotal
+        - totals
+
+    CampusInsightsTeamRow:
+      type: object
+      properties:
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        journalWeeksSubmitted:
+          type: integer
+        orderBookSubmittedCount:
+          type: integer
+        verifiedRevenueCount:
+          type: integer
+        rejectedRevenueCount:
+          type: integer
+        totalVerifiedAmount:
+          type: integer
+      required:
+        - teamId
+        - teamName
+        - journalWeeksSubmitted
+        - orderBookSubmittedCount
+        - verifiedRevenueCount
+        - rejectedRevenueCount
+        - totalVerifiedAmount
+
+    CampusInsightsCampusResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+        campusName:
+          type: string
+        programmeWeeksTotal:
+          type: integer
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampusInsightsTeamRow"
+      required:
+        - campusId
+        - campusName
+        - programmeWeeksTotal
+        - rows

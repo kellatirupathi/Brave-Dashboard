@@ -23,6 +23,7 @@ import programmeWeeksRouter from "./programme-weeks";
 import cronRouter from "./cron";
 import resourcesRouter from "./resources";
 import chatbotRouter from "./chatbot";
+import campusInsightsRouter from "./campus-insights";
 
 const router: IRouter = Router();
 
@@ -56,5 +57,7 @@ router.use(cronRouter);
 router.use(resourcesRouter);
 // Chatbot (Cerebras-powered Q&A widget — additive only)
 router.use(chatbotRouter);
+// Campus Insights (hidden admin-only page — additive only)
+router.use(campusInsightsRouter);
 
 export default router;

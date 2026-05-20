@@ -75,6 +75,7 @@ import StudentJournal from "@/pages/student/journal";
 import StudentResourcesLibrary from "@/pages/student/resources";
 import AdminJournals from "@/pages/admin/journals";
 import AdminHeatmap from "@/pages/admin/heatmap";
+import AdminCampusInsights from "@/pages/admin/campus-insights";
 import CoordinatorJournals from "@/pages/coordinator/journals";
 import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
 
@@ -400,6 +401,14 @@ function Router() {
       {/* Resources management (admin CRUD) */}
       <Route path="/admin/resources">
         <ProtectedRoute component={AdminResources} allowedRoles={["admin"]} />
+      </Route>
+
+      {/* Hidden admin-only Campus Insights — no sidebar link; reachable only via direct URL. */}
+      <Route path="/admin/campus-insights">
+        <ProtectedRoute
+          component={AdminCampusInsights}
+          allowedRoles={["admin"]}
+        />
       </Route>
 
       {/* Progress enforcement (admin) */}

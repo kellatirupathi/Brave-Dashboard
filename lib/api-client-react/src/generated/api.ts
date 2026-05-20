@@ -29,6 +29,8 @@ import type {
   BulkImportRosterBody,
   BulkImportRosterResponse,
   Campus,
+  CampusInsightsCampusResponse,
+  CampusInsightsOverviewResponse,
   CampusStudent,
   ClearAllRoster200,
   ClearAllRosterBody,
@@ -8706,6 +8708,180 @@ export function useGetStorageObject<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetStorageObjectQueryOptions(objectPath, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Per-campus aggregate metrics (admin only)
+ */
+export const getGetCampusInsightsOverviewUrl = () => {
+  return `/api/admin/campus-insights`;
+};
+
+export const getCampusInsightsOverview = async (
+  options?: RequestInit,
+): Promise<CampusInsightsOverviewResponse> => {
+  return customFetch<CampusInsightsOverviewResponse>(
+    getGetCampusInsightsOverviewUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetCampusInsightsOverviewQueryKey = () => {
+  return [`/api/admin/campus-insights`] as const;
+};
+
+export const getGetCampusInsightsOverviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCampusInsightsOverview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCampusInsightsOverview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCampusInsightsOverviewQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCampusInsightsOverview>>
+  > = ({ signal }) => getCampusInsightsOverview({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCampusInsightsOverview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCampusInsightsOverviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCampusInsightsOverview>>
+>;
+export type GetCampusInsightsOverviewQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Per-campus aggregate metrics (admin only)
+ */
+
+export function useGetCampusInsightsOverview<
+  TData = Awaited<ReturnType<typeof getCampusInsightsOverview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCampusInsightsOverview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCampusInsightsOverviewQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Per-team aggregate metrics for one campus (admin only)
+ */
+export const getGetCampusInsightsByCampusUrl = (campusId: number) => {
+  return `/api/admin/campus-insights/${campusId}`;
+};
+
+export const getCampusInsightsByCampus = async (
+  campusId: number,
+  options?: RequestInit,
+): Promise<CampusInsightsCampusResponse> => {
+  return customFetch<CampusInsightsCampusResponse>(
+    getGetCampusInsightsByCampusUrl(campusId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetCampusInsightsByCampusQueryKey = (campusId: number) => {
+  return [`/api/admin/campus-insights/${campusId}`] as const;
+};
+
+export const getGetCampusInsightsByCampusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCampusInsightsByCampus>>,
+  TError = ErrorType<unknown>,
+>(
+  campusId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCampusInsightsByCampus>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCampusInsightsByCampusQueryKey(campusId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCampusInsightsByCampus>>
+  > = ({ signal }) =>
+    getCampusInsightsByCampus(campusId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!campusId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCampusInsightsByCampus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCampusInsightsByCampusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCampusInsightsByCampus>>
+>;
+export type GetCampusInsightsByCampusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Per-team aggregate metrics for one campus (admin only)
+ */
+
+export function useGetCampusInsightsByCampus<
+  TData = Awaited<ReturnType<typeof getCampusInsightsByCampus>>,
+  TError = ErrorType<unknown>,
+>(
+  campusId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCampusInsightsByCampus>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCampusInsightsByCampusQueryOptions(
+    campusId,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
