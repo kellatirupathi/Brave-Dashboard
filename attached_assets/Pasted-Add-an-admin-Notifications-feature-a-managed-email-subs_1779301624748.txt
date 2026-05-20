@@ -1,0 +1,169 @@
+Add an admin Notifications feature: a managed email subscriber list +
+a daily 09:00 IST cron that emails subscribers a count of OVERDUE
+revenue entries in the Review Queue. Whenever the overdue count is 0,
+send nothing.
+
+IMPORTANT: do NOT modify the existing /api/internal/cron/reminders
+endpoint or its handler (cron-reminders.ts). Add a brand-new, separate
+endpoint for this feature so the existing silent-team-reminders cron
+continues to work unchanged.
+
+==========================================================
+PART 1 — DB: new subscribers table
+==========================================================
+
+In lib/db/src/schema/brave.ts add a new table:
+
+  export const overdueNotificationSubscribersTable = pgTable(
+    "overdue_notification_subscribers",
+    {
+      id: serial("id").primaryKey(),
+      email: text("email").notNull(),
+      addedBy: text("added_by").notNull(),           // user id of the admin who added it
+      createdAt: timestamp("created_at", { withTimezone: true })
+        .notNull()
+        .defaultNow(),
+    },
+    (t) => [unique("overdue_notif_email_unique").on(t.email)],
+  );
+
+Run `pnpm --filter @workspace/db run push` to add the table.
+
+==========================================================
+PART 2 — API: admin CRUD + cron endpoint
+==========================================================
+
+Create a new route file: artifacts/api-server/src/routes/admin-notifications.ts
+Mount it from artifacts/api-server/src/routes/index.ts.
+
+Endpoints (admin-only — return 403 otherwise; reuse req.user.role check):
+  GET    /api/admin/notification-subscribers
+         → returns [{ id, email, addedBy, addedByName, createdAt }, ...] sorted by createdAt DESC
+  POST   /api/admin/notification-subscribers
+         → body: { email: string }
+         → validates email format; lowercases + trims; rejects duplicates with 409
+         → returns the created row
+         → writes auditLog action "add_overdue_notification_subscriber"
+  DELETE /api/admin/notification-subscribers/:id
+         → 404 if not found
+         → returns 204
+         → writes auditLog action "remove_overdue_notification_subscriber"
+
+NEW cron endpoint (separate from the existing reminders cron):
+  POST /api/internal/cron/overdue-notifications
+
+Place this in a NEW handler file, e.g.
+artifacts/api-server/src/cron-overdue-notifications.ts. DO NOT touch
+cron-reminders.ts. Wire it into the routes/index.ts mount.
+
+Handler logic:
+  1. Verify X-Cron-Secret header matches process.env.CRON_SECRET; else 401.
+  2. Query revenue_entries:
+       overdueCount = count of rows where status='submitted'
+                      AND submittedAt < now() - INTERVAL '<OVERDUE_DAYS> days'
+       (Use the SAME overdue threshold the admin Review Queue page uses.
+        Read it from the same constant — extract it to a shared lib if
+        needed — do NOT duplicate the number.)
+       totalPendingCount = count of all status='submitted'
+       oldestOverdueSubmittedAt = MIN(submittedAt) of overdue rows
+  3. If overdueCount === 0:
+       - Log "Overdue reminder skipped — 0 overdue"
+       - Respond 202 with { skipped: true, reason: "no overdue" }
+       - Send NO email.
+  4. Else:
+       - Fetch all rows from overdue_notification_subscribers.
+       - If empty: log and respond 202 with { skipped: true, reason: "no subscribers" }.
+       - Render the email (see template below).
+       - Send one email per subscriber via the existing sendEmail()
+         helper in lib/email/brevo.ts, batched 10 at a time with a
+         1-second pause between batches (same throttling pattern as
+         the announcement email fan-out).
+       - Respond 202 with { sent, failed, total, overdueCount }.
+  5. Wrap all DB/email work in try/catch; on error log and return 500
+     with { error: "Overdue reminder failed" }. Never throw out.
+
+==========================================================
+PART 3 — Email template
+==========================================================
+
+Create artifacts/api-server/src/lib/email/templates/overdue-reminder.ts
+
+  type OverdueReminderInput = {
+    recipientName?: string;       // optional — we only have an email
+    overdueCount: number;
+    totalPendingCount: number;
+    oldestOverdueDate: string;    // formatted DD MMM YYYY
+    oldestOverdueDays: number;
+    appUrl: string;
+  };
+
+  export function renderOverdueReminderEmail(input: OverdueReminderInput) {
+    const subject = `BRAVE Review Queue — ${input.overdueCount} overdue revenue ${input.overdueCount === 1 ? 'entry' : 'entries'} pending`;
+    const greeting = input.recipientName?.trim() ? `Hi ${input.recipientName.trim()},` : "Hi,";
+    const lines = [
+      greeting,
+      "",
+      `There ${input.overdueCount === 1 ? 'is' : 'are'} ${input.overdueCount} overdue revenue ${input.overdueCount === 1 ? 'entry' : 'entries'} waiting for verification on the BRAVE Dashboard Review Queue. Please review and verify (or reject) them at your earliest convenience.`,
+      "",
+      `  • Overdue items: ${input.overdueCount}`,
+      `  • Total pending in queue: ${input.totalPendingCount}`,
+      `  • Oldest overdue: ${input.oldestOverdueDate} (${input.oldestOverdueDays} days old)`,
+      "",
+      `Open the Review Queue: ${input.appUrl}/admin/queue`,
+      "",
+      "This is an automated daily reminder. It will keep arriving every day at 09:00 IST until the overdue count drops to zero.",
+      "",
+      "— BRAVE Team",
+      "",
+      "For any questions, reply to this email or contact brave.niat@nxtwave.in.",
+    ];
+    return { subject, text: lines.join("\n") };
+  }
+
+==========================================================
+PART 4 — Frontend: admin profile dropdown + Notifications page
+==========================================================
+
+1) Admin profile dropdown (the small menu currently containing
+   "Edit profile" and "Logout"). Add a NEW item "Notifications"
+   BETWEEN them, with an icon (lucide Bell). Clicking it navigates
+   to /admin/notifications.
+
+2) New page: artifacts/brave-dashboard/src/pages/admin/notifications.tsx
+   - Title: "Overdue Reminder Subscribers"
+   - Short description: "These email addresses receive a daily 09:00 IST
+     reminder whenever there are overdue revenue entries in the Review
+     Queue. No email is sent on days when the overdue count is zero."
+   - Add-email form: an email input + "Add" button. Validates client-side;
+     on success, prepends the row to the list, shows a success toast.
+   - List of current subscribers: email · added by (name) · added on (date)
+     · Remove button (with confirm dialog).
+   - Uses shadcn/ui primitives consistent with other admin pages.
+   - Admin-only — wrap in ProtectedRoute allowedRoles=["admin"].
+
+3) Route wiring in artifacts/brave-dashboard/src/App.tsx:
+   <Route path="/admin/notifications">
+     <ProtectedRoute component={AdminNotifications} allowedRoles={["admin"]} />
+   </Route>
+   The page is reachable ONLY via the profile dropdown — do NOT add it
+   to the admin sidebar.
+
+==========================================================
+ACCEPTANCE
+==========================================================
+
+- Existing /api/internal/cron/reminders endpoint and cron-reminders.ts
+  are UNCHANGED (verify by diff).
+- Admin profile dropdown shows: Edit profile · Notifications · Logout.
+- /admin/notifications is admin-only and supports add / list / remove.
+- Hitting POST /api/internal/cron/overdue-notifications with the right
+  X-Cron-Secret:
+    * returns 202 + {skipped:true} when overdue count is 0
+    * otherwise emails every subscriber and returns 202 with send stats
+- Adds new audit log entries on subscriber add/remove.
+- `pnpm run typecheck` is clean.
+
+NON-GOALS
+- No changes to the existing reminders cron / silent-team flow.
+- No new sidebar items.
+- No public/student access.

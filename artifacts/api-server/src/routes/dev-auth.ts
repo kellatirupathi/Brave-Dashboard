@@ -1,12 +1,21 @@
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+/**
+ * Dev-only sign-in helper.
+ *
+ * Lets developers mint a real session for any roster/users-table row with
+ * one click from the /dev/login page. Mounted at /api/dev/* and ALWAYS
+ * returns 404 in production so it can never be used to impersonate a real
+ * user on the live deployment.
+ */
+import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
-  campusesTable,
   rosterTable,
+  campusesTable,
   teamMembersTable,
+  createOrGetUserByFormsId,
 } from "@workspace/db";
 import {
   clearSession,
@@ -20,23 +29,14 @@ import { buildAuthUser } from "./auth";
 
 const router: IRouter = Router();
 
-function isDevEnabled(): boolean {
-  if (process.env.NODE_ENV === "production") return false;
-  if (process.env.DEV_AUTH_DISABLED === "true") return false;
-  return true;
+function isDev(): boolean {
+  return process.env.NODE_ENV !== "production";
 }
 
-if (isDevEnabled()) {
-  // eslint-disable-next-line no-console
-  console.warn(
-    "[dev-auth] Dev sign-in routes are ENABLED (/api/dev/*). " +
-      "These permit impersonating any roster user without authentication. " +
-      "Set NODE_ENV=production or DEV_AUTH_DISABLED=true to disable.",
-  );
-}
-
-router.use("/dev", (req: Request, res: Response, next: NextFunction) => {
-  if (!isDevEnabled()) {
+// Hard gate: any request to /api/dev/* in production returns 404 before
+// the route handlers even run.
+router.use((req: Request, res: Response, next) => {
+  if (!isDev()) {
     res.status(404).json({ error: "Not found" });
     return;
   }
@@ -47,34 +47,39 @@ router.get("/dev/enabled", (_req: Request, res: Response) => {
   res.json({ enabled: true });
 });
 
-const ListUsersQuery = z.object({
+const ListQuery = z.object({
   role: z.enum(["student", "coordinator", "admin"]).optional(),
-  search: z.string().trim().optional(),
-  limit: z.coerce.number().int().positive().max(200).default(100),
+  search: z.string().trim().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
-router.get("/dev/users", async (req: Request, res: Response) => {
-  const parsed = ListUsersQuery.safeParse(req.query);
+router.get("/dev/users", async (req: Request, res: Response): Promise<void> => {
+  const parsed = ListQuery.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query" });
     return;
   }
-  const { role, search, limit } = parsed.data;
+  const { role, search } = parsed.data;
+  const limit = parsed.data.limit ?? 150;
 
-  const conds = [] as ReturnType<typeof eq>[];
-  if (role) conds.push(eq(usersTable.role, role));
-  if (search && search.length > 0) {
-    const like = `%${search}%`;
-    conds.push(
-      or(
-        ilike(usersTable.email, like),
-        ilike(usersTable.firstName, like),
-        ilike(usersTable.lastName, like),
-        ilike(campusesTable.name, like),
-        ilike(sql`coalesce(${usersTable.firstName}, '') || ' ' || coalesce(${usersTable.lastName}, '')`, like),
-      )!,
+  // Users (existing accounts)
+  const userConds: ReturnType<typeof and>[] = [];
+  if (role) userConds.push(eq(usersTable.role, role));
+  if (search) {
+    const pattern = `%${search}%`;
+    const fuzzy = or(
+      ilike(usersTable.email, pattern),
+      ilike(usersTable.firstName, pattern),
+      ilike(usersTable.lastName, pattern),
+      ilike(
+        sql`(${usersTable.firstName} || ' ' || ${usersTable.lastName})`,
+        pattern,
+      ),
+      ilike(campusesTable.name, pattern),
     );
+    if (fuzzy) userConds.push(fuzzy);
   }
+  const whereUsers = userConds.length > 0 ? and(...userConds) : undefined;
 
   const rows = await db
     .select({
@@ -85,126 +90,184 @@ router.get("/dev/users", async (req: Request, res: Response) => {
       role: usersTable.role,
       campusId: usersTable.campusId,
       campusName: campusesTable.name,
-      teamId: teamMembersTable.teamId,
+      formsUserId: usersTable.formsUserId,
     })
     .from(usersTable)
     .leftJoin(campusesTable, eq(campusesTable.id, usersTable.campusId))
-    .leftJoin(teamMembersTable, eq(teamMembersTable.userId, usersTable.id))
-    .where(conds.length > 0 ? and(...conds) : undefined)
-    .orderBy(usersTable.role, usersTable.firstName, usersTable.lastName)
+    .where(whereUsers)
+    .orderBy(
+      asc(usersTable.role),
+      asc(usersTable.firstName),
+      asc(usersTable.lastName),
+    )
     .limit(limit);
 
-  // Roster-only entries (not yet in users): include so you can sign in as them
-  // and trigger the auto-provision flow.
-  const rosterConds = [eq(rosterTable.isWhitelisted, true)] as ReturnType<typeof eq>[];
-  if (search && search.length > 0) {
-    const like = `%${search}%`;
-    rosterConds.push(
-      or(
-        ilike(rosterTable.email, like),
-        ilike(rosterTable.fullName, like),
-        ilike(rosterTable.campusName, like),
-        ilike(rosterTable.studentId, like),
-      )!,
-    );
+  // Attach teamId for each returned user (single query, no N+1).
+  const userIds = rows.map((r) => r.id);
+  const memberMap = new Map<string, number>();
+  if (userIds.length > 0) {
+    const members = await db
+      .select({
+        userId: teamMembersTable.userId,
+        teamId: teamMembersTable.teamId,
+      })
+      .from(teamMembersTable)
+      .where(inArray(teamMembersTable.userId, userIds));
+    for (const m of members) memberMap.set(m.userId, m.teamId);
   }
-  // Only include roster (students) when no explicit non-student role filter is set.
-  const includeRoster = !role || role === "student";
-  const rosterRows = includeRoster
-    ? await db
-        .select({
-          id: rosterTable.id,
-          studentId: rosterTable.studentId,
-          fullName: rosterTable.fullName,
-          email: rosterTable.email,
-          campusId: rosterTable.campusId,
-          campusName: rosterTable.campusName,
-        })
-        .from(rosterTable)
-        .where(and(...rosterConds))
-        .limit(limit)
-    : [];
 
-  // Drop roster rows whose email already exists in users (avoid duplicates).
-  const userEmails = new Set(rows.map((u) => u.email.toLowerCase()));
-  const rosterOnly = rosterRows.filter(
-    (r) => r.email && !userEmails.has(r.email.toLowerCase()),
-  );
+  const users = rows.map((r) => ({
+    id: r.id,
+    email: r.email,
+    firstName: r.firstName,
+    lastName: r.lastName,
+    role: r.role,
+    campusId: r.campusId,
+    campusName: r.campusName ?? null,
+    teamId: memberMap.get(r.id) ?? null,
+  }));
 
-  res.json({
-    users: rows,
-    rosterOnly,
-  });
+  // Roster-only entries: whitelisted students who have never signed in.
+  // Only include when the caller didn't filter to a non-student role.
+  let rosterOnly: Array<{
+    id: number;
+    studentId: string;
+    fullName: string;
+    email: string | null;
+    campusId: number | null;
+    campusName: string;
+  }> = [];
+  if (!role || role === "student") {
+    const seenFormsIds = rows
+      .map((r) => r.formsUserId)
+      .filter((v): v is string => !!v);
+
+    const rosterConds: ReturnType<typeof and>[] = [
+      eq(rosterTable.isWhitelisted, true),
+    ];
+    if (seenFormsIds.length > 0) {
+      rosterConds.push(sql`${rosterTable.studentId} NOT IN ${seenFormsIds}`);
+    }
+    if (search) {
+      const pattern = `%${search}%`;
+      const fuzzy = or(
+        ilike(rosterTable.fullName, pattern),
+        ilike(rosterTable.email, pattern),
+        ilike(rosterTable.studentId, pattern),
+        ilike(rosterTable.campusName, pattern),
+      );
+      if (fuzzy) rosterConds.push(fuzzy);
+    }
+
+    const rosterRows = await db
+      .select({
+        id: rosterTable.id,
+        studentId: rosterTable.studentId,
+        fullName: rosterTable.fullName,
+        email: rosterTable.email,
+        campusId: rosterTable.campusId,
+        campusName: rosterTable.campusName,
+      })
+      .from(rosterTable)
+      .where(and(...rosterConds))
+      .orderBy(asc(rosterTable.fullName))
+      .limit(Math.max(20, Math.min(limit, 100)));
+
+    // Exclude any roster entry whose studentId already matched a user row
+    // (defensive — covers cases where studentId equals some user's id).
+    const usedFormsIds = new Set(seenFormsIds);
+    rosterOnly = rosterRows.filter((r) => !usedFormsIds.has(r.studentId));
+  }
+
+  res.json({ users, rosterOnly });
 });
 
-const SignInAsBody = z.object({
-  userId: z.string().min(1).optional(),
-  formsUserId: z.string().min(1).optional(),
-}).refine((d) => d.userId || d.formsUserId, { message: "userId or formsUserId required" });
+const SignInAsBody = z
+  .object({
+    userId: z.string().min(1).optional(),
+    formsUserId: z.string().min(1).optional(),
+  })
+  .refine((v) => !!v.userId || !!v.formsUserId, {
+    message: "Provide userId or formsUserId",
+  });
 
-router.post("/dev/sign-in-as", async (req: Request, res: Response) => {
-  const parsed = SignInAsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid body" });
-    return;
-  }
+function homeForRole(role: string): string {
+  if (role === "admin") return "/admin";
+  if (role === "coordinator") return "/coordinator";
+  return "/";
+}
 
-  try {
-    let dbUser: typeof usersTable.$inferSelect | undefined;
-    if (parsed.data.userId) {
-      [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.userId));
-    } else if (parsed.data.formsUserId) {
-      // Auto-provision via the same path Forms SSO uses, and promote to admin
-      // if the forms id is in the bootstrap list (mirrors the real SSO flow).
-      const { createOrGetUserByFormsId } = await import("@workspace/db");
-      const { ensureAdminForFormsId } = await import("../bootstrap-admins");
-      const result = await createOrGetUserByFormsId(parsed.data.formsUserId);
-      dbUser = result.user;
-      const promoted = await ensureAdminForFormsId(parsed.data.formsUserId);
-      if (promoted) {
-        // Re-read so the session reflects the promoted role.
-        const { db, usersTable } = await import("@workspace/db");
-        const { eq } = await import("drizzle-orm");
-        [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, dbUser.id));
-      }
+function setSessionCookie(res: Response, sid: string) {
+  res.cookie(SESSION_COOKIE, sid, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_TTL,
+  });
+}
+
+router.post(
+  "/dev/sign-in-as",
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = SignInAsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Provide userId or formsUserId" });
+      return;
     }
+
+    // Clear any existing session first so we don't leave an orphan row.
+    try {
+      const sid = getSessionId(req);
+      if (sid) await clearSession(res, sid);
+    } catch (err) {
+      req.log.warn({ err }, "[dev] failed to clear prior session — continuing");
+    }
+
+    let dbUser: typeof usersTable.$inferSelect | null = null;
+
+    if (parsed.data.userId) {
+      const [row] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, parsed.data.userId));
+      dbUser = row ?? null;
+    } else if (parsed.data.formsUserId) {
+      const { user } = await createOrGetUserByFormsId(parsed.data.formsUserId, {
+        provisionedVia: "roster",
+      });
+      dbUser = user;
+    }
+
     if (!dbUser) {
       res.status(404).json({ error: "User not found" });
       return;
     }
 
-    // Use the same auth-user shaping as the real Forms SSO flow so roster
-    // status, campus backfill, and team membership match production behavior.
     const authUser = await buildAuthUser(dbUser);
-
     const sessionData: SessionData = {
       user: authUser,
-      access_token: "dev-impersonation",
+      access_token: "dev-sign-in-as",
     };
     const sid = await createSession(sessionData);
-    res.cookie(SESSION_COOKIE, sid, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_TTL,
-    });
+    setSessionCookie(res, sid);
 
-    let redirect = "/";
-    if (dbUser.role === "coordinator") redirect = "/coordinator";
-    else if (dbUser.role === "admin") redirect = "/admin";
+    req.log.info(
+      { devSignInAs: { userId: dbUser.id, role: dbUser.role } },
+      "[dev] minted session via /dev/sign-in-as",
+    );
 
-    res.json({ user: authUser, redirect });
-  } catch (err) {
-    req.log.error({ err }, "dev sign-in-as failed");
-    res.status(500).json({ error: "Failed to sign in" });
-  }
-});
+    res.json({ redirect: homeForRole(authUser.role) });
+  },
+);
 
-router.post("/dev/sign-out", async (req: Request, res: Response) => {
-  const sid = getSessionId(req);
-  await clearSession(res, sid);
-  res.json({ ok: true });
-});
+router.post(
+  "/dev/sign-out",
+  async (req: Request, res: Response): Promise<void> => {
+    const sid = getSessionId(req);
+    await clearSession(res, sid);
+    res.json({ ok: true });
+  },
+);
 
 export default router;
