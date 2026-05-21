@@ -67,6 +67,21 @@ import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/lib/api-error";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { Check, ChevronsUpDown } from "lucide-react";
 import * as XLSX from "xlsx";
 
 const CAMPUSES = [
@@ -115,6 +130,93 @@ type ImportStudent = {
 
 const PAGE_SIZE = 100;
 const ALL_CAMPUSES = "__all__";
+
+function RosterCampusFilterPopover({
+  value,
+  campuses,
+  onChange,
+}: {
+  value: string;
+  campuses: { id: number; name: string }[];
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedLabel =
+    value === ALL_CAMPUSES
+      ? "All campuses"
+      : (campuses.find((c) => String(c.id) === value)?.name ?? "All campuses");
+  const sorted = [...campuses].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="sm:w-64 justify-between font-normal"
+          data-testid="select-roster-campus-filter"
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+      >
+        <Command>
+          <CommandInput
+            placeholder="Search campuses…"
+            data-testid="roster-campus-search"
+          />
+          <CommandList className="max-h-72">
+            <CommandEmpty>No campus found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="All campuses"
+                onSelect={() => {
+                  onChange(ALL_CAMPUSES);
+                  setOpen(false);
+                }}
+                data-testid="roster-campus-option-all"
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value === ALL_CAMPUSES ? "opacity-100" : "opacity-0",
+                  )}
+                />
+                All campuses
+              </CommandItem>
+              {sorted.map((c) => {
+                const v = String(c.id);
+                return (
+                  <CommandItem
+                    key={c.id}
+                    value={c.name}
+                    onSelect={() => {
+                      onChange(v);
+                      setOpen(false);
+                    }}
+                    data-testid={`roster-campus-option-${c.id}`}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === v ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {c.name}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function AdminRoster() {
   const [searchInput, setSearchInput] = useState("");
@@ -828,28 +930,14 @@ export default function AdminRoster() {
                 data-testid="input-roster-search"
               />
             </div>
-            <Select
+            <RosterCampusFilterPopover
               value={campusFilter}
-              onValueChange={(v) => {
-                setCampusFilter(v);
+              campuses={campusOptions}
+              onChange={(next) => {
+                setCampusFilter(next);
                 setPage(1);
               }}
-            >
-              <SelectTrigger
-                className="sm:w-64"
-                data-testid="select-roster-campus-filter"
-              >
-                <SelectValue placeholder="All campuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_CAMPUSES}>All campuses</SelectItem>
-                {campusOptions.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
 
           <Card>
