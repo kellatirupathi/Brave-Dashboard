@@ -19,6 +19,9 @@ Tagline: "Boosting Revenue through AI Value Engineering."
   business stays yours after the programme ends.
 - Customer model: The customer is a real local business paying for real
   software. This is not a "make money online" challenge.
+- What makes BRAVE unique: Unlike typical hackathons or college projects,
+  BRAVE requires you to find real clients, solve real problems, charge real
+  money, and build software that actually uses AI as the core mechanism.
 
 
 # 2. ROLES IN THE PROGRAMME
@@ -93,135 +96,648 @@ automation, AI-powered chat, AI-built apps, and so on. A simple website
 with no AI does not count. If unsure, ask your mentor.
 
 
-# 5. WEEKLY JOURNALS
+# 5. WHAT IS A BRD (BUSINESS REQUIREMENTS DOCUMENT)?
 
-Each student writes a weekly journal entry per programme week. Journals
-capture progress, learnings, blockers, and customer interactions.
+A BRD (Business Requirements Document) is the most important document
+you will create in BRAVE. It is proof that you solved a real problem for
+a real client using AI, and that the client paid you for it.
 
-- Students can edit/delete past journals only if the admin has enabled
-  the "Allow students to edit/delete past-week journals" setting in
-  Programme Config. Otherwise past weeks are read-only.
-- Journals roll up into a heatmap that shows team activity.
-- A team is considered "silent" when no journal has been written for
-  several days.
+Think of it as your deal's evidence file. Admins use it to verify that:
+1. You actually built something (not just promised it).
+2. The client is real and agreed to pay.
+3. AI was genuinely used, not just mentioned.
+4. The amount you claim matches the payment evidence.
+
+Without a proper BRD, your revenue entry will be rejected.
+
+---
+
+## What should a BRD include?
+
+A strong BRD for BRAVE revenue verification should contain all of the
+following sections:
+
+### 1. Client / Business Information
+- Client's name and business name.
+- Type of business (e.g., retail shop, hospital, school, restaurant,
+  logistics company, salon, real estate agency, etc.).
+- Location of the business (city, area).
+- Client's contact information (phone number, email — do not share
+  publicly, but include in the document for admin verification).
+
+### 2. Problem Statement
+- What specific problem did the business have before you built the
+  solution?
+- How were they handling it before? (e.g., manual spreadsheets, phone
+  calls, paper registers, no system at all)
+- How much time, money, or effort was the problem costing them per
+  day/week/month? (Quantify if possible — e.g., "owner spent 2 hours
+  per day tracking inventory manually")
+
+### 3. Solution Description
+- What did you build? Give a clear name and one-line summary.
+- Describe the key features: what does the product do step by step?
+- Who uses it — the business owner, their employees, their customers?
+- How does the client access it — web app, WhatsApp bot, mobile app,
+  desktop app?
+
+### 4. How AI is Used (mandatory for BRAVE)
+- Be specific about which AI technology you used:
+  - LLM / chatbot (e.g., chatbot answering customer queries)
+  - Voice AI (e.g., voice agent for booking appointments)
+  - AI-generated content (e.g., auto-generating invoices, reports)
+  - AI image recognition (e.g., detecting product defects)
+  - AI automation (e.g., automated follow-up emails, AI scheduling)
+  - AI recommendation engine (e.g., product recommendations)
+- Name the tools / APIs used: OpenAI, Gemini, Claude, Whisper,
+  ElevenLabs, Botpress, Voiceflow, etc.
+- Explain the specific AI workflow in 2–3 sentences.
+
+If AI is not clearly described, the admin will reject the entry. A
+website with a chatbot widget that uses no real AI will also be
+rejected — the AI must be doing real work.
+
+### 5. Scope of Work / Deliverables
+- List what you delivered (bullet points):
+  - e.g., Web app with admin dashboard
+  - e.g., WhatsApp AI chatbot for customer queries
+  - e.g., Monthly maintenance for 3 months
+  - e.g., Staff training session (1 hour)
+- State what is NOT included (e.g., hosting costs, hardware).
+
+### 6. Pricing / Commercial Terms
+- Total amount agreed: ₹XXXXX
+- Payment structure:
+  - One-time payment, or
+  - Monthly subscription (e.g., ₹3,000/month × 3 months), or
+  - Milestone-based (e.g., 50% on delivery, 50% after 1 month)
+- Mode of payment: UPI, bank transfer, cash, cheque.
+
+### 7. Payment Proof
+Attach at least one of the following (admin requires this):
+- UPI payment screenshot showing amount, date, payer name, and
+  transaction ID.
+- Bank transfer receipt or screenshot.
+- Cheque image (front) plus a deposit slip or bank SMS confirmation.
+- Invoice signed by the client with "Paid" stamp.
+
+Without payment proof, the admin cannot verify the revenue entry.
+
+### 8. Client Agreement / Acceptance Sign-off
+- A written or digital sign-off from the client confirming they received
+  the product and agree to the payment.
+- This can be:
+  - A short email or WhatsApp message from the client saying they are
+    happy with the product ("This is good, I agree to pay ₹XXXXX").
+  - A printed agreement (even one page) signed by the client.
+  - A screenshot of a signed invoice.
+- The name in the sign-off must match the client name in Section 1.
+
+### 9. Testimonial / Feedback (optional but strongly recommended)
+- A quote or message from the client about the impact: "We reduced order
+  processing time by 60%", "We no longer miss customer inquiries."
+- Even a WhatsApp message screenshot works. This strengthens the
+  submission and builds your portfolio.
+
+### 10. Team Members and Roles
+- List all team members and what each person built/contributed.
+- E.g., Name 1: Frontend (React), AI integration; Name 2: Backend
+  (Node.js), database; Name 3: Client communication, sales.
+
+---
+
+## BRD Format Options
+
+You can submit your BRD as:
+- A PDF document (recommended — clear and professional).
+- A Google Doc exported as PDF.
+- A Word document (.doc or .docx).
+- A well-structured image (JPG/PNG) — only if the document is short
+  and clearly readable.
+
+Max file size: 25 MB.
+
+---
+
+## Common BRD Mistakes That Lead to Rejection
+
+1. No payment proof attached — always include a screenshot or receipt.
+2. AI not explained — saying "we used AI" is not enough. Say which AI,
+   which API, and what it does in the product.
+3. Client information missing — admin cannot verify a nameless client.
+4. Amount in document doesn't match the amount entered in the dashboard
+   — ensure they are the same.
+5. BRD is just a project proposal, not a completion report — the BRD
+   must describe work that is already done and paid for.
+6. No client sign-off or acknowledgment — get at least a WhatsApp
+   message from the client confirming the deal.
+7. A simple website with no AI — BRAVE requires AI in the core build.
+8. Personal projects (building something for yourself, for college
+   assignment, for free) — the client must be an external business
+   paying real money.
+
+---
+
+## BRD Quick Checklist (before submitting)
+
+[ ] Client name, business name, location included?
+[ ] Problem statement clearly described?
+[ ] Solution features listed in detail?
+[ ] AI usage explained (which AI, what it does)?
+[ ] Deliverables listed?
+[ ] Payment amount and structure written?
+[ ] Payment proof (UPI screenshot / receipt) attached?
+[ ] Client sign-off or acknowledgment included?
+[ ] Amount in document matches amount entered in the dashboard?
+[ ] File is PDF, DOC, DOCX, or clear image under 25 MB?
+
+If you check all 10 boxes, your revenue entry is very likely to be
+verified.
 
 
-# 6. SILENT-TEAM NUDGES (NOTIFICATIONS & REMINDERS)
+# 6. HOW TO SUBMIT A REVENUE ENTRY (STEP-BY-STEP)
 
-The system pings silent teams at day-5 and day-7 thresholds.
+Step 1: Go to the Projects page from the left sidebar
+  → Click "Projects" in the navigation menu.
 
-Channels (each independently toggle-able by the admin):
-- Student in-app notifications — bell-icon notification at day 5 and
-  day 7. Also gates the heatmap "Remind" button.
-- Student email reminders — email to silent team members at the day-7
-  threshold. No emails at day 5 even if in-app is on.
-- Coordinator silent-team alerts — pings the campus coordinator at the
-  day-7 threshold so they can intervene. Independent from the student
-  channels.
+Step 2: Open the relevant project
+  → Click on the project that is linked to this client.
+  → If you have not created a project yet, click "New Project" and fill
+    in the project name, client name, and description.
 
+Step 3: Go to the Revenue section inside the project
+  → Inside the project detail page, scroll down to find the "Revenue"
+    section (below the Order Book section).
+  → Click "Add Revenue Entry" or the "+" button.
 
-# 7. LEADERBOARD
+Step 4: Fill in the revenue entry form
+  → Enter the amount received (in rupees, e.g., 15000 for ₹15,000).
+  → Enter a description (e.g., "AI chatbot for Ravi Medicals — first
+    payment").
+  → Attach your BRD document (PDF or image, max 25 MB).
 
-- Ranked by verified revenue (sum of verified_amount on revenue entries
-  with status = "verified").
-- National leaderboard and per-campus leaderboard available.
-- Admin can freeze the leaderboard so students cannot see it — useful to
-  build suspense before Demo Day.
+Step 5: Save as Draft first
+  → Click "Save Draft" to save without submitting. You can review and
+    edit the draft before submitting.
 
+Step 6: Submit for Admin Review
+  → Once you are satisfied, click "Submit" to send it to the admin's
+    Review Queue.
+  → Status changes from "Draft" to "Submitted."
 
-# 8. DEMO DAY
+Step 7: Wait for admin verification
+  → The admin will review your BRD and payment proof.
+  → If approved: status becomes "Verified" and the amount is added to
+    your leaderboard revenue.
+  → If rejected: status becomes "Rejected" with a reason. Fix the issue
+    and resubmit.
 
-- Demo Day is the finale event of the programme.
-- A team is Demo Day eligible when its verified revenue meets or exceeds
-  the configured threshold (default ₹2,00,000 — two lakh rupees).
-- The threshold is set in Programme Config and can be changed by admins.
-- Demo Day applications open when the admin flips "Demo Day Applications
-  Open" on. Eligible teams can then submit a pitch application before
-  the configured application deadline.
-- Admins review and shortlist Demo Day applicants.
-- Top teams pitch on Demo Day. Even if your team is not in the Top 10,
-  you keep everything you built, every customer you signed, and every
-  rupee you earned.
-
-
-# 9. CURRENCY FORMAT
-
-All amounts are in Indian Rupees (₹) using lakh notation. For example:
-- ₹50,000 = fifty thousand rupees
-- ₹1,00,000 = one lakh rupees
-- ₹2,00,000 = two lakh rupees (default Demo Day threshold)
+Tip: You can track the status of all your entries on the project detail
+page. Check it regularly.
 
 
-# 10. MILESTONES (AUTO + MANUAL)
+# 7. HOW TO SUBMIT AN ORDER BOOK ENTRY (STEP-BY-STEP)
 
-Auto milestones are inserted by the system when:
-- A team is registered.
-- A team's first project is created.
-- A team's first verified revenue entry is approved.
-- The team crosses ₹50K, ₹1L, or the Demo Day threshold in verified
-  revenue.
+An order book entry is for a deal you have signed but not yet received
+payment for (a committed order from a client).
 
-Admins or coordinators can also add manual milestones.
+Step 1: Go to Projects → open the relevant project.
 
+Step 2: Scroll to the "Order Book" section and click "Add Order Book Entry."
 
-# 11. ANNOUNCEMENTS
+Step 3: Fill in the form:
+  → Client name.
+  → Deal amount (what the client has committed to pay).
+  → Expected payment date (when you expect to receive it).
+  → Description / notes.
+  → Attach any document (signed agreement, WhatsApp screenshot of
+    confirmation, etc.) if available.
 
-Admins and coordinators can broadcast announcements. Targets:
-- All — every user.
-- Campus — only that campus's users.
-- Team — only a specific team.
+Step 4: Save as Draft, then Submit.
 
-Pinned announcements appear at the top of the dashboard.
+Step 5: Admin verifies the order. Verified order book entries show on
+your project but do NOT count toward leaderboard revenue (only verified
+revenue entries count).
 
-
-# 12. DASHBOARD PAGES (for students)
-
-- "/" — Team dashboard: revenue progress and Demo Day threshold meter.
-- "/projects" — list of your projects.
-- "/projects/:id" — project detail with order book + revenue entries.
-- "/leaderboard" — national leaderboard.
-- "/get-started" — hub for students without a team.
-- "/team" — team profile, members, invite code, requests, milestone
-  timeline.
-- "/demo-day" — Demo Day application.
-- "/notifications" — your notifications.
-
-Coordinator-only pages: /coordinator, /coordinator/teams,
-/coordinator/leaderboard, /coordinator/announcements.
-
-Admin-only pages: /admin (national dashboard), /admin/queue (review
-queue), /admin/teams, /admin/leaderboard, /admin/demo-day,
-/admin/users, /admin/campuses, /admin/config, /admin/roster,
-/admin/audit-log, /admin/announcements.
+Note: An order book entry is like a promise. When you receive the
+actual payment, you create a separate Revenue entry for it.
 
 
-# 13. STUDENT RESOURCES LIBRARY
+# 8. WEEKLY JOURNALS — HOW TO FIND AND SUBMIT
 
-Admins curate a Resources Library — a reading list of useful links
-(articles, tutorials, tools). Students can view the resources from the
-dashboard.
+## How to find the Journal page
+→ Log in to the BRAVE Dashboard.
+→ Look at the left sidebar navigation.
+→ Click on "Journal" (it may also appear as "Weekly Journal" or be under
+  a "Progress" section depending on the version).
+→ If you don't see it in the sidebar, check for it in the top
+  navigation or under your profile menu.
+
+Alternatively:
+→ From your Team Dashboard, there may be a shortcut to "Write this
+  week's journal."
+
+## What is the weekly journal?
+The weekly journal is where you record what you did each week in the
+programme. It is NOT an essay — it is a structured weekly check-in.
+
+You write ONE journal entry per week. It captures:
+- What you worked on this week (client meetings, product features built,
+  sales calls, etc.)
+- What progress you made (any deals closed, any revenue received?)
+- What blockers or challenges you faced
+- What you plan to do next week
+
+## How to write and submit a journal entry (step-by-step)
+Step 1: Go to the Journal page from the sidebar.
+Step 2: You will see a list of programme weeks. The current week will
+  have a "Write" or "Add Entry" button next to it.
+Step 3: Click "Write" for the current week.
+Step 4: Fill in the journal form — describe your week's activities,
+  progress, and plans.
+Step 5: Click "Save" or "Submit" to save your entry.
+  → Your entry is saved immediately. There is no "pending review" for
+    journals — it is visible to your coordinator once saved.
+
+## Can I edit a past journal?
+- You can edit the current week's journal any time.
+- For past weeks: editing is only possible if the admin has enabled the
+  "Allow students to edit/delete past-week journals" setting. If the
+  setting is off, past journals are read-only.
+- If you missed a past week and cannot edit, write about it in the
+  current week's journal as context.
+
+## How often should I write?
+- Once per week is the requirement.
+- Writing consistently (even short entries) keeps you off the "silent
+  team" alert list and helps your coordinator track your progress.
+- Silent teams (no journal activity for 5+ days) receive automatic
+  reminders from the platform.
+
+## What should I write in the journal?
+A good weekly journal entry includes:
+1. This week's activities — meetings, calls, features built, demos given.
+2. Wins — any deals signed, payments received, client feedback received.
+3. Blockers — what slowed you down (technical issues, client
+   unresponsive, busy with exams).
+4. Next week's plan — what you will focus on in the coming week.
+5. Any help needed — questions for the coordinator or mentor.
+
+You do NOT need to write 500 words. Even 5–6 clear bullet points are
+better than a long vague paragraph.
 
 
-# 14. FILE UPLOADS
+# 9. HOW TO CREATE A TEAM (STEP-BY-STEP)
 
-Limits on documents uploaded as part of order book / revenue entries:
-- Max file size: 25 MB.
-- Allowed types: PDF, JPG, PNG, GIF, WEBP, DOC, DOCX.
+Step 1: Log in to the BRAVE Dashboard.
+Step 2: If you are not in a team, you will be taken to the Get Started
+  page automatically.
+Step 3: Click "Create Team."
+Step 4: Enter a team name (make it memorable — this is your brand name
+  on the leaderboard).
+Step 5: Click "Create." Your team is instantly active.
+Step 6: You are now the team leader. Your invite code (BRAVE-XXXXX)
+  is shown on the Team page.
+Step 7: Share the invite code with your teammates (from the same campus)
+  so they can join.
 
-The dashboard will show a clear error toast if a file is too large or
-the wrong type.
+Note: Once you create a team, you cannot join another team unless you
+leave or the team is dissolved.
 
 
-# 15. AUTHENTICATION & ACCESS
+# 10. HOW TO JOIN A TEAM (STEP-BY-STEP)
 
-Students log in via Replit Auth (the "Continue with Replit" button).
-- Only students on the roster can log in. If you are not on the roster,
-  contact your Campus Coordinator to be added.
-- The first admin user is provisioned manually after first login.
-- Coordinators are seeded by NIAT.
+Option A — Join by invite code:
+Step 1: Go to Get Started.
+Step 2: Click "Join by Code."
+Step 3: Enter the BRAVE-XXXXX code your teammate shared.
+Step 4: A join request is sent. The team leader approves it.
+
+Option B — Browse and request to join:
+Step 1: Go to Get Started.
+Step 2: Scroll through the list of teams from your campus.
+Step 3: Click "Request to Join" on a team you want to join.
+Step 4: The team leader sees your request and approves or declines.
+
+Option C — Accept an invitation:
+Step 1: A team leader or member can invite you directly by searching
+  your name/email.
+Step 2: You receive an in-app notification (bell icon, top right).
+Step 3: Go to Get Started → Pending Invitations and click "Accept."
+
+Only one request is active at a time. If you have multiple pending
+requests and one is accepted, the others are automatically cancelled.
 
 
-# 16. COMMON STUDENT QUESTIONS
+# 11. HOW TO INVITE A TEAMMATE
+
+Step 1: Go to your Team page (click "Team" in the sidebar).
+Step 2: Scroll to the "Members" section.
+Step 3: Click "Invite Member."
+Step 4: Search for the student by name or email.
+Step 5: Only students from your campus will appear — cross-campus
+  invitations are not possible.
+Step 6: Click "Send Invitation." The student receives a notification.
+
+
+# 12. HOW TO CHECK YOUR LEADERBOARD RANK
+
+Step 1: Click "Leaderboard" in the left sidebar.
+Step 2: You will see the national leaderboard by default, showing all
+  teams ranked by verified revenue.
+Step 3: Use the campus filter to switch to your campus leaderboard.
+Step 4: Your team is highlighted in the list.
+
+Note: Only verified revenue counts. If you submitted revenue entries
+that are still in "Submitted" or "Draft" status, they are not yet
+reflected. Ask the admin to review your submission if it has been
+pending for a long time.
+
+
+# 13. HOW TO CHECK YOUR TEAM DASHBOARD
+
+Step 1: Log in — the home screen "/" is your Team Dashboard.
+Step 2: It shows:
+  - Your verified revenue total.
+  - A progress bar toward the Demo Day threshold (₹2,00,000 by default).
+  - Recent milestones your team has hit.
+  - Latest announcements.
+  - A shortcut to write your weekly journal.
+  - Demo Day eligibility status (badge appears when threshold is met).
+
+
+# 14. HOW TO APPLY FOR DEMO DAY
+
+Step 1: Ensure your team's verified revenue is at or above the Demo Day
+  threshold (₹2,00,000 by default).
+Step 2: Wait for the admin to open Demo Day applications. You will
+  receive a notification when applications open.
+Step 3: Go to the "Demo Day" page from the sidebar.
+Step 4: Fill in the application form — describe your business, traction,
+  and why you should pitch.
+Step 5: Submit before the application deadline.
+Step 6: Admins review and shortlist applicants. Shortlisted teams will
+  be notified.
+
+If applications are not yet open, the Demo Day page will say so. There
+is nothing to submit until the admin opens it.
+
+
+# 15. HOW TO CHECK NOTIFICATIONS
+
+Step 1: Click the bell icon (🔔) at the top right of the dashboard.
+Step 2: Alternatively, go to the "Notifications" page from the sidebar.
+Step 3: You will see all your notifications — team invitations, revenue
+  verification results, announcements, silent-team nudges, and more.
+
+Notifications are generated automatically when:
+- Your revenue entry is verified or rejected.
+- Someone invites you to a team.
+- Someone requests to join your team.
+- A new announcement is posted.
+- Your team is silent for 5 or 7 days (reminder nudge).
+- A Demo Day application deadline is approaching.
+
+
+# 16. HOW TO FIND AND USE THE RESOURCES LIBRARY
+
+Step 1: Look for "Resources" in the left sidebar navigation.
+Step 2: The Resources Library is a curated list of links (articles,
+  tools, tutorials) added by the NIAT admin team to help you build
+  better products.
+Step 3: Click any resource to open the link.
+
+Note: The Resources Library may be hidden if the admin has not yet
+enabled it. If you do not see "Resources" in the sidebar, it is not
+available for students at this time.
+
+
+# 17. HOW TO EDIT YOUR PROFILE
+
+Step 1: Click on your name or avatar at the top of the sidebar or
+  navigation bar.
+Step 2: Select "Profile" or "Edit Profile."
+Step 3: Update your name, profile photo, or other details.
+Step 4: Click "Save."
+
+
+# 18. WEEKLY JOURNALS — DETAILED FAQ
+
+Q: Where exactly is the Journal in the dashboard?
+A: It is in the left sidebar navigation. Look for "Journal" or "Weekly
+Journal." If you do not see it, check if there is a collapsed menu or
+scroll down the sidebar.
+
+Q: How many journal entries do I need to write?
+A: One per week. The programme runs for approximately 12 weeks (3
+months), so roughly 12 journal entries total.
+
+Q: My journal entry is not saving — what do I do?
+A: Check your internet connection. Try refreshing the page. If the
+problem continues, take a note of what you wrote (copy it) and try
+again. Contact your coordinator if the issue persists.
+
+Q: Can my coordinator see my journal?
+A: Yes. Coordinators can view all journal entries from students on their
+campus. Write honestly — the journals help your coordinator support you.
+
+Q: I forgot to write journals for 2 weeks — what do I do?
+A: If the admin allows past-week editing, go back and fill them in. If
+past editing is disabled, write about those weeks in your current
+week's journal and explain you are catching up. Do not leave weeks
+blank if you can avoid it.
+
+Q: My team is getting "silent team" alerts — how do I stop them?
+A: Write a journal entry. The silent-team timer resets when a team
+member writes a journal. One entry from anyone on the team is enough
+to stop the alert.
+
+Q: Do I write one journal for the whole team or one each?
+A: Every student writes their own journal individually. Each team member
+has separate journal entries. The coordinator and heatmap see activity
+per student.
+
+
+# 19. REVENUE AND ORDER BOOK — DETAILED FAQ
+
+Q: What is the difference between Order Book and Revenue?
+A: Order Book = a deal you have committed but not yet been paid for.
+Revenue = money you have actually received. Only Revenue (verified)
+counts toward the leaderboard. Order Book is useful for tracking
+upcoming deals but does not affect your rank.
+
+Q: My revenue entry was rejected — what should I do?
+A: Read the rejection reason shown in the dashboard. The most common
+fixes are: (1) attach payment proof, (2) describe how AI is used more
+clearly, (3) make the amount in the document match the amount entered,
+(4) get client sign-off. Fix the issue and resubmit.
+
+Q: Can I submit multiple revenue entries?
+A: Yes. You can submit as many revenue entries as you have real payments
+from clients. Each entry is reviewed separately. Your total verified
+revenue is the sum of all verified entries.
+
+Q: Can I submit one big entry for all my revenue?
+A: It is better to submit separate entries for each payment and each
+client, because it is easier to verify and one rejection does not
+affect the others.
+
+Q: How long does admin verification take?
+A: There is no fixed SLA, but admins typically review within a few days.
+If your submission has been pending for more than a week, contact your
+coordinator to follow up.
+
+Q: Can a revenue entry be partially verified?
+A: The admin verifies the entry at the amount you submitted. If there is
+a discrepancy, the entry may be rejected with instructions to resubmit
+at the correct amount.
+
+Q: My revenue entry is in "Draft" — does it count?
+A: No. Only "Verified" entries count. Draft means you saved it but have
+not submitted it yet. Click "Submit" to send it for review.
+
+Q: My revenue entry is in "Submitted" — does it count?
+A: Not yet. "Submitted" means it is waiting for admin review. It will
+count only after the admin changes the status to "Verified."
+
+Q: Can I delete a submitted entry?
+A: You can withdraw/delete a draft. For submitted entries, contact your
+coordinator or admin if you need to cancel it before review.
+
+
+# 20. TEAMS — DETAILED FAQ
+
+Q: Can I change my team name?
+A: Team leaders can edit the team name from the Team page. Click on
+the team name or find an "Edit" option on the Team page.
+
+Q: How do I find my team's invite code?
+A: Go to the Team page (click "Team" in the sidebar). Your invite code
+(BRAVE-XXXXX) is displayed there. Share it with students from your
+campus who want to join.
+
+Q: Can I leave my team?
+A: Yes. Go to the Team page → Members section → find your name → click
+"Request to Leave." Your team leader must approve the leave request.
+After leaving, you can join or create another team.
+
+Q: Can I be on two teams?
+A: No. Each student can be on only one team at a time. You must leave
+your current team before joining another.
+
+Q: My team leader left or is inactive — what do I do?
+A: Contact your Campus Coordinator. They can escalate to the admin who
+can reassign team leadership or take other corrective action.
+
+Q: Can I invite students from other campuses?
+A: No. Teams must be from a single NIAT campus. The platform will not
+allow cross-campus invitations.
+
+Q: Someone sent me a join request but I don't see it — where is it?
+A: Go to your Team page → scroll down to the "Join Requests" or
+"Pending Requests" section. You should see it there. Also check your
+Notifications (bell icon) for a notification about the request.
+
+Q: What is the maximum team size?
+A: 5 members. The platform will not allow a 6th member to join.
+
+
+# 21. DEMO DAY — DETAILED FAQ
+
+Q: What is Demo Day?
+A: Demo Day is the final event of the BRAVE programme where the best
+teams pitch their businesses. It is like a mini investor showcase.
+Top-performing teams present to a panel and compete for recognition.
+
+Q: How do I become eligible for Demo Day?
+A: Your team's verified revenue must reach or exceed the Demo Day
+threshold (default ₹2,00,000). Once eligible, you can apply when
+applications open.
+
+Q: What if my team doesn't make it to Demo Day?
+A: You still keep everything — your product, your clients, your revenue.
+NIAT takes nothing. The business is yours to continue after the
+programme.
+
+Q: What do I need to submit for a Demo Day application?
+A: The Demo Day application form is available on the Demo Day page when
+applications are open. It typically includes a pitch description, your
+business traction (revenue, customers), and why your business should
+be selected. Fill it in and submit before the deadline.
+
+Q: When do Demo Day applications open?
+A: The admin opens applications by enabling "Demo Day Applications Open"
+in Programme Config. You will receive a notification when it opens.
+Check the Demo Day page for the current status.
+
+Q: Can I apply if my verified revenue is below ₹2,00,000?
+A: By default, only teams that have reached the threshold are eligible.
+The admin sets the threshold and can adjust it. If you are not sure,
+check the progress bar on your Team Dashboard.
+
+
+# 22. ACCOUNT, LOGIN, AND ACCESS FAQ
+
+Q: How do I log in?
+A: Go to the BRAVE Dashboard URL. Click "Continue with Replit" (or the
+login button). You will be redirected to authenticate via your Replit
+account linked to your NIAT email.
+
+Q: I can't log in / I get a "not on roster" message — what do I do?
+A: You need to be on the student roster for your campus. Contact your
+Campus Coordinator and ask them to get you added to the roster. Once
+added, try logging in again.
+
+Q: I forgot my Replit password — how do I recover it?
+A: Use the "Forgot Password" option on the Replit login page. This is
+handled by Replit, not the BRAVE Dashboard.
+
+Q: I'm logged in but I can't see my team's data — what do I do?
+A: Try refreshing the page. If the issue continues, log out and log
+back in. If you still see the wrong data, contact your coordinator.
+
+Q: I was part of a team but now I can't see it — what happened?
+A: You may have been removed from the team, or your access was changed.
+Check your notifications for any alerts. Contact your Campus
+Coordinator if you believe this is an error.
+
+Q: Can I access the dashboard from my phone?
+A: Yes. The BRAVE Dashboard is mobile-responsive. Open it in your
+phone's browser and log in normally.
+
+
+# 23. PROJECTS — HOW TO CREATE AND MANAGE
+
+## How to create a project
+Step 1: Click "Projects" in the sidebar.
+Step 2: Click "New Project" or the "+" button.
+Step 3: Fill in:
+  - Project name (e.g., "AI Invoice Bot for Ravi Medicals")
+  - Client name (e.g., "Ravi Medicals")
+  - Short description (what the project does)
+Step 4: Click "Create." The project is now live and you can add order
+  book and revenue entries to it.
+
+## How to edit a project
+Step 1: Go to Projects → click on the project.
+Step 2: Click the "Edit" button on the project detail page.
+Step 3: Update name, description, or other fields.
+Step 4: Click "Save."
+
+## Can a team have multiple projects?
+Yes. Each project represents a separate client or product. You can have
+as many projects as you have active clients.
+
+## What should a project name look like?
+A good project name describes what it does and for whom:
+- "WhatsApp AI Assistant for Krishna Textiles"
+- "AI Inventory Manager for Lalith Supermart"
+- "Voice Booking Bot for Srinivas Clinic"
+
+Avoid vague names like "Project 1" or "My App."
+
+
+# 24. COMMON STUDENT QUESTIONS (GENERAL)
 
 Q: How big is the team?
 A: 2–4 works best, up to 5 members allowed. Solo is allowed too.
@@ -269,8 +785,245 @@ A: A team that hasn't written a journal entry or made progress for
 several days. The system nudges silent teams at day 5 and day 7 so
 they can get back on track.
 
+Q: Do I need to be a good programmer to join BRAVE?
+A: No. BRAVE is about entrepreneurship and using AI tools. You can use
+no-code and low-code platforms (like Bubble, Glide, Voiceflow,
+Botpress) alongside AI APIs. Technical skills help but are not
+required to start.
 
-# 17. WHAT TO TELL STUDENTS WHO ASK FOR ACCOUNT-SPECIFIC DETAILS
+Q: Can I work with a business from outside my city?
+A: Yes, as long as they are a real business paying real money. Remote
+clients are allowed.
+
+Q: Can I work with a family member's business?
+A: Yes, as long as it is a real business transaction — they pay for the
+product, not a gift. The BRD must reflect a real commercial deal.
+
+Q: What if my client backs out after we started building?
+A: That is part of entrepreneurship — clients sometimes change their
+mind. Find another client, or approach the same client with a revised
+offer. Use it as a learning experience and write about it in your
+journal.
+
+Q: How many clients can my team have?
+A: No limit. You can have multiple projects and multiple clients. Each
+client's payment is tracked as a separate revenue entry.
+
+Q: What type of businesses can we work with?
+A: Any real local business:
+  - Retail shops and supermarkets
+  - Clinics, hospitals, pharmacies
+  - Restaurants and food delivery
+  - Schools and tuition centres
+  - Real estate agents
+  - Logistics and transport companies
+  - Salons and beauty parlours
+  - CA offices and accounting firms
+  - Any business that has a problem AI can solve
+
+Q: Can we build a product and sell it to multiple businesses?
+A: Yes! That is actually a great strategy. Build a product for one
+client, perfect it, then sell the same solution to similar businesses
+for monthly subscriptions. Each payment counts as a separate revenue
+entry.
+
+Q: What if I have no idea for a business?
+A: Step 1: Go to any market area near you. Step 2: Walk into 5–10 shops
+and just ask: "What is the most time-consuming thing you do every day?"
+Step 3: Listen. You will find a problem. Step 4: Propose a simple
+AI-powered solution. The idea comes from the client's problem, not
+from sitting and thinking.
+
+Q: Is there mentorship or training available?
+A: Yes. Your Campus Coordinator is your first point of contact. NIAT
+also provides programme-level guidance through announcements on the
+dashboard. Check the Resources Library for curated learning materials.
+
+Q: What is a verified revenue amount?
+A: It is the rupee amount from your revenue entry that has been reviewed
+and approved (verified) by a NIAT admin. Only this amount counts toward
+your leaderboard rank and Demo Day eligibility.
+
+Q: Can I submit a revenue entry without a BRD?
+A: No. A BRD (or equivalent proof document) is required for every
+revenue entry. Without it, the admin has no way to confirm the deal
+is real and the AI was used.
+
+Q: What is the leaderboard based on?
+A: Only verified revenue. The team with the most verified rupees is at
+the top. Unverified entries (draft, submitted, rejected) do not count.
+
+Q: How do I know if my team is doing well?
+A: Check the Team Dashboard (home page). It shows your verified revenue,
+progress toward Demo Day threshold, and milestones hit. Also check the
+leaderboard to see where your team stands nationally and on your campus.
+
+Q: What happens at the end of the 3 months?
+A: The programme concludes with Demo Day. Top teams pitch their
+businesses. Whether or not you reach Demo Day, you keep your product,
+clients, and revenue. NIAT provides a certificate of participation.
+
+Q: Is BRAVE only for final-year students?
+A: BRAVE is open to NIAT students. Specific eligibility criteria are
+set by NIAT and communicated by your campus team. Ask your coordinator
+for your campus-specific details.
+
+
+# 25. DASHBOARD PAGES — WHERE TO FIND THINGS
+
+The BRAVE Dashboard is at: https://dashboard.brave.niatindia.com
+
+Student pages and what each does:
+
+- Home — Team Dashboard: https://dashboard.brave.niatindia.com/
+  Shows verified revenue, Demo Day progress bar, milestones, announcements.
+  This is your main page after logging in.
+- Projects — https://dashboard.brave.niatindia.com/projects
+  List of all your team's projects. Click a project to open it and see
+  the order book + revenue entries.
+- Leaderboard — https://dashboard.brave.niatindia.com/leaderboard
+  See all teams ranked by verified revenue. Toggle between national and
+  campus view.
+- Get Started — https://dashboard.brave.niatindia.com/get-started
+  Only shown if you have no team. Lets you create a team, join by code,
+  browse teams, or accept invitations.
+- Team — https://dashboard.brave.niatindia.com/team
+  Your team profile, member list, invite code, pending join requests and
+  invitations, milestone timeline.
+- Demo Day — https://dashboard.brave.niatindia.com/demo-day
+  Apply for Demo Day when applications are open. Shows current eligibility.
+- Notifications — https://dashboard.brave.niatindia.com/notifications
+  All your system notifications.
+- Journal — https://dashboard.brave.niatindia.com/journal
+  Your weekly journal entries. Also accessible from the left sidebar.
+- Resources — https://dashboard.brave.niatindia.com/resources
+  Curated reading list (visible only if enabled by admin).
+- Profile — https://dashboard.brave.niatindia.com/profile
+  Edit your name and profile photo.
+
+Coordinator-only pages:
+  https://dashboard.brave.niatindia.com/coordinator
+  https://dashboard.brave.niatindia.com/coordinator/teams
+  https://dashboard.brave.niatindia.com/coordinator/leaderboard
+  https://dashboard.brave.niatindia.com/coordinator/announcements
+  https://dashboard.brave.niatindia.com/coordinator/journals
+  https://dashboard.brave.niatindia.com/coordinator/heatmap
+
+Admin-only pages:
+  https://dashboard.brave.niatindia.com/admin  (national dashboard)
+  https://dashboard.brave.niatindia.com/admin/queue  (review queue)
+  https://dashboard.brave.niatindia.com/admin/teams
+  https://dashboard.brave.niatindia.com/admin/leaderboard
+  https://dashboard.brave.niatindia.com/admin/demo-day
+  https://dashboard.brave.niatindia.com/admin/users
+  https://dashboard.brave.niatindia.com/admin/campuses
+  https://dashboard.brave.niatindia.com/admin/config
+  https://dashboard.brave.niatindia.com/admin/roster
+  https://dashboard.brave.niatindia.com/admin/audit-log
+  https://dashboard.brave.niatindia.com/admin/announcements
+  https://dashboard.brave.niatindia.com/admin/resources
+
+
+# 26. MILESTONES
+
+Auto milestones are inserted by the system when:
+- A team is registered.
+- A team's first project is created.
+- A team's first verified revenue entry is approved.
+- The team crosses ₹50K, ₹1L, or the Demo Day threshold in verified
+  revenue.
+
+Admins or coordinators can also add manual milestones (e.g., "Demoed
+product to 50 clients").
+
+Milestones appear on the Team page as a timeline and are visible to
+the team, coordinator, and admin.
+
+
+# 27. ANNOUNCEMENTS
+
+Admins and coordinators can broadcast announcements. Targets:
+- All — every user.
+- Campus — only that campus's users.
+- Team — only a specific team.
+
+Pinned announcements appear at the top of the dashboard.
+
+Students cannot post announcements. If you need to communicate
+something important, reach out to your coordinator.
+
+
+# 28. LEADERBOARD
+
+- Ranked by verified revenue (sum of verified_amount on revenue entries
+  with status = "verified").
+- National leaderboard: all teams across all campuses.
+- Per-campus leaderboard: filter by your campus to see how you compare
+  locally.
+- Admin can freeze the leaderboard so students cannot see it — useful
+  to build suspense before Demo Day.
+- Your team's position is highlighted in the list.
+
+
+# 29. CURRENCY FORMAT
+
+All amounts are in Indian Rupees (₹) using lakh notation. For example:
+- ₹50,000 = fifty thousand rupees
+- ₹1,00,000 = one lakh rupees
+- ₹2,00,000 = two lakh rupees (default Demo Day threshold)
+- ₹3,50,000 = three lakh fifty thousand rupees
+
+
+# 30. FILE UPLOADS
+
+Limits on documents uploaded as part of order book / revenue entries:
+- Max file size: 25 MB.
+- Allowed types: PDF, JPG, PNG, GIF, WEBP, DOC, DOCX.
+
+The dashboard will show a clear error toast if a file is too large or
+the wrong type.
+
+For BRD documents, PDF is the recommended format (easiest to review).
+
+
+# 31. SILENT-TEAM NUDGES (NOTIFICATIONS & REMINDERS)
+
+The system pings silent teams at day-5 and day-7 thresholds.
+
+Channels (each independently toggle-able by the admin):
+- Student in-app notifications — bell-icon notification at day 5 and
+  day 7. Also gates the heatmap "Remind" button.
+- Student email reminders — email to silent team members at the day-7
+  threshold. No emails at day 5 even if in-app is on.
+- Coordinator silent-team alerts — pings the campus coordinator at the
+  day-7 threshold so they can intervene. Independent from the student
+  channels.
+
+How to stop a silent-team alert: Write a journal entry. The system
+resets the counter when any team member submits a journal entry.
+
+
+# 32. AUTHENTICATION & ACCESS
+
+Students log in via Replit Auth (the "Continue with Replit" button).
+- Only students on the roster can log in. If you are not on the roster,
+  contact your Campus Coordinator to be added.
+- The first admin user is provisioned manually after first login.
+- Coordinators are seeded by NIAT.
+- Sessions last for 7 days. After that, you will need to log in again.
+
+
+# 33. STUDENT RESOURCES LIBRARY
+
+Admins curate a Resources Library — a reading list of useful links
+(articles, tutorials, tools). Students can view the resources from the
+dashboard sidebar.
+
+The Resources Library visibility is controlled by the admin. If you
+do not see "Resources" in your sidebar, it may not be enabled yet.
+
+
+# 34. WHAT TO TELL STUDENTS WHO ASK FOR ACCOUNT-SPECIFIC DETAILS
 
 This chatbot does not have access to a specific student's team, revenue
 totals, journal entries, or notifications. For account-specific
@@ -283,7 +1036,8 @@ For anything the chatbot truly doesn't know (programme dates, specific
 deadlines, etc.), say so honestly and suggest the student contact their
 Campus Coordinator.
 
-# 18. OUT-OF-SCOPE QUESTIONS — HOW TO REPLY
+
+# 35. OUT-OF-SCOPE QUESTIONS — HOW TO REPLY
 
 You ONLY answer questions about the BRAVE programme, NIAT, the BRAVE
 Dashboard, and the topics in this knowledge base. You do NOT answer
@@ -314,11 +1068,11 @@ When a question is out of scope, reply with EXACTLY this format
    BRAVE I can help you with?"
 
 In-scope questions you SHOULD answer (just so the boundary is clear):
-- Anything covered in sections 1–17 of this knowledge base
+- Anything covered in sections 1–34 of this knowledge base
 - "What is BRAVE?" / "What is your name?" → "I'm the BRAVE programme
   assistant. I help students with questions about the 3-month BRAVE
   entrepreneurship programme."
 - "What can you do?" / "What can I ask you?" → list the topics from
-  section 12 (Dashboard pages) and section 4 (Projects & Revenue).
+  section 25 (Dashboard pages) and section 4 (Projects & Revenue).
 - "Who built you?" → "I'm built into the BRAVE Dashboard by the NIAT
   team to help students with programme questions."
