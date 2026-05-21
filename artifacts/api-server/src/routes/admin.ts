@@ -29,6 +29,7 @@ import {
   UpdateAccessRequestParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { invalidateChatbotProviderCache } from "./chatbot";
 import { deleteSessionsForUser } from "../lib/auth";
 import { runSeed } from "../seed";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
@@ -1071,6 +1072,72 @@ router.patch("/admin/programme-config", async (req, res): Promise<void> => {
   );
   res.json(config);
 });
+
+// Chatbot LLM provider — runtime switch between Cloudflare Workers AI and
+// Cerebras. Admin-only. ADD-only: do not touch existing routes.
+const ChatbotProviderBody = z.object({
+  provider: z.enum(["cloudflare", "cerebras"]),
+});
+
+router.get(
+  "/admin/chatbot-provider",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const [row] = await db
+      .select({ provider: programmeConfigTable.chatbotProvider })
+      .from(programmeConfigTable)
+      .limit(1);
+    res.json({ provider: row?.provider ?? "cloudflare" });
+  },
+);
+
+router.patch(
+  "/admin/chatbot-provider",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = ChatbotProviderBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const newProvider = parsed.data.provider;
+
+    let configs = await db.select().from(programmeConfigTable).limit(1);
+    const oldProvider = configs[0]?.chatbotProvider ?? "cloudflare";
+
+    let config;
+    if (configs.length === 0) {
+      [config] = await db
+        .insert(programmeConfigTable)
+        .values({ chatbotProvider: newProvider })
+        .returning();
+    } else {
+      [config] = await db
+        .update(programmeConfigTable)
+        .set({ chatbotProvider: newProvider })
+        .where(eq(programmeConfigTable.id, configs[0].id))
+        .returning();
+    }
+
+    invalidateChatbotProviderCache();
+
+    await logAudit(
+      req.user.id,
+      "change_chatbot_provider",
+      "programme_config",
+      config?.id,
+      JSON.stringify({ from: oldProvider, to: newProvider }),
+    );
+
+    res.json({ provider: newProvider });
+  },
+);
 
 // Audit Log
 router.get("/admin/audit-log", async (req, res): Promise<void> => {

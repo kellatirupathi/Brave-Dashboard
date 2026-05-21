@@ -1,14 +1,20 @@
 import { Router, type IRouter, type Request } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
+import { db, programmeConfigTable } from "@workspace/db";
 // Knowledge base is bundled at build time via esbuild's text loader, so the
 // runtime cwd does not matter and the file cannot silently go missing in dist/.
 import braveKnowledge from "../../../../brave-knowledge.txt";
 
 const router: IRouter = Router();
 
+// Cerebras (existing — kept)
 const CEREBRAS_URL = "https://api.cerebras.ai/v1/chat/completions";
 const CEREBRAS_MODEL = "llama3.1-8b";
+
+// Cloudflare Workers AI (NEW — OpenAI-compatible endpoint)
+const CLOUDFLARE_BASE_URL = "https://api.cloudflare.com/client/v4/accounts";
+const CLOUDFLARE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
 
 const FALLBACK_ERROR =
   "Sorry — I can't reach the BRAVE assistant right now. Please try again in a moment, or contact your Campus Coordinator for help.";
@@ -238,9 +244,93 @@ async function callCerebras(
       choices?: { message?: { content?: string } }[];
     } | null;
     return data?.choices?.[0]?.message?.content ?? null;
+  } catch (err) {
+    log.error({ err }, "Cerebras request failed");
+    return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Single round-trip to Cloudflare Workers AI (OpenAI-compatible endpoint).
+// Returns the raw model content string, or null on any transport/HTTP failure
+// (logged by the caller's logger). Mirrors callCerebras() shape so the route
+// can swap providers behind a closure.
+async function callCloudflareAI(
+  messages: ChatMsg[],
+  apiToken: string,
+  accountId: string,
+  log: Request["log"],
+): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25_000);
+  try {
+    const upstream = await fetch(
+      `${CLOUDFLARE_BASE_URL}/${accountId}/ai/v1/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+          model: CLOUDFLARE_MODEL,
+          messages,
+          temperature: 0.3,
+          max_tokens: 700,
+          response_format: { type: "json_object" },
+        }),
+        signal: controller.signal,
+      },
+    );
+    if (!upstream.ok) {
+      const body = await upstream.text().catch(() => "");
+      log.error(
+        { status: upstream.status, body: body.slice(0, 500) },
+        "Cloudflare request failed",
+      );
+      return null;
+    }
+    const data = (await upstream.json().catch(() => null)) as {
+      choices?: { message?: { content?: string } }[];
+    } | null;
+    return data?.choices?.[0]?.message?.content ?? null;
+  } catch (err) {
+    log.error({ err }, "Cloudflare request failed");
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// In-memory cache of the active provider so the chatbot doesn't hit the DB
+// on every request. TTL is 30 seconds; the admin PATCH handler also calls
+// invalidateChatbotProviderCache() so a switch takes effect immediately.
+let cachedProvider: "cloudflare" | "cerebras" | null = null;
+let cachedProviderAt = 0;
+const PROVIDER_CACHE_TTL_MS = 30_000;
+
+async function getActiveProvider(): Promise<"cloudflare" | "cerebras"> {
+  const now = Date.now();
+  if (cachedProvider && now - cachedProviderAt < PROVIDER_CACHE_TTL_MS) {
+    return cachedProvider;
+  }
+  try {
+    const [row] = await db
+      .select({ provider: programmeConfigTable.chatbotProvider })
+      .from(programmeConfigTable)
+      .limit(1);
+    cachedProvider = row?.provider ?? "cloudflare";
+  } catch {
+    cachedProvider = "cloudflare"; // safe default on DB failure
+  }
+  cachedProviderAt = now;
+  return cachedProvider;
+}
+
+export function invalidateChatbotProviderCache(): void {
+  cachedProvider = null;
+  cachedProviderAt = 0;
 }
 
 router.post(
@@ -254,19 +344,6 @@ router.post(
     }
     const { message, history = [] } = parsed.data;
 
-    const apiKey = process.env.CEREBRAS_API_KEY;
-    if (!apiKey) {
-      req.log.warn(
-        "CEREBRAS_API_KEY is not set — chatbot cannot reach Cerebras.",
-      );
-      res.status(200).json({
-        answer:
-          "The BRAVE assistant is not configured yet (missing API key). Please ask an admin to add CEREBRAS_API_KEY in Replit Secrets.",
-        suggestions: [],
-      });
-      return;
-    }
-
     const loggedIn = req.isAuthenticated();
     const systemPrompt = buildSystemPrompt(KNOWLEDGE, loggedIn);
 
@@ -279,15 +356,55 @@ router.post(
       { role: "user", content: message },
     ];
 
+    // Provider-aware dispatch. The retry-once flow below reuses the SAME
+    // provider (Cloudflare or Cerebras) so we never silently switch providers
+    // mid-conversation. If creds are missing, surface a clear, provider-
+    // specific "not configured" message instead of falling back.
+    const provider = await getActiveProvider();
+
+    let upstreamCall: (msgs: ChatMsg[]) => Promise<string | null>;
+    if (provider === "cloudflare") {
+      const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+      const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+      if (!apiToken || !accountId) {
+        req.log.warn(
+          "Cloudflare creds missing — chatbot cannot reach Cloudflare Workers AI.",
+        );
+        res.status(200).json({
+          answer:
+            "The BRAVE assistant is not configured yet (missing Cloudflare credentials). Please ask an admin to add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Replit Secrets, or switch the provider on /admin/config.",
+          suggestions: [],
+        });
+        return;
+      }
+      upstreamCall = (msgs) =>
+        callCloudflareAI(msgs, apiToken, accountId, req.log);
+    } else {
+      const apiKey = process.env.CEREBRAS_API_KEY;
+      if (!apiKey) {
+        req.log.warn(
+          "CEREBRAS_API_KEY is not set — chatbot cannot reach Cerebras.",
+        );
+        res.status(200).json({
+          answer:
+            "The BRAVE assistant is not configured yet (missing CEREBRAS_API_KEY). Please ask an admin to add it in Replit Secrets, or switch the provider on /admin/config.",
+          suggestions: [],
+        });
+        return;
+      }
+      upstreamCall = (msgs) => callCerebras(msgs, apiKey, req.log);
+    }
+
     try {
       // First attempt.
-      let content = await callCerebras(messages, apiKey, req.log);
+      let content = await upstreamCall(messages);
       let out = content ? parseModelReply(content) : null;
 
       // The 8B model occasionally emits malformed JSON. Retry once — a fresh
       // sample (temperature > 0) usually returns clean JSON. When we have the
       // bad reply on hand, feed it back with a firm correction so the retry
-      // is far more likely to comply.
+      // is far more likely to comply. Retry uses the SAME provider via the
+      // upstreamCall closure so we never switch providers mid-conversation.
       if (!out) {
         req.log.warn(
           { contentPreview: (content ?? "").slice(0, 200) },
@@ -304,7 +421,7 @@ router.post(
               '{"answer": "...", "suggestions": ["..."]} and nothing else.',
           });
         }
-        content = await callCerebras(retryMessages, apiKey, req.log);
+        content = await upstreamCall(retryMessages);
         out = content ? parseModelReply(content) : null;
       }
 

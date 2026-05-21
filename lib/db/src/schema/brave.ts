@@ -195,6 +195,11 @@ export type InsertRoster = z.infer<typeof insertRosterSchema>;
 export type Roster = typeof rosterTable.$inferSelect;
 
 // Access Requests
+export const chatbotProviderEnum = pgEnum("chatbot_provider", [
+  "cloudflare",
+  "cerebras",
+]);
+
 export const accessRequestStatusEnum = pgEnum("access_request_status", [
   "pending",
   "approved",
@@ -630,6 +635,9 @@ export const programmeConfigTable = pgTable("programme_config", {
   resourcesEnabledForStudents: boolean("resources_enabled_for_students")
     .notNull()
     .default(true),
+  chatbotProvider: chatbotProviderEnum("chatbot_provider")
+    .notNull()
+    .default("cloudflare"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

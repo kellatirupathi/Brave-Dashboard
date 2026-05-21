@@ -40,7 +40,140 @@ import {
 import { ProgrammeWeeksManager } from "@/components/programme-weeks-manager";
 import { ReminderSettingsCard } from "@/components/reminder-settings-card";
 import { ResourcesSettingsCard } from "@/components/resources-settings-card";
+import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
+
+type ChatbotProvider = "cloudflare" | "cerebras";
+
+function providerLabel(p: ChatbotProvider): string {
+  return p === "cloudflare" ? "Cloudflare Workers AI" : "Cerebras";
+}
+
+function ChatbotProviderCard() {
+  const { toast } = useToast();
+  const [loaded, setLoaded] = useState<ChatbotProvider | null>(null);
+  const [selected, setSelected] = useState<ChatbotProvider>("cloudflare");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/chatbot-provider", { credentials: "include" })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return (await r.json()) as { provider: ChatbotProvider };
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setLoaded(data.provider);
+        setSelected(data.provider);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoaded("cloudflare");
+        setSelected("cloudflare");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const dirty = loaded !== null && selected !== loaded;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/chatbot-provider", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: selected }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        provider?: ChatbotProvider;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast({
+          title: "Failed to update provider",
+          description: data.error || `HTTP ${res.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      const newProvider = data.provider ?? selected;
+      setLoaded(newProvider);
+      setSelected(newProvider);
+      toast({
+        title: `Chatbot provider updated to ${providerLabel(newProvider)}`,
+      });
+    } catch (err) {
+      toast({
+        title: "Failed to update provider",
+        description: err instanceof Error ? err.message : "Network error",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const credsHint =
+    selected === "cloudflare"
+      ? "Requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Replit Secrets."
+      : "Requires CEREBRAS_API_KEY in Replit Secrets.";
+
+  return (
+    <Card data-testid="card-chatbot-provider">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Settings className="w-5 h-5 text-primary" /> Chatbot LLM Provider
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Choose which LLM powers the BRAVE Assistant. The switch takes effect
+          within ~30 seconds, no redeploy needed.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+          <div className="space-y-2">
+            <Label htmlFor="chatbot-provider-select">Provider</Label>
+            <Select
+              value={selected}
+              onValueChange={(v) => setSelected(v as ChatbotProvider)}
+              disabled={loaded === null || saving}
+            >
+              <SelectTrigger
+                id="chatbot-provider-select"
+                data-testid="select-chatbot-provider"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cloudflare">
+                  Cloudflare Workers AI (default, recommended)
+                </SelectItem>
+                <SelectItem value="cerebras">Cerebras</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            onClick={handleSave}
+            disabled={!dirty || saving}
+            data-testid="button-save-chatbot-provider"
+          >
+            {saving ? (
+              <Spinner className="w-4 h-4 mr-2" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            Save
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">{credsHint}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function AdminConfig() {
   const { data: config, isLoading } = useGetProgrammeConfig();
@@ -450,6 +583,9 @@ export default function AdminConfig() {
 
           {/* SECTION 4 — Student-facing Resources visibility (auto-saves). */}
           <ResourcesSettingsCard />
+
+          {/* SECTION 5 — Chatbot LLM provider runtime switch. */}
+          <ChatbotProviderCard />
         </div>
       </div>
 
