@@ -700,7 +700,14 @@ export default function ProjectDetail() {
                     <FilePicker field="brd" currentUrl={brdUrl} />
                     <p className="text-xs text-muted-foreground">
                       Your BRD is private and visible only to your team and the
-                      coordinator/admin reviewing this entry.
+                      coordinator/admin reviewing this entry.{" "}
+                      <a
+                        href="https://res.cloudinary.com/dja7l3iq8/raw/upload/v1779379350/brd-template_crxghw.docx"
+                        download="BRD-Template.docx"
+                        className="font-medium text-primary hover:underline"
+                      >
+                        Download Template
+                      </a>
                     </p>
                   </div>
                   <div className="flex justify-end pt-4">

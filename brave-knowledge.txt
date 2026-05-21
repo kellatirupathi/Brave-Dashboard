@@ -1076,3 +1076,239 @@ In-scope questions you SHOULD answer (just so the boundary is clear):
   section 25 (Dashboard pages) and section 4 (Projects & Revenue).
 - "Who built you?" → "I'm built into the BRAVE Dashboard by the NIAT
   team to help students with programme questions."
+
+
+# 36. ADMIN GUIDE — PAGES AND FEATURES
+(This section is ONLY shown to admins. Do not reference in student or coordinator answers.)
+
+## Admin Dashboard
+URL: https://dashboard.brave.niatindia.com/admin
+- Shows national aggregate metrics: total teams, total verified revenue,
+  Demo Day eligible teams, active students across all campuses.
+- Cards for quick stats: teams registered, revenue submitted, revenue
+  verified, top campus by revenue.
+
+## Review Queue
+URL: https://dashboard.brave.niatindia.com/admin/queue
+- Central inbox for all revenue entries and order book entries that
+  students have submitted and are waiting for verification.
+- Each item shows: team name, campus, amount, date submitted, attached
+  BRD document.
+- Actions: Verify (approve the entry — adds verified amount to
+  leaderboard) or Reject (decline with a written reason sent to the
+  student).
+- Filter by campus, status (submitted / verified / rejected), or date.
+- Verified entries immediately update the team's leaderboard position.
+- Rejected entries: the student sees the rejection reason and can fix
+  and resubmit.
+
+## Teams Management
+URL: https://dashboard.brave.niatindia.com/admin/teams
+- View all teams across all campuses.
+- Search by team name, campus, or member name.
+- Click any team to see full details: members, projects, revenue
+  entries, milestones, invite code.
+- Admin can add manual milestones, export team data.
+- Admin can reassign team leadership if the leader is inactive.
+
+## Users Management
+URL: https://dashboard.brave.niatindia.com/admin/users
+- View and manage all user accounts (students, coordinators, admins).
+- Create new users: fill in name, email, role, and campus.
+- Edit existing users: change role, campus, active status.
+- Deactivate a user: they lose access immediately (all their sessions
+  are cleared).
+- Search by name, email, role, or campus.
+- Role options: student, coordinator, admin.
+
+## Campuses Management
+URL: https://dashboard.brave.niatindia.com/admin/campuses
+- View all NIAT campuses (19–20 campuses seeded at startup).
+- Add a new campus: enter campus name and code.
+- Edit campus name.
+- Each campus shows how many students and teams are registered.
+
+## Leaderboard (Admin View)
+URL: https://dashboard.brave.niatindia.com/admin/leaderboard
+- Same as student leaderboard but always visible regardless of freeze
+  setting.
+- Admin can toggle "Freeze leaderboard" — when frozen, students cannot
+  see the leaderboard (useful before Demo Day reveal).
+- Toggle is on the Config page, not the leaderboard page itself.
+
+## Demo Day Management
+URL: https://dashboard.brave.niatindia.com/admin/demo-day
+- View all Demo Day applications submitted by eligible teams.
+- Shortlist teams for pitching on Demo Day.
+- Mark applications as shortlisted or declined.
+- View pitch details submitted by each team.
+
+## Programme Config
+URL: https://dashboard.brave.niatindia.com/admin/config
+- Demo Day threshold: set the verified revenue amount required for
+  eligibility (default ₹2,00,000). Changing this takes effect
+  immediately — teams above the new threshold become eligible.
+- Demo Day Applications Open: toggle to open/close the application
+  window for eligible teams.
+- Demo Day application deadline: set the cutoff date.
+- Freeze leaderboard: hide the leaderboard from students.
+- Allow students to edit/delete past-week journals: toggle on/off.
+- Show Resources to students: toggle the Resources Library on/off.
+- Silent-team notification channels: toggle in-app notifications,
+  email reminders, and coordinator alerts independently.
+- Chatbot LLM provider: switch between Cloudflare Workers AI and
+  Cerebras. Takes effect within 30 seconds, no redeploy needed.
+- Email delivery test (Amazon SES): send a test email to verify SES
+  is configured and delivering correctly.
+- Programme weeks: view and manage the week schedule for the programme.
+
+## Student Roster
+URL: https://dashboard.brave.niatindia.com/admin/roster
+- Upload a CSV of student emails to whitelist them for login.
+- Students not on the roster cannot log in to the dashboard.
+- CSV format: one email per row (or a column named "email").
+- After upload, new students on the list can log in immediately.
+- Remove a student from the roster: they lose access on next login.
+
+## Audit Log
+URL: https://dashboard.brave.niatindia.com/admin/audit-log
+- Full history of all admin actions: who did what, when, from which
+  IP address, and what changed (before/after delta).
+- Actions logged: user create/edit/deactivate, roster upload, config
+  changes, revenue verify/reject, Demo Day shortlisting, etc.
+- Filter by admin user, action type, or date range.
+- Read-only — cannot be edited or deleted.
+
+## Announcements (Admin)
+URL: https://dashboard.brave.niatindia.com/admin/announcements
+- Post announcements to: All users, a specific campus, or a specific team.
+- Pin an announcement so it appears at the top of every user's dashboard.
+- Edit or delete existing announcements.
+- Pinned announcements are shown prominently on the student dashboard.
+
+## Resources Library (Admin)
+URL: https://dashboard.brave.niatindia.com/admin/resources
+- Add resource links: title, URL, description, category.
+- Edit or delete existing resources.
+- Resources are visible to students when the "Show Resources to students"
+  toggle is ON in Programme Config.
+
+## Campus Insights
+URL: https://dashboard.brave.niatindia.com/admin/campus-insights
+- Hidden analytics page — not in the main navigation, accessible by
+  direct URL.
+- Shows per-campus and per-team engagement metrics: journal activity,
+  revenue, silent teams, heatmap data.
+- Useful for identifying which campuses or teams need attention.
+
+## Admin FAQ
+
+Q: How do I verify a revenue entry?
+A: Go to https://dashboard.brave.niatindia.com/admin/queue → find the
+entry → open it → review the BRD and payment proof → click "Verify"
+to approve or "Reject" with a reason.
+
+Q: How do I change the Demo Day threshold?
+A: Go to https://dashboard.brave.niatindia.com/admin/config → find
+"Demo Day threshold" → enter the new amount in rupees → save. Takes
+effect immediately.
+
+Q: How do I open Demo Day applications?
+A: Go to https://dashboard.brave.niatindia.com/admin/config → toggle
+"Demo Day Applications Open" to ON → set the application deadline date.
+
+Q: How do I add a student to the roster?
+A: Go to https://dashboard.brave.niatindia.com/admin/roster → upload
+a CSV with the student's email (or add manually if the UI allows) →
+the student can log in after being added.
+
+Q: How do I deactivate a user?
+A: Go to https://dashboard.brave.niatindia.com/admin/users → find the
+user → click "Edit" → toggle "Active" to OFF → save. The user's
+sessions are cleared immediately.
+
+Q: How do I switch the chatbot AI provider?
+A: Go to https://dashboard.brave.niatindia.com/admin/config → scroll
+to "Chatbot LLM Provider" → select Cloudflare Workers AI or Cerebras
+→ save. The switch takes effect within 30 seconds.
+
+Q: How do I freeze the leaderboard before Demo Day?
+A: Go to https://dashboard.brave.niatindia.com/admin/config → toggle
+"Freeze leaderboard" to ON. Students will no longer see the leaderboard
+until you toggle it back OFF.
+
+Q: How do I post an announcement to a specific campus?
+A: Go to https://dashboard.brave.niatindia.com/admin/announcements →
+click "New Announcement" → set target to "Campus" → select the campus
+→ write the message → post.
+
+Q: How do I send a test email to check SES is working?
+A: Go to https://dashboard.brave.niatindia.com/admin/config → scroll to
+"Email delivery test (Amazon SES)" → enter your email → select a
+template → click "Send test email." Check your inbox for the result.
+
+Q: How do I see which teams are silent?
+A: Go to https://dashboard.brave.niatindia.com/admin/teams → filter or
+sort by last journal date. Or check Campus Insights at
+https://dashboard.brave.niatindia.com/admin/campus-insights for a
+heatmap view of team activity.
+
+
+# 37. COORDINATOR GUIDE — PAGES AND FEATURES
+(This section is shown to coordinators and admins only. Do not reference in student answers.)
+
+## Coordinator Dashboard
+URL: https://dashboard.brave.niatindia.com/coordinator
+- Overview of your campus: number of teams, active students, total
+  verified revenue for your campus, silent teams count.
+
+## Coordinator Teams
+URL: https://dashboard.brave.niatindia.com/coordinator/teams
+- View all teams on your campus (read-only — coordinators cannot edit
+  teams, only admins can).
+- Search and filter by team name or member name.
+- Click a team to view its members, projects, and activity.
+- Export team list.
+
+## Coordinator Leaderboard
+URL: https://dashboard.brave.niatindia.com/coordinator/leaderboard
+- Campus-scoped leaderboard showing only your campus teams.
+- Ranked by verified revenue.
+
+## Coordinator Announcements
+URL: https://dashboard.brave.niatindia.com/coordinator/announcements
+- Post announcements to your campus or to a specific team.
+- Cannot post to "All" users — that is admin-only.
+
+## Coordinator Journals
+URL: https://dashboard.brave.niatindia.com/coordinator/journals
+- View all weekly journal entries from students on your campus.
+- Filter by student, team, or week.
+- Use to track progress and identify students who are falling behind.
+
+## Coordinator Heatmap
+URL: https://dashboard.brave.niatindia.com/coordinator/heatmap
+- Visual heatmap showing journal activity per student per day.
+- Quickly identify silent students and teams.
+- "Remind" button available for silent teams (sends in-app notification
+  if the admin has enabled that channel).
+
+## Coordinator FAQ
+
+Q: How do I see which teams on my campus are silent?
+A: Go to https://dashboard.brave.niatindia.com/coordinator/heatmap —
+it shows a per-student activity grid. Dark/empty cells = no journal
+written. You can click "Remind" to nudge a silent team.
+
+Q: Can I verify revenue entries?
+A: No. Only admins can verify or reject revenue entries. If a student
+on your campus has a pending submission, escalate to the NIAT admin.
+
+Q: How do I post an announcement to my campus?
+A: Go to https://dashboard.brave.niatindia.com/coordinator/announcements
+→ click "New Announcement" → target = Campus (your campus is
+pre-selected) → write the message → post.
+
+Q: Can I edit or remove a student from a team?
+A: No. Coordinators have read-only access to team data. Contact the
+NIAT admin for team membership changes.
