@@ -237,11 +237,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     student: hasTeam
       ? [
           { name: "Dashboard", href: "/", icon: LayoutDashboard },
+          { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Projects", href: "/projects", icon: FolderKanban },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
-          { name: "My Team", href: "/team", icon: Users },
-          { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Demo Day", href: "/demo-day", icon: FileText },
+          { name: "My Team", href: "/team", icon: Users },
           // Resources entry is gated by the admin-controlled visibility flag.
           ...(resourcesVisibleForStudent
             ? [
