@@ -57,3 +57,6 @@ VITE_FORMS_LOGIN_URL = "https://forms.ccbp.in/mid/brave-dashboard"
 BOOTSTRAP_ADMIN_FORMS_IDS = "853cac17-6251-4d40-8ccf-1ec1bce6e949"
 
 [userenv.production]
+
+[objectStorage]
+defaultBucketID = "replit-objstore-2853e21d-0c7f-4ce6-98b7-e041e3c16b30"
