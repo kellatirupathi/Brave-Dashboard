@@ -679,9 +679,8 @@ check the progress bar on your Team Dashboard.
 # 22. ACCOUNT, LOGIN, AND ACCESS FAQ
 
 Q: How do I log in?
-A: Go to the BRAVE Dashboard URL. Click "Continue with Replit" (or the
-login button). You will be redirected to authenticate via your Replit
-account linked to your NIAT email.
+A: Go to https://dashboard.brave.niatindia.com/login and click the
+Login button. Use your NIAT email to authenticate.
 
 Q: I can't log in / I get a "not on roster" message — what do I do?
 A: You need to be on the student roster for your campus. Contact your
@@ -1005,7 +1004,8 @@ resets the counter when any team member submits a journal entry.
 
 # 32. AUTHENTICATION & ACCESS
 
-Students log in via Replit Auth (the "Continue with Replit" button).
+Students log in at https://dashboard.brave.niatindia.com/login using
+their NIAT email. Click the Login button on that page.
 - Only students on the roster can log in. If you are not on the roster,
   contact your Campus Coordinator to be added.
 - The first admin user is provisioned manually after first login.
