@@ -702,7 +702,7 @@ export default function ProjectDetail() {
                       Your BRD is private and visible only to your team and the
                       coordinator/admin reviewing this entry.{" "}
                       <a
-                        href="https://res.cloudinary.com/dja7l3iq8/raw/upload/v1779379350/brd-template_crxghw.docx"
+                        href="https://res.cloudinary.com/dja7l3iq8/raw/upload/v1779443781/brd-template_updated_ydc7lu.docx"
                         download="BRD-Template.docx"
                         className="font-medium text-primary hover:underline"
                       >
