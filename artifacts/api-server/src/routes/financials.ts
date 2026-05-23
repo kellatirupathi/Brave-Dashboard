@@ -6,6 +6,7 @@ import {
   revenueEntriesTable,
   projectsTable,
   teamsTable,
+  teamMembersTable,
   campusesTable,
   milestonesTable,
   programmeConfigTable,
@@ -616,8 +617,8 @@ router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
       "entry_verified",
       "/projects",
     );
-  // Email the team leader. Failures are swallowed inside sendEmail so they
-  // never block the verify response.
+  // Email the WHOLE team (leader + all members) on the To: line. Failures
+  // are swallowed inside sendEmail so they never block the verify response.
   if (team) {
     const [leader] = await db
       .select()
@@ -627,11 +628,38 @@ router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
       .select()
       .from(projectsTable)
       .where(eq(projectsTable.id, entry.projectId));
-    if (leader?.email) {
+    const memberRows = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+      })
+      .from(teamMembersTable)
+      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+      .where(eq(teamMembersTable.teamId, team.id));
+    // Build recipient list (de-duplicated by email) — include leader even
+    // if they happen to not be in teamMembersTable for any reason.
+    const seen = new Set<string>();
+    const recipients: { email: string; name?: string }[] = [];
+    const addRecipient = (
+      email: string | null | undefined,
+      firstName: string | null | undefined,
+    ) => {
+      if (!email) return;
+      const lower = email.toLowerCase();
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      recipients.push({ email, name: firstName ?? undefined });
+    };
+    addRecipient(leader?.email, leader?.firstName);
+    for (const m of memberRows) addRecipient(m.email, m.firstName);
+    // SES caps a single Destination at 50 ToAddresses; cap defensively so an
+    // unusually large team can never silently drop the whole send.
+    const cappedRecipients = recipients.slice(0, 50);
+
+    if (cappedRecipients.length > 0) {
       const { subject, text } = renderRevenueVerifiedEmail({
-        recipientName:
-          `${leader.firstName ?? ""} ${leader.lastName ?? ""}`.trim() ||
-          "there",
+        recipientName: "team",
         teamName: team.name,
         amount: parsed.data.verifiedAmount ?? 0,
         clientName: entry.clientName,
@@ -640,11 +668,7 @@ router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
         adminNotes: parsed.data.adminNotes ?? null,
         appUrl: getAppUrl(),
       });
-      void sendEmail({
-        to: { email: leader.email, name: leader.firstName ?? undefined },
-        subject,
-        text,
-      });
+      void sendEmail({ to: cappedRecipients, subject, text });
     }
   }
   await logAudit(
@@ -691,8 +715,8 @@ router.post("/revenue-entries/:id/reject", async (req, res): Promise<void> => {
       "entry_rejected",
       "/projects",
     );
-  // Email the team leader. Failures are swallowed inside sendEmail so they
-  // never block the reject response.
+  // Email the WHOLE team (leader + all members) on the To: line. Failures
+  // are swallowed inside sendEmail so they never block the reject response.
   if (team) {
     const [leader] = await db
       .select()
@@ -702,11 +726,34 @@ router.post("/revenue-entries/:id/reject", async (req, res): Promise<void> => {
       .select()
       .from(projectsTable)
       .where(eq(projectsTable.id, entry.projectId));
-    if (leader?.email) {
+    const memberRows = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+      })
+      .from(teamMembersTable)
+      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+      .where(eq(teamMembersTable.teamId, team.id));
+    const seen = new Set<string>();
+    const recipients: { email: string; name?: string }[] = [];
+    const addRecipient = (
+      email: string | null | undefined,
+      firstName: string | null | undefined,
+    ) => {
+      if (!email) return;
+      const lower = email.toLowerCase();
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      recipients.push({ email, name: firstName ?? undefined });
+    };
+    addRecipient(leader?.email, leader?.firstName);
+    for (const m of memberRows) addRecipient(m.email, m.firstName);
+    const cappedRecipients = recipients.slice(0, 50);
+
+    if (cappedRecipients.length > 0) {
       const { subject, text } = renderRevenueRejectedEmail({
-        recipientName:
-          `${leader.firstName ?? ""} ${leader.lastName ?? ""}`.trim() ||
-          "there",
+        recipientName: "team",
         teamName: team.name,
         amount: entry.amount,
         clientName: entry.clientName,
@@ -714,11 +761,7 @@ router.post("/revenue-entries/:id/reject", async (req, res): Promise<void> => {
         reason: parsed.data.adminNotes,
         appUrl: getAppUrl(),
       });
-      void sendEmail({
-        to: { email: leader.email, name: leader.firstName ?? undefined },
-        subject,
-        text,
-      });
+      void sendEmail({ to: cappedRecipients, subject, text });
     }
   }
   await logAudit(
