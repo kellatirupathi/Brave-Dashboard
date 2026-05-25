@@ -37,6 +37,14 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  // Staggered intro animation. 0 = "one sec..." typing, 1 = greeting visible,
+  // 2/3/4 = greeting + N suggestions revealed. Replays whenever the chat is
+  // opened while the conversation is still in its initial state.
+  const [introStep, setIntroStep] = useState(0);
+  const isInitialConversation =
+    messages.length === 1 &&
+    messages[0]?.role === "assistant" &&
+    messages[0]?.content === DEFAULT_GREETING;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -53,6 +61,28 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
     // Tiny delay so the panel is mounted before focusing.
     const t = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(t);
+  }, [open]);
+
+  // Replay the intro animation each time the chat is opened while still on
+  // the default greeting. 1s for the greeting bubble to appear, then the
+  // three default suggestions stagger in over the next ~2s.
+  useEffect(() => {
+    if (!open) return undefined;
+    if (!isInitialConversation) {
+      setIntroStep(4);
+      return undefined;
+    }
+    setIntroStep(0);
+    const timers = [
+      setTimeout(() => setIntroStep(1), 1000),
+      setTimeout(() => setIntroStep(2), 1666),
+      setTimeout(() => setIntroStep(3), 2333),
+      setTimeout(() => setIntroStep(4), 3000),
+    ];
+    return () => timers.forEach(clearTimeout);
+    // We intentionally only re-run when `open` flips — replaying the intro
+    // on every messages change would be jarring.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Close the chat when the user clicks anywhere outside it (but ignore the
@@ -84,8 +114,19 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
     setMessages(initialMessages());
     setInput("");
     setSending(false);
+    // Replay the staggered intro animation after clearing.
+    setIntroStep(0);
+    const timers = [
+      setTimeout(() => setIntroStep(1), 1000),
+      setTimeout(() => setIntroStep(2), 1666),
+      setTimeout(() => setIntroStep(3), 2333),
+      setTimeout(() => setIntroStep(4), 3000),
+    ];
     // Re-focus the input so the user can immediately type again.
-    setTimeout(() => inputRef.current?.focus(), 50);
+    const focusT = setTimeout(() => inputRef.current?.focus(), 50);
+    // Best-effort cleanup if the component unmounts mid-animation.
+    void timers;
+    void focusT;
   };
 
   const send = async (raw: string) => {
@@ -270,16 +311,49 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
               background: isDark ? "#0f0604" : "#fafafa",
             }}
           >
-            {messages.map((m, i) => (
-              <MessageRow
-                key={i}
-                msg={m}
-                isDark={isDark}
-                onPickSuggestion={(q) => send(q)}
-                disabled={sending}
-                isLast={i === messages.length - 1}
-              />
-            ))}
+            {isInitialConversation && introStep === 0 ? (
+              <div className="flex justify-start">
+                <div
+                  className="rounded-2xl rounded-bl-sm px-3 py-2 text-sm"
+                  style={{
+                    background: isDark
+                      ? "rgba(247,172,43,0.12)"
+                      : "rgba(212,64,47,0.06)",
+                    color: isDark ? "#fff3df" : "#111",
+                  }}
+                  data-testid="chatbot-intro-typing"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Dot />
+                    <Dot delay="120ms" />
+                    <Dot delay="240ms" />
+                    <span className="ml-2 text-xs opacity-70">one sec…</span>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              messages.map((m, i) => {
+                const isGreeting =
+                  isInitialConversation &&
+                  i === 0 &&
+                  m.role === "assistant" &&
+                  m.content === DEFAULT_GREETING;
+                return (
+                  <MessageRow
+                    key={i}
+                    msg={m}
+                    isDark={isDark}
+                    onPickSuggestion={(q) => send(q)}
+                    disabled={sending}
+                    isLast={i === messages.length - 1}
+                    visibleSuggestions={
+                      isGreeting ? Math.max(0, introStep - 1) : undefined
+                    }
+                    animateBubble={isGreeting}
+                  />
+                );
+              })
+            )}
             {sending && (
               <div className="flex justify-start">
                 <div
@@ -371,6 +445,10 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
         @keyframes brave-avatar-antenna {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.3); opacity: 0.6; }
+        }
+        @keyframes brave-chatbot-fadein {
+          0% { opacity: 0; transform: translateY(4px); }
+          100% { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </>
@@ -505,16 +583,33 @@ function MessageRow({
   onPickSuggestion,
   disabled,
   isLast,
+  visibleSuggestions,
+  animateBubble = false,
 }: {
   msg: ChatMessage;
   isDark: boolean;
   onPickSuggestion: (q: string) => void;
   disabled: boolean;
   isLast: boolean;
+  visibleSuggestions?: number;
+  animateBubble?: boolean;
 }) {
   const isUser = msg.role === "user";
+  const suggestionsToShow =
+    msg.suggestions == null
+      ? []
+      : visibleSuggestions == null
+        ? msg.suggestions
+        : msg.suggestions.slice(0, visibleSuggestions);
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div
+      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+      style={
+        animateBubble
+          ? { animation: "brave-chatbot-fadein 0.35s ease-out both" }
+          : undefined
+      }
+    >
       <div className="max-w-[88%]">
         <div
           className={`rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed ${
@@ -538,9 +633,9 @@ function MessageRow({
         >
           {msg.content}
         </div>
-        {!isUser && isLast && msg.suggestions && msg.suggestions.length > 0 && (
+        {!isUser && isLast && suggestionsToShow.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {msg.suggestions.map((s, i) => (
+            {suggestionsToShow.map((s, i) => (
               <button
                 key={i}
                 type="button"
@@ -556,6 +651,10 @@ function MessageRow({
                   background: isDark
                     ? "rgba(247,172,43,0.06)"
                     : "rgba(212,64,47,0.04)",
+                  animation:
+                    visibleSuggestions != null
+                      ? "brave-chatbot-fadein 0.35s ease-out both"
+                      : undefined,
                 }}
               >
                 {s}
