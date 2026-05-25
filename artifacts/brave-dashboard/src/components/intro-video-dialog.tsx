@@ -34,31 +34,35 @@ export function IntroVideoDialog({ open, onClose }: Props) {
       aria-labelledby="intro-video-title"
       data-testid="dialog-intro-video"
     >
-      <div className="relative w-full max-w-[720px] rounded-lg bg-background shadow-xl">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close intro video"
-          data-testid="button-close-intro-video"
-          className="absolute -top-3 -right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-background text-foreground shadow-md border border-border hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X className="h-4 w-4" />
-        </button>
-
-        <div className="px-6 pt-6 pb-3">
-          <h2
-            id="intro-video-title"
-            className="text-xl font-bold"
+      <div className="relative flex w-full max-w-[720px] max-h-[90vh] flex-col rounded-lg bg-background shadow-xl overflow-hidden">
+        <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3 border-b border-border">
+          <div className="min-w-0">
+            <h2
+              id="intro-video-title"
+              className="text-lg sm:text-xl font-bold"
+            >
+              Welcome to BRAVE Dashboard
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Watch this quick intro to get started
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close intro video"
+            data-testid="button-close-intro-video"
+            className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Welcome to BRAVE Dashboard
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Watch this quick intro to get started
-          </p>
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <div className="px-6 pb-6">
-          <div className="relative w-full overflow-hidden rounded-md bg-black" style={{ paddingTop: "56.25%" }}>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div
+            className="relative w-full overflow-hidden rounded-md bg-black mx-auto"
+            style={{ aspectRatio: "16 / 9", maxHeight: "65vh" }}
+          >
             <iframe
               src={`https://drive.google.com/file/d/${INTRO_VIDEO_DRIVE_FILE_ID}/preview`}
               className="absolute inset-0 h-full w-full"
