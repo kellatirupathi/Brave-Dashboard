@@ -1,4 +1,6 @@
 import { useAuth } from "@workspace/replit-auth-web";
+import { IntroVideoDialog } from "@/components/intro-video-dialog";
+import { PlayCircle } from "lucide-react";
 import {
   useGetMyTeam,
   getGetMyTeamQueryKey,
@@ -186,6 +188,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showChangePasswordDialog, setShowChangePasswordDialog] =
     useState(false);
+  const [showIntroVideo, setShowIntroVideo] = useState(false);
   // hasPassword is appended by the API when the account has a password_hash.
   // It is not yet declared on the generated AuthUser type — read defensively.
   const hasPassword = !!(user as unknown as { hasPassword?: boolean })
@@ -397,6 +400,20 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           })}
         </nav>
 
+        {role === "student" && (
+          <div className="px-4 pb-2">
+            <button
+              type="button"
+              onClick={() => setShowIntroVideo(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+              data-testid="button-sidebar-intro-video"
+            >
+              <PlayCircle className="w-3.5 h-3.5" />
+              Watch intro video
+            </button>
+          </div>
+        )}
+
         <div className="p-4 border-t border-sidebar-border">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -485,6 +502,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         open={showChangePasswordDialog}
         onOpenChange={setShowChangePasswordDialog}
         mode={{ kind: "self" }}
+      />
+
+      <IntroVideoDialog
+        open={showIntroVideo}
+        onClose={() => setShowIntroVideo(false)}
       />
 
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>

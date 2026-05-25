@@ -19,6 +19,7 @@ import { HelpMenu } from "@/components/help-menu";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SupportBanner } from "@/components/support-banner";
 import { ProgressWidgets } from "@/components/progress-widgets";
+import { AutoIntroVideo } from "@/components/intro-video-dialog";
 
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
@@ -46,6 +47,7 @@ export default function TeamDashboard() {
 
   return (
     <>
+      <AutoIntroVideo />
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <PinnedAnnouncementBanner />
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
