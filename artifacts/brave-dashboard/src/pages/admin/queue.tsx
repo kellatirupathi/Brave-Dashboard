@@ -813,21 +813,16 @@ function AiBrdAuditCard({ item }: { item: QueueItem }) {
       )}
 
       {analysed && detail ? (
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-xs"
-              data-testid={`button-ai-details-${item.id}`}
-            >
-              Details
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-96 max-h-[480px] overflow-y-auto text-xs">
-            <AiAnalysisDetails detail={detail} />
-          </PopoverContent>
-        </Popover>
+        <Link href={`/admin/queue/detailed-analysis?entryId=${item.id}`}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-xs"
+            data-testid={`button-ai-details-${item.id}`}
+          >
+            Details
+          </Button>
+        </Link>
       ) : null}
 
       <Button

@@ -26,6 +26,7 @@ import chatbotRouter from "./chatbot";
 import campusInsightsRouter from "./campus-insights";
 import adminNotificationsRouter from "./admin-notifications";
 import cronOverdueNotificationsRouter from "./cron-overdue-notifications";
+import brdAnalysisRouter from "./brd-analysis";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,7 @@ router.use(campusInsightsRouter);
 // Admin notification subscribers + daily overdue cron (additive only)
 router.use(adminNotificationsRouter);
 router.use(cronOverdueNotificationsRouter);
+// AI BRD analysis history + cross-entry view (additive only)
+router.use(brdAnalysisRouter);
 
 export default router;

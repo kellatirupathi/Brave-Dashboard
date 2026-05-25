@@ -1342,6 +1342,71 @@ export interface CampusInsightsCampusResponse {
   rows: CampusInsightsTeamRow[];
 }
 
+export interface BrdAnalysisListItem {
+  id: number;
+  teamId: number;
+  teamName: string;
+  campusName: string;
+  projectId: number;
+  projectTitle: string;
+  clientName: string;
+  amount: number;
+  status: string;
+  /** @nullable */
+  brdScore?: number | null;
+  /** @nullable */
+  uniquenessScore?: number | null;
+  /** @nullable */
+  aiAnalysedAt?: string | null;
+  /** @nullable */
+  submittedAt?: string | null;
+}
+
+export interface BrdAnalysisListResponse {
+  items: BrdAnalysisListItem[];
+}
+
+export interface BrdAnalysisHistoryEntryHeader {
+  id: number;
+  teamId: number;
+  teamName: string;
+  campusName: string;
+  projectId: number;
+  projectTitle: string;
+  clientName: string;
+  amount: number;
+  /** @nullable */
+  verifiedAmount?: number | null;
+  status: string;
+  /** @nullable */
+  brdUrl?: string | null;
+  paymentDate: string;
+  /** @nullable */
+  submittedAt?: string | null;
+  /** @nullable */
+  brdScore?: number | null;
+  /** @nullable */
+  uniquenessScore?: number | null;
+  aiAnalysisDetail?: null | BrdAiAnalysis;
+  /** @nullable */
+  aiAnalysedAt?: string | null;
+}
+
+export interface BrdAnalysisHistoryRecord {
+  id: number;
+  /** @nullable */
+  brdScore?: number | null;
+  /** @nullable */
+  uniquenessScore?: number | null;
+  analysisJson?: null | BrdAiAnalysis;
+  analysedAt: string;
+}
+
+export interface BrdAnalysisHistoryResponse {
+  entry: BrdAnalysisHistoryEntryHeader;
+  history: BrdAnalysisHistoryRecord[];
+}
+
 export type ListTeamsParams = {
   campusId?: number;
   status?: ListTeamsStatus;

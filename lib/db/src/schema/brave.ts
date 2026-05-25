@@ -909,3 +909,26 @@ export type InsertOverdueNotificationSubscriber = z.infer<
 >;
 export type OverdueNotificationSubscriber =
   typeof overdueNotificationSubscribersTable.$inferSelect;
+
+// AI BRD Analysis History — append-only log of every Gemini run for an
+// entry. The latest snapshot still lives on revenue_entries; this table
+// preserves the full history so admins can audit past analyses.
+export const brdAnalysisHistoryTable = pgTable(
+  "brd_analysis_history",
+  {
+    id: serial("id").primaryKey(),
+    revenueEntryId: integer("revenue_entry_id").notNull(),
+    brdScore: integer("brd_score"),
+    uniquenessScore: integer("uniqueness_score"),
+    analysisJson: jsonb("analysis_json"),
+    analysedAt: timestamp("analysed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("brd_analysis_history_entry_idx").on(t.revenueEntryId),
+    index("brd_analysis_history_analysed_at_idx").on(t.analysedAt),
+  ],
+);
+
+export type BrdAnalysisHistory = typeof brdAnalysisHistoryTable.$inferSelect;

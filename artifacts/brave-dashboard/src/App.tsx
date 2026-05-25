@@ -51,6 +51,7 @@ import CoordinatorQueue from "@/pages/coordinator/queue";
 // Admin
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminQueue from "@/pages/admin/queue";
+import AdminDetailedAnalysis from "@/pages/admin/detailed-analysis";
 import AdminTeams from "@/pages/admin/teams";
 import AdminTeamDetail from "@/pages/admin/team-detail";
 import AdminProjects from "@/pages/admin/projects";
@@ -337,6 +338,12 @@ function Router() {
       {/* Admin Routes */}
       <Route path="/admin">
         <ProtectedRoute component={AdminDashboard} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/queue/detailed-analysis">
+        <ProtectedRoute
+          component={AdminDetailedAnalysis}
+          allowedRoles={["admin"]}
+        />
       </Route>
       <Route path="/admin/queue">
         <ProtectedRoute component={AdminQueue} allowedRoles={["admin"]} />

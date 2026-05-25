@@ -26,6 +26,8 @@ import type {
   AdminReviewQueueResponse,
   Announcement,
   AuditLogEntry,
+  BrdAnalysisHistoryResponse,
+  BrdAnalysisListResponse,
   BulkImportRosterBody,
   BulkImportRosterResponse,
   Campus,
@@ -8966,6 +8968,173 @@ export function useGetCampusInsightsByCampus<
     campusId,
     options,
   );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List the latest AI BRD analysis snapshot for every analysed revenue entry (admin only).
+ */
+export const getListBrdAnalysesUrl = () => {
+  return `/api/brd-analysis/all`;
+};
+
+export const listBrdAnalyses = async (
+  options?: RequestInit,
+): Promise<BrdAnalysisListResponse> => {
+  return customFetch<BrdAnalysisListResponse>(getListBrdAnalysesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBrdAnalysesQueryKey = () => {
+  return [`/api/brd-analysis/all`] as const;
+};
+
+export const getListBrdAnalysesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBrdAnalyses>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBrdAnalyses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBrdAnalysesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listBrdAnalyses>>> = ({
+    signal,
+  }) => listBrdAnalyses({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBrdAnalyses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBrdAnalysesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBrdAnalyses>>
+>;
+export type ListBrdAnalysesQueryError = ErrorType<void>;
+
+/**
+ * @summary List the latest AI BRD analysis snapshot for every analysed revenue entry (admin only).
+ */
+
+export function useListBrdAnalyses<
+  TData = Awaited<ReturnType<typeof listBrdAnalyses>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBrdAnalyses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBrdAnalysesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the full append-only AI analysis history for a revenue entry (admin only).
+ */
+export const getGetBrdAnalysisHistoryUrl = (entryId: number) => {
+  return `/api/brd-analysis/history/${entryId}`;
+};
+
+export const getBrdAnalysisHistory = async (
+  entryId: number,
+  options?: RequestInit,
+): Promise<BrdAnalysisHistoryResponse> => {
+  return customFetch<BrdAnalysisHistoryResponse>(
+    getGetBrdAnalysisHistoryUrl(entryId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetBrdAnalysisHistoryQueryKey = (entryId: number) => {
+  return [`/api/brd-analysis/history/${entryId}`] as const;
+};
+
+export const getGetBrdAnalysisHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBrdAnalysisHistory>>,
+  TError = ErrorType<void>,
+>(
+  entryId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBrdAnalysisHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetBrdAnalysisHistoryQueryKey(entryId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBrdAnalysisHistory>>
+  > = ({ signal }) =>
+    getBrdAnalysisHistory(entryId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!entryId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBrdAnalysisHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBrdAnalysisHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBrdAnalysisHistory>>
+>;
+export type GetBrdAnalysisHistoryQueryError = ErrorType<void>;
+
+/**
+ * @summary Get the full append-only AI analysis history for a revenue entry (admin only).
+ */
+
+export function useGetBrdAnalysisHistory<
+  TData = Awaited<ReturnType<typeof getBrdAnalysisHistory>>,
+  TError = ErrorType<void>,
+>(
+  entryId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBrdAnalysisHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBrdAnalysisHistoryQueryOptions(entryId, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

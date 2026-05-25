@@ -1,0 +1,86 @@
+Create a new detailed AI BRD analysis page at route /admin/queue/detailed-analysis
+
+---
+
+PART 1 — NAVIGATION
+
+When admin clicks the "Details" button on any entry in /admin/queue:
+- Navigate to /admin/queue/detailed-analysis?entryId={id}
+- The page opens and shows the full analysis for that specific entry
+- Add a "← Back to Review Queue" link at the top left of the page
+
+---
+
+PART 2 — DEFAULT PAGE (no entryId in URL)
+
+When the page is opened without an entryId:
+- Show all analysed entries across all teams
+- Sorted by most recent analysis first (recent to past)
+- Each row shows: Team name, Campus, Project, BRD Relevancy Score, 
+  Uniqueness Score, Analysed at timestamp
+- Clicking any row navigates to /admin/queue/detailed-analysis?entryId={id}
+
+---
+
+PART 3 — DETAILED VIEW (entryId in URL)
+
+Layout — two sections:
+
+SECTION A: Entry Info Header
+- Team name, Campus, Project name, Client name, Amount claimed
+- Revenue entry submitted date
+- AI last analysed date and time
+
+SECTION B: BRD RELEVANCY SCORE
+- Large score display: e.g. 85 / 100 with color (green/amber/red)
+- PDF summary row: Total pages · Images detected · Amount match
+- Findings list — each finding on its own line starting with ✅ ⚠️ or ❌
+
+SECTION C: TEAM UNIQUENESS SCORE  
+- Large score display: e.g. 94 / 100 with color
+- Uniqueness summary text (one or two sentences from Gemini)
+- If first submission: show "First BRD submission — no previous BRDs to compare"
+- If previous BRDs exist: show comparison table with columns:
+  Entry label | Similarity % | Flag (unique/suspicious/duplicate) | Reason
+
+---
+
+PART 4 — ANALYSIS HISTORY STORAGE
+
+Every time a BRD is analysed (auto or manual re-analyse):
+- Store the full analysis result as a new history record in DB
+- Do NOT overwrite the previous analysis — append as new record
+- Each history record stores: entryId, brd_score, uniqueness_score, 
+  full analysis JSON, analysed_at timestamp
+
+On the detailed page below the current analysis:
+- Show "Analysis History" section
+- List all past analyses for this entry from recent to past
+- Each row: analysed_at timestamp, BRD score, Uniqueness score
+- Clicking a past row expands it to show the full analysis from that time
+
+---
+
+PART 5 — TEAM-WISE VIEW
+
+Add a toggle at the top of the page: "All Entries" | "By Team"
+
+When "By Team" is selected:
+- Group all analysed entries by team name
+- Each team shows as a collapsible section
+- Inside each team: all their entries sorted recent to past
+- Shows BRD score and uniqueness score per entry
+
+---
+
+TECHNICAL NOTES:
+- Route: /admin/queue/detailed-analysis (with optional ?entryId= query param)
+- Admin only — same auth guard as /admin/queue
+- Create a new DB table: brd_analysis_history 
+  (id, revenue_entry_id, brd_score, uniqueness_score, analysis_json, analysed_at)
+- Current scores on the revenue entry remain as-is (latest scores)
+- History table stores every run separately
+- Add a new API endpoint: GET /api/brd-analysis/history/:entryId 
+  to fetch all past analyses for an entry
+- Add a new API endpoint: GET /api/brd-analysis/all 
+  to fetch latest analysis for all entries (for default page view)

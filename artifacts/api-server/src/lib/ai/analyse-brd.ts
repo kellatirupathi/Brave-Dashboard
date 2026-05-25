@@ -1,4 +1,9 @@
-import { db, revenueEntriesTable, teamsTable } from "@workspace/db";
+import {
+  db,
+  revenueEntriesTable,
+  teamsTable,
+  brdAnalysisHistoryTable,
+} from "@workspace/db";
 import { and, desc, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { logger } from "../logger";
 import { ObjectStorageService } from "../objectStorage";
@@ -192,6 +197,21 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
         "[brd-ai] stale run — entry was re-submitted while analysis was in flight; results discarded",
       );
       return;
+    }
+
+    // Append a history row. Never overwrites — each run is its own record.
+    try {
+      await db.insert(brdAnalysisHistoryTable).values({
+        revenueEntryId: entry.id,
+        brdScore,
+        uniquenessScore,
+        analysisJson: parsed,
+      });
+    } catch (histErr) {
+      logger.error(
+        { err: histErr, entryId },
+        "[brd-ai] failed to append history record (latest snapshot still saved)",
+      );
     }
 
     logger.info(
