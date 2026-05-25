@@ -3,6 +3,7 @@ import {
   useVerifyRevenueEntry,
   useRejectRevenueEntry,
   useUnverifyRevenueEntry,
+  useReanalyseRevenueEntry,
   getGetAdminReviewQueueQueryKey,
 } from "@workspace/api-client-react";
 import { formatINR, formatDateTime } from "@/lib/format";
@@ -38,7 +39,15 @@ import {
   RotateCcw,
   CheckCircle2,
   XCircle,
+  Bot,
+  Loader2,
+  Hourglass,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { DocumentLinkButton } from "@/components/document-viewer";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -62,6 +71,30 @@ type QueueItem = {
   verifiedAmount?: number | null;
   verifiedAt?: string | Date | null;
   adminNotes?: string | null;
+  brdScore?: number | null;
+  uniquenessScore?: number | null;
+  aiAnalysedAt?: string | Date | null;
+  aiAnalysisDetail?: BrdAiAnalysis | null;
+};
+
+type BrdAiAnalysis = {
+  brd_score?: number;
+  brd_findings?: string[];
+  brd_pdf_summary?: {
+    total_pages?: number;
+    images_detected?: number;
+    amount_match?: "yes" | "no" | "close" | "unable to verify";
+  };
+  uniqueness_score?: number;
+  uniqueness_summary?: string;
+  uniqueness_findings?: string[];
+  uniqueness_comparison?: Array<{
+    entry_label?: string;
+    similarity_percent?: number;
+    flag?: "unique" | "suspicious" | "duplicate";
+    reason?: string;
+  }>;
+  analysed_at?: string;
 };
 
 type Tab = "pending" | "approved" | "rejected";
@@ -316,6 +349,12 @@ function QueueRow({
           {status === "rejected" && item.adminNotes ? (
             <div className="mt-2 text-xs text-destructive/80 italic">
               Rejection reason: {item.adminNotes}
+            </div>
+          ) : null}
+
+          {item.brdUrl ? (
+            <div className="mt-3 relative z-20" onClick={(e) => e.stopPropagation()}>
+              <AiBrdAuditCard item={item} />
             </div>
           ) : null}
         </div>
@@ -684,5 +723,205 @@ function ReopenAction({ item }: { item: QueueItem }) {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+// ─── AI BRD Auditor card ───────────────────────────────────────────────────
+// Shows the Gemini-generated relevancy + uniqueness scores for the BRD on a
+// revenue entry. Click "Details" to see findings + per-previous-BRD comparison.
+// "Re-analyse" runs the auditor immediately (bypasses the 5-minute setTimeout).
+
+function scoreColor(score: number | null | undefined): string {
+  if (score == null) return "bg-muted text-muted-foreground";
+  if (score >= 75) return "bg-emerald-100 text-emerald-800 border-emerald-200";
+  if (score >= 40) return "bg-amber-100 text-amber-800 border-amber-200";
+  return "bg-red-100 text-red-800 border-red-200";
+}
+
+function AiBrdAuditCard({ item }: { item: QueueItem }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const reanalyse = useReanalyseRevenueEntry();
+
+  const detail = item.aiAnalysisDetail ?? null;
+  const analysed = item.aiAnalysedAt != null;
+
+  const onReanalyse = () => {
+    reanalyse.mutate(
+      { id: item.id },
+      {
+        onSuccess: () => {
+          toast({ title: "AI re-analysis complete" });
+          queryClient.invalidateQueries({
+            queryKey: getGetAdminReviewQueueQueryKey({
+              type: "revenue",
+              status: "submitted",
+            }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetAdminReviewQueueQueryKey({
+              type: "revenue",
+              status: "verified",
+            }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetAdminReviewQueueQueryKey({
+              type: "revenue",
+              status: "rejected" as "submitted" | "verified",
+            }),
+          });
+        },
+        onError: (err: unknown) => {
+          toast({
+            title: "Re-analysis failed",
+            description: err instanceof Error ? err.message : "Unknown error",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/30 p-2 flex flex-wrap items-center gap-2 text-xs">
+      <div className="flex items-center gap-1 font-medium text-muted-foreground">
+        <Bot className="w-3.5 h-3.5" />
+        AI BRD audit
+      </div>
+
+      {!analysed ? (
+        <Badge variant="outline" className="h-5 gap-1">
+          <Hourglass className="w-3 h-3" /> Pending (runs ~5 min after submit)
+        </Badge>
+      ) : (
+        <>
+          <Badge
+            variant="outline"
+            className={`h-5 ${scoreColor(item.brdScore)}`}
+            data-testid={`badge-brd-score-${item.id}`}
+          >
+            Relevancy: {item.brdScore ?? "?"}/100
+          </Badge>
+          <Badge
+            variant="outline"
+            className={`h-5 ${scoreColor(item.uniquenessScore)}`}
+            data-testid={`badge-uniqueness-score-${item.id}`}
+          >
+            Uniqueness: {item.uniquenessScore ?? "?"}/100
+          </Badge>
+        </>
+      )}
+
+      {analysed && detail ? (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs"
+              data-testid={`button-ai-details-${item.id}`}
+            >
+              Details
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-96 max-h-[480px] overflow-y-auto text-xs">
+            <AiAnalysisDetails detail={detail} />
+          </PopoverContent>
+        </Popover>
+      ) : null}
+
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 px-2 text-xs ml-auto"
+        onClick={onReanalyse}
+        disabled={reanalyse.isPending}
+        data-testid={`button-reanalyse-${item.id}`}
+      >
+        {reanalyse.isPending ? (
+          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+        ) : (
+          <RotateCcw className="w-3 h-3 mr-1" />
+        )}
+        {analysed ? "Re-analyse" : "Analyse now"}
+      </Button>
+    </div>
+  );
+}
+
+function AiAnalysisDetails({ detail }: { detail: BrdAiAnalysis }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="font-semibold mb-1">BRD relevancy findings</div>
+        <ul className="space-y-0.5">
+          {(detail.brd_findings ?? []).map((f, i) => (
+            <li key={i} className="leading-relaxed">
+              {f}
+            </li>
+          ))}
+          {(detail.brd_findings ?? []).length === 0 ? (
+            <li className="text-muted-foreground italic">No findings.</li>
+          ) : null}
+        </ul>
+        {detail.brd_pdf_summary ? (
+          <div className="mt-1 text-muted-foreground">
+            Pages: {detail.brd_pdf_summary.total_pages ?? "?"} · Images:{" "}
+            {detail.brd_pdf_summary.images_detected ?? "?"} · Amount match:{" "}
+            <span className="font-medium">
+              {detail.brd_pdf_summary.amount_match ?? "?"}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      <div>
+        <div className="font-semibold mb-1">Uniqueness</div>
+        {detail.uniqueness_summary ? (
+          <div className="mb-1 italic text-muted-foreground">
+            {detail.uniqueness_summary}
+          </div>
+        ) : null}
+        <ul className="space-y-0.5">
+          {(detail.uniqueness_findings ?? []).map((f, i) => (
+            <li key={i} className="leading-relaxed">
+              {f}
+            </li>
+          ))}
+        </ul>
+        {(detail.uniqueness_comparison ?? []).length > 0 ? (
+          <div className="mt-2 space-y-1">
+            <div className="font-medium text-muted-foreground">
+              Compared against:
+            </div>
+            {(detail.uniqueness_comparison ?? []).map((c, i) => (
+              <div
+                key={i}
+                className="rounded border border-border/50 p-1.5 bg-background/60"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate">{c.entry_label ?? "—"}</span>
+                  <Badge
+                    variant="outline"
+                    className={`h-4 text-[10px] ${
+                      c.flag === "duplicate"
+                        ? "bg-red-100 text-red-800 border-red-200"
+                        : c.flag === "suspicious"
+                          ? "bg-amber-100 text-amber-800 border-amber-200"
+                          : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                    }`}
+                  >
+                    {c.flag ?? "?"} · {c.similarity_percent ?? 0}%
+                  </Badge>
+                </div>
+                {c.reason ? (
+                  <div className="mt-0.5 text-muted-foreground">{c.reason}</div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }

@@ -1182,6 +1182,59 @@ export const GetProjectResponse = zod
           enteredBy: zod.enum(["student", "admin"]),
           submittedAt: zod.coerce.date().nullish(),
           verifiedAt: zod.coerce.date().nullish(),
+          brdScore: zod
+            .number()
+            .nullish()
+            .describe("AI BRD relevancy score (0-100); null until analysed."),
+          uniquenessScore: zod
+            .number()
+            .nullish()
+            .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+          aiAnalysedAt: zod.coerce
+            .date()
+            .nullish()
+            .describe(
+              "Timestamp the AI analysis was last completed; null if pending.",
+            ),
+          aiAnalysisDetail: zod
+            .union([
+              zod.null(),
+              zod
+                .object({
+                  brd_score: zod.number().optional(),
+                  brd_findings: zod.array(zod.string()).optional(),
+                  brd_pdf_summary: zod
+                    .object({
+                      total_pages: zod.number().optional(),
+                      images_detected: zod.number().optional(),
+                      amount_match: zod
+                        .enum(["yes", "no", "close", "unable to verify"])
+                        .optional(),
+                    })
+                    .optional(),
+                  uniqueness_score: zod.number().optional(),
+                  uniqueness_summary: zod.string().optional(),
+                  uniqueness_findings: zod.array(zod.string()).optional(),
+                  uniqueness_comparison: zod
+                    .array(
+                      zod.object({
+                        entry_label: zod.string().optional(),
+                        similarity_percent: zod.number().optional(),
+                        flag: zod
+                          .enum(["unique", "suspicious", "duplicate"])
+                          .optional(),
+                        reason: zod.string().optional(),
+                      }),
+                    )
+                    .optional(),
+                  analysed_at: zod.string().optional(),
+                })
+                .describe("Gemini AI auditor result for a BRD revenue entry."),
+            ])
+            .optional()
+            .describe(
+              "Full Gemini JSON response with findings, summary, and comparison.",
+            ),
           createdAt: zod.coerce.date(),
         }),
       ),
@@ -1362,6 +1415,57 @@ export const ListRevenueEntriesResponseItem = zod.object({
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
   verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListRevenueEntriesResponse = zod.array(
@@ -1407,6 +1511,57 @@ export const GetRevenueEntryResponse = zod.object({
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
   verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -1443,6 +1598,57 @@ export const UpdateRevenueEntryResponse = zod.object({
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
   verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -1471,6 +1677,57 @@ export const SubmitRevenueEntryResponse = zod.object({
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
   verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -1504,6 +1761,57 @@ export const VerifyRevenueEntryResponse = zod.object({
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
   verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -1536,6 +1844,136 @@ export const RejectRevenueEntryResponse = zod.object({
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
   verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Re-run the AI BRD auditor on a revenue entry (admin only). Runs immediately; bypasses the 5-minute submission delay.
+ */
+export const ReanalyseRevenueEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ReanalyseRevenueEntryResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  projectTitle: zod.string(),
+  teamId: zod.number(),
+  teamName: zod.string(),
+  campusName: zod.string(),
+  clientName: zod.string(),
+  amount: zod.number(),
+  verifiedAmount: zod.number().nullish(),
+  paymentDate: zod.coerce.date(),
+  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  brdUrl: zod.string().nullish(),
+  testimonialUrl: zod.string().nullish(),
+  adminNotes: zod.string().nullish(),
+  enteredBy: zod.enum(["student", "admin"]),
+  submittedAt: zod.coerce.date().nullish(),
+  verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -1564,6 +2002,57 @@ export const UnverifyRevenueEntryResponse = zod.object({
   enteredBy: zod.enum(["student", "admin"]),
   submittedAt: zod.coerce.date().nullish(),
   verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
   createdAt: zod.coerce.date(),
 });
 

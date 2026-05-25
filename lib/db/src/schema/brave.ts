@@ -9,6 +9,7 @@ import {
   unique,
   index,
   primaryKey,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -443,6 +444,14 @@ export const revenueEntriesTable = pgTable(
     enteredBy: enteredByEnum("entered_by").notNull().default("student"),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    // AI BRD auditor (Gemini) — advisory scores attached to a submitted BRD.
+    // brdScore: 0..100 relevancy. uniquenessScore: 0..100 vs prior team BRDs.
+    // aiAnalysisDetail: full Gemini JSON response (findings, comparison, etc.).
+    // aiAnalysedAt: null until analysed; set on successful completion.
+    brdScore: integer("brd_score"),
+    uniquenessScore: integer("uniqueness_score"),
+    aiAnalysisDetail: jsonb("ai_analysis_detail"),
+    aiAnalysedAt: timestamp("ai_analysed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

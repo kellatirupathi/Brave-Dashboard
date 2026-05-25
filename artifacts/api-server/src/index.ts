@@ -4,6 +4,7 @@ import { db, usersTable } from "@workspace/db";
 import { and, inArray, isNull, sql } from "drizzle-orm";
 import { bootstrapCanonicalCampuses } from "./bootstrap-campuses";
 import { bootstrapAdmins } from "./bootstrap-admins";
+import { catchUpPendingBrdAnalyses } from "./lib/ai/analyse-brd";
 
 async function reportUsersWithoutCampus(): Promise<void> {
   try {
@@ -88,6 +89,13 @@ async function runBootstrap(): Promise<void> {
     await reportUsersWithoutCampus();
   } catch (err) {
     logger.error({ err }, "reportUsersWithoutCampus failed");
+  }
+  // One-shot sweep: catch any BRD analyses missed across a redeploy where
+  // the in-memory setTimeout was lost. NOT a recurring cron job — runs once.
+  try {
+    await catchUpPendingBrdAnalyses();
+  } catch (err) {
+    logger.error({ err }, "catchUpPendingBrdAnalyses failed");
   }
 }
 

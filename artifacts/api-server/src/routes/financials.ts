@@ -37,6 +37,10 @@ import { requireTeamLeader } from "../lib/auth";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import { renderRevenueVerifiedEmail } from "../lib/email/templates/revenue-verified";
 import { renderRevenueRejectedEmail } from "../lib/email/templates/revenue-rejected";
+import {
+  scheduleBrdAnalysis,
+  runBrdAnalysisNow,
+} from "../lib/ai/brd-scheduler";
 
 const router: IRouter = Router();
 
@@ -501,15 +505,67 @@ router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
   }
   const [entry] = await db
     .update(revenueEntriesTable)
-    .set({ status: "submitted", submittedAt: new Date() })
+    .set({
+      status: "submitted",
+      submittedAt: new Date(),
+      // Clear any prior AI verdict; a fresh analysis fires 5 minutes from now.
+      brdScore: null,
+      uniquenessScore: null,
+      aiAnalysisDetail: null,
+      aiAnalysedAt: null,
+    })
     .where(eq(revenueEntriesTable.id, params.data.id))
     .returning();
   if (!entry) {
     res.status(404).json({ error: "Entry not found" });
     return;
   }
+  // Fire the BRD AI auditor in 5 minutes (setTimeout, not cron). Never blocks
+  // the response. Startup catch-up handles missed timers across redeploys.
+  scheduleBrdAnalysis(entry.id);
   res.json(await enrichRevEntry(entry));
 });
+
+router.post(
+  "/revenue-entries/:id/reanalyse",
+  async (req, res): Promise<void> => {
+    if (
+      !req.isAuthenticated ||
+      !req.isAuthenticated() ||
+      !req.user ||
+      req.user.role !== "admin"
+    ) {
+      res.status(403).json({ error: "Admin only" });
+      return;
+    }
+    const idRaw = Number(req.params["id"]);
+    if (!Number.isFinite(idRaw) || idRaw <= 0) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [entry] = await db
+      .select()
+      .from(revenueEntriesTable)
+      .where(eq(revenueEntriesTable.id, idRaw));
+    if (!entry) {
+      res.status(404).json({ error: "Entry not found" });
+      return;
+    }
+    if (!entry.brdUrl || entry.brdUrl.trim() === "") {
+      res
+        .status(400)
+        .json({ error: "Entry has no BRD attached; nothing to analyse." });
+      return;
+    }
+    // Run immediately (admin button bypasses the 5-minute delay).
+    await runBrdAnalysisNow(entry.id);
+    const [refreshed] = await db
+      .select()
+      .from(revenueEntriesTable)
+      .where(eq(revenueEntriesTable.id, entry.id));
+    res.json(await enrichRevEntry(refreshed ?? entry));
+  },
+);
 
 router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
   const params = VerifyRevenueEntryParams.safeParse(req.params);

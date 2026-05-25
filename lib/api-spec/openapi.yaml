@@ -1154,6 +1154,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/RevenueEntry"
 
+  /revenue-entries/{id}/reanalyse:
+    post:
+      operationId: reanalyseRevenueEntry
+      tags: [financials]
+      summary: Re-run the AI BRD auditor on a revenue entry (admin only). Runs immediately; bypasses the 5-minute submission delay.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Analysis complete (or scheduled). Returns the updated revenue entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+        "400":
+          description: Entry has no BRD attached.
+        "404":
+          description: Entry not found.
+
   /revenue-entries/{id}/unverify:
     post:
       operationId: unverifyRevenueEntry
@@ -3066,6 +3089,21 @@ components:
         verifiedAt:
           type: ["string", "null"]
           format: date-time
+        brdScore:
+          type: ["integer", "null"]
+          description: AI BRD relevancy score (0-100); null until analysed.
+        uniquenessScore:
+          type: ["integer", "null"]
+          description: AI BRD uniqueness score (0-100) vs prior team BRDs.
+        aiAnalysedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Timestamp the AI analysis was last completed; null if pending.
+        aiAnalysisDetail:
+          description: Full Gemini JSON response with findings, summary, and comparison.
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/BrdAiAnalysis"
         createdAt:
           type: string
           format: date-time
@@ -3082,6 +3120,52 @@ components:
         - status
         - enteredBy
         - createdAt
+
+    BrdAiAnalysis:
+      type: object
+      description: Gemini AI auditor result for a BRD revenue entry.
+      properties:
+        brd_score:
+          type: integer
+        brd_findings:
+          type: array
+          items:
+            type: string
+        brd_pdf_summary:
+          type: object
+          properties:
+            total_pages:
+              type: integer
+            images_detected:
+              type: integer
+            amount_match:
+              type: string
+              enum: [yes, no, close, "unable to verify"]
+        uniqueness_score:
+          type: integer
+        uniqueness_summary:
+          type: string
+        uniqueness_findings:
+          type: array
+          items:
+            type: string
+        uniqueness_comparison:
+          type: array
+          items:
+            type: object
+            properties:
+              entry_label:
+                type: string
+              similarity_percent:
+                type: integer
+              flag:
+                type: string
+                enum: [unique, suspicious, duplicate]
+              reason:
+                type: string
+        analysed_at:
+          type: string
+      additionalProperties: true
 
     CreateRevenueEntryBody:
       type: object

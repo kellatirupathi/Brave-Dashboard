@@ -98,6 +98,10 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     verifiedAmount: number | null;
     verifiedAt: Date | null;
     adminNotes: string | null;
+    brdScore: number | null;
+    uniquenessScore: number | null;
+    aiAnalysedAt: Date | null;
+    aiAnalysisDetail: unknown;
   }> = [];
 
   if (!type || type === "revenue") {
@@ -171,6 +175,10 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
         verifiedAmount: e.verifiedAmount ?? null,
         verifiedAt: e.verifiedAt ?? null,
         adminNotes: e.adminNotes ?? null,
+        brdScore: e.brdScore ?? null,
+        uniquenessScore: e.uniquenessScore ?? null,
+        aiAnalysedAt: e.aiAnalysedAt ?? null,
+        aiAnalysisDetail: e.aiAnalysisDetail ?? null,
       });
     }
   }

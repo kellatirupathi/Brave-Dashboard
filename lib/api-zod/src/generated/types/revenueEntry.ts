@@ -5,6 +5,7 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { BrdAiAnalysis } from "./brdAiAnalysis";
 import type { RevenueEntryEnteredBy } from "./revenueEntryEnteredBy";
 import type { RevenueEntryStatus } from "./revenueEntryStatus";
 
@@ -32,5 +33,22 @@ export interface RevenueEntry {
   submittedAt?: Date | null;
   /** @nullable */
   verifiedAt?: Date | null;
+  /**
+   * AI BRD relevancy score (0-100); null until analysed.
+   * @nullable
+   */
+  brdScore?: number | null;
+  /**
+   * AI BRD uniqueness score (0-100) vs prior team BRDs.
+   * @nullable
+   */
+  uniquenessScore?: number | null;
+  /**
+   * Timestamp the AI analysis was last completed; null if pending.
+   * @nullable
+   */
+  aiAnalysedAt?: Date | null;
+  /** Full Gemini JSON response with findings, summary, and comparison. */
+  aiAnalysisDetail?: null | BrdAiAnalysis;
   createdAt: Date;
 }

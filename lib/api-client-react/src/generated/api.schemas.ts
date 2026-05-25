@@ -538,6 +538,53 @@ export const RevenueEntryEnteredBy = {
   admin: "admin",
 } as const;
 
+export type BrdAiAnalysisBrdPdfSummaryAmountMatch =
+  (typeof BrdAiAnalysisBrdPdfSummaryAmountMatch)[keyof typeof BrdAiAnalysisBrdPdfSummaryAmountMatch];
+
+export const BrdAiAnalysisBrdPdfSummaryAmountMatch = {
+  yes: "yes",
+  no: "no",
+  close: "close",
+  unable_to_verify: "unable to verify",
+} as const;
+
+export type BrdAiAnalysisUniquenessComparisonItemFlag =
+  (typeof BrdAiAnalysisUniquenessComparisonItemFlag)[keyof typeof BrdAiAnalysisUniquenessComparisonItemFlag];
+
+export const BrdAiAnalysisUniquenessComparisonItemFlag = {
+  unique: "unique",
+  suspicious: "suspicious",
+  duplicate: "duplicate",
+} as const;
+
+export type BrdAiAnalysisBrdPdfSummary = {
+  total_pages?: number;
+  images_detected?: number;
+  amount_match?: BrdAiAnalysisBrdPdfSummaryAmountMatch;
+};
+
+export type BrdAiAnalysisUniquenessComparisonItem = {
+  entry_label?: string;
+  similarity_percent?: number;
+  flag?: BrdAiAnalysisUniquenessComparisonItemFlag;
+  reason?: string;
+};
+
+/**
+ * Gemini AI auditor result for a BRD revenue entry.
+ */
+export interface BrdAiAnalysis {
+  brd_score?: number;
+  brd_findings?: string[];
+  brd_pdf_summary?: BrdAiAnalysisBrdPdfSummary;
+  uniqueness_score?: number;
+  uniqueness_summary?: string;
+  uniqueness_findings?: string[];
+  uniqueness_comparison?: BrdAiAnalysisUniquenessComparisonItem[];
+  analysed_at?: string;
+  [key: string]: unknown;
+}
+
 export interface RevenueEntry {
   id: number;
   projectId: number;
@@ -562,6 +609,23 @@ export interface RevenueEntry {
   submittedAt?: string | null;
   /** @nullable */
   verifiedAt?: string | null;
+  /**
+   * AI BRD relevancy score (0-100); null until analysed.
+   * @nullable
+   */
+  brdScore?: number | null;
+  /**
+   * AI BRD uniqueness score (0-100) vs prior team BRDs.
+   * @nullable
+   */
+  uniquenessScore?: number | null;
+  /**
+   * Timestamp the AI analysis was last completed; null if pending.
+   * @nullable
+   */
+  aiAnalysedAt?: string | null;
+  /** Full Gemini JSON response with findings, summary, and comparison. */
+  aiAnalysisDetail?: null | BrdAiAnalysis;
   createdAt: string;
 }
 

@@ -4658,6 +4658,90 @@ export const useRejectRevenueEntry = <
 };
 
 /**
+ * @summary Re-run the AI BRD auditor on a revenue entry (admin only). Runs immediately; bypasses the 5-minute submission delay.
+ */
+export const getReanalyseRevenueEntryUrl = (id: number) => {
+  return `/api/revenue-entries/${id}/reanalyse`;
+};
+
+export const reanalyseRevenueEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RevenueEntry> => {
+  return customFetch<RevenueEntry>(getReanalyseRevenueEntryUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getReanalyseRevenueEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reanalyseRevenueEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reanalyseRevenueEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["reanalyseRevenueEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reanalyseRevenueEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return reanalyseRevenueEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReanalyseRevenueEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reanalyseRevenueEntry>>
+>;
+
+export type ReanalyseRevenueEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Re-run the AI BRD auditor on a revenue entry (admin only). Runs immediately; bypasses the 5-minute submission delay.
+ */
+export const useReanalyseRevenueEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reanalyseRevenueEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reanalyseRevenueEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getReanalyseRevenueEntryMutationOptions(options));
+};
+
+/**
  * @summary Move a verified revenue entry back to the review queue (admin only)
  */
 export const getUnverifyRevenueEntryUrl = (id: number) => {
