@@ -17,6 +17,8 @@ export interface BrdAnalysisListItem {
   amount: number;
   status: string;
   /** @nullable */
+  brdUrl?: string | null;
+  /** @nullable */
   brdScore?: number | null;
   /** @nullable */
   uniquenessScore?: number | null;

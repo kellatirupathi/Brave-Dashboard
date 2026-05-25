@@ -35,6 +35,34 @@ function scoreColor(score: number | null | undefined): string {
   return "bg-red-100 text-red-800 border-red-200";
 }
 
+function statusLabel(status: string): string {
+  switch (status) {
+    case "verified":
+      return "Approved";
+    case "rejected":
+      return "Rejected";
+    case "submitted":
+      return "Pending";
+    case "draft":
+      return "Draft";
+    default:
+      return status;
+  }
+}
+
+function statusBadgeClass(status: string): string {
+  switch (status) {
+    case "verified":
+      return "bg-emerald-100 text-emerald-800 border-emerald-200";
+    case "rejected":
+      return "bg-red-100 text-red-800 border-red-200";
+    case "submitted":
+      return "bg-amber-100 text-amber-800 border-amber-200";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
 function scoreRingColor(score: number | null | undefined): string {
   if (score == null) return "text-muted-foreground";
   if (score >= 80) return "text-emerald-600";
@@ -400,7 +428,10 @@ function ListView() {
                   <th className="p-3 font-medium">Team</th>
                   <th className="p-3 font-medium">Campus</th>
                   <th className="p-3 font-medium">Project</th>
-                  <th className="p-3 font-medium">BRD Relevancy</th>
+                  <th className="p-3 font-medium">Client</th>
+                  <th className="p-3 font-medium">Status</th>
+                  <th className="p-3 font-medium">BRD File</th>
+                  <th className="p-3 font-medium">Relevancy</th>
                   <th className="p-3 font-medium">Uniqueness</th>
                   <th className="p-3 font-medium">Analysed at</th>
                 </tr>
@@ -409,7 +440,7 @@ function ListView() {
                 {items.map((it) => (
                   <tr
                     key={it.id}
-                    className="border-t hover:bg-muted/30 cursor-pointer"
+                    className="border-t hover:bg-muted/30"
                     data-testid={`row-entry-${it.id}`}
                   >
                     <td className="p-3">
@@ -424,6 +455,26 @@ function ListView() {
                       {it.campusName}
                     </td>
                     <td className="p-3">{it.projectTitle}</td>
+                    <td className="p-3 text-muted-foreground">
+                      {it.clientName}
+                    </td>
+                    <td className="p-3">
+                      <Badge
+                        variant="outline"
+                        className={statusBadgeClass(it.status)}
+                      >
+                        {statusLabel(it.status)}
+                      </Badge>
+                    </td>
+                    <td className="p-3">
+                      {it.brdUrl ? (
+                        <DocumentLinkButton url={it.brdUrl} label="View BRD" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">
+                          —
+                        </span>
+                      )}
+                    </td>
                     <td className="p-3">
                       <Badge variant="outline" className={scoreColor(it.brdScore)}>
                         {it.brdScore ?? "?"}/100
@@ -491,12 +542,23 @@ function TeamGroup({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="overflow-x-auto border-t">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-[18%]" />
+                <col className="w-[16%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[18%]" />
+              </colgroup>
               <thead className="bg-muted/30">
                 <tr className="text-left">
                   <th className="p-2 font-medium">Project</th>
                   <th className="p-2 font-medium">Client</th>
-                  <th className="p-2 font-medium">BRD</th>
+                  <th className="p-2 font-medium">Status</th>
+                  <th className="p-2 font-medium">BRD File</th>
+                  <th className="p-2 font-medium">Relevancy</th>
                   <th className="p-2 font-medium">Uniqueness</th>
                   <th className="p-2 font-medium">Analysed at</th>
                 </tr>
@@ -504,31 +566,52 @@ function TeamGroup({
               <tbody>
                 {group.rows.map((it) => (
                   <tr key={it.id} className="border-t hover:bg-muted/30">
-                    <td className="p-2">
+                    <td className="p-2 align-middle truncate">
                       <Link
                         href={`/admin/queue/detailed-analysis?entryId=${it.id}`}
-                        className="hover:underline"
+                        className="hover:underline font-medium"
+                        title={it.projectTitle}
                       >
                         {it.projectTitle}
                       </Link>
                     </td>
-                    <td className="p-2 text-muted-foreground">
+                    <td
+                      className="p-2 align-middle text-muted-foreground truncate"
+                      title={it.clientName}
+                    >
                       {it.clientName}
                     </td>
-                    <td className="p-2">
-                      <Badge variant="outline" className={scoreColor(it.brdScore)}>
-                        {it.brdScore ?? "?"}
+                    <td className="p-2 align-middle">
+                      <Badge
+                        variant="outline"
+                        className={statusBadgeClass(it.status)}
+                      >
+                        {statusLabel(it.status)}
                       </Badge>
                     </td>
-                    <td className="p-2">
+                    <td className="p-2 align-middle">
+                      {it.brdUrl ? (
+                        <DocumentLinkButton url={it.brdUrl} label="View BRD" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">
+                          —
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-2 align-middle">
+                      <Badge variant="outline" className={scoreColor(it.brdScore)}>
+                        {it.brdScore ?? "?"}/100
+                      </Badge>
+                    </td>
+                    <td className="p-2 align-middle">
                       <Badge
                         variant="outline"
                         className={scoreColor(it.uniquenessScore)}
                       >
-                        {it.uniquenessScore ?? "?"}
+                        {it.uniquenessScore ?? "?"}/100
                       </Badge>
                     </td>
-                    <td className="p-2 text-muted-foreground whitespace-nowrap">
+                    <td className="p-2 align-middle text-muted-foreground whitespace-nowrap">
                       {it.aiAnalysedAt ? formatDateTime(it.aiAnalysedAt) : "—"}
                     </td>
                   </tr>

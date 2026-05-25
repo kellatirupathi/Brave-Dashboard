@@ -3178,6 +3178,7 @@ export const ListBrdAnalysesResponse = zod.object({
       clientName: zod.string(),
       amount: zod.number(),
       status: zod.string(),
+      brdUrl: zod.string().nullish(),
       brdScore: zod.number().nullish(),
       uniquenessScore: zod.number().nullish(),
       aiAnalysedAt: zod.coerce.date().nullish(),
