@@ -16,31 +16,63 @@ Read all text, tables, and every image or screenshot embedded inside the PDF.
 Images inside the PDF may include payment screenshots, UPI transaction proofs,
 bank transfer receipts, invoices, or purchase orders.
 
-Score this BRD from 0 to 100 based on the following:
+A proper BRD is a STRUCTURED business document, NOT just a payment screenshot.
+A complete BRD MUST contain ALL of the following sections written out as
+text/tables (not only as images):
 
-POSITIVE signals (increase score):
-- Contains a visible payment screenshot, UPI proof, invoice, or receipt
-- Mentions a product name or service clearly
-- Has a customer or client name mentioned
-- Revenue amount is visible and matches or is close to the claimed entry amount
-- Date is visible on the payment proof or invoice
-- Document has multiple pages showing a complete business transaction
-- Images inside look like real transaction screenshots (not blank, not corrupted)
+REQUIRED SECTIONS (each one missing must lower the score significantly):
+1. Business / Team owner details — founder name(s), team name, campus, contact
+2. Business or product description — what is being sold, category, brief pitch
+3. Customer / Client details — client name, contact, business or person, location
+4. Transaction details — invoice number, date, item/service description,
+   quantity, unit price, total amount, taxes if any
+5. Payment proof — UPI screenshot, bank transfer receipt, cheque image,
+   or signed invoice showing the money was actually received
+6. Date of payment and amount that match the claimed revenue entry
+
+SCORING RUBRIC (apply strictly):
+- 90–100 = all 6 required sections present, well-structured, amount matches,
+  payment proof is clear and verifiable
+- 70–89  = most sections present, minor gaps (e.g. missing contact info,
+  unclear invoice number), amount still matches
+- 50–69  = several required sections missing (e.g. no owner details, no
+  customer details, no proper invoice) but payment proof + amount are present
+- 25–49  = ONLY a payment screenshot / UPI proof with no proper BRD structure
+  around it — no owner details, no client details, no invoice, no description.
+  A bare payment screenshot is NOT a BRD. Cap at 49 maximum.
+- 0–24   = blank, corrupted, irrelevant file, fake/dummy, or amount mismatch
+
+HARD RULES — these MUST be enforced:
+- If the document is ONLY a payment screenshot / UPI proof and nothing
+  else (no owner info, no client info, no invoice, no description),
+  the brd_score MUST NOT exceed 49 — never give 70+, never give 100.
+- If business owner details are missing → subtract at least 15 points
+- If customer/client details are missing → subtract at least 15 points
+- If there is no proper invoice / itemised transaction → subtract at least 15
+- If amount in document does not match the claimed revenue entry → cap at 30
+- If the document is blank, corrupted, or a random unrelated file → score 0–15
+
+POSITIVE signals (increase score, only after the required sections exist):
+- Document is well-formatted, multi-page, professional
+- Clear product/service description with pricing breakdown
+- Customer details verifiable (real business name, contact, location)
+- Payment proof clearly tied to the invoice (matching amount, date, reference)
 
 NEGATIVE signals (decrease score):
-- Document is blank, corrupted, or has no readable content
-- No payment proof or invoice found anywhere
-- Amount in document does not match the claimed revenue entry amount
-- No dates visible anywhere in the document
-- Document appears to be a random file (photo, template with no data filled)
-- Images inside are irrelevant (selfies, random photos, logos only)
-- Document looks like a placeholder or dummy submission
+- Only a payment screenshot pasted into a PDF with nothing else
+- Missing any of the 6 required sections above
+- Random photos, selfies, logos with no business context
+- Template with no actual data filled in
+- Amount in document differs from claimed amount
 
-Provide exactly 3 to 6 short one-line findings.
+Provide exactly 4 to 7 short one-line findings.
+You MUST explicitly call out which of the 6 required sections are present
+and which are missing (owner details, business description, client details,
+invoice/transaction details, payment proof, matching date+amount).
 Each line MUST start with exactly one of these:
-✅  — for a valid, positive finding
-⚠️  — for a minor issue or something partially missing
-❌  — for a serious problem or completely missing required content
+✅  — required section is present and clear
+⚠️  — required section is partially present / unclear
+❌  — required section is missing OR document is only a payment screenshot
 
 Also provide a brief PDF summary:
 - Total number of pages
