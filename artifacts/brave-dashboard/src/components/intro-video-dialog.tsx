@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export const INTRO_VIDEO_DRIVE_FILE_ID = "1BFDX3obdB-b2Jt2Wcaq3egOozANr6s8B";
 export const INTRO_VIDEO_DISMISSED_KEY = "brave_intro_video_dismissed";
@@ -26,9 +27,14 @@ export function IntroVideoDialog({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  return (
+  // Render into document.body via portal so the modal escapes every parent
+  // stacking context (page layouts, sticky headers, cards with their own
+  // z-index, etc.) and reliably sits above the entire app.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[2147483646] flex items-center justify-center bg-black/70 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="intro-video-title"
@@ -74,7 +80,8 @@ export function IntroVideoDialog({ open, onClose }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
