@@ -45,6 +45,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -58,6 +60,101 @@ import {
   type HeatmapTeamWeek,
   type HeatmapStudentRow,
 } from "@/lib/progress-api";
+
+function HeroCard({
+  label,
+  value,
+  sub,
+  loading,
+  icon,
+  accent,
+}: {
+  label: string;
+  value: number | undefined;
+  sub: string;
+  loading: boolean;
+  icon: React.ReactNode;
+  accent?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardDescription className="text-xs font-medium uppercase tracking-wide">
+            {label}
+          </CardDescription>
+          <span className={cn("text-muted-foreground", accent)}>{icon}</span>
+        </div>
+        <CardTitle
+          className={cn("text-4xl tabular-nums mt-1", accent)}
+          data-testid={`hero-card-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+        >
+          {loading ? (
+            <Spinner className="size-6" />
+          ) : (
+            (value ?? 0).toLocaleString("en-IN")
+          )}
+        </CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">{sub}</p>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function FunnelBar({
+  label,
+  icon,
+  value,
+  total,
+  loading,
+  color,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  value: number | undefined;
+  total: number | undefined;
+  loading: boolean;
+  color: string;
+}) {
+  const v = value ?? 0;
+  const t = total ?? 0;
+  const pct = t > 0 ? Math.min((v / t) * 100, 100) : 0;
+  return (
+    <div
+      className="flex items-center gap-3"
+      data-testid={`funnel-bar-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+    >
+      <div className="flex items-center gap-2 w-56 shrink-0">
+        <span className="text-muted-foreground">{icon}</span>
+        <span className="text-sm font-medium truncate">{label}</span>
+      </div>
+      <div className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
+        {loading ? null : (
+          <div
+            className={cn("h-full rounded-full transition-all", color)}
+            style={{ width: `${pct}%` }}
+          />
+        )}
+      </div>
+      <div className="w-32 text-right text-sm tabular-nums">
+        {loading ? (
+          <Spinner className="size-3 inline-block" />
+        ) : (
+          <>
+            <span className="font-medium">{v.toLocaleString("en-IN")}</span>
+            <span className="text-muted-foreground">
+              {" "}
+              / {t.toLocaleString("en-IN")}
+            </span>
+            <span className="text-muted-foreground ml-2 text-xs">
+              {pct.toFixed(1)}%
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AnalyticsCard({
   label,
@@ -333,122 +430,167 @@ export default function HeatmapPage() {
         </p>
       </div>
 
-      {/* Programme Funnel */}
-      <div>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Programme Funnel
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          <AnalyticsCard
-            label="Total Registered Students"
-            value={analytics?.totals.totalStudents}
-            loading={analyticsLoading}
-            icon={<Users className="h-4 w-4" />}
-          />
-          <AnalyticsCard
-            label="Logged in to the Dashboard"
-            value={analytics?.totals.loggedInEver}
-            loading={analyticsLoading}
-            icon={<LogIn className="h-4 w-4" />}
-          />
-          <AnalyticsCard
-            label="Unique Journal Entries"
-            value={analytics?.totals.uniqueJournalEntries}
-            loading={analyticsLoading}
-            icon={<ClipboardList className="h-4 w-4" />}
-          />
-          <AnalyticsCard
-            label=">1 Clients Visited"
-            value={analytics?.funnel.studentsWithClients}
-            loading={analyticsLoading}
-            icon={<Briefcase className="h-4 w-4" />}
-            color="text-blue-600"
-          />
-          <AnalyticsCard
-            label=">1 Active Conversations"
-            value={analytics?.funnel.studentsWithConversations}
-            loading={analyticsLoading}
-            icon={<MessageCircle className="h-4 w-4" />}
-            color="text-violet-600"
-          />
-          <AnalyticsCard
-            label=">1 Projects Started"
-            value={analytics?.funnel.studentsWithProjectsStarted}
-            loading={analyticsLoading}
-            icon={<Rocket className="h-4 w-4" />}
-            color="text-amber-600"
-          />
-          <AnalyticsCard
-            label=">1 Projects Closed"
-            value={analytics?.funnel.studentsWithProjectsClosed}
-            loading={analyticsLoading}
-            icon={<PackageCheck className="h-4 w-4" />}
-            color="text-emerald-600"
-          />
-        </div>
+      {/* Hero Strip — 3 headline KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <HeroCard
+          label="Total Students"
+          value={analytics?.totals.totalStudents}
+          sub={`Across ${campuses?.length ?? "—"} campuses`}
+          loading={analyticsLoading}
+          icon={<Users className="h-5 w-5" />}
+        />
+        <HeroCard
+          label="Weekly Active (WAU)"
+          value={analytics?.engagement.wau}
+          sub={
+            analytics && analytics.totals.totalStudents > 0
+              ? `${((analytics.engagement.wau / analytics.totals.totalStudents) * 100).toFixed(1)}% of students`
+              : "—"
+          }
+          loading={analyticsLoading}
+          icon={<TrendingUp className="h-5 w-5" />}
+          accent="text-primary"
+        />
+        <HeroCard
+          label="Total Teams"
+          value={counts.total}
+          sub={`${counts.active} active · ${counts.silent} silent · ${counts.never} never logged`}
+          loading={isLoading}
+          icon={<Activity className="h-5 w-5" />}
+        />
       </div>
 
-      {/* Engagement */}
-      <div>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Engagement
-        </h2>
-        <div className="grid grid-cols-2 gap-4">
-          <AnalyticsCard
-            label="DAU (last 24h)"
-            value={analytics?.engagement.dau}
-            loading={analyticsLoading}
-            icon={<TrendingUp className="h-4 w-4" />}
-            color="text-primary"
-          />
-          <AnalyticsCard
-            label="WAU (last 7d)"
-            value={analytics?.engagement.wau}
-            loading={analyticsLoading}
-            icon={<TrendingUp className="h-4 w-4" />}
-            color="text-primary"
-          />
-        </div>
-      </div>
+      {/* Tabs: Funnel / Engagement / Team Status */}
+      <Tabs defaultValue="funnel" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="funnel" data-testid="tab-funnel">
+            Funnel
+          </TabsTrigger>
+          <TabsTrigger value="engagement" data-testid="tab-engagement">
+            Engagement
+          </TabsTrigger>
+          <TabsTrigger value="team-status" data-testid="tab-team-status">
+            Team Status
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Team status counters (original) */}
-      <div>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Team Status
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {/* Funnel — vertical bar list, reads as a real conversion funnel */}
+        <TabsContent value="funnel" className="mt-4">
           <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total teams</CardDescription>
-              <CardTitle className="text-3xl">{counts.total}</CardTitle>
+            <CardHeader>
+              <CardTitle className="text-base">Programme Funnel</CardTitle>
+              <CardDescription>
+                Each row = distinct students who reached that stage, against
+                total registered students.
+              </CardDescription>
             </CardHeader>
+            <CardContent className="space-y-3">
+              <FunnelBar
+                label="Unique Journal Entries"
+                icon={<ClipboardList className="h-4 w-4" />}
+                value={analytics?.totals.uniqueJournalEntries}
+                total={analytics?.totals.totalStudents}
+                loading={analyticsLoading}
+                color="bg-slate-500"
+              />
+              <FunnelBar
+                label=">1 Clients Visited"
+                icon={<Briefcase className="h-4 w-4" />}
+                value={analytics?.funnel.studentsWithClients}
+                total={analytics?.totals.totalStudents}
+                loading={analyticsLoading}
+                color="bg-blue-500"
+              />
+              <FunnelBar
+                label=">1 Active Conversations"
+                icon={<MessageCircle className="h-4 w-4" />}
+                value={analytics?.funnel.studentsWithConversations}
+                total={analytics?.totals.totalStudents}
+                loading={analyticsLoading}
+                color="bg-violet-500"
+              />
+              <FunnelBar
+                label=">1 Projects Started"
+                icon={<Rocket className="h-4 w-4" />}
+                value={analytics?.funnel.studentsWithProjectsStarted}
+                total={analytics?.totals.totalStudents}
+                loading={analyticsLoading}
+                color="bg-amber-500"
+              />
+              <FunnelBar
+                label=">1 Projects Closed"
+                icon={<PackageCheck className="h-4 w-4" />}
+                value={analytics?.funnel.studentsWithProjectsClosed}
+                total={analytics?.totals.totalStudents}
+                loading={analyticsLoading}
+                color="bg-emerald-500"
+              />
+            </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Active</CardDescription>
-              <CardTitle className="text-3xl text-emerald-600">
-                {counts.active}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Silent (&gt; 14d)</CardDescription>
-              <CardTitle className="text-3xl text-orange-600">
-                {counts.silent}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Never logged</CardDescription>
-              <CardTitle className="text-3xl text-red-600">
-                {counts.never}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-      </div>
+        </TabsContent>
+
+        {/* Engagement — DAU/WAU + Logged in summary */}
+        <TabsContent value="engagement" className="mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <AnalyticsCard
+              label="DAU (last 24h)"
+              value={analytics?.engagement.dau}
+              loading={analyticsLoading}
+              icon={<TrendingUp className="h-4 w-4" />}
+              color="text-primary"
+            />
+            <AnalyticsCard
+              label="WAU (last 7d)"
+              value={analytics?.engagement.wau}
+              loading={analyticsLoading}
+              icon={<TrendingUp className="h-4 w-4" />}
+              color="text-primary"
+            />
+            <AnalyticsCard
+              label="Logged in to Dashboard"
+              value={analytics?.totals.loggedInEver}
+              loading={analyticsLoading}
+              icon={<LogIn className="h-4 w-4" />}
+            />
+          </div>
+        </TabsContent>
+
+        {/* Team Status — the original 4 counters */}
+        <TabsContent value="team-status" className="mt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Total teams</CardDescription>
+                <CardTitle className="text-3xl">{counts.total}</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Active</CardDescription>
+                <CardTitle className="text-3xl text-emerald-600">
+                  {counts.active}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Silent (&gt; 14d)</CardDescription>
+                <CardTitle className="text-3xl text-orange-600">
+                  {counts.silent}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Never logged</CardDescription>
+                <CardTitle className="text-3xl text-red-600">
+                  {counts.never}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Card>
         <CardHeader>
