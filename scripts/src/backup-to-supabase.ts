@@ -72,6 +72,9 @@ async function dropSupabasePublicSchema(): Promise<void> {
   console.log(
     "[backup-supabase] Step 1/2: wiping Supabase public schema for clean reload…",
   );
+  // ONLY drop the schema — do NOT recreate it. pg_dump's own output
+  // includes `CREATE SCHEMA public`, and if we pre-create it here, the
+  // restore aborts with "schema public already exists" under ON_ERROR_STOP=1.
   const proc = spawn(
     "psql",
     [
@@ -79,7 +82,7 @@ async function dropSupabasePublicSchema(): Promise<void> {
       "-v",
       "ON_ERROR_STOP=1",
       "-c",
-      "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public;",
+      "DROP SCHEMA IF EXISTS public CASCADE;",
     ],
     { stdio: ["ignore", "inherit", "inherit"] },
   );
