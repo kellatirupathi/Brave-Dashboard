@@ -16,8 +16,15 @@
 //   - Command:  pnpm --filter @workspace/scripts run backup-supabase
 //   - Schedule: 0 20 */2 * *   (UTC = 2:00 AM IST every other day)
 //
-// Required env vars:
-//   DATABASE_URL       — Replit prod Neon connection string (READ source)
+// Required env vars (one of these for the source):
+//   PROD_DATABASE_URL  — PREFERRED. Replit Production Neon connection string.
+//                        Set this when running from the workspace Shell so the
+//                        backup targets prod data, not the dev DB.
+//   DATABASE_URL       — fallback. Whatever DB the workspace/api-server has
+//                        configured. In Replit Shell this is the DEV DB; in
+//                        the deployed api-server this is the PROD DB.
+//
+// Required env var (target):
 //   SUPABASE_DB_URL    — Supabase project connection string (WRITE target)
 //
 // Required binaries on PATH:
@@ -27,7 +34,13 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 
-const REPLIT_DB_URL = process.env["DATABASE_URL"];
+// Prefer the explicit PROD URL so shell runs back up production data, not
+// the workspace's default dev DB.
+const REPLIT_DB_URL =
+  process.env["PROD_DATABASE_URL"] ?? process.env["DATABASE_URL"];
+const SOURCE_LABEL = process.env["PROD_DATABASE_URL"]
+  ? "PROD_DATABASE_URL"
+  : "DATABASE_URL";
 const SUPABASE_DB_URL = process.env["SUPABASE_DB_URL"];
 
 const TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes — generous for 1 GB+ growth
@@ -134,8 +147,11 @@ async function main(): Promise<void> {
   console.log(
     `[backup-supabase] Starting Supabase backup at ${new Date().toISOString()}`,
   );
+  console.log(`[backup-supabase] Source DB env var: ${SOURCE_LABEL}`);
 
-  if (!REPLIT_DB_URL) fail("DATABASE_URL is not set");
+  if (!REPLIT_DB_URL) {
+    fail("Neither PROD_DATABASE_URL nor DATABASE_URL is set");
+  }
   if (!SUPABASE_DB_URL) fail("SUPABASE_DB_URL is not set");
 
   if (REPLIT_DB_URL === SUPABASE_DB_URL) {
