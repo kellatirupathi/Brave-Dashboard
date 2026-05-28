@@ -275,6 +275,76 @@ export function listCampusesForFilter(): Promise<CampusOption[]> {
   return customFetch<CampusOption[]>("/api/campuses");
 }
 
+// ---------- Heatmap analytics: funnel + engagement ----------
+export type HeatmapAnalytics = {
+  totals: {
+    totalStudents: number;
+    loggedInEver: number;
+    uniqueJournalEntries: number;
+  };
+  funnel: {
+    studentsWithClients: number;
+    studentsWithConversations: number;
+    studentsWithProjectsStarted: number;
+    studentsWithProjectsClosed: number;
+  };
+  engagement: {
+    dau: number;
+    wau: number;
+  };
+};
+
+export function getHeatmapAnalytics(filter?: {
+  campusId?: number;
+}): Promise<HeatmapAnalytics> {
+  const params = new URLSearchParams();
+  if (filter?.campusId) params.set("campusId", String(filter.campusId));
+  const qs = params.toString();
+  return customFetch<HeatmapAnalytics>(
+    `/api/heatmap/analytics${qs ? `?${qs}` : ""}`,
+  );
+}
+
+// ---------- Heatmap: per-student funnel rows ----------
+export type HeatmapStudentRow = {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  niatId: string | null;
+  campusId: number | null;
+  campusName: string | null;
+  teamId: number | null;
+  teamName: string | null;
+  lastSeenAt: string | null;
+  clientsVisited: number;
+  activeConversations: number;
+  projectsStarted: number;
+  projectsClosed: number;
+};
+
+export type HeatmapStudentsResponse = {
+  total: number;
+  rows: HeatmapStudentRow[];
+};
+
+export function listHeatmapStudents(filter?: {
+  campusId?: number;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<HeatmapStudentsResponse> {
+  const params = new URLSearchParams();
+  if (filter?.campusId) params.set("campusId", String(filter.campusId));
+  if (filter?.q) params.set("q", filter.q);
+  if (filter?.limit) params.set("limit", String(filter.limit));
+  if (filter?.offset) params.set("offset", String(filter.offset));
+  const qs = params.toString();
+  return customFetch<HeatmapStudentsResponse>(
+    `/api/heatmap/students${qs ? `?${qs}` : ""}`,
+  );
+}
+
 // ---------- Student dashboard widgets ----------
 export type ProgressSummary = {
   teamId: number | null;

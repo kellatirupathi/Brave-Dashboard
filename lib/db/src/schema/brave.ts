@@ -122,6 +122,7 @@ export const usersTable = pgTable(
     profileCompletedAt: timestamp("profile_completed_at", {
       withTimezone: true,
     }),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -134,6 +135,7 @@ export const usersTable = pgTable(
     index("users_campus_idx").on(t.campusId),
     index("users_role_idx").on(t.role),
     index("users_email_idx").on(t.email),
+    index("users_last_seen_idx").on(t.lastSeenAt),
   ],
 );
 

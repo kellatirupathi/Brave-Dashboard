@@ -7,6 +7,14 @@ import {
   Search,
   CheckCircle2,
   X,
+  Users,
+  LogIn,
+  ClipboardList,
+  Briefcase,
+  MessageCircle,
+  Rocket,
+  PackageCheck,
+  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
@@ -44,9 +52,47 @@ import {
   sendHeatmapReminder,
   sendBulkHeatmapReminders,
   listCampusesForFilter,
+  getHeatmapAnalytics,
+  listHeatmapStudents,
   type HeatmapTeamRow,
   type HeatmapTeamWeek,
+  type HeatmapStudentRow,
 } from "@/lib/progress-api";
+
+function AnalyticsCard({
+  label,
+  value,
+  loading,
+  icon,
+  color,
+}: {
+  label: string;
+  value: number | undefined;
+  loading: boolean;
+  icon: React.ReactNode;
+  color?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="flex items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">{icon}</span>
+          {label}
+        </CardDescription>
+        <CardTitle
+          className={cn("text-3xl tabular-nums", color)}
+          data-testid={`analytics-card-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+        >
+          {loading ? (
+            <Spinner className="size-5" />
+          ) : (
+            (value ?? 0).toLocaleString("en-IN")
+          )}
+        </CardTitle>
+      </CardHeader>
+    </Card>
+  );
+}
 
 function statusBadge(s: HeatmapTeamRow["status"]) {
   switch (s) {
@@ -118,6 +164,65 @@ export default function HeatmapPage() {
     queryFn: listCampusesForFilter,
     enabled: !isCoordinator,
   });
+
+  // Programme funnel + engagement card data. Scoped to the same campus
+  // filter as the heatmap so all three sections move together.
+  const { data: analytics, isLoading: analyticsLoading } = useQuery({
+    queryKey: ["heatmap-analytics", campusFilterForApi ?? "all"],
+    queryFn: () =>
+      getHeatmapAnalytics(
+        campusFilterForApi ? { campusId: campusFilterForApi } : undefined,
+      ),
+  });
+
+  // Per-student funnel table.
+  const [studentQuery, setStudentQuery] = useState("");
+  const [studentSort, setStudentSort] = useState<
+    "total" | "clients" | "conversations" | "started" | "closed"
+  >("total");
+  const { data: studentsData, isLoading: studentsLoading } = useQuery({
+    queryKey: [
+      "heatmap-students",
+      campusFilterForApi ?? "all",
+      studentQuery.trim(),
+    ],
+    queryFn: () =>
+      listHeatmapStudents({
+        ...(campusFilterForApi ? { campusId: campusFilterForApi } : {}),
+        ...(studentQuery.trim() ? { q: studentQuery.trim() } : {}),
+        limit: 200,
+      }),
+  });
+
+  const sortedStudents = useMemo(() => {
+    const rows = studentsData?.rows ?? [];
+    const score = (r: HeatmapStudentRow): number => {
+      switch (studentSort) {
+        case "clients":
+          return r.clientsVisited;
+        case "conversations":
+          return r.activeConversations;
+        case "started":
+          return r.projectsStarted;
+        case "closed":
+          return r.projectsClosed;
+        default:
+          return (
+            r.clientsVisited +
+            r.activeConversations +
+            r.projectsStarted +
+            r.projectsClosed
+          );
+      }
+    };
+    return [...rows].sort((a, b) => {
+      const d = score(b) - score(a);
+      if (d !== 0) return d;
+      return `${a.firstName} ${a.lastName}`.localeCompare(
+        `${b.firstName} ${b.lastName}`,
+      );
+    });
+  }, [studentsData, studentSort]);
 
   const remindMut = useMutation({
     mutationFn: sendHeatmapReminder,
@@ -228,37 +333,121 @@ export default function HeatmapPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total teams</CardDescription>
-            <CardTitle className="text-3xl">{counts.total}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Active</CardDescription>
-            <CardTitle className="text-3xl text-emerald-600">
-              {counts.active}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Silent (&gt; 14d)</CardDescription>
-            <CardTitle className="text-3xl text-orange-600">
-              {counts.silent}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Never logged</CardDescription>
-            <CardTitle className="text-3xl text-red-600">
-              {counts.never}
-            </CardTitle>
-          </CardHeader>
-        </Card>
+      {/* Programme Funnel */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Programme Funnel
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <AnalyticsCard
+            label="Total Registered Students"
+            value={analytics?.totals.totalStudents}
+            loading={analyticsLoading}
+            icon={<Users className="h-4 w-4" />}
+          />
+          <AnalyticsCard
+            label="Logged in to the Dashboard"
+            value={analytics?.totals.loggedInEver}
+            loading={analyticsLoading}
+            icon={<LogIn className="h-4 w-4" />}
+          />
+          <AnalyticsCard
+            label="Unique Journal Entries"
+            value={analytics?.totals.uniqueJournalEntries}
+            loading={analyticsLoading}
+            icon={<ClipboardList className="h-4 w-4" />}
+          />
+          <AnalyticsCard
+            label=">1 Clients Visited"
+            value={analytics?.funnel.studentsWithClients}
+            loading={analyticsLoading}
+            icon={<Briefcase className="h-4 w-4" />}
+            color="text-blue-600"
+          />
+          <AnalyticsCard
+            label=">1 Active Conversations"
+            value={analytics?.funnel.studentsWithConversations}
+            loading={analyticsLoading}
+            icon={<MessageCircle className="h-4 w-4" />}
+            color="text-violet-600"
+          />
+          <AnalyticsCard
+            label=">1 Projects Started"
+            value={analytics?.funnel.studentsWithProjectsStarted}
+            loading={analyticsLoading}
+            icon={<Rocket className="h-4 w-4" />}
+            color="text-amber-600"
+          />
+          <AnalyticsCard
+            label=">1 Projects Closed"
+            value={analytics?.funnel.studentsWithProjectsClosed}
+            loading={analyticsLoading}
+            icon={<PackageCheck className="h-4 w-4" />}
+            color="text-emerald-600"
+          />
+        </div>
+      </div>
+
+      {/* Engagement */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Engagement
+        </h2>
+        <div className="grid grid-cols-2 gap-4">
+          <AnalyticsCard
+            label="DAU (last 24h)"
+            value={analytics?.engagement.dau}
+            loading={analyticsLoading}
+            icon={<TrendingUp className="h-4 w-4" />}
+            color="text-primary"
+          />
+          <AnalyticsCard
+            label="WAU (last 7d)"
+            value={analytics?.engagement.wau}
+            loading={analyticsLoading}
+            icon={<TrendingUp className="h-4 w-4" />}
+            color="text-primary"
+          />
+        </div>
+      </div>
+
+      {/* Team status counters (original) */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Team Status
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Total teams</CardDescription>
+              <CardTitle className="text-3xl">{counts.total}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Active</CardDescription>
+              <CardTitle className="text-3xl text-emerald-600">
+                {counts.active}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Silent (&gt; 14d)</CardDescription>
+              <CardTitle className="text-3xl text-orange-600">
+                {counts.silent}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Never logged</CardDescription>
+              <CardTitle className="text-3xl text-red-600">
+                {counts.never}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
       </div>
 
       <Card>
@@ -489,6 +678,129 @@ export default function HeatmapPage() {
                           <Bell className="w-3 h-3 mr-1" />
                           Remind
                         </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Per-student funnel */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle>Student-wise Funnel</CardTitle>
+              <CardDescription>
+                Per-student totals across all of their team's journal entries.
+                {studentsData && (
+                  <span className="ml-1">
+                    Showing {sortedStudents.length} of {studentsData.total}
+                    {studentsData.total > sortedStudents.length && " (top 200)"}
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search student"
+                  value={studentQuery}
+                  onChange={(e) => setStudentQuery(e.target.value)}
+                  className="pl-9 w-56"
+                  data-testid="student-funnel-search"
+                />
+              </div>
+              <Select
+                value={studentSort}
+                onValueChange={(v) => setStudentSort(v as typeof studentSort)}
+              >
+                <SelectTrigger
+                  className="w-44"
+                  data-testid="student-funnel-sort"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="total">Sort: Total funnel</SelectItem>
+                  <SelectItem value="clients">Sort: Clients visited</SelectItem>
+                  <SelectItem value="conversations">
+                    Sort: Active conversations
+                  </SelectItem>
+                  <SelectItem value="started">
+                    Sort: Projects started
+                  </SelectItem>
+                  <SelectItem value="closed">Sort: Projects closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {studentsLoading ? (
+            <div className="flex justify-center py-12">
+              <Spinner className="size-8" />
+            </div>
+          ) : sortedStudents.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-12 text-center">
+              No students match the current filters.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="py-2 pr-3 font-medium min-w-[200px]">
+                      Student
+                    </th>
+                    <th className="py-2 px-3 font-medium">Team</th>
+                    <th className="py-2 px-3 font-medium text-right">
+                      #Clients visited
+                    </th>
+                    <th className="py-2 px-3 font-medium text-right">
+                      #Active conversations
+                    </th>
+                    <th className="py-2 px-3 font-medium text-right">
+                      #Projects started
+                    </th>
+                    <th className="py-2 px-3 font-medium text-right">
+                      #Projects closed
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedStudents.map((s) => (
+                    <tr
+                      key={s.userId}
+                      className="border-b hover:bg-accent/30"
+                      data-testid={`student-funnel-row-${s.userId}`}
+                    >
+                      <td className="py-2 pr-3">
+                        <div className="font-medium truncate">
+                          {`${s.firstName} ${s.lastName}`.trim() || s.email}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {s.niatId ?? s.email} · {s.campusName ?? "—"}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">
+                        {s.teamName ?? "—"}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">
+                        {s.clientsVisited}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">
+                        {s.activeConversations}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">
+                        {s.projectsStarted}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">
+                        {s.projectsClosed}
                       </td>
                     </tr>
                   ))}
