@@ -1,6 +1,7 @@
 import {
   useListProjects,
   useDeleteProject,
+  useListCampuses,
   getListProjectsQueryKey,
   type ErrorType,
 } from "@workspace/api-client-react";
@@ -19,7 +20,32 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderKanban,
+  MoreVertical,
+  Download,
+  FileSpreadsheet,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
@@ -50,6 +76,94 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const PAGE_SIZE = 100;
+const ALL_CAMPUSES = "__all__";
+
+function ProjectsCampusFilterPopover({
+  value,
+  campuses,
+  onChange,
+}: {
+  value: string;
+  campuses: { id: number; name: string }[];
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedLabel =
+    value === ALL_CAMPUSES
+      ? "All campuses"
+      : (campuses.find((c) => String(c.id) === value)?.name ?? "All campuses");
+  const sorted = [...campuses].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="sm:w-56 justify-between font-normal"
+          data-testid="select-projects-campus-filter"
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+      >
+        <Command>
+          <CommandInput
+            placeholder="Search campuses…"
+            data-testid="projects-campus-search"
+          />
+          <CommandList className="max-h-72">
+            <CommandEmpty>No campus found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="All campuses"
+                onSelect={() => {
+                  onChange(ALL_CAMPUSES);
+                  setOpen(false);
+                }}
+                data-testid="projects-campus-option-all"
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value === ALL_CAMPUSES ? "opacity-100" : "opacity-0",
+                  )}
+                />
+                All campuses
+              </CommandItem>
+              {sorted.map((c) => {
+                const v = String(c.id);
+                return (
+                  <CommandItem
+                    key={c.id}
+                    value={c.name}
+                    onSelect={() => {
+                      onChange(v);
+                      setOpen(false);
+                    }}
+                    data-testid={`projects-campus-option-${c.id}`}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === v ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {c.name}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 type ProjectsListProps = {
   /**
@@ -79,11 +193,14 @@ export default function AdminProjects({
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
+  const [campusFilter, setCampusFilter] = useState<string>(ALL_CAMPUSES);
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
     title: string;
   } | null>(null);
+
+  const { data: campusOptions = [] } = useListCampuses();
 
   // Debounce search so we aren't firing a request on every keystroke.
   useEffect(() => {
@@ -97,6 +214,7 @@ export default function AdminProjects({
   const { data: projects, isLoading } = useListProjects({
     search: search || undefined,
     status: status !== "all" ? (status as "active" | "inactive") : undefined,
+    campusId: campusFilter !== ALL_CAMPUSES ? Number(campusFilter) : undefined,
     page,
     pageSize: PAGE_SIZE,
   });
@@ -120,6 +238,60 @@ export default function AdminProjects({
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+
+  // Mirror the list endpoint's filters into the export URL so the file
+  // matches what the admin currently sees on screen.
+  const exportQueryString = () => {
+    const p = new URLSearchParams();
+    if (status !== "all") p.set("status", status);
+    if (campusFilter !== ALL_CAMPUSES) p.set("campusId", campusFilter);
+    if (search.trim()) p.set("search", search.trim());
+    const qs = p.toString();
+    return qs ? `?${qs}` : "";
+  };
+
+  const [exporting, setExporting] = useState<null | "csv" | "xlsx">(null);
+
+  const downloadExport = async (kind: "csv" | "xlsx") => {
+    if (exporting) return;
+    setExporting(kind);
+    try {
+      const path =
+        kind === "csv"
+          ? `/api/admin/projects/export-all.csv${exportQueryString()}`
+          : `/api/admin/projects/export-by-campus.xlsx${exportQueryString()}`;
+      const res = await fetch(path, { credentials: "include" });
+      if (!res.ok) {
+        throw new Error(`Export failed (HTTP ${res.status})`);
+      }
+      const blob = await res.blob();
+      const filename =
+        res.headers
+          .get("content-disposition")
+          ?.match(/filename="?([^"]+)"?/)?.[1] ??
+        (kind === "csv" ? "brave-projects.csv" : "brave-projects.xlsx");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({
+        title: kind === "csv" ? "CSV exported" : "Excel exported",
+        description: filename,
+      });
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -160,6 +332,7 @@ export default function AdminProjects({
         </div>
 
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
+          {/* 1. Search */}
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -171,6 +344,7 @@ export default function AdminProjects({
             />
           </div>
 
+          {/* 2. Status */}
           <Select
             value={status}
             onValueChange={(v) => {
@@ -193,6 +367,59 @@ export default function AdminProjects({
               <SelectItem value="inactive">Inactive</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* 3. Campus filter (searchable + scrollable) */}
+          <ProjectsCampusFilterPopover
+            value={campusFilter}
+            campuses={campusOptions}
+            onChange={(v) => {
+              setCampusFilter(v);
+              setPage(1);
+            }}
+          />
+
+          {/* 4. Three-dot menu (admin only) */}
+          {isAdmin && !readOnly && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="More actions"
+                  disabled={exporting !== null}
+                  data-testid="button-projects-more-actions"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-64"
+                data-testid="menu-projects-more-actions"
+              >
+                <DropdownMenuItem
+                  onClick={() => void downloadExport("csv")}
+                  disabled={exporting !== null}
+                  data-testid="menu-item-projects-export-csv"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {exporting === "csv"
+                    ? "Exporting CSV…"
+                    : "Export all projects (CSV)"}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void downloadExport("xlsx")}
+                  disabled={exporting !== null}
+                  data-testid="menu-item-projects-export-xlsx"
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  {exporting === "xlsx"
+                    ? "Exporting Excel…"
+                    : "Export campus-wise (Excel)"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 

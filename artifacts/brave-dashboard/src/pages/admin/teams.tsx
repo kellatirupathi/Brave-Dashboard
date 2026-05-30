@@ -1,6 +1,7 @@
 import {
   useListTeams,
   useDeleteTeam,
+  useListCampuses,
   getListTeamsQueryKey,
   type ErrorType,
   type ListTeamsStatus,
@@ -24,6 +25,8 @@ import {
   MoreVertical,
   Download,
   FileSpreadsheet,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,6 +35,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { AddTeamDialog } from "./components/AddTeamDialog";
 import { ImportTeamsDialog } from "./components/ImportTeamsDialog";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +81,94 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const PAGE_SIZE = 100;
+const ALL_CAMPUSES = "__all__";
+
+function TeamsCampusFilterPopover({
+  value,
+  campuses,
+  onChange,
+}: {
+  value: string;
+  campuses: { id: number; name: string }[];
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedLabel =
+    value === ALL_CAMPUSES
+      ? "All campuses"
+      : (campuses.find((c) => String(c.id) === value)?.name ?? "All campuses");
+  const sorted = [...campuses].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="sm:w-56 justify-between font-normal"
+          data-testid="select-teams-campus-filter"
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+      >
+        <Command>
+          <CommandInput
+            placeholder="Search campuses…"
+            data-testid="teams-campus-search"
+          />
+          <CommandList className="max-h-72">
+            <CommandEmpty>No campus found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="All campuses"
+                onSelect={() => {
+                  onChange(ALL_CAMPUSES);
+                  setOpen(false);
+                }}
+                data-testid="teams-campus-option-all"
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value === ALL_CAMPUSES ? "opacity-100" : "opacity-0",
+                  )}
+                />
+                All campuses
+              </CommandItem>
+              {sorted.map((c) => {
+                const v = String(c.id);
+                return (
+                  <CommandItem
+                    key={c.id}
+                    value={c.name}
+                    onSelect={() => {
+                      onChange(v);
+                      setOpen(false);
+                    }}
+                    data-testid={`teams-campus-option-${c.id}`}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === v ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {c.name}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function AdminTeams() {
   const [, setLocation] = useLocation();
@@ -80,6 +185,7 @@ export default function AdminTeams() {
       : "all";
   })();
   const [status, setStatus] = useState<string>(initialStatus);
+  const [campusFilter, setCampusFilter] = useState<string>(ALL_CAMPUSES);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
     name: string;
@@ -87,6 +193,8 @@ export default function AdminTeams() {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
+
+  const { data: campusOptions = [] } = useListCampuses();
 
   // Debounce search so we aren't firing a request on every keystroke.
   useEffect(() => {
@@ -100,6 +208,7 @@ export default function AdminTeams() {
   const { data: teams, isLoading } = useListTeams({
     search: search || undefined,
     status: status !== "all" ? (status as ListTeamsStatus) : undefined,
+    campusId: campusFilter !== ALL_CAMPUSES ? Number(campusFilter) : undefined,
     page,
     pageSize: PAGE_SIZE,
   });
@@ -125,10 +234,11 @@ export default function AdminTeams() {
     queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
 
   // Build the same filter query string used by the list endpoint so the
-  // export respects the admin's current view (status + search).
+  // export respects the admin's current view (status + search + campus).
   const exportQueryString = () => {
     const p = new URLSearchParams();
     if (status !== "all") p.set("status", status);
+    if (campusFilter !== ALL_CAMPUSES) p.set("campusId", campusFilter);
     if (search.trim()) p.set("search", search.trim());
     const qs = p.toString();
     return qs ? `?${qs}` : "";
@@ -211,64 +321,7 @@ export default function AdminTeams() {
         </div>
 
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setAddOpen(true)}
-                data-testid="button-open-add-team"
-              >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add Team
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    aria-label="More actions"
-                    disabled={exporting !== null}
-                    data-testid="button-teams-more-actions"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-64"
-                  data-testid="menu-teams-more-actions"
-                >
-                  <DropdownMenuItem
-                    onClick={() => setImportOpen(true)}
-                    data-testid="menu-item-import-csv"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Import CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => void downloadExport("csv")}
-                    disabled={exporting !== null}
-                    data-testid="menu-item-export-csv"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    {exporting === "csv"
-                      ? "Exporting CSV…"
-                      : "Export all teams (CSV)"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => void downloadExport("xlsx")}
-                    disabled={exporting !== null}
-                    data-testid="menu-item-export-xlsx"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 mr-2" />
-                    {exporting === "xlsx"
-                      ? "Exporting Excel…"
-                      : "Export campus-wise (Excel)"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
+          {/* 1. Search */}
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -279,6 +332,7 @@ export default function AdminTeams() {
             />
           </div>
 
+          {/* 2. Status */}
           <Select
             value={status}
             onValueChange={(v) => {
@@ -298,6 +352,78 @@ export default function AdminTeams() {
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* 3. Campus filter (searchable + scrollable) */}
+          <TeamsCampusFilterPopover
+            value={campusFilter}
+            campuses={campusOptions}
+            onChange={(v) => {
+              setCampusFilter(v);
+              setPage(1);
+            }}
+          />
+
+          {/* 4. Three-dot menu (admin only) */}
+          {isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="More actions"
+                  disabled={exporting !== null}
+                  data-testid="button-teams-more-actions"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-64"
+                data-testid="menu-teams-more-actions"
+              >
+                <DropdownMenuItem
+                  onClick={() => setImportOpen(true)}
+                  data-testid="menu-item-import-csv"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import CSV
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => void downloadExport("csv")}
+                  disabled={exporting !== null}
+                  data-testid="menu-item-export-csv"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {exporting === "csv"
+                    ? "Exporting CSV…"
+                    : "Export all teams (CSV)"}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void downloadExport("xlsx")}
+                  disabled={exporting !== null}
+                  data-testid="menu-item-export-xlsx"
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  {exporting === "xlsx"
+                    ? "Exporting Excel…"
+                    : "Export campus-wise (Excel)"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* 5. Add Team (admin only) */}
+          {isAdmin && (
+            <Button
+              onClick={() => setAddOpen(true)}
+              data-testid="button-open-add-team"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add Team
+            </Button>
+          )}
         </div>
       </div>
 

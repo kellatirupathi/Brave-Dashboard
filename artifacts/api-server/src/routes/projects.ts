@@ -1,5 +1,6 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, or, sql, ilike, inArray } from "drizzle-orm";
+import * as XLSX from "xlsx";
 import {
   db,
   projectsTable,
@@ -35,8 +36,15 @@ const router: IRouter = Router();
 async function getProjectAuthorization(
   projectId: number,
   user: { id: string; role: string; campusId?: number | null },
-): Promise<{ project: typeof projectsTable.$inferSelect; isMember: boolean; isStaff: boolean } | null> {
-  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
+): Promise<{
+  project: typeof projectsTable.$inferSelect;
+  isMember: boolean;
+  isStaff: boolean;
+} | null> {
+  const [project] = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.id, projectId));
   if (!project) return null;
 
   let isStaff = false;
@@ -59,24 +67,45 @@ async function getProjectAuthorization(
     const [member] = await db
       .select()
       .from(teamMembersTable)
-      .where(and(eq(teamMembersTable.userId, user.id), eq(teamMembersTable.teamId, project.teamId)));
+      .where(
+        and(
+          eq(teamMembersTable.userId, user.id),
+          eq(teamMembersTable.teamId, project.teamId),
+        ),
+      );
     isMember = !!member;
   }
   return { project, isMember, isStaff };
 }
 
 async function getProjectWithStats(projectId: number) {
-  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
+  const [project] = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.id, projectId));
   if (!project) return null;
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, project.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, project.teamId));
   const [revStats] = await db
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(revenueEntriesTable)
-    .where(and(eq(revenueEntriesTable.projectId, projectId), sql`status = 'verified'`));
+    .where(
+      and(
+        eq(revenueEntriesTable.projectId, projectId),
+        sql`status = 'verified'`,
+      ),
+    );
   const [obStats] = await db
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(orderBookEntriesTable)
-    .where(and(eq(orderBookEntriesTable.projectId, projectId), sql`status = 'verified'`));
+    .where(
+      and(
+        eq(orderBookEntriesTable.projectId, projectId),
+        sql`status = 'verified'`,
+      ),
+    );
   const clientCount = await getProjectClientCount(projectId);
   return {
     ...project,
@@ -99,7 +128,8 @@ router.get("/projects", async (req, res): Promise<void> => {
   }
   const { teamId, campusId, status, search, page, pageSize } = queryParams.data;
   const effectivePage = page && page >= 1 ? page : 1;
-  const effectivePageSize = pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
+  const effectivePageSize =
+    pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
   const offset = (effectivePage - 1) * effectivePageSize;
 
   const isAdmin = req.user.role === "admin";
@@ -113,13 +143,23 @@ router.get("/projects", async (req, res): Promise<void> => {
     // Students/team members are scoped to their own team. Their teamId is
     // derived from membership and any teamId in the query is ignored to
     // prevent IDOR.
-    const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
+    const [member] = await db
+      .select()
+      .from(teamMembersTable)
+      .where(eq(teamMembersTable.userId, req.user.id));
     if (!member) {
-      res.json({ items: [], total: 0, page: effectivePage, pageSize: effectivePageSize });
+      res.json({
+        items: [],
+        total: 0,
+        page: effectivePage,
+        pageSize: effectivePageSize,
+      });
       return;
     }
     if (effectiveTeamId && effectiveTeamId !== member.teamId) {
-      res.status(403).json({ error: "You can only view projects for your own team." });
+      res
+        .status(403)
+        .json({ error: "You can only view projects for your own team." });
       return;
     }
     effectiveTeamId = member.teamId;
@@ -130,7 +170,12 @@ router.get("/projects", async (req, res): Promise<void> => {
   let effectiveCampusId: number | undefined;
   if (isCoordinator) {
     if (req.user.campusId == null) {
-      res.json({ items: [], total: 0, page: effectivePage, pageSize: effectivePageSize });
+      res.json({
+        items: [],
+        total: 0,
+        page: effectivePage,
+        pageSize: effectivePageSize,
+      });
       return;
     }
     effectiveCampusId = req.user.campusId;
@@ -138,7 +183,8 @@ router.get("/projects", async (req, res): Promise<void> => {
     effectiveCampusId = campusId;
   }
 
-  if (effectiveTeamId) conditions.push(eq(projectsTable.teamId, effectiveTeamId));
+  if (effectiveTeamId)
+    conditions.push(eq(projectsTable.teamId, effectiveTeamId));
   if (status) conditions.push(eq(projectsTable.status, status));
 
   if (effectiveCampusId) {
@@ -148,7 +194,12 @@ router.get("/projects", async (req, res): Promise<void> => {
       .where(eq(teamsTable.campusId, effectiveCampusId));
     const idsInCampus = teamsInCampus.map((t) => t.id);
     if (idsInCampus.length === 0) {
-      res.json({ items: [], total: 0, page: effectivePage, pageSize: effectivePageSize });
+      res.json({
+        items: [],
+        total: 0,
+        page: effectivePage,
+        pageSize: effectivePageSize,
+      });
       return;
     }
     conditions.push(inArray(projectsTable.teamId, idsInCampus));
@@ -164,7 +215,9 @@ router.get("/projects", async (req, res): Promise<void> => {
     const matchingCampusIds = matchingCampuses.map((c) => c.id);
     const teamMatchOr = or(
       ilike(teamsTable.name, pattern),
-      ...(matchingCampusIds.length > 0 ? [inArray(teamsTable.campusId, matchingCampusIds)] : []),
+      ...(matchingCampusIds.length > 0
+        ? [inArray(teamsTable.campusId, matchingCampusIds)]
+        : []),
     );
     let matchingTeamIds: number[] = [];
     if (teamMatchOr) {
@@ -178,37 +231,58 @@ router.get("/projects", async (req, res): Promise<void> => {
       ilike(projectsTable.title, pattern),
       ilike(projectsTable.description, pattern),
     ];
-    if (matchingTeamIds.length > 0) orParts.push(inArray(projectsTable.teamId, matchingTeamIds));
+    if (matchingTeamIds.length > 0)
+      orParts.push(inArray(projectsTable.teamId, matchingTeamIds));
     const orFilter = or(...orParts);
     if (orFilter) conditions.push(orFilter);
   }
 
-  const projects = conditions.length > 0
-    ? await db.select().from(projectsTable).where(and(...conditions)).orderBy(projectsTable.createdAt)
-    : await db.select().from(projectsTable).orderBy(projectsTable.createdAt);
+  const projects =
+    conditions.length > 0
+      ? await db
+          .select()
+          .from(projectsTable)
+          .where(and(...conditions))
+          .orderBy(projectsTable.createdAt)
+      : await db.select().from(projectsTable).orderBy(projectsTable.createdAt);
 
   const totalCount = projects.length;
   const pageSlice = projects.slice(offset, offset + effectivePageSize);
 
-  const items = await Promise.all(pageSlice.map(async (p) => {
-    const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, p.teamId));
-    const [revStats] = await db
-      .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-      .from(revenueEntriesTable)
-      .where(and(eq(revenueEntriesTable.projectId, p.id), sql`status = 'verified'`));
-    const [obStats] = await db
-      .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-      .from(orderBookEntriesTable)
-      .where(and(eq(orderBookEntriesTable.projectId, p.id), sql`status = 'verified'`));
-    const clientCount = await getProjectClientCount(p.id);
-    return {
-      ...p,
-      teamName: team?.name ?? "",
-      verifiedRevenue: Number(revStats?.total ?? 0),
-      verifiedOrderBook: Number(obStats?.total ?? 0),
-      clientCount,
-    };
-  }));
+  const items = await Promise.all(
+    pageSlice.map(async (p) => {
+      const [team] = await db
+        .select()
+        .from(teamsTable)
+        .where(eq(teamsTable.id, p.teamId));
+      const [revStats] = await db
+        .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
+        .from(revenueEntriesTable)
+        .where(
+          and(
+            eq(revenueEntriesTable.projectId, p.id),
+            sql`status = 'verified'`,
+          ),
+        );
+      const [obStats] = await db
+        .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
+        .from(orderBookEntriesTable)
+        .where(
+          and(
+            eq(orderBookEntriesTable.projectId, p.id),
+            sql`status = 'verified'`,
+          ),
+        );
+      const clientCount = await getProjectClientCount(p.id);
+      return {
+        ...p,
+        teamName: team?.name ?? "",
+        verifiedRevenue: Number(revStats?.total ?? 0),
+        verifiedOrderBook: Number(obStats?.total ?? 0),
+        clientCount,
+      };
+    }),
+  );
 
   res.json({
     items,
@@ -230,10 +304,17 @@ router.post("/projects", async (req, res): Promise<void> => {
   }
   let effectiveTeamId = parsed.data.teamId;
   if (!effectiveTeamId) {
-    const [member] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
+    const [member] = await db
+      .select()
+      .from(teamMembersTable)
+      .where(eq(teamMembersTable.userId, req.user.id));
     effectiveTeamId = member?.teamId;
     if (!effectiveTeamId) {
-      res.status(400).json({ error: "You must join or create a team before creating a project." });
+      res
+        .status(400)
+        .json({
+          error: "You must join or create a team before creating a project.",
+        });
       return;
     }
   }
@@ -297,14 +378,17 @@ router.get("/projects/:id", async (req, res): Promise<void> => {
     .select()
     .from(revenueEntriesTable)
     .where(eq(revenueEntriesTable.projectId, params.data.id));
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, project.teamId));
-  const toOBEntry = (e: typeof orderBookEntries[0]) => ({
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, project.teamId));
+  const toOBEntry = (e: (typeof orderBookEntries)[0]) => ({
     ...e,
     projectTitle: project.title,
     teamName: team?.name ?? "",
     campusName: "",
   });
-  const toRevEntry = (e: typeof revenueEntries[0]) => ({
+  const toRevEntry = (e: (typeof revenueEntries)[0]) => ({
     ...e,
     projectTitle: project.title,
     teamName: team?.name ?? "",
@@ -420,10 +504,7 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
         .select({ id: revenueEntriesTable.id })
         .from(revenueEntriesTable)
         .where(
-          and(
-            eq(revenueEntriesTable.projectId, projectId),
-            blockingStatuses,
-          ),
+          and(eq(revenueEntriesTable.projectId, projectId), blockingStatuses),
         )
         .limit(1);
       if (revHit) {
@@ -434,10 +515,7 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
         .select({ id: orderBookEntriesTable.id })
         .from(orderBookEntriesTable)
         .where(
-          and(
-            eq(orderBookEntriesTable.projectId, projectId),
-            blockingStatuses,
-          ),
+          and(eq(orderBookEntriesTable.projectId, projectId), blockingStatuses),
         )
         .limit(1);
       if (obHit) {
@@ -445,8 +523,12 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
         return null;
       }
 
-      await tx.delete(revenueEntriesTable).where(eq(revenueEntriesTable.projectId, projectId));
-      await tx.delete(orderBookEntriesTable).where(eq(orderBookEntriesTable.projectId, projectId));
+      await tx
+        .delete(revenueEntriesTable)
+        .where(eq(revenueEntriesTable.projectId, projectId));
+      await tx
+        .delete(orderBookEntriesTable)
+        .where(eq(orderBookEntriesTable.projectId, projectId));
       await tx.delete(projectsTable).where(eq(projectsTable.id, projectId));
       return project.title;
     });
@@ -460,7 +542,9 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
 
   if (projectTitle === null) {
     if (blockedReason === "forbidden") {
-      res.status(403).json({ error: "Only the team leader can perform this action." });
+      res
+        .status(403)
+        .json({ error: "Only the team leader can perform this action." });
       return;
     }
     if (blockedReason === "team_missing") {
@@ -488,5 +572,343 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
   await logAudit(userId, "delete_project", "project", projectId, projectTitle);
   res.status(204).end();
 });
+
+// =============================================================================
+// Admin export — projects directory
+//
+// Two flavours, both admin-only and respect the same filters as the list:
+//   GET /admin/projects/export-all.csv         — single flat CSV, all projects
+//   GET /admin/projects/export-by-campus.xlsx  — multi-sheet workbook, one
+//                                                sheet per campus + an
+//                                                "All Projects" overview sheet
+//
+// Row ordering: campus name → team name → project title (alphabetical).
+// Each row = one project (no empty separators between projects).
+// =============================================================================
+
+type ProjectExportRow = {
+  project_id: number;
+  project_title: string;
+  description: string | null;
+  status: string;
+  team_id: number;
+  team_name: string;
+  campus_id: number;
+  campus_name: string;
+  leader_full_name: string;
+  client_count: number;
+  verified_revenue: number;
+  verified_order_book: number;
+  revenue_entry_count: number;
+  order_book_entry_count: number;
+  team_projects_count: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+const PROJECT_CSV_COLUMNS: Array<{
+  key: keyof ProjectExportRow;
+  header: string;
+}> = [
+  { key: "project_title", header: "Project Title" },
+  { key: "description", header: "Description" },
+  { key: "status", header: "Status" },
+  { key: "team_name", header: "Team Name" },
+  { key: "leader_full_name", header: "Team Leader" },
+  { key: "campus_name", header: "Campus" },
+  { key: "client_count", header: "Client Count" },
+  { key: "verified_revenue", header: "Verified Revenue (INR)" },
+  { key: "verified_order_book", header: "Verified Order Book (INR)" },
+  { key: "revenue_entry_count", header: "Revenue Entries" },
+  { key: "order_book_entry_count", header: "Order Book Entries" },
+  { key: "team_projects_count", header: "Team Projects Count" },
+  { key: "created_at", header: "Created At" },
+  { key: "updated_at", header: "Updated At" },
+];
+
+async function fetchProjectExportRows(opts: {
+  status?: string;
+  search?: string;
+  campusId?: number;
+}): Promise<ProjectExportRow[]> {
+  // Single SQL with aggregate sub-selects for revenue / order book stats and
+  // distinct client counts. Same shape the dashboard uses (dashboard.ts).
+  const statusClause =
+    opts.status === "active" || opts.status === "inactive"
+      ? sql`AND p.status = ${opts.status}`
+      : sql``;
+
+  const campusClause =
+    opts.campusId != null && Number.isFinite(opts.campusId)
+      ? sql`AND t.campus_id = ${opts.campusId}`
+      : sql``;
+
+  const search = opts.search?.trim();
+  const searchPattern = search ? `%${search.toLowerCase()}%` : null;
+  const searchClause = searchPattern
+    ? sql`AND (
+        LOWER(p.title) LIKE ${searchPattern} OR
+        LOWER(COALESCE(p.description, '')) LIKE ${searchPattern} OR
+        LOWER(t.name) LIKE ${searchPattern} OR
+        LOWER(c.name) LIKE ${searchPattern}
+      )`
+    : sql``;
+
+  const rows = await db.execute<{
+    project_id: number;
+    project_title: string;
+    description: string | null;
+    status: string;
+    team_id: number;
+    team_name: string;
+    campus_id: number;
+    campus_name: string;
+    leader_first_name: string | null;
+    leader_last_name: string | null;
+    client_count: string;
+    verified_revenue: string;
+    verified_order_book: string;
+    revenue_entry_count: string;
+    order_book_entry_count: string;
+    team_projects_count: string;
+    created_at: Date | string;
+    updated_at: Date | string;
+  }>(sql`
+    SELECT
+      p.id                                                    AS project_id,
+      p.title                                                 AS project_title,
+      p.description                                           AS description,
+      p.status                                                AS status,
+      t.id                                                    AS team_id,
+      t.name                                                  AS team_name,
+      c.id                                                    AS campus_id,
+      c.name                                                  AS campus_name,
+      leader.first_name                                       AS leader_first_name,
+      leader.last_name                                        AS leader_last_name,
+      COALESCE(rev.client_count, 0)                           AS client_count,
+      COALESCE(rev.verified_amount, 0)                        AS verified_revenue,
+      COALESCE(ob.verified_amount, 0)                         AS verified_order_book,
+      COALESCE(rev.entry_count, 0)                            AS revenue_entry_count,
+      COALESCE(ob.entry_count, 0)                             AS order_book_entry_count,
+      COALESCE(tpc.cnt, 0)                                    AS team_projects_count,
+      p.created_at                                            AS created_at,
+      p.updated_at                                            AS updated_at
+    FROM projects p
+    JOIN teams t       ON t.id = p.team_id
+    JOIN campuses c    ON c.id = t.campus_id
+    JOIN users leader  ON leader.id = t.leader_id
+    LEFT JOIN (
+      SELECT
+        project_id,
+        SUM(CASE WHEN status = 'verified' THEN COALESCE(verified_amount, 0) ELSE 0 END) AS verified_amount,
+        COUNT(*)                                                AS entry_count,
+        COUNT(DISTINCT NULLIF(TRIM(client_name), ''))           AS client_count
+      FROM revenue_entries
+      GROUP BY project_id
+    ) rev ON rev.project_id = p.id
+    LEFT JOIN (
+      SELECT
+        project_id,
+        SUM(CASE WHEN status = 'verified' THEN COALESCE(verified_amount, 0) ELSE 0 END) AS verified_amount,
+        COUNT(*)                                                AS entry_count
+      FROM order_book_entries
+      GROUP BY project_id
+    ) ob ON ob.project_id = p.id
+    LEFT JOIN (
+      SELECT team_id, COUNT(*) AS cnt FROM projects GROUP BY team_id
+    ) tpc ON tpc.team_id = t.id
+    WHERE TRUE
+      ${statusClause}
+      ${campusClause}
+      ${searchClause}
+    ORDER BY c.name ASC, t.name ASC, p.title ASC
+  `);
+
+  return rows.rows.map(
+    (r): ProjectExportRow => ({
+      project_id: Number(r.project_id),
+      project_title: r.project_title ?? "",
+      description: r.description ?? null,
+      status: r.status ?? "",
+      team_id: Number(r.team_id),
+      team_name: r.team_name ?? "",
+      campus_id: Number(r.campus_id),
+      campus_name: r.campus_name ?? "",
+      leader_full_name:
+        `${r.leader_first_name ?? ""} ${r.leader_last_name ?? ""}`.trim(),
+      client_count: Number(r.client_count ?? 0),
+      verified_revenue: Number(r.verified_revenue ?? 0),
+      verified_order_book: Number(r.verified_order_book ?? 0),
+      revenue_entry_count: Number(r.revenue_entry_count ?? 0),
+      order_book_entry_count: Number(r.order_book_entry_count ?? 0),
+      team_projects_count: Number(r.team_projects_count ?? 0),
+      created_at:
+        r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
+      updated_at:
+        r.updated_at instanceof Date ? r.updated_at : new Date(r.updated_at),
+    }),
+  );
+}
+
+function fmtProjectCell(v: unknown): string {
+  if (v == null) return "";
+  if (v instanceof Date) return v.toISOString().slice(0, 16).replace("T", " ");
+  return String(v);
+}
+
+function csvEscapeProject(v: string): string {
+  if (v === "") return "";
+  if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+function projectRowToCsvLine(row: ProjectExportRow): string {
+  return PROJECT_CSV_COLUMNS.map((col) =>
+    csvEscapeProject(fmtProjectCell(row[col.key])),
+  ).join(",");
+}
+
+function projectRowToObject(row: ProjectExportRow): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const col of PROJECT_CSV_COLUMNS) {
+    out[col.header] = fmtProjectCell(row[col.key]);
+  }
+  return out;
+}
+
+function projectTimestampForFilename(): string {
+  return new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+}
+
+// ---------- Export 1: single flat CSV ----------
+router.get(
+  "/admin/projects/export-all.csv",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    try {
+      const campusIdNum =
+        typeof req.query.campusId === "string" && req.query.campusId
+          ? Number(req.query.campusId)
+          : undefined;
+      const rows = await fetchProjectExportRows({
+        status:
+          typeof req.query.status === "string" ? req.query.status : undefined,
+        search:
+          typeof req.query.search === "string" ? req.query.search : undefined,
+        campusId:
+          campusIdNum != null && Number.isFinite(campusIdNum)
+            ? campusIdNum
+            : undefined,
+      });
+
+      const lines: string[] = [];
+      lines.push(
+        PROJECT_CSV_COLUMNS.map((c) => csvEscapeProject(c.header)).join(","),
+      );
+      for (const row of rows) {
+        lines.push(projectRowToCsvLine(row));
+      }
+
+      const csv = lines.join("\r\n");
+      // UTF-8 BOM so Excel auto-detects encoding.
+      const buffer = Buffer.concat([
+        Buffer.from("﻿", "utf8"),
+        Buffer.from(csv, "utf8"),
+      ]);
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="brave-projects-${projectTimestampForFilename()}.csv"`,
+      );
+      res.send(buffer);
+    } catch (err) {
+      req.log.error({ err }, "[admin/projects/export-all.csv] failed");
+      res.status(500).json({ error: "Export failed" });
+    }
+  },
+);
+
+// ---------- Export 2: multi-sheet xlsx (one sheet per campus) ----------
+router.get(
+  "/admin/projects/export-by-campus.xlsx",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    try {
+      const campusIdNum =
+        typeof req.query.campusId === "string" && req.query.campusId
+          ? Number(req.query.campusId)
+          : undefined;
+      const rows = await fetchProjectExportRows({
+        status:
+          typeof req.query.status === "string" ? req.query.status : undefined,
+        search:
+          typeof req.query.search === "string" ? req.query.search : undefined,
+        campusId:
+          campusIdNum != null && Number.isFinite(campusIdNum)
+            ? campusIdNum
+            : undefined,
+      });
+
+      const byCampus = new Map<string, ProjectExportRow[]>();
+      for (const row of rows) {
+        const key = row.campus_name || "(no campus)";
+        const bucket = byCampus.get(key) ?? [];
+        bucket.push(row);
+        byCampus.set(key, bucket);
+      }
+
+      const workbook = XLSX.utils.book_new();
+
+      // Sheet 1 — overview of every project across campuses.
+      {
+        const sheetRows = rows.map(projectRowToObject);
+        const ws = XLSX.utils.json_to_sheet(sheetRows, {
+          header: PROJECT_CSV_COLUMNS.map((c) => c.header),
+        });
+        XLSX.utils.book_append_sheet(workbook, ws, "All Projects");
+      }
+
+      // One sheet per campus, alphabetical.
+      const campusNames = [...byCampus.keys()].sort((a, b) =>
+        a.localeCompare(b),
+      );
+      for (const campusName of campusNames) {
+        const campusRows = byCampus.get(campusName)!.map(projectRowToObject);
+        const ws = XLSX.utils.json_to_sheet(campusRows, {
+          header: PROJECT_CSV_COLUMNS.map((c) => c.header),
+        });
+        // Excel sheet name: max 31 chars, no : \ / ? * [ ]
+        const safeName =
+          campusName.replace(/[\\/?*[\]:]/g, "-").slice(0, 31) || "Campus";
+        XLSX.utils.book_append_sheet(workbook, ws, safeName);
+      }
+
+      const buffer = XLSX.write(workbook, {
+        type: "buffer",
+        bookType: "xlsx",
+      }) as Buffer;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="brave-projects-by-campus-${projectTimestampForFilename()}.xlsx"`,
+      );
+      res.send(buffer);
+    } catch (err) {
+      req.log.error({ err }, "[admin/projects/export-by-campus.xlsx] failed");
+      res.status(500).json({ error: "Export failed" });
+    }
+  },
+);
 
 export default router;

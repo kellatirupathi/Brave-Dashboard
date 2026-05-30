@@ -540,6 +540,9 @@ type ExportRow = {
   joined_at: Date;
   member_role: string; // 'Leader' | 'Member'
   batch_section_name: string | null;
+  team_verified_revenue: number;
+  team_verified_order_book: number;
+  team_projects_count: number;
 };
 
 const CSV_COLUMNS: Array<{
@@ -555,20 +558,28 @@ const CSV_COLUMNS: Array<{
   { key: "batch_section_name", header: "Batch / Section" },
   { key: "joined_at", header: "Joined At" },
   { key: "team_status", header: "Team Status" },
+  { key: "team_verified_revenue", header: "Verified Revenue (INR)" },
+  { key: "team_verified_order_book", header: "Verified Order Book (INR)" },
+  { key: "team_projects_count", header: "Projects Count" },
   { key: "team_created_at", header: "Team Created" },
 ];
 
 async function fetchExportRows(opts: {
   status?: string;
   search?: string;
+  campusId?: number;
 }): Promise<ExportRow[]> {
   // Build WHERE clause matching the existing /teams list behaviour:
   //  - status filter narrows to one team status (active / rejected / etc.)
+  //  - campusId filter narrows to one campus
   //  - search matches team name, campus name, member name/email/niatId
   // Empty teams are filtered out by the INNER JOIN on team_members.
   const conditions = [] as any[];
   if (opts.status && opts.status !== "all") {
     conditions.push(eq(teamsTable.status, opts.status as any));
+  }
+  if (opts.campusId != null && Number.isFinite(opts.campusId)) {
+    conditions.push(eq(teamsTable.campusId, opts.campusId));
   }
   if (opts.search && opts.search.trim()) {
     const like = `%${opts.search.trim()}%`;
@@ -585,7 +596,9 @@ async function fetchExportRows(opts: {
   }
   const whereClause = conditions.length === 0 ? sql`TRUE` : and(...conditions);
 
-  // Single JOIN query; ordering: campus → team → leader-first → joined_at.
+  // Single JOIN query with team-level aggregate sub-selects for revenue,
+  // order book, and project count. Ordering: campus → team → leader-first
+  // → joined_at.
   const rows = await db
     .select({
       team_id: teamsTable.id,
@@ -602,6 +615,19 @@ async function fetchExportRows(opts: {
       joined_at: teamMembersTable.joinedAt,
       member_role: sql<string>`CASE WHEN ${usersTable.id} = ${teamsTable.leaderId} THEN 'Leader' ELSE 'Member' END`,
       batch_section_name: rosterTable.batchSectionName,
+      team_verified_revenue: sql<string>`COALESCE((
+        SELECT SUM(COALESCE(re.verified_amount, 0))
+        FROM revenue_entries re
+        WHERE re.team_id = ${teamsTable.id} AND re.status = 'verified'
+      ), 0)`,
+      team_verified_order_book: sql<string>`COALESCE((
+        SELECT SUM(COALESCE(obe.verified_amount, 0))
+        FROM order_book_entries obe
+        WHERE obe.team_id = ${teamsTable.id} AND obe.status = 'verified'
+      ), 0)`,
+      team_projects_count: sql<string>`(
+        SELECT COUNT(*) FROM projects p WHERE p.team_id = ${teamsTable.id}
+      )`,
     })
     .from(teamsTable)
     .innerJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
@@ -622,7 +648,12 @@ async function fetchExportRows(opts: {
       sql`${teamMembersTable.joinedAt} ASC`,
     );
 
-  return rows as unknown as ExportRow[];
+  return rows.map((r: Record<string, unknown>) => ({
+    ...r,
+    team_verified_revenue: Number(r["team_verified_revenue"] ?? 0),
+    team_verified_order_book: Number(r["team_verified_order_book"] ?? 0),
+    team_projects_count: Number(r["team_projects_count"] ?? 0),
+  })) as unknown as ExportRow[];
 }
 
 function fmtCell(v: unknown): string {
@@ -686,11 +717,19 @@ router.get(
       return;
     }
     try {
+      const campusIdNum =
+        typeof req.query.campusId === "string" && req.query.campusId
+          ? Number(req.query.campusId)
+          : undefined;
       const rows = await fetchExportRows({
         status:
           typeof req.query.status === "string" ? req.query.status : undefined,
         search:
           typeof req.query.search === "string" ? req.query.search : undefined,
+        campusId:
+          campusIdNum != null && Number.isFinite(campusIdNum)
+            ? campusIdNum
+            : undefined,
       });
 
       const lines: string[] = [];
@@ -735,11 +774,19 @@ router.get(
       return;
     }
     try {
+      const campusIdNum =
+        typeof req.query.campusId === "string" && req.query.campusId
+          ? Number(req.query.campusId)
+          : undefined;
       const rows = await fetchExportRows({
         status:
           typeof req.query.status === "string" ? req.query.status : undefined,
         search:
           typeof req.query.search === "string" ? req.query.search : undefined,
+        campusId:
+          campusIdNum != null && Number.isFinite(campusIdNum)
+            ? campusIdNum
+            : undefined,
       });
 
       // Group rows by campus, preserving the SQL ordering inside each group.
