@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
@@ -394,6 +394,30 @@ export default function HeatmapPage() {
       });
   }, [data, query, filter, selectedWeek]);
 
+  // Client-side pagination for the per-team table. Rendering all ~1,188 rows
+  // (× up to 24 week-cells each) at once bloats the DOM to tens of thousands
+  // of nodes, which makes every layout/repaint — including tab switches —
+  // janky. Keeping ~50 rows in the DOM keeps interactions instant. Bulk
+  // reminders still operate over the full filtered set, not just this page.
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(filteredTeams.length / PAGE_SIZE));
+
+  // Reset to page 1 whenever the filtered result set changes.
+  useEffect(() => {
+    setPage(1);
+  }, [query, filter, selectedCampusId, selectedWeek, weeksBack]);
+
+  // Clamp the page if the result set shrank below the current page.
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  const pagedTeams = useMemo<HeatmapTeamRow[]>(
+    () => filteredTeams.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredTeams, page],
+  );
+
   const counts = useMemo(() => {
     const teams = data?.teams ?? [];
     return {
@@ -770,7 +794,7 @@ export default function HeatmapPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTeams.map((t) => (
+                  {pagedTeams.map((t) => (
                     <tr
                       key={t.teamId}
                       className="border-b hover:bg-accent/30"
@@ -825,6 +849,41 @@ export default function HeatmapPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Pagination — keeps the DOM light by rendering one page of
+                  rows at a time. Reminders still act on the full filtered set. */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-4 text-sm">
+                <span className="text-muted-foreground tabular-nums">
+                  Showing {(page - 1) * PAGE_SIZE + 1}–
+                  {Math.min(page * PAGE_SIZE, filteredTeams.length)} of{" "}
+                  {filteredTeams.length.toLocaleString("en-IN")} teams
+                </span>
+                {pageCount > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      data-testid="heatmap-prev-page"
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-muted-foreground tabular-nums px-1">
+                      Page {page} of {pageCount}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={page >= pageCount}
+                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                      data-testid="heatmap-next-page"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
