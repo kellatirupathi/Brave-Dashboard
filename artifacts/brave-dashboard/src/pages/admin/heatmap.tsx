@@ -124,10 +124,18 @@ const FUNNEL_STAGE_META: Record<
   },
 };
 
-// A real, tapering conversion funnel. Each centered bar's width = the stage's
-// share of the top stage, so the shape narrows as students drop off. Between
-// rows we show the step-to-step conversion (and drop-off) so admins can see
-// exactly where the programme loses people.
+// Colour for a step-conversion pill: green = healthy retention, amber =
+// moderate, red = heavy drop-off. Lets admins spot the leaky step at a glance.
+function conversionPillClass(pct: number): string {
+  if (pct >= 80) return "bg-emerald-100 text-emerald-700";
+  if (pct >= 50) return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
+}
+
+// A professional, left-aligned conversion funnel. Every bar shares the same
+// left edge and a full-width track, so the coloured fill (= share of the top
+// stage) visibly tapers down the list. The right rail shows the headline count,
+// % of the top stage, and a colour-coded step-to-step conversion pill.
 function FunnelChart({
   stages,
   loading,
@@ -150,59 +158,101 @@ function FunnelChart({
     );
   }
   const base = stages[0]?.count ?? 0;
+  const final = stages[stages.length - 1]?.count ?? 0;
+  const overall = base > 0 ? (final / base) * 100 : 0;
+
   return (
-    <div className="space-y-1" data-testid="funnel-chart">
-      {stages.map((s, i) => {
-        const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
-        const prev = i > 0 ? stages[i - 1] : null;
-        const stepPct =
-          prev && prev.count > 0 ? (s.count / prev.count) * 100 : null;
-        const meta = FUNNEL_STAGE_META[s.key] ?? {
-          icon: null,
-          color: "bg-primary",
-        };
-        return (
-          <div key={s.key}>
-            {prev && stepPct !== null && (
-              <div className="flex justify-center">
-                <span className="text-[11px] text-muted-foreground py-0.5">
-                  ↓ {stepPct.toFixed(0)}% continued
-                  {stepPct < 100 && (
-                    <span className="text-destructive/70">
-                      {" · "}
-                      {(100 - stepPct).toFixed(0)}% dropped
-                    </span>
-                  )}
-                </span>
-              </div>
-            )}
+    <div className="space-y-4" data-testid="funnel-chart">
+      {/* Headline summary — overall registered → closed conversion. */}
+      <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Overall conversion
+          </div>
+          <div className="text-2xl font-bold tabular-nums text-primary">
+            {overall.toFixed(1)}%
+          </div>
+        </div>
+        <div className="text-right text-xs text-muted-foreground leading-relaxed">
+          <span className="font-semibold text-foreground tabular-nums">
+            {base.toLocaleString("en-IN")}
+          </span>{" "}
+          registered
+          <br />→{" "}
+          <span className="font-semibold text-foreground tabular-nums">
+            {final.toLocaleString("en-IN")}
+          </span>{" "}
+          closed a project
+        </div>
+      </div>
+
+      {/* Funnel bars. */}
+      <div className="space-y-2.5">
+        {stages.map((s, i) => {
+          const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
+          const prev = i > 0 ? stages[i - 1] : null;
+          const stepPct =
+            prev && prev.count > 0 ? (s.count / prev.count) * 100 : null;
+          const meta = FUNNEL_STAGE_META[s.key] ?? {
+            icon: null,
+            color: "bg-primary",
+          };
+          return (
             <div
+              key={s.key}
               className="flex items-center gap-3"
               data-testid={`funnel-stage-${s.key}`}
             >
-              <div className="flex items-center gap-2 w-48 shrink-0">
-                <span className="text-muted-foreground">{meta.icon}</span>
-                <span className="text-sm font-medium truncate">{s.label}</span>
-              </div>
-              <div className="flex-1 flex justify-center">
-                <div
+              {/* Stage label + coloured icon chip */}
+              <div className="flex items-center gap-2 w-44 shrink-0">
+                <span
                   className={cn(
-                    "h-9 rounded-md flex items-center justify-center text-white text-sm font-semibold tabular-nums transition-all px-2 min-w-[2.75rem]",
+                    "flex h-7 w-7 items-center justify-center rounded-md text-white shrink-0",
                     meta.color,
                   )}
-                  style={{ width: `${Math.max(pctOfTotal, 4)}%` }}
-                  title={`${s.count.toLocaleString("en-IN")} students`}
                 >
-                  {s.count.toLocaleString("en-IN")}
-                </div>
+                  {meta.icon}
+                </span>
+                <span className="text-sm font-medium truncate">{s.label}</span>
               </div>
-              <div className="w-12 text-right text-sm tabular-nums text-muted-foreground shrink-0">
-                {pctOfTotal.toFixed(0)}%
+
+              {/* Bar track + fill */}
+              <div className="relative flex-1 h-8 rounded-md bg-muted overflow-hidden">
+                <div
+                  className={cn("h-full rounded-md transition-all", meta.color)}
+                  style={{ width: `${Math.max(pctOfTotal, 1.5)}%` }}
+                  title={`${s.count.toLocaleString("en-IN")} students`}
+                />
+              </div>
+
+              {/* Right rail: count · % of total · step pill */}
+              <div className="flex items-center justify-end gap-2 shrink-0">
+                <span className="w-16 text-right text-sm font-semibold tabular-nums">
+                  {s.count.toLocaleString("en-IN")}
+                </span>
+                <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
+                  {pctOfTotal.toFixed(0)}%
+                </span>
+                <span className="w-14 text-right">
+                  {stepPct !== null ? (
+                    <span
+                      className={cn(
+                        "inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+                        conversionPillClass(stepPct),
+                      )}
+                      title="Conversion from the previous stage"
+                    >
+                      {stepPct.toFixed(0)}%
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">—</span>
+                  )}
+                </span>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -632,400 +682,426 @@ export default function HeatmapPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Per-team coverage + Student-wise funnel — one section, two tabs.
+          Each tab renders from its own endpoint; switching tabs unmounts the
+          other heavy table, which also keeps the page light. */}
       <Card>
-        <CardHeader>
-          {/* Top toolbar — bulk button (left) + campus / week dropdowns (right) + clear filters (right) */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                size="sm"
-                variant="default"
-                disabled={
-                  !anyFilterActive ||
-                  filteredTeams.length === 0 ||
-                  bulkRemindMut.isPending
-                }
-                onClick={() => setBulkDialogOpen(true)}
-                data-testid="bulk-remind-button"
-              >
-                <Bell className="w-4 h-4 mr-1" />
-                Send reminder to {filteredTeams.length} team
-                {filteredTeams.length === 1 ? "" : "s"}
-              </Button>
-              <CardTitle className="hidden lg:block ml-2">
-                Per-team weekly journal coverage
-              </CardTitle>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Campus dropdown — admin only */}
-              {!isCoordinator && (
-                <Select
-                  value={selectedCampusId}
-                  onValueChange={setSelectedCampusId}
-                >
-                  <SelectTrigger
-                    className="w-48"
-                    data-testid="heatmap-campus-filter"
+        <Tabs defaultValue="coverage" className="w-full">
+          <CardHeader className="pb-3">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="coverage" data-testid="tab-coverage">
+                Per-team coverage
+              </TabsTrigger>
+              <TabsTrigger value="students" data-testid="tab-students">
+                Student-wise funnel
+              </TabsTrigger>
+            </TabsList>
+          </CardHeader>
+          <CardContent>
+            <TabsContent value="coverage" className="mt-0 space-y-4">
+              {/* Top toolbar — bulk button + campus / week dropdowns + clear filters */}
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={
+                      !anyFilterActive ||
+                      filteredTeams.length === 0 ||
+                      bulkRemindMut.isPending
+                    }
+                    onClick={() => setBulkDialogOpen(true)}
+                    data-testid="bulk-remind-button"
                   >
-                    <SelectValue placeholder="All campuses" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
-                    <SelectItem value="all">All campuses</SelectItem>
-                    {(campuses ?? []).map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name}
-                      </SelectItem>
+                    <Bell className="w-4 h-4 mr-1" />
+                    Send reminder to {filteredTeams.length} team
+                    {filteredTeams.length === 1 ? "" : "s"}
+                  </Button>
+                  <CardTitle className="hidden lg:block ml-2">
+                    Per-team weekly journal coverage
+                  </CardTitle>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Campus dropdown — admin only */}
+                  {!isCoordinator && (
+                    <Select
+                      value={selectedCampusId}
+                      onValueChange={setSelectedCampusId}
+                    >
+                      <SelectTrigger
+                        className="w-48"
+                        data-testid="heatmap-campus-filter"
+                      >
+                        <SelectValue placeholder="All campuses" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72 overflow-y-auto">
+                        <SelectItem value="all">All campuses</SelectItem>
+                        {(campuses ?? []).map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {/* Week dropdown */}
+                  <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+                    <SelectTrigger
+                      className="w-44"
+                      data-testid="heatmap-week-filter"
+                    >
+                      <SelectValue placeholder="All weeks" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72 overflow-y-auto">
+                      <SelectItem value="all">All weeks</SelectItem>
+                      {(data?.weeks ?? []).map((w, idx) => (
+                        <SelectItem key={w} value={w}>
+                          Week {idx + 1} ({w.slice(5)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Range buttons */}
+                  <div className="flex gap-1">
+                    {[4, 8, 12, 24].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setWeeksBack(n)}
+                        className={cn(
+                          "px-3 py-1.5 text-xs rounded-md border transition-colors",
+                          weeksBack === n
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "hover:bg-accent",
+                        )}
+                      >
+                        {n}w
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
-              )}
+                  </div>
 
-              {/* Week dropdown */}
-              <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-                <SelectTrigger
-                  className="w-44"
-                  data-testid="heatmap-week-filter"
-                >
-                  <SelectValue placeholder="All weeks" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72 overflow-y-auto">
-                  <SelectItem value="all">All weeks</SelectItem>
-                  {(data?.weeks ?? []).map((w, idx) => (
-                    <SelectItem key={w} value={w}>
-                      Week {idx + 1} ({w.slice(5)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Range buttons */}
-              <div className="flex gap-1">
-                {[4, 8, 12, 24].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setWeeksBack(n)}
-                    className={cn(
-                      "px-3 py-1.5 text-xs rounded-md border transition-colors",
-                      weeksBack === n
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "hover:bg-accent",
-                    )}
-                  >
-                    {n}w
-                  </button>
-                ))}
+                  {/* Clear filters */}
+                  {anyFilterActive && (
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline px-2 py-1 inline-flex items-center gap-1"
+                      data-testid="clear-filters-button"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Clear filters
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Clear filters */}
-              {anyFilterActive && (
-                <button
-                  type="button"
-                  onClick={clearAllFilters}
-                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline px-2 py-1 inline-flex items-center gap-1"
-                  data-testid="clear-filters-button"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  Clear filters
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Search + status pills row */}
-          <div className="flex flex-col sm:flex-row gap-2 pt-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search team or campus"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-9"
-                data-testid="heatmap-search"
-              />
-            </div>
-            <div className="flex gap-1">
-              {(
-                [
-                  { v: "all", label: "All" },
-                  { v: "silent", label: "Silent" },
-                  { v: "never", label: "Never logged" },
-                ] as const
-              ).map((b) => (
-                <button
-                  key={b.v}
-                  type="button"
-                  onClick={() => setFilter(b.v)}
-                  className={cn(
-                    "px-3 py-1.5 text-xs rounded-md border transition-colors",
-                    filter === b.v
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "hover:bg-accent",
-                  )}
-                >
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-12">
-              <Spinner className="size-8" />
-            </div>
-          ) : error ? (
-            <div className="text-sm text-destructive py-6 text-center">
-              Failed to load heatmap.
-            </div>
-          ) : filteredTeams.length === 0 ? (
-            <div className="text-sm text-muted-foreground py-12 text-center">
-              No teams match the current filters.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 pr-3 font-medium min-w-[180px]">
-                      Team
-                    </th>
-                    {data!.weeks.map((w) => (
-                      <th
-                        key={w}
-                        className={cn(
-                          "text-center px-1 py-2 font-mono text-[10px] text-muted-foreground",
-                          selectedWeek === w &&
-                            "text-primary font-semibold underline",
-                        )}
-                        title={w}
-                      >
-                        {w.slice(5)}
-                      </th>
-                    ))}
-                    <th className="text-center px-2 py-2 font-medium">
-                      Status
-                    </th>
-                    <th className="text-right pl-2 py-2 font-medium">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagedTeams.map((t) => (
-                    <tr
-                      key={t.teamId}
-                      className="border-b hover:bg-accent/30"
-                      data-testid={`heatmap-row-${t.teamId}`}
+              {/* Search + status pills row */}
+              <div className="flex flex-col sm:flex-row gap-2 pt-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search team or campus"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="pl-9"
+                    data-testid="heatmap-search"
+                  />
+                </div>
+                <div className="flex gap-1">
+                  {(
+                    [
+                      { v: "all", label: "All" },
+                      { v: "silent", label: "Silent" },
+                      { v: "never", label: "Never logged" },
+                    ] as const
+                  ).map((b) => (
+                    <button
+                      key={b.v}
+                      type="button"
+                      onClick={() => setFilter(b.v)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs rounded-md border transition-colors",
+                        filter === b.v
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "hover:bg-accent",
+                      )}
                     >
-                      <td className="py-2 pr-3">
-                        <div className="font-medium truncate">{t.teamName}</div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {t.campusName ?? "—"} · {t.totalJournals} journal
-                          {t.totalJournals === 1 ? "" : "s"}
-                          {t.daysSinceLastJournal != null
-                            ? ` · last ${t.daysSinceLastJournal}d ago`
-                            : ""}
-                        </div>
-                      </td>
-                      {t.weeks.map((b) => (
-                        <td
-                          key={b.weekStartDate}
-                          className="px-1 py-2 text-center"
-                        >
-                          <div
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Spinner className="size-8" />
+                </div>
+              ) : error ? (
+                <div className="text-sm text-destructive py-6 text-center">
+                  Failed to load heatmap.
+                </div>
+              ) : filteredTeams.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-12 text-center">
+                  No teams match the current filters.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 pr-3 font-medium min-w-[180px]">
+                          Team
+                        </th>
+                        {data!.weeks.map((w) => (
+                          <th
+                            key={w}
                             className={cn(
-                              "h-6 w-6 mx-auto rounded relative flex items-center justify-center",
-                              cellClass(b),
-                              selectedWeek === b.weekStartDate &&
-                                "ring-2 ring-primary",
+                              "text-center px-1 py-2 font-mono text-[10px] text-muted-foreground",
+                              selectedWeek === w &&
+                                "text-primary font-semibold underline",
                             )}
-                            title={`${b.weekStartDate} · ${b.hasJournal ? "journal ✓" : "no journal"}`}
+                            title={w}
                           >
-                            {b.hasJournal && (
-                              <CheckCircle2 className="w-3 h-3 text-white" />
-                            )}
-                          </div>
-                        </td>
+                            {w.slice(5)}
+                          </th>
+                        ))}
+                        <th className="text-center px-2 py-2 font-medium">
+                          Status
+                        </th>
+                        <th className="text-right pl-2 py-2 font-medium">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedTeams.map((t) => (
+                        <tr
+                          key={t.teamId}
+                          className="border-b hover:bg-accent/30"
+                          data-testid={`heatmap-row-${t.teamId}`}
+                        >
+                          <td className="py-2 pr-3">
+                            <div className="font-medium truncate">
+                              {t.teamName}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {t.campusName ?? "—"} · {t.totalJournals} journal
+                              {t.totalJournals === 1 ? "" : "s"}
+                              {t.daysSinceLastJournal != null
+                                ? ` · last ${t.daysSinceLastJournal}d ago`
+                                : ""}
+                            </div>
+                          </td>
+                          {t.weeks.map((b) => (
+                            <td
+                              key={b.weekStartDate}
+                              className="px-1 py-2 text-center"
+                            >
+                              <div
+                                className={cn(
+                                  "h-6 w-6 mx-auto rounded relative flex items-center justify-center",
+                                  cellClass(b),
+                                  selectedWeek === b.weekStartDate &&
+                                    "ring-2 ring-primary",
+                                )}
+                                title={`${b.weekStartDate} · ${b.hasJournal ? "journal ✓" : "no journal"}`}
+                              >
+                                {b.hasJournal && (
+                                  <CheckCircle2 className="w-3 h-3 text-white" />
+                                )}
+                              </div>
+                            </td>
+                          ))}
+                          <td className="px-2 py-2 text-center">
+                            {statusBadge(t.status)}
+                          </td>
+                          <td className="pl-2 py-2 text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={remindMut.isPending}
+                              onClick={() => remindMut.mutate(t.teamId)}
+                              data-testid={`heatmap-remind-${t.teamId}`}
+                            >
+                              <Bell className="w-3 h-3 mr-1" />
+                              Remind
+                            </Button>
+                          </td>
+                        </tr>
                       ))}
-                      <td className="px-2 py-2 text-center">
-                        {statusBadge(t.status)}
-                      </td>
-                      <td className="pl-2 py-2 text-right">
+                    </tbody>
+                  </table>
+
+                  {/* Pagination — keeps the DOM light by rendering one page of
+                  rows at a time. Reminders still act on the full filtered set. */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-4 text-sm">
+                    <span className="text-muted-foreground tabular-nums">
+                      Showing {(page - 1) * PAGE_SIZE + 1}–
+                      {Math.min(page * PAGE_SIZE, filteredTeams.length)} of{" "}
+                      {filteredTeams.length.toLocaleString("en-IN")} teams
+                    </span>
+                    {pageCount > 1 && (
+                      <div className="flex items-center gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={remindMut.isPending}
-                          onClick={() => remindMut.mutate(t.teamId)}
-                          data-testid={`heatmap-remind-${t.teamId}`}
+                          disabled={page <= 1}
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          data-testid="heatmap-prev-page"
                         >
-                          <Bell className="w-3 h-3 mr-1" />
-                          Remind
+                          Previous
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Pagination — keeps the DOM light by rendering one page of
-                  rows at a time. Reminders still act on the full filtered set. */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-4 text-sm">
-                <span className="text-muted-foreground tabular-nums">
-                  Showing {(page - 1) * PAGE_SIZE + 1}–
-                  {Math.min(page * PAGE_SIZE, filteredTeams.length)} of{" "}
-                  {filteredTeams.length.toLocaleString("en-IN")} teams
-                </span>
-                {pageCount > 1 && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={page <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      data-testid="heatmap-prev-page"
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-muted-foreground tabular-nums px-1">
-                      Page {page} of {pageCount}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={page >= pageCount}
-                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                      data-testid="heatmap-next-page"
-                    >
-                      Next
-                    </Button>
+                        <span className="text-muted-foreground tabular-nums px-1">
+                          Page {page} of {pageCount}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={page >= pageCount}
+                          onClick={() =>
+                            setPage((p) => Math.min(pageCount, p + 1))
+                          }
+                          data-testid="heatmap-next-page"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+              )}
+            </TabsContent>
 
-      {/* Per-student funnel */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <CardTitle>Student-wise Funnel</CardTitle>
-              <CardDescription>
-                Per-student totals across all of their team's journal entries.
-                {studentsData && (
-                  <span className="ml-1">
-                    Showing {sortedStudents.length} of {studentsData.total}
-                    {studentsData.total > sortedStudents.length && " (top 200)"}
-                  </span>
-                )}
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search student"
-                  value={studentQuery}
-                  onChange={(e) => setStudentQuery(e.target.value)}
-                  className="pl-9 w-56"
-                  data-testid="student-funnel-search"
-                />
-              </div>
-              <Select
-                value={studentSort}
-                onValueChange={(v) => setStudentSort(v as typeof studentSort)}
-              >
-                <SelectTrigger
-                  className="w-44"
-                  data-testid="student-funnel-sort"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="total">Sort: Total funnel</SelectItem>
-                  <SelectItem value="clients">Sort: Clients visited</SelectItem>
-                  <SelectItem value="conversations">
-                    Sort: Active conversations
-                  </SelectItem>
-                  <SelectItem value="started">
-                    Sort: Projects started
-                  </SelectItem>
-                  <SelectItem value="closed">Sort: Projects closed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {studentsLoading ? (
-            <div className="flex justify-center py-12">
-              <Spinner className="size-8" />
-            </div>
-          ) : sortedStudents.length === 0 ? (
-            <div className="text-sm text-muted-foreground py-12 text-center">
-              No students match the current filters.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="py-2 pr-3 font-medium min-w-[200px]">
-                      Student
-                    </th>
-                    <th className="py-2 px-3 font-medium">Team</th>
-                    <th className="py-2 px-3 font-medium text-right">
-                      #Clients visited
-                    </th>
-                    <th className="py-2 px-3 font-medium text-right">
-                      #Active conversations
-                    </th>
-                    <th className="py-2 px-3 font-medium text-right">
-                      #Projects started
-                    </th>
-                    <th className="py-2 px-3 font-medium text-right">
-                      #Projects closed
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedStudents.map((s) => (
-                    <tr
-                      key={s.userId}
-                      className="border-b hover:bg-accent/30"
-                      data-testid={`student-funnel-row-${s.userId}`}
+            <TabsContent value="students" className="mt-0 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <CardTitle>Student-wise Funnel</CardTitle>
+                  <CardDescription>
+                    Per-student totals across all of their team's journal
+                    entries.
+                    {studentsData && (
+                      <span className="ml-1">
+                        Showing {sortedStudents.length} of {studentsData.total}
+                        {studentsData.total > sortedStudents.length &&
+                          " (top 200)"}
+                      </span>
+                    )}
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search student"
+                      value={studentQuery}
+                      onChange={(e) => setStudentQuery(e.target.value)}
+                      className="pl-9 w-56"
+                      data-testid="student-funnel-search"
+                    />
+                  </div>
+                  <Select
+                    value={studentSort}
+                    onValueChange={(v) =>
+                      setStudentSort(v as typeof studentSort)
+                    }
+                  >
+                    <SelectTrigger
+                      className="w-44"
+                      data-testid="student-funnel-sort"
                     >
-                      <td className="py-2 pr-3">
-                        <div className="font-medium truncate">
-                          {`${s.firstName} ${s.lastName}`.trim() || s.email}
-                        </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {s.niatId ?? s.email} · {s.campusName ?? "—"}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 text-muted-foreground">
-                        {s.teamName ?? "—"}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono">
-                        {s.clientsVisited}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono">
-                        {s.activeConversations}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono">
-                        {s.projectsStarted}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono">
-                        {s.projectsClosed}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="total">Sort: Total funnel</SelectItem>
+                      <SelectItem value="clients">
+                        Sort: Clients visited
+                      </SelectItem>
+                      <SelectItem value="conversations">
+                        Sort: Active conversations
+                      </SelectItem>
+                      <SelectItem value="started">
+                        Sort: Projects started
+                      </SelectItem>
+                      <SelectItem value="closed">
+                        Sort: Projects closed
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {studentsLoading ? (
+                <div className="flex justify-center py-12">
+                  <Spinner className="size-8" />
+                </div>
+              ) : sortedStudents.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-12 text-center">
+                  No students match the current filters.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="py-2 pr-3 font-medium min-w-[200px]">
+                          Student
+                        </th>
+                        <th className="py-2 px-3 font-medium">Team</th>
+                        <th className="py-2 px-3 font-medium text-right">
+                          #Clients visited
+                        </th>
+                        <th className="py-2 px-3 font-medium text-right">
+                          #Active conversations
+                        </th>
+                        <th className="py-2 px-3 font-medium text-right">
+                          #Projects started
+                        </th>
+                        <th className="py-2 px-3 font-medium text-right">
+                          #Projects closed
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedStudents.map((s) => (
+                        <tr
+                          key={s.userId}
+                          className="border-b hover:bg-accent/30"
+                          data-testid={`student-funnel-row-${s.userId}`}
+                        >
+                          <td className="py-2 pr-3">
+                            <div className="font-medium truncate">
+                              {`${s.firstName} ${s.lastName}`.trim() || s.email}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {s.niatId ?? s.email} · {s.campusName ?? "—"}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 text-muted-foreground">
+                            {s.teamName ?? "—"}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono">
+                            {s.clientsVisited}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono">
+                            {s.activeConversations}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono">
+                            {s.projectsStarted}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono">
+                            {s.projectsClosed}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </TabsContent>
+          </CardContent>
+        </Tabs>
       </Card>
 
       {/* Bulk send confirmation */}
