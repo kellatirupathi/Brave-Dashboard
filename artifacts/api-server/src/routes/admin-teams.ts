@@ -1,5 +1,6 @@
-import { Router, type IRouter } from "express";
-import { eq, ilike, inArray } from "drizzle-orm";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { eq, ilike, inArray, sql, and, or } from "drizzle-orm";
+import * as XLSX from "xlsx";
 import {
   db,
   teamsTable,
@@ -35,7 +36,9 @@ const router: IRouter = Router();
  *   { ok: true, userId, campusId } when the user is ready to be added to a team
  *   { ok: false, reason } when the id is not in roster, or any other validation fails
  */
-async function resolveOrProvisionUser(studentUserId: string): Promise<
+async function resolveOrProvisionUser(
+  studentUserId: string,
+): Promise<
   | { ok: true; userId: string; campusId: number | null }
   | { ok: false; reason: string }
 > {
@@ -145,7 +148,11 @@ async function resolveOrProvisionUser(studentUserId: string): Promise<
     };
   }
 
-  return { ok: true, userId: provisioned.id, campusId: provisioned.campusId ?? null };
+  return {
+    ok: true,
+    userId: provisioned.id,
+    campusId: provisioned.campusId ?? null,
+  };
 }
 
 type CreateOk = { ok: true; teamId: number };
@@ -325,9 +332,7 @@ router.post("/admin/teams", async (req, res): Promise<void> => {
   }
   const memberUserIds = parsed.data.memberUserIds ?? [];
   if (memberUserIds.includes(parsed.data.leaderUserId)) {
-    res
-      .status(400)
-      .json({ error: "Leader cannot also be listed as a member" });
+    res.status(400).json({ error: "Leader cannot also be listed as a member" });
     return;
   }
 
@@ -383,129 +388,430 @@ router.post("/admin/teams", async (req, res): Promise<void> => {
 });
 
 // POST /admin/teams/bulk-import — bulk create
-router.post(
-  "/admin/teams/bulk-import",
-  async (req, res): Promise<void> => {
+router.post("/admin/teams/bulk-import", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const parsed = AdminBulkImportTeamsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const inserted: Array<{
+    rowNumber: number;
+    teamId: number;
+    teamName: string;
+  }> = [];
+  const skipped: Array<{
+    rowNumber: number;
+    teamName: string;
+    reason: string;
+  }> = [];
+
+  for (const row of parsed.data.teams) {
+    try {
+      const teamName = (row.teamName ?? "").trim();
+      const leaderUserId = (row.leaderUserId ?? "").trim();
+      const universityName = (row.universityName ?? "").trim();
+      const memberUserIds = (row.memberUserIds ?? [])
+        .map((m) => m.trim())
+        .filter((m) => m.length > 0);
+
+      if (!teamName) {
+        skipped.push({
+          rowNumber: row.rowNumber,
+          teamName,
+          reason: "Team name required",
+        });
+        continue;
+      }
+      if (!leaderUserId) {
+        skipped.push({
+          rowNumber: row.rowNumber,
+          teamName,
+          reason: "Leader required",
+        });
+        continue;
+      }
+      if (!universityName) {
+        skipped.push({
+          rowNumber: row.rowNumber,
+          teamName,
+          reason: "University required",
+        });
+        continue;
+      }
+
+      // Resolve campus by name (case-insensitive)
+      const [campus] = await db
+        .select({ id: campusesTable.id })
+        .from(campusesTable)
+        .where(ilike(campusesTable.name, universityName));
+      if (!campus) {
+        skipped.push({
+          rowNumber: row.rowNumber,
+          teamName,
+          reason: `Unknown university: ${universityName}`,
+        });
+        continue;
+      }
+
+      const result = await createActiveTeam({
+        name: teamName,
+        campusId: campus.id,
+        leaderUserId,
+        memberUserIds,
+        actorUserId: req.user.id,
+      });
+
+      if (!result.ok) {
+        skipped.push({
+          rowNumber: row.rowNumber,
+          teamName,
+          reason: result.reason,
+        });
+        continue;
+      }
+
+      inserted.push({
+        rowNumber: row.rowNumber,
+        teamId: result.teamId,
+        teamName,
+      });
+    } catch (err) {
+      skipped.push({
+        rowNumber: row.rowNumber,
+        teamName: row.teamName ?? "",
+        reason:
+          err instanceof Error ? err.message : "Unexpected error during import",
+      });
+    }
+  }
+
+  await logAudit(
+    req.user.id,
+    "admin.teams_bulk_imported",
+    "team",
+    undefined,
+    JSON.stringify({
+      totalRows: parsed.data.teams.length,
+      insertedCount: inserted.length,
+      skippedCount: skipped.length,
+    }),
+  );
+
+  res.status(200).json({
+    totalRows: parsed.data.teams.length,
+    insertedCount: inserted.length,
+    skippedCount: skipped.length,
+    inserted,
+    skipped,
+  });
+});
+
+// =============================================================================
+// Export — Teams + members directory
+//
+// Two flavours, both admin-only and respect the same filters as the Teams
+// Directory list (`status` + `search`):
+//   GET /admin/teams/export-all.csv         — single flat CSV, all teams
+//   GET /admin/teams/export-by-campus.xlsx  — multi-sheet workbook, one sheet
+//                                             per campus
+//
+// Row ordering: campus → team name → leader first → members in joined_at order
+// Teams are visually separated by an empty row.
+// Empty teams (0 members) are skipped.
+// =============================================================================
+
+type ExportRow = {
+  team_id: number;
+  team_name: string;
+  team_status: string;
+  team_created_at: Date;
+  campus_id: number;
+  campus_name: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  niat_id: string | null;
+  email: string;
+  joined_at: Date;
+  member_role: string; // 'Leader' | 'Member'
+  batch_section_name: string | null;
+};
+
+const CSV_COLUMNS: Array<{
+  key: keyof ExportRow | "full_name";
+  header: string;
+}> = [
+  { key: "team_name", header: "Team Name" },
+  { key: "campus_name", header: "Campus" },
+  { key: "member_role", header: "Role" },
+  { key: "full_name", header: "Full Name" },
+  { key: "niat_id", header: "NIAT ID" },
+  { key: "email", header: "Email" },
+  { key: "batch_section_name", header: "Batch / Section" },
+  { key: "joined_at", header: "Joined At" },
+  { key: "team_status", header: "Team Status" },
+  { key: "team_created_at", header: "Team Created" },
+];
+
+async function fetchExportRows(opts: {
+  status?: string;
+  search?: string;
+}): Promise<ExportRow[]> {
+  // Build WHERE clause matching the existing /teams list behaviour:
+  //  - status filter narrows to one team status (active / rejected / etc.)
+  //  - search matches team name, campus name, member name/email/niatId
+  // Empty teams are filtered out by the INNER JOIN on team_members.
+  const conditions = [] as any[];
+  if (opts.status && opts.status !== "all") {
+    conditions.push(eq(teamsTable.status, opts.status as any));
+  }
+  if (opts.search && opts.search.trim()) {
+    const like = `%${opts.search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(teamsTable.name, like),
+        ilike(campusesTable.name, like),
+        ilike(usersTable.firstName, like),
+        ilike(usersTable.lastName, like),
+        ilike(usersTable.email, like),
+        ilike(usersTable.niatId, like),
+      ),
+    );
+  }
+  const whereClause = conditions.length === 0 ? sql`TRUE` : and(...conditions);
+
+  // Single JOIN query; ordering: campus → team → leader-first → joined_at.
+  const rows = await db
+    .select({
+      team_id: teamsTable.id,
+      team_name: teamsTable.name,
+      team_status: teamsTable.status,
+      team_created_at: teamsTable.createdAt,
+      campus_id: campusesTable.id,
+      campus_name: campusesTable.name,
+      user_id: usersTable.id,
+      first_name: usersTable.firstName,
+      last_name: usersTable.lastName,
+      niat_id: usersTable.niatId,
+      email: usersTable.email,
+      joined_at: teamMembersTable.joinedAt,
+      member_role: sql<string>`CASE WHEN ${usersTable.id} = ${teamsTable.leaderId} THEN 'Leader' ELSE 'Member' END`,
+      batch_section_name: rosterTable.batchSectionName,
+    })
+    .from(teamsTable)
+    .innerJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+    .innerJoin(teamMembersTable, eq(teamMembersTable.teamId, teamsTable.id))
+    .innerJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+    .leftJoin(
+      rosterTable,
+      or(
+        eq(rosterTable.email, usersTable.email),
+        eq(rosterTable.studentId, usersTable.formsUserId),
+      ),
+    )
+    .where(whereClause)
+    .orderBy(
+      sql`${campusesTable.name} ASC`,
+      sql`${teamsTable.name} ASC`,
+      sql`CASE WHEN ${usersTable.id} = ${teamsTable.leaderId} THEN 0 ELSE 1 END`,
+      sql`${teamMembersTable.joinedAt} ASC`,
+    );
+
+  return rows as unknown as ExportRow[];
+}
+
+function fmtCell(v: unknown): string {
+  if (v == null) return "";
+  if (v instanceof Date) {
+    // YYYY-MM-DD HH:MM (UTC) — short, sortable, opens cleanly in Excel
+    return v.toISOString().slice(0, 16).replace("T", " ");
+  }
+  return String(v);
+}
+
+function csvEscape(v: string): string {
+  if (v === "") return "";
+  // Quote if contains delimiter, quote, newline. Double internal quotes.
+  if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+function rowToCsvLine(row: ExportRow): string {
+  return CSV_COLUMNS.map((col) => {
+    if (col.key === "full_name") {
+      const name = `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim();
+      return csvEscape(name);
+    }
+    return csvEscape(fmtCell(row[col.key as keyof ExportRow]));
+  }).join(",");
+}
+
+function rowToObject(row: ExportRow): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const col of CSV_COLUMNS) {
+    if (col.key === "full_name") {
+      out[col.header] = `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim();
+    } else {
+      out[col.header] = fmtCell(row[col.key as keyof ExportRow]);
+    }
+  }
+  return out;
+}
+
+function emptyCsvRow(): string {
+  return CSV_COLUMNS.map(() => "").join(",");
+}
+
+function emptyObjectRow(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const col of CSV_COLUMNS) out[col.header] = "";
+  return out;
+}
+
+function timestampForFilename(): string {
+  return new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+}
+
+// ---------- Export 1: single flat CSV ----------
+router.get(
+  "/admin/teams/export-all.csv",
+  async (req: Request, res: Response): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const parsed = AdminBulkImportTeamsBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+    try {
+      const rows = await fetchExportRows({
+        status:
+          typeof req.query.status === "string" ? req.query.status : undefined,
+        search:
+          typeof req.query.search === "string" ? req.query.search : undefined,
+      });
+
+      const lines: string[] = [];
+      // Header
+      lines.push(CSV_COLUMNS.map((c) => csvEscape(c.header)).join(","));
+      // Body, with empty row between teams
+      let prevTeamId: number | null = null;
+      for (const row of rows) {
+        if (prevTeamId != null && row.team_id !== prevTeamId) {
+          lines.push(emptyCsvRow());
+        }
+        lines.push(rowToCsvLine(row));
+        prevTeamId = row.team_id;
+      }
+
+      const csv = lines.join("\r\n");
+      // UTF-8 BOM so Excel auto-detects encoding (Indian names with diacritics)
+      const buffer = Buffer.concat([
+        Buffer.from("﻿", "utf8"),
+        Buffer.from(csv, "utf8"),
+      ]);
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="brave-teams-${timestampForFilename()}.csv"`,
+      );
+      res.send(buffer);
+    } catch (err) {
+      req.log.error({ err }, "[admin/teams/export-all.csv] failed");
+      res.status(500).json({ error: "Export failed" });
+    }
+  },
+);
+
+// ---------- Export 2: multi-sheet xlsx (one sheet per campus) ----------
+router.get(
+  "/admin/teams/export-by-campus.xlsx",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
+    try {
+      const rows = await fetchExportRows({
+        status:
+          typeof req.query.status === "string" ? req.query.status : undefined,
+        search:
+          typeof req.query.search === "string" ? req.query.search : undefined,
+      });
 
-    const inserted: Array<{
-      rowNumber: number;
-      teamId: number;
-      teamName: string;
-    }> = [];
-    const skipped: Array<{
-      rowNumber: number;
-      teamName: string;
-      reason: string;
-    }> = [];
-
-    for (const row of parsed.data.teams) {
-      try {
-        const teamName = (row.teamName ?? "").trim();
-        const leaderUserId = (row.leaderUserId ?? "").trim();
-        const universityName = (row.universityName ?? "").trim();
-        const memberUserIds = (row.memberUserIds ?? [])
-          .map((m) => m.trim())
-          .filter((m) => m.length > 0);
-
-        if (!teamName) {
-          skipped.push({
-            rowNumber: row.rowNumber,
-            teamName,
-            reason: "Team name required",
-          });
-          continue;
-        }
-        if (!leaderUserId) {
-          skipped.push({
-            rowNumber: row.rowNumber,
-            teamName,
-            reason: "Leader required",
-          });
-          continue;
-        }
-        if (!universityName) {
-          skipped.push({
-            rowNumber: row.rowNumber,
-            teamName,
-            reason: "University required",
-          });
-          continue;
-        }
-
-        // Resolve campus by name (case-insensitive)
-        const [campus] = await db
-          .select({ id: campusesTable.id })
-          .from(campusesTable)
-          .where(ilike(campusesTable.name, universityName));
-        if (!campus) {
-          skipped.push({
-            rowNumber: row.rowNumber,
-            teamName,
-            reason: `Unknown university: ${universityName}`,
-          });
-          continue;
-        }
-
-        const result = await createActiveTeam({
-          name: teamName,
-          campusId: campus.id,
-          leaderUserId,
-          memberUserIds,
-          actorUserId: req.user.id,
-        });
-
-        if (!result.ok) {
-          skipped.push({
-            rowNumber: row.rowNumber,
-            teamName,
-            reason: result.reason,
-          });
-          continue;
-        }
-
-        inserted.push({
-          rowNumber: row.rowNumber,
-          teamId: result.teamId,
-          teamName,
-        });
-      } catch (err) {
-        skipped.push({
-          rowNumber: row.rowNumber,
-          teamName: row.teamName ?? "",
-          reason:
-            err instanceof Error ? err.message : "Unexpected error during import",
-        });
+      // Group rows by campus, preserving the SQL ordering inside each group.
+      const byCampus = new Map<string, ExportRow[]>();
+      for (const row of rows) {
+        const key = row.campus_name || "(no campus)";
+        const bucket = byCampus.get(key) ?? [];
+        bucket.push(row);
+        byCampus.set(key, bucket);
       }
+
+      const workbook = XLSX.utils.book_new();
+
+      // Sheet 1: an "All Teams" overview sheet first
+      {
+        const sheetRows: Record<string, string>[] = [];
+        let prevTeamId: number | null = null;
+        for (const row of rows) {
+          if (prevTeamId != null && row.team_id !== prevTeamId) {
+            sheetRows.push(emptyObjectRow());
+          }
+          sheetRows.push(rowToObject(row));
+          prevTeamId = row.team_id;
+        }
+        const ws = XLSX.utils.json_to_sheet(sheetRows, {
+          header: CSV_COLUMNS.map((c) => c.header),
+        });
+        XLSX.utils.book_append_sheet(workbook, ws, "All Teams");
+      }
+
+      // One sheet per campus, alphabetical
+      const campusNames = [...byCampus.keys()].sort((a, b) =>
+        a.localeCompare(b),
+      );
+      for (const campusName of campusNames) {
+        const campusRows = byCampus.get(campusName)!;
+        const sheetRows: Record<string, string>[] = [];
+        let prevTeamId: number | null = null;
+        for (const row of campusRows) {
+          if (prevTeamId != null && row.team_id !== prevTeamId) {
+            sheetRows.push(emptyObjectRow());
+          }
+          sheetRows.push(rowToObject(row));
+          prevTeamId = row.team_id;
+        }
+        const ws = XLSX.utils.json_to_sheet(sheetRows, {
+          header: CSV_COLUMNS.map((c) => c.header),
+        });
+        // Excel sheet names: max 31 chars, no : \ / ? * [ ]
+        const safeName =
+          campusName.replace(/[\\/?*[\]:]/g, "-").slice(0, 31) || "Campus";
+        XLSX.utils.book_append_sheet(workbook, ws, safeName);
+      }
+
+      const buffer = XLSX.write(workbook, {
+        type: "buffer",
+        bookType: "xlsx",
+      }) as Buffer;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="brave-teams-by-campus-${timestampForFilename()}.xlsx"`,
+      );
+      res.send(buffer);
+    } catch (err) {
+      req.log.error({ err }, "[admin/teams/export-by-campus.xlsx] failed");
+      res.status(500).json({ error: "Export failed" });
     }
-
-    await logAudit(
-      req.user.id,
-      "admin.teams_bulk_imported",
-      "team",
-      undefined,
-      JSON.stringify({
-        totalRows: parsed.data.teams.length,
-        insertedCount: inserted.length,
-        skippedCount: skipped.length,
-      }),
-    );
-
-    res.status(200).json({
-      totalRows: parsed.data.teams.length,
-      insertedCount: inserted.length,
-      skippedCount: skipped.length,
-      inserted,
-      skipped,
-    });
   },
 );
 

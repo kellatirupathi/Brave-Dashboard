@@ -21,7 +21,17 @@ import {
   Upload,
   ChevronLeft,
   ChevronRight,
+  MoreVertical,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AddTeamDialog } from "./components/AddTeamDialog";
 import { ImportTeamsDialog } from "./components/ImportTeamsDialog";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +124,59 @@ export default function AdminTeams() {
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
 
+  // Build the same filter query string used by the list endpoint so the
+  // export respects the admin's current view (status + search).
+  const exportQueryString = () => {
+    const p = new URLSearchParams();
+    if (status !== "all") p.set("status", status);
+    if (search.trim()) p.set("search", search.trim());
+    const qs = p.toString();
+    return qs ? `?${qs}` : "";
+  };
+
+  const [exporting, setExporting] = useState<null | "csv" | "xlsx">(null);
+
+  const downloadExport = async (kind: "csv" | "xlsx") => {
+    if (exporting) return;
+    setExporting(kind);
+    try {
+      const path =
+        kind === "csv"
+          ? `/api/admin/teams/export-all.csv${exportQueryString()}`
+          : `/api/admin/teams/export-by-campus.xlsx${exportQueryString()}`;
+      const res = await fetch(path, { credentials: "include" });
+      if (!res.ok) {
+        throw new Error(`Export failed (HTTP ${res.status})`);
+      }
+      const blob = await res.blob();
+      const filename =
+        res.headers
+          .get("content-disposition")
+          ?.match(/filename="?([^"]+)"?/)?.[1] ??
+        (kind === "csv" ? "brave-teams.csv" : "brave-teams.xlsx");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({
+        title: kind === "csv" ? "CSV exported" : "Excel exported",
+        description: filename,
+      });
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const handleDelete = () => {
     if (!deleteTarget) return;
     deleteTeam.mutate(
@@ -157,14 +220,53 @@ export default function AdminTeams() {
                 <UserPlus className="w-4 h-4 mr-2" />
                 Add Team
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => setImportOpen(true)}
-                data-testid="button-open-import-teams"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Import CSV
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="More actions"
+                    disabled={exporting !== null}
+                    data-testid="button-teams-more-actions"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64"
+                  data-testid="menu-teams-more-actions"
+                >
+                  <DropdownMenuItem
+                    onClick={() => setImportOpen(true)}
+                    data-testid="menu-item-import-csv"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => void downloadExport("csv")}
+                    disabled={exporting !== null}
+                    data-testid="menu-item-export-csv"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    {exporting === "csv"
+                      ? "Exporting CSV…"
+                      : "Export all teams (CSV)"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => void downloadExport("xlsx")}
+                    disabled={exporting !== null}
+                    data-testid="menu-item-export-xlsx"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    {exporting === "xlsx"
+                      ? "Exporting Excel…"
+                      : "Export campus-wise (Excel)"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
           <div className="relative flex-1 md:w-64">
