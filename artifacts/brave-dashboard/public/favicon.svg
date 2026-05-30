@@ -1,13 +1,13 @@
 <svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
   <rect width="180" height="180" rx="20" fill="#5D1414"/>
   <text
-    x="10"
-    y="108"
+    x="35"
+    y="142"
     font-family="'Supreme', 'Plus Jakarta Sans', system-ui, sans-serif"
     font-weight="800"
-    font-size="40"
-    letter-spacing="-1"
+    font-size="140"
+    letter-spacing="-3"
     fill="#C0392B"
-  >BRAVE</text>
-  <rect x="141" y="95" width="12" height="12" fill="#EF9F27"/>
+  >B</text>
+  <rect x="135" y="120" width="24" height="24" fill="#EF9F27"/>
 </svg>
