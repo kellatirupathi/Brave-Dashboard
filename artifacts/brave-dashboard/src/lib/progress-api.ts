@@ -282,12 +282,13 @@ export type HeatmapAnalytics = {
     loggedInEver: number;
     uniqueJournalEntries: number;
   };
+  // Ordered top→bottom nested funnel stages. Each stage's count is a strict
+  // subset of the previous, so the array is monotonically non-increasing.
   funnel: {
-    studentsWithClients: number;
-    studentsWithConversations: number;
-    studentsWithProjectsStarted: number;
-    studentsWithProjectsClosed: number;
-  };
+    key: string;
+    label: string;
+    count: number;
+  }[];
   engagement: {
     dau: number;
     wau: number;

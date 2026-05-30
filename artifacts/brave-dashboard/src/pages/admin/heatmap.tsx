@@ -46,7 +46,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -101,57 +100,109 @@ function HeroCard({
   );
 }
 
-function FunnelBar({
-  label,
-  icon,
-  value,
-  total,
+// Per-stage icon + colour for the funnel. Keyed by the backend stage `key`.
+// Colours progress cool→warm→green to read as a journey toward "closed".
+const FUNNEL_STAGE_META: Record<
+  string,
+  { icon: React.ReactNode; color: string }
+> = {
+  registered: { icon: <Users className="h-4 w-4" />, color: "bg-slate-400" },
+  logged_in: { icon: <LogIn className="h-4 w-4" />, color: "bg-sky-500" },
+  journal: {
+    icon: <ClipboardList className="h-4 w-4" />,
+    color: "bg-blue-500",
+  },
+  client: { icon: <Briefcase className="h-4 w-4" />, color: "bg-violet-500" },
+  conversation: {
+    icon: <MessageCircle className="h-4 w-4" />,
+    color: "bg-fuchsia-500",
+  },
+  started: { icon: <Rocket className="h-4 w-4" />, color: "bg-amber-500" },
+  closed: {
+    icon: <PackageCheck className="h-4 w-4" />,
+    color: "bg-emerald-500",
+  },
+};
+
+// A real, tapering conversion funnel. Each centered bar's width = the stage's
+// share of the top stage, so the shape narrows as students drop off. Between
+// rows we show the step-to-step conversion (and drop-off) so admins can see
+// exactly where the programme loses people.
+function FunnelChart({
+  stages,
   loading,
-  color,
 }: {
-  label: string;
-  icon: React.ReactNode;
-  value: number | undefined;
-  total: number | undefined;
+  stages: { key: string; label: string; count: number }[];
   loading: boolean;
-  color: string;
 }) {
-  const v = value ?? 0;
-  const t = total ?? 0;
-  const pct = t > 0 ? Math.min((v / t) * 100, 100) : 0;
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner className="size-8" />
+      </div>
+    );
+  }
+  if (stages.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground py-12 text-center">
+        No funnel data yet.
+      </div>
+    );
+  }
+  const base = stages[0]?.count ?? 0;
   return (
-    <div
-      className="flex items-center gap-3"
-      data-testid={`funnel-bar-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-    >
-      <div className="flex items-center gap-2 w-56 shrink-0">
-        <span className="text-muted-foreground">{icon}</span>
-        <span className="text-sm font-medium truncate">{label}</span>
-      </div>
-      <div className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
-        {loading ? null : (
-          <div
-            className={cn("h-full rounded-full transition-all", color)}
-            style={{ width: `${pct}%` }}
-          />
-        )}
-      </div>
-      <div className="w-32 text-right text-sm tabular-nums">
-        {loading ? (
-          <Spinner className="size-3 inline-block" />
-        ) : (
-          <>
-            <span className="font-medium">{v.toLocaleString("en-IN")}</span>
-            <span className="text-muted-foreground">
-              {" "}
-              / {t.toLocaleString("en-IN")}
-            </span>
-            <span className="text-muted-foreground ml-2 text-xs">
-              {pct.toFixed(1)}%
-            </span>
-          </>
-        )}
-      </div>
+    <div className="space-y-1" data-testid="funnel-chart">
+      {stages.map((s, i) => {
+        const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
+        const prev = i > 0 ? stages[i - 1] : null;
+        const stepPct =
+          prev && prev.count > 0 ? (s.count / prev.count) * 100 : null;
+        const meta = FUNNEL_STAGE_META[s.key] ?? {
+          icon: null,
+          color: "bg-primary",
+        };
+        return (
+          <div key={s.key}>
+            {prev && stepPct !== null && (
+              <div className="flex justify-center">
+                <span className="text-[11px] text-muted-foreground py-0.5">
+                  ↓ {stepPct.toFixed(0)}% continued
+                  {stepPct < 100 && (
+                    <span className="text-destructive/70">
+                      {" · "}
+                      {(100 - stepPct).toFixed(0)}% dropped
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+            <div
+              className="flex items-center gap-3"
+              data-testid={`funnel-stage-${s.key}`}
+            >
+              <div className="flex items-center gap-2 w-48 shrink-0">
+                <span className="text-muted-foreground">{meta.icon}</span>
+                <span className="text-sm font-medium truncate">{s.label}</span>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div
+                  className={cn(
+                    "h-9 rounded-md flex items-center justify-center text-white text-sm font-semibold tabular-nums transition-all px-2 min-w-[2.75rem]",
+                    meta.color,
+                  )}
+                  style={{ width: `${Math.max(pctOfTotal, 4)}%` }}
+                  title={`${s.count.toLocaleString("en-IN")} students`}
+                >
+                  {s.count.toLocaleString("en-IN")}
+                </div>
+              </div>
+              <div className="w-12 text-right text-sm tabular-nums text-muted-foreground shrink-0">
+                {pctOfTotal.toFixed(0)}%
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -504,50 +555,15 @@ export default function HeatmapPage() {
             <CardHeader>
               <CardTitle className="text-base">Programme Funnel</CardTitle>
               <CardDescription>
-                Each row = distinct students who reached that stage, against
-                total registered students.
+                Each stage counts students who reached it <em>and</em> every
+                stage above. Bars narrow as students drop off; the label between
+                rows shows step-to-step conversion.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <FunnelBar
-                label="Unique Journal Entries"
-                icon={<ClipboardList className="h-4 w-4" />}
-                value={analytics?.totals.uniqueJournalEntries}
-                total={analytics?.totals.totalStudents}
+            <CardContent className="pt-2">
+              <FunnelChart
+                stages={analytics?.funnel ?? []}
                 loading={analyticsLoading}
-                color="bg-slate-500"
-              />
-              <FunnelBar
-                label=">1 Clients Visited"
-                icon={<Briefcase className="h-4 w-4" />}
-                value={analytics?.funnel.studentsWithClients}
-                total={analytics?.totals.totalStudents}
-                loading={analyticsLoading}
-                color="bg-blue-500"
-              />
-              <FunnelBar
-                label=">1 Active Conversations"
-                icon={<MessageCircle className="h-4 w-4" />}
-                value={analytics?.funnel.studentsWithConversations}
-                total={analytics?.totals.totalStudents}
-                loading={analyticsLoading}
-                color="bg-violet-500"
-              />
-              <FunnelBar
-                label=">1 Projects Started"
-                icon={<Rocket className="h-4 w-4" />}
-                value={analytics?.funnel.studentsWithProjectsStarted}
-                total={analytics?.totals.totalStudents}
-                loading={analyticsLoading}
-                color="bg-amber-500"
-              />
-              <FunnelBar
-                label=">1 Projects Closed"
-                icon={<PackageCheck className="h-4 w-4" />}
-                value={analytics?.funnel.studentsWithProjectsClosed}
-                total={analytics?.totals.totalStudents}
-                loading={analyticsLoading}
-                color="bg-emerald-500"
               />
             </CardContent>
           </Card>

@@ -418,12 +418,15 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
           loggedInEver: 0,
           uniqueJournalEntries: 0,
         },
-        funnel: {
-          studentsWithClients: 0,
-          studentsWithConversations: 0,
-          studentsWithProjectsStarted: 0,
-          studentsWithProjectsClosed: 0,
-        },
+        funnel: [
+          { key: "registered", label: "Registered students", count: 0 },
+          { key: "logged_in", label: "Logged in", count: 0 },
+          { key: "journal", label: "Submitted a journal", count: 0 },
+          { key: "client", label: "Visited a client", count: 0 },
+          { key: "conversation", label: "Active conversation", count: 0 },
+          { key: "started", label: "Started a project", count: 0 },
+          { key: "closed", label: "Closed a project", count: 0 },
+        ],
         engagement: { dau: 0, wau: 0 },
       });
       return;
@@ -454,18 +457,25 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
         })                                                                                                          AS unique_journals
   `);
 
-  // Per-student funnel: count distinct students whose summed journal field
-  // is > 1. Aggregate at team level first (each team's journals sum once),
-  // then attribute that team's total to every member.
+  // Programme funnel — TRUE nested stages. Each stage requires the student to
+  // satisfy that stage AND every prior stage, so the counts decrease
+  // monotonically (a real conversion funnel, never a non-monotonic blip).
+  // Team journal counters are summed per team, then attributed to each member
+  // (one team per user). LEFT JOIN team_members so team-less students still
+  // count as "registered" at the top of the funnel.
   const funnelP = db.execute<{
-    students_with_clients: string;
-    students_with_conversations: string;
-    students_with_projects_started: string;
-    students_with_projects_closed: string;
+    registered: string;
+    logged_in: string;
+    submitted_journal: string;
+    visited_client: string;
+    active_conversation: string;
+    started_project: string;
+    closed_project: string;
   }>(sql`
     WITH team_totals AS (
       SELECT
         j.team_id,
+        COUNT(*)                    AS journals,
         SUM(j.clients_visited)      AS clients,
         SUM(j.active_conversations) AS conversations,
         SUM(j.projects_started)     AS started,
@@ -476,22 +486,37 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
     student_totals AS (
       SELECT
         u.id AS user_id,
-        COALESCE(SUM(tt.clients), 0)       AS clients,
-        COALESCE(SUM(tt.conversations), 0) AS conversations,
-        COALESCE(SUM(tt.started), 0)       AS started,
-        COALESCE(SUM(tt.closed), 0)        AS closed
+        (u.last_seen_at IS NOT NULL)        AS logged_in,
+        COALESCE(SUM(tt.journals), 0)       AS journals,
+        COALESCE(SUM(tt.clients), 0)        AS clients,
+        COALESCE(SUM(tt.conversations), 0)  AS conversations,
+        COALESCE(SUM(tt.started), 0)        AS started,
+        COALESCE(SUM(tt.closed), 0)         AS closed
       FROM users u
-      JOIN team_members tm ON tm.user_id = u.id
+      LEFT JOIN team_members tm ON tm.user_id = u.id
       LEFT JOIN team_totals tt ON tt.team_id = tm.team_id
       WHERE u.role = 'student' ${campusClause}
-      GROUP BY u.id
+      GROUP BY u.id, u.last_seen_at
+    ),
+    staged AS (
+      SELECT
+        logged_in,
+        (logged_in AND journals >= 1)                                                                          AS s_journal,
+        (logged_in AND journals >= 1 AND clients >= 1)                                                         AS s_client,
+        (logged_in AND journals >= 1 AND clients >= 1 AND conversations >= 1)                                  AS s_conversation,
+        (logged_in AND journals >= 1 AND clients >= 1 AND conversations >= 1 AND started >= 1)                 AS s_started,
+        (logged_in AND journals >= 1 AND clients >= 1 AND conversations >= 1 AND started >= 1 AND closed >= 1) AS s_closed
+      FROM student_totals
     )
     SELECT
-      COUNT(*) FILTER (WHERE clients > 1)       AS students_with_clients,
-      COUNT(*) FILTER (WHERE conversations > 1) AS students_with_conversations,
-      COUNT(*) FILTER (WHERE started > 1)       AS students_with_projects_started,
-      COUNT(*) FILTER (WHERE closed > 1)        AS students_with_projects_closed
-    FROM student_totals
+      COUNT(*)                               AS registered,
+      COUNT(*) FILTER (WHERE logged_in)      AS logged_in,
+      COUNT(*) FILTER (WHERE s_journal)      AS submitted_journal,
+      COUNT(*) FILTER (WHERE s_client)       AS visited_client,
+      COUNT(*) FILTER (WHERE s_conversation) AS active_conversation,
+      COUNT(*) FILTER (WHERE s_started)      AS started_project,
+      COUNT(*) FILTER (WHERE s_closed)       AS closed_project
+    FROM staged
   `);
 
   // DAU / WAU based on last_seen_at, scoped to students.
@@ -522,14 +547,46 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
       loggedInEver: Number(c?.logged_in_ever ?? 0),
       uniqueJournalEntries: Number(c?.unique_journals ?? 0),
     },
-    funnel: {
-      studentsWithClients: Number(f?.students_with_clients ?? 0),
-      studentsWithConversations: Number(f?.students_with_conversations ?? 0),
-      studentsWithProjectsStarted: Number(
-        f?.students_with_projects_started ?? 0,
-      ),
-      studentsWithProjectsClosed: Number(f?.students_with_projects_closed ?? 0),
-    },
+    // Ordered top→bottom. Each stage is a strict subset of the one above,
+    // so counts are monotonically non-increasing — the frontend renders this
+    // directly as a tapering funnel with step-to-step conversion.
+    funnel: [
+      {
+        key: "registered",
+        label: "Registered students",
+        count: Number(f?.registered ?? 0),
+      },
+      {
+        key: "logged_in",
+        label: "Logged in",
+        count: Number(f?.logged_in ?? 0),
+      },
+      {
+        key: "journal",
+        label: "Submitted a journal",
+        count: Number(f?.submitted_journal ?? 0),
+      },
+      {
+        key: "client",
+        label: "Visited a client",
+        count: Number(f?.visited_client ?? 0),
+      },
+      {
+        key: "conversation",
+        label: "Active conversation",
+        count: Number(f?.active_conversation ?? 0),
+      },
+      {
+        key: "started",
+        label: "Started a project",
+        count: Number(f?.started_project ?? 0),
+      },
+      {
+        key: "closed",
+        label: "Closed a project",
+        count: Number(f?.closed_project ?? 0),
+      },
+    ],
     engagement: {
       dau: Number(e?.dau ?? 0),
       wau: Number(e?.wau ?? 0),
