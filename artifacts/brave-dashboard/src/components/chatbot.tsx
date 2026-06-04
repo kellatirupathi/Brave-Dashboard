@@ -267,9 +267,14 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
             aria-label="Hide assistant"
             title="Hide assistant"
             data-testid="button-dismiss-chatbot"
-            className="absolute -top-1 -right-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white text-gray-600 shadow-md ring-1 ring-black/10 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4402f]"
+            className={`absolute -top-2 -right-2 z-10 flex h-6 w-6 items-center justify-center transition-transform hover:scale-110 focus:outline-none ${
+              isDark
+                ? "text-white/90 hover:text-white"
+                : "text-gray-700 hover:text-black"
+            }`}
+            style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))" }}
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" strokeWidth={2.5} />
           </button>
         </div>
       )}
