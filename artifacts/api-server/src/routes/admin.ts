@@ -1103,65 +1103,59 @@ const ChatbotProviderBody = z.object({
   provider: z.enum(["cloudflare", "cerebras"]),
 });
 
-router.get(
-  "/admin/chatbot-provider",
-  async (req, res): Promise<void> => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-    const [row] = await db
-      .select({ provider: programmeConfigTable.chatbotProvider })
-      .from(programmeConfigTable)
-      .limit(1);
-    res.json({ provider: row?.provider ?? "cloudflare" });
-  },
-);
+router.get("/admin/chatbot-provider", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const [row] = await db
+    .select({ provider: programmeConfigTable.chatbotProvider })
+    .from(programmeConfigTable)
+    .limit(1);
+  res.json({ provider: row?.provider ?? "cloudflare" });
+});
 
-router.patch(
-  "/admin/chatbot-provider",
-  async (req, res): Promise<void> => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-    const parsed = ChatbotProviderBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
-      return;
-    }
-    const newProvider = parsed.data.provider;
+router.patch("/admin/chatbot-provider", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const parsed = ChatbotProviderBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const newProvider = parsed.data.provider;
 
-    let configs = await db.select().from(programmeConfigTable).limit(1);
-    const oldProvider = configs[0]?.chatbotProvider ?? "cloudflare";
+  let configs = await db.select().from(programmeConfigTable).limit(1);
+  const oldProvider = configs[0]?.chatbotProvider ?? "cloudflare";
 
-    let config;
-    if (configs.length === 0) {
-      [config] = await db
-        .insert(programmeConfigTable)
-        .values({ chatbotProvider: newProvider })
-        .returning();
-    } else {
-      [config] = await db
-        .update(programmeConfigTable)
-        .set({ chatbotProvider: newProvider })
-        .where(eq(programmeConfigTable.id, configs[0].id))
-        .returning();
-    }
+  let config;
+  if (configs.length === 0) {
+    [config] = await db
+      .insert(programmeConfigTable)
+      .values({ chatbotProvider: newProvider })
+      .returning();
+  } else {
+    [config] = await db
+      .update(programmeConfigTable)
+      .set({ chatbotProvider: newProvider })
+      .where(eq(programmeConfigTable.id, configs[0].id))
+      .returning();
+  }
 
-    invalidateChatbotProviderCache();
+  invalidateChatbotProviderCache();
 
-    await logAudit(
-      req.user.id,
-      "change_chatbot_provider",
-      "programme_config",
-      config?.id,
-      JSON.stringify({ from: oldProvider, to: newProvider }),
-    );
+  await logAudit(
+    req.user.id,
+    "change_chatbot_provider",
+    "programme_config",
+    config?.id,
+    JSON.stringify({ from: oldProvider, to: newProvider }),
+  );
 
-    res.json({ provider: newProvider });
-  },
-);
+  res.json({ provider: newProvider });
+});
 
 // Audit Log
 router.get("/admin/audit-log", async (req, res): Promise<void> => {
@@ -1954,40 +1948,46 @@ router.post("/admin/test-email", async (req, res): Promise<void> => {
 
 // List membership requests, filtered by status. Defaults to pending. Used by the
 // admin "Team Requests" page (Pending + History tabs).
-router.get(
-  "/admin/membership-requests",
-  async (req, res): Promise<void> => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      res.status(403).json({ error: "Admin access required" });
-      return;
-    }
-    const statusParam =
-      typeof req.query.status === "string" ? req.query.status : "pending";
-    const conds = [];
-    if (statusParam === "pending") {
-      conds.push(eq(membershipRequestsTable.status, "pending"));
-    } else if (statusParam === "approved") {
-      conds.push(eq(membershipRequestsTable.status, "approved"));
-    } else if (statusParam === "rejected") {
-      conds.push(eq(membershipRequestsTable.status, "rejected"));
-    } else if (statusParam === "history") {
-      conds.push(
-        inArray(membershipRequestsTable.status, ["approved", "rejected"]),
-      );
-    }
-    // "all" → no status filter.
-    const rows = await db
-      .select()
-      .from(membershipRequestsTable)
-      .where(conds.length ? and(...conds) : undefined)
-      .orderBy(
-        statusParam === "pending"
-          ? desc(membershipRequestsTable.createdAt)
-          : desc(membershipRequestsTable.decidedAt),
-      );
-    res.json(await Promise.all(rows.map(shapeMembershipRequest)));
-  },
-);
+router.get("/admin/membership-requests", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+  const statusParam =
+    typeof req.query.status === "string" ? req.query.status : "pending";
+  const conds = [];
+  if (statusParam === "pending") {
+    conds.push(eq(membershipRequestsTable.status, "pending"));
+    // Hide orphaned requests whose team has since been deleted. These are
+    // un-actionable (approve fails with "Team no longer exists") and show up
+    // as meaningless "leaving Unknown" cards. Belt-and-suspenders alongside
+    // the delete-time cleanup in DELETE /teams/:id — also clears any orphans
+    // created before that cleanup existed. The pending count badge is derived
+    // from this list length, so filtering here fixes the count too.
+    conds.push(
+      sql`exists (select 1 from ${teamsTable} where ${teamsTable.id} = ${membershipRequestsTable.teamId})`,
+    );
+  } else if (statusParam === "approved") {
+    conds.push(eq(membershipRequestsTable.status, "approved"));
+  } else if (statusParam === "rejected") {
+    conds.push(eq(membershipRequestsTable.status, "rejected"));
+  } else if (statusParam === "history") {
+    conds.push(
+      inArray(membershipRequestsTable.status, ["approved", "rejected"]),
+    );
+  }
+  // "all" → no status filter.
+  const rows = await db
+    .select()
+    .from(membershipRequestsTable)
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(
+      statusParam === "pending"
+        ? desc(membershipRequestsTable.createdAt)
+        : desc(membershipRequestsTable.decidedAt),
+    );
+  res.json(await Promise.all(rows.map(shapeMembershipRequest)));
+});
 
 // Per-student membership life-cycle timeline (admin popover on Team Requests).
 router.get(
@@ -2059,7 +2059,9 @@ router.post(
       if (!existing) {
         res.status(404).json({ error: "Request not found" });
       } else {
-        res.status(409).json({ error: "This request has already been decided." });
+        res
+          .status(409)
+          .json({ error: "This request has already been decided." });
       }
       return;
     }
@@ -2084,7 +2086,11 @@ router.post(
       "membership_request_approved",
       "team",
       mr.teamId,
-      JSON.stringify({ requestId: mr.id, type: mr.type, targetUserId: mr.targetUserId }),
+      JSON.stringify({
+        requestId: mr.id,
+        type: mr.type,
+        targetUserId: mr.targetUserId,
+      }),
     );
     res.json(await shapeMembershipRequest(mr));
   },
@@ -2135,7 +2141,9 @@ router.post(
       if (!existing) {
         res.status(404).json({ error: "Request not found" });
       } else {
-        res.status(409).json({ error: "This request has already been decided." });
+        res
+          .status(409)
+          .json({ error: "This request has already been decided." });
       }
       return;
     }
@@ -2146,7 +2154,11 @@ router.post(
       "membership_request_rejected",
       "team",
       mr.teamId,
-      JSON.stringify({ requestId: mr.id, type: mr.type, targetUserId: mr.targetUserId }),
+      JSON.stringify({
+        requestId: mr.id,
+        type: mr.type,
+        targetUserId: mr.targetUserId,
+      }),
     );
     res.json(await shapeMembershipRequest(updated));
   },

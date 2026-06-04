@@ -1,7 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, sql, or, ne, inArray, notInArray } from "drizzle-orm";
 import { getProjectClientCount } from "../lib/project-stats";
-import { getTeamMemberLimit, getTeamMemberCount, teamFullMessage } from "../lib/team-limits";
+import {
+  getTeamMemberLimit,
+  getTeamMemberCount,
+  teamFullMessage,
+} from "../lib/team-limits";
 import {
   createMembershipRequest,
   findPendingRequestForUser,
@@ -21,6 +25,7 @@ import {
   teamLeaveRequestsTable,
   demoDayApplicationsTable,
   announcementsTable,
+  membershipRequestsTable,
   rosterTable,
 } from "@workspace/db";
 import {
@@ -63,23 +68,40 @@ import { generateUniqueInviteCode } from "../lib/team-helpers";
 
 const router: IRouter = Router();
 
-function fullName(u: { firstName?: string | null; lastName?: string | null } | undefined | null): string {
+function fullName(
+  u: { firstName?: string | null; lastName?: string | null } | undefined | null,
+): string {
   if (!u) return "";
   return `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
 }
 
 async function getTeamWithStats(teamId: number) {
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, teamId));
   if (!team) return null;
-  const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId));
-  const [leader] = await db.select().from(usersTable).where(eq(usersTable.id, team.leaderId));
+  const [campus] = await db
+    .select()
+    .from(campusesTable)
+    .where(eq(campusesTable.id, team.campusId));
+  const [leader] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, team.leaderId));
   const members = await db
-    .select({ userId: teamMembersTable.userId, memberRole: teamMembersTable.memberRole })
+    .select({
+      userId: teamMembersTable.userId,
+      memberRole: teamMembersTable.memberRole,
+    })
     .from(teamMembersTable)
     .where(eq(teamMembersTable.teamId, teamId));
   const memberDetails = await Promise.all(
     members.map(async (m) => {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, m.userId));
+      const [user] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, m.userId));
       return {
         userId: m.userId,
         email: user?.email ?? "",
@@ -90,20 +112,26 @@ async function getTeamWithStats(teamId: number) {
         memberRole: m.memberRole,
         isLeader: m.userId === team.leaderId,
       };
-    })
+    }),
   );
   const [revenueStats] = await db
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(revenueEntriesTable)
-    .where(and(eq(revenueEntriesTable.teamId, teamId), sql`status = 'verified'`));
+    .where(
+      and(eq(revenueEntriesTable.teamId, teamId), sql`status = 'verified'`),
+    );
   const [orderBookStats] = await db
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(orderBookEntriesTable)
-    .where(and(eq(orderBookEntriesTable.teamId, teamId), sql`status = 'verified'`));
+    .where(
+      and(eq(orderBookEntriesTable.teamId, teamId), sql`status = 'verified'`),
+    );
   const [projectCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(projectsTable)
-    .where(and(eq(projectsTable.teamId, teamId), eq(projectsTable.status, "active")));
+    .where(
+      and(eq(projectsTable.teamId, teamId), eq(projectsTable.status, "active")),
+    );
   return {
     ...team,
     campusName: campus?.name ?? "",
@@ -129,7 +157,8 @@ router.get("/teams", async (req, res): Promise<void> => {
   }
   const { campusId, status, search, page, pageSize } = queryParams.data;
   const effectivePage = page && page >= 1 ? page : 1;
-  const effectivePageSize = pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
+  const effectivePageSize =
+    pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
   const offset = (effectivePage - 1) * effectivePageSize;
   let conditions: ReturnType<typeof and>[] = [];
   if (req.user.role === "coordinator" && req.user.campusId) {
@@ -156,7 +185,10 @@ router.get("/teams", async (req, res): Promise<void> => {
           ilike(usersTable.email, pattern),
           ilike(usersTable.firstName, pattern),
           ilike(usersTable.lastName, pattern),
-          ilike(sql`(${usersTable.firstName} || ' ' || ${usersTable.lastName})`, pattern),
+          ilike(
+            sql`(${usersTable.firstName} || ' ' || ${usersTable.lastName})`,
+            pattern,
+          ),
         ),
       );
     const matchingUserIds = matchingUsers.map((u) => u.id);
@@ -167,14 +199,20 @@ router.get("/teams", async (req, res): Promise<void> => {
       .select()
       .from(rosterTable)
       .where(ilike(rosterTable.niatId, pattern));
-    const rosterEmails = matchingRoster.map((r) => r.email).filter((e): e is string => !!e);
+    const rosterEmails = matchingRoster
+      .map((r) => r.email)
+      .filter((e): e is string => !!e);
     const rosterStudentIds = matchingRoster
       .map((r) => r.studentId)
       .filter((s): s is string => !!s);
     if (rosterEmails.length > 0 || rosterStudentIds.length > 0) {
       const rosterUserOr = or(
-        ...(rosterEmails.length > 0 ? [inArray(usersTable.email, rosterEmails)] : []),
-        ...(rosterStudentIds.length > 0 ? [inArray(usersTable.formsUserId, rosterStudentIds)] : []),
+        ...(rosterEmails.length > 0
+          ? [inArray(usersTable.email, rosterEmails)]
+          : []),
+        ...(rosterStudentIds.length > 0
+          ? [inArray(usersTable.formsUserId, rosterStudentIds)]
+          : []),
       );
       if (rosterUserOr) {
         const rosterMatchedUsers = await db
@@ -198,15 +236,22 @@ router.get("/teams", async (req, res): Promise<void> => {
     }
 
     const orParts = [ilike(teamsTable.name, pattern)];
-    if (matchingCampusIds.length > 0) orParts.push(inArray(teamsTable.campusId, matchingCampusIds));
-    if (memberTeamIds.length > 0) orParts.push(inArray(teamsTable.id, memberTeamIds));
+    if (matchingCampusIds.length > 0)
+      orParts.push(inArray(teamsTable.campusId, matchingCampusIds));
+    if (memberTeamIds.length > 0)
+      orParts.push(inArray(teamsTable.id, memberTeamIds));
     const orFilter = or(...orParts);
     if (orFilter) conditions.push(orFilter);
   }
 
-  const teamsRaw = conditions.length > 0
-    ? await db.select().from(teamsTable).where(and(...conditions)).orderBy(teamsTable.createdAt)
-    : await db.select().from(teamsTable).orderBy(teamsTable.createdAt);
+  const teamsRaw =
+    conditions.length > 0
+      ? await db
+          .select()
+          .from(teamsTable)
+          .where(and(...conditions))
+          .orderBy(teamsTable.createdAt)
+      : await db.select().from(teamsTable).orderBy(teamsTable.createdAt);
   // De-duplicate by team id (defensive — query above shouldn't dup, but joins/usage may)
   const seenTeamIds = new Set<number>();
   const teamsDeduped = teamsRaw.filter((t) => {
@@ -219,8 +264,14 @@ router.get("/teams", async (req, res): Promise<void> => {
 
   const items = await Promise.all(
     teams.map(async (team) => {
-      const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId));
-      const [leader] = await db.select().from(usersTable).where(eq(usersTable.id, team.leaderId));
+      const [campus] = await db
+        .select()
+        .from(campusesTable)
+        .where(eq(campusesTable.id, team.campusId));
+      const [leader] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, team.leaderId));
       const [memberCount] = await db
         .select({ count: sql<number>`count(*)` })
         .from(teamMembersTable)
@@ -228,15 +279,30 @@ router.get("/teams", async (req, res): Promise<void> => {
       const [projectCount] = await db
         .select({ count: sql<number>`count(*)` })
         .from(projectsTable)
-        .where(and(eq(projectsTable.teamId, team.id), eq(projectsTable.status, "active")));
+        .where(
+          and(
+            eq(projectsTable.teamId, team.id),
+            eq(projectsTable.status, "active"),
+          ),
+        );
       const [revenueStats] = await db
         .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
         .from(revenueEntriesTable)
-        .where(and(eq(revenueEntriesTable.teamId, team.id), sql`status = 'verified'`));
+        .where(
+          and(
+            eq(revenueEntriesTable.teamId, team.id),
+            sql`status = 'verified'`,
+          ),
+        );
       const [orderBookStats] = await db
         .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
         .from(orderBookEntriesTable)
-        .where(and(eq(orderBookEntriesTable.teamId, team.id), sql`status = 'verified'`));
+        .where(
+          and(
+            eq(orderBookEntriesTable.teamId, team.id),
+            sql`status = 'verified'`,
+          ),
+        );
       return {
         ...team,
         campusName: campus?.name ?? "",
@@ -247,7 +313,7 @@ router.get("/teams", async (req, res): Promise<void> => {
         totalOrderBook: Number(orderBookStats?.total ?? 0),
         nationalRank: null as number | null,
       };
-    })
+    }),
   );
   res.json({
     items,
@@ -268,8 +334,14 @@ router.post("/teams", async (req, res): Promise<void> => {
     return;
   }
   // Students can only create a team for their own campus (when one is already set)
-  if (req.user.role === "student" && req.user.campusId && parsed.data.campusId !== req.user.campusId) {
-    res.status(403).json({ error: "You can only create a team at your own campus" });
+  if (
+    req.user.role === "student" &&
+    req.user.campusId &&
+    parsed.data.campusId !== req.user.campusId
+  ) {
+    res
+      .status(403)
+      .json({ error: "You can only create a team at your own campus" });
     return;
   }
   // Check if user already has a team
@@ -299,7 +371,10 @@ router.post("/teams", async (req, res): Promise<void> => {
     return;
   }
   // Validate the campus exists before we touch the user row.
-  const [campusRow] = await db.select({ id: campusesTable.id }).from(campusesTable).where(eq(campusesTable.id, campusId));
+  const [campusRow] = await db
+    .select({ id: campusesTable.id })
+    .from(campusesTable)
+    .where(eq(campusesTable.id, campusId));
   if (!campusRow) {
     res.status(400).json({ error: "Selected campus does not exist." });
     return;
@@ -308,7 +383,10 @@ router.post("/teams", async (req, res): Promise<void> => {
   // Capture-on-create profile fields. Only persist values for fields the
   // user's row is currently missing; never overwrite an existing email or
   // niatId from a request body (that's what /auth/me is for).
-  const [currentUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+  const [currentUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, req.user.id));
   if (!currentUser) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -348,9 +426,16 @@ router.post("/teams", async (req, res): Promise<void> => {
     const [emailHit] = await db
       .select({ id: usersTable.id })
       .from(usersTable)
-      .where(and(eq(usersTable.email, userUpdates.email), ne(usersTable.id, req.user.id)));
+      .where(
+        and(
+          eq(usersTable.email, userUpdates.email),
+          ne(usersTable.id, req.user.id),
+        ),
+      );
     if (emailHit) {
-      res.status(409).json({ error: "That email is already in use by another account." });
+      res
+        .status(409)
+        .json({ error: "That email is already in use by another account." });
       return;
     }
   }
@@ -358,9 +443,16 @@ router.post("/teams", async (req, res): Promise<void> => {
     const [niatHit] = await db
       .select({ id: usersTable.id })
       .from(usersTable)
-      .where(and(eq(usersTable.niatId, userUpdates.niatId), ne(usersTable.id, req.user.id)));
+      .where(
+        and(
+          eq(usersTable.niatId, userUpdates.niatId),
+          ne(usersTable.id, req.user.id),
+        ),
+      );
     if (niatHit) {
-      res.status(409).json({ error: "That NIAT ID is already in use by another account." });
+      res
+        .status(409)
+        .json({ error: "That NIAT ID is already in use by another account." });
       return;
     }
   }
@@ -388,7 +480,9 @@ router.post("/teams", async (req, res): Promise<void> => {
           // Translate unique-violation into a sentinel the outer catch
           // can map to a 409.
           throw new Error(
-            (err as { code?: string })?.code === "23505" ? "user_unique_violation" : String(err),
+            (err as { code?: string })?.code === "23505"
+              ? "user_unique_violation"
+              : String(err),
           );
         }
       }
@@ -396,7 +490,9 @@ router.post("/teams", async (req, res): Promise<void> => {
         .insert(teamsTable)
         .values({ ...teamData, status: "active" })
         .returning();
-      await tx.insert(teamMembersTable).values({ teamId: createdTeam.id, userId: req.user.id });
+      await tx
+        .insert(teamMembersTable)
+        .values({ teamId: createdTeam.id, userId: req.user.id });
       // Auto-approve: seed the "Team Registered" milestone immediately so the
       // team timeline reflects activation at creation time. Keeps the timeline
       // identical to the legacy admin-approval flow it replaces.
@@ -413,10 +509,16 @@ router.post("/teams", async (req, res): Promise<void> => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg === "user_unique_violation") {
-      res.status(409).json({ error: "That email or NIAT ID is already in use by another account." });
+      res
+        .status(409)
+        .json({
+          error: "That email or NIAT ID is already in use by another account.",
+        });
       return;
     }
-    res.status(409).json({ error: "Could not create team. You may already be on a team." });
+    res
+      .status(409)
+      .json({ error: "Could not create team. You may already be on a team." });
     return;
   }
 
@@ -438,12 +540,23 @@ router.get("/teams/browse", async (req, res): Promise<void> => {
   const teams = await db
     .select()
     .from(teamsTable)
-    .where(and(eq(teamsTable.campusId, req.user.campusId), eq(teamsTable.isHidden, false)))
+    .where(
+      and(
+        eq(teamsTable.campusId, req.user.campusId),
+        eq(teamsTable.isHidden, false),
+      ),
+    )
     .orderBy(teamsTable.createdAt);
   const result = await Promise.all(
     teams.map(async (team) => {
-      const [campus] = await db.select().from(campusesTable).where(eq(campusesTable.id, team.campusId));
-      const [leader] = await db.select().from(usersTable).where(eq(usersTable.id, team.leaderId));
+      const [campus] = await db
+        .select()
+        .from(campusesTable)
+        .where(eq(campusesTable.id, team.campusId));
+      const [leader] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, team.leaderId));
       const [memberCount] = await db
         .select({ count: sql<number>`count(*)` })
         .from(teamMembersTable)
@@ -458,7 +571,7 @@ router.get("/teams/browse", async (req, res): Promise<void> => {
         totalOrderBook: 0,
         nationalRank: null as number | null,
       };
-    })
+    }),
   );
   res.json(result);
 });
@@ -563,7 +676,9 @@ router.get("/teams/students/search", async (req, res): Promise<void> => {
   }
 
   // Suppress unused-import warnings for symbols we no longer need on this hot path.
-  void inArray; void notInArray; void ne;
+  void inArray;
+  void notInArray;
+  void ne;
   res.json(result);
 });
 
@@ -578,7 +693,10 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
     return;
   }
   const code = parsed.data.code.trim().toUpperCase();
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.inviteCode, code));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.inviteCode, code));
   if (!team) {
     res.status(404).json({ error: "Invalid invite code" });
     return;
@@ -587,7 +705,10 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
     res.status(403).json({ error: "This team is at a different campus" });
     return;
   }
-  const [existing] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
+  const [existing] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, req.user.id));
   if (existing) {
     if (existing.teamId === team.id) {
       const detail = await getTeamWithStats(team.id);
@@ -599,37 +720,60 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
   }
   // Enforce team capacity atomically.
   const joinResult = await db.transaction(async (tx) => {
-    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, team.id)).for("update");
+    await tx
+      .select({ id: teamsTable.id })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, team.id))
+      .for("update");
     const limit = await getTeamMemberLimit(tx);
     const count = await getTeamMemberCount(team.id, tx);
     if (count >= limit) return { kind: "full" as const, count, limit };
     try {
-      await tx.insert(teamMembersTable).values({ teamId: team.id, userId: req.user.id });
+      await tx
+        .insert(teamMembersTable)
+        .values({ teamId: team.id, userId: req.user.id });
     } catch {
       return { kind: "duplicate" as const };
     }
     return { kind: "ok" as const };
   });
   if (joinResult.kind === "full") {
-    res.status(400).json({ error: teamFullMessage(joinResult.count, joinResult.limit) });
+    res
+      .status(400)
+      .json({ error: teamFullMessage(joinResult.count, joinResult.limit) });
     return;
   }
   if (joinResult.kind === "duplicate") {
-    res.status(409).json({ error: "Could not join team. You may already be on a team." });
+    res
+      .status(409)
+      .json({ error: "Could not join team. You may already be on a team." });
     return;
   }
   // Cancel pending invites/join requests for this user
   await db
     .update(teamInvitationsTable)
     .set({ status: "cancelled", respondedAt: new Date() })
-    .where(and(eq(teamInvitationsTable.inviteeId, req.user.id), eq(teamInvitationsTable.status, "pending")));
+    .where(
+      and(
+        eq(teamInvitationsTable.inviteeId, req.user.id),
+        eq(teamInvitationsTable.status, "pending"),
+      ),
+    );
   await db
     .update(teamJoinRequestsTable)
     .set({ status: "cancelled", respondedAt: new Date() })
-    .where(and(eq(teamJoinRequestsTable.requesterId, req.user.id), eq(teamJoinRequestsTable.status, "pending")));
+    .where(
+      and(
+        eq(teamJoinRequestsTable.requesterId, req.user.id),
+        eq(teamJoinRequestsTable.status, "pending"),
+      ),
+    );
 
   // Notify all existing members
-  const others = await db.select().from(teamMembersTable).where(eq(teamMembersTable.teamId, team.id));
+  const others = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.teamId, team.id));
   for (const m of others) {
     if (m.userId !== req.user.id) {
       await createNotification(
@@ -665,17 +809,30 @@ router.get("/teams/my", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Team not found" });
     return;
   }
-  const projects = await db.select().from(projectsTable).where(eq(projectsTable.teamId, member.teamId));
+  const projects = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.teamId, member.teamId));
   const projectsWithStats = await Promise.all(
     projects.map(async (p) => {
       const [revStats] = await db
         .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
         .from(revenueEntriesTable)
-        .where(and(eq(revenueEntriesTable.projectId, p.id), sql`status = 'verified'`));
+        .where(
+          and(
+            eq(revenueEntriesTable.projectId, p.id),
+            sql`status = 'verified'`,
+          ),
+        );
       const [obStats] = await db
         .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
         .from(orderBookEntriesTable)
-        .where(and(eq(orderBookEntriesTable.projectId, p.id), sql`status = 'verified'`));
+        .where(
+          and(
+            eq(orderBookEntriesTable.projectId, p.id),
+            sql`status = 'verified'`,
+          ),
+        );
       const clientCount = await getProjectClientCount(p.id);
       return {
         ...p,
@@ -684,7 +841,7 @@ router.get("/teams/my", async (req, res): Promise<void> => {
         verifiedOrderBook: Number(obStats?.total ?? 0),
         clientCount,
       };
-    })
+    }),
   );
   res.json({ ...teamDetail, projects: projectsWithStats });
 });
@@ -706,21 +863,35 @@ router.get("/teams/:id", async (req, res): Promise<void> => {
   }
   // Strip invite code unless the requester is a member of this team or staff
   const isStaff = ["admin", "coordinator"].includes(req.user.role ?? "");
-  const isMember = teamDetail.members?.some?.((m: any) => m.userId === req.user.id) ?? false;
+  const isMember =
+    teamDetail.members?.some?.((m: any) => m.userId === req.user.id) ?? false;
   if (!isStaff && !isMember) {
     (teamDetail as any).inviteCode = null;
   }
-  const projects = await db.select().from(projectsTable).where(eq(projectsTable.teamId, params.data.id));
+  const projects = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.teamId, params.data.id));
   const projectsWithStats = await Promise.all(
     projects.map(async (p) => {
       const [revStats] = await db
         .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
         .from(revenueEntriesTable)
-        .where(and(eq(revenueEntriesTable.projectId, p.id), sql`status = 'verified'`));
+        .where(
+          and(
+            eq(revenueEntriesTable.projectId, p.id),
+            sql`status = 'verified'`,
+          ),
+        );
       const [obStats] = await db
         .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
         .from(orderBookEntriesTable)
-        .where(and(eq(orderBookEntriesTable.projectId, p.id), sql`status = 'verified'`));
+        .where(
+          and(
+            eq(orderBookEntriesTable.projectId, p.id),
+            sql`status = 'verified'`,
+          ),
+        );
       return {
         ...p,
         teamName: teamDetail.name,
@@ -728,7 +899,7 @@ router.get("/teams/:id", async (req, res): Promise<void> => {
         verifiedOrderBook: Number(obStats?.total ?? 0),
         clientCount: 0,
       };
-    })
+    }),
   );
   res.json({ ...teamDetail, projects: projectsWithStats });
 });
@@ -763,7 +934,12 @@ router.patch("/teams/:id", async (req, res): Promise<void> => {
   const isStaff = req.user.role === "admin" || req.user.role === "coordinator";
   const isLeader = existingTeam.leaderId === req.user.id;
   if (!isStaff && !isLeader) {
-    res.status(403).json({ error: "Only the team leader, a coordinator, or an admin can edit this team." });
+    res
+      .status(403)
+      .json({
+        error:
+          "Only the team leader, a coordinator, or an admin can edit this team.",
+      });
     return;
   }
 
@@ -778,7 +954,13 @@ router.patch("/teams/:id", async (req, res): Promise<void> => {
     return;
   }
   if (req.user.role === "admin") {
-    await logAudit(req.user.id, "update_team", "team", team.id, reason ?? JSON.stringify(updateData));
+    await logAudit(
+      req.user.id,
+      "update_team",
+      "team",
+      team.id,
+      reason ?? JSON.stringify(updateData),
+    );
   }
   const teamData = await getTeamWithStats(team.id);
   res.json(teamData);
@@ -858,18 +1040,50 @@ router.delete("/teams/:id", async (req, res): Promise<void> => {
         }
       }
 
-      await tx.delete(orderBookEntriesTable).where(eq(orderBookEntriesTable.teamId, teamId));
-      await tx.delete(revenueEntriesTable).where(eq(revenueEntriesTable.teamId, teamId));
+      await tx
+        .delete(orderBookEntriesTable)
+        .where(eq(orderBookEntriesTable.teamId, teamId));
+      await tx
+        .delete(revenueEntriesTable)
+        .where(eq(revenueEntriesTable.teamId, teamId));
       await tx.delete(projectsTable).where(eq(projectsTable.teamId, teamId));
-      await tx.delete(milestonesTable).where(eq(milestonesTable.teamId, teamId));
-      await tx.delete(demoDayApplicationsTable).where(eq(demoDayApplicationsTable.teamId, teamId));
-      await tx.delete(teamInvitationsTable).where(eq(teamInvitationsTable.teamId, teamId));
-      await tx.delete(teamJoinRequestsTable).where(eq(teamJoinRequestsTable.teamId, teamId));
-      await tx.delete(teamLeaveRequestsTable).where(eq(teamLeaveRequestsTable.teamId, teamId));
-      await tx.delete(teamMembersTable).where(eq(teamMembersTable.teamId, teamId));
+      await tx
+        .delete(milestonesTable)
+        .where(eq(milestonesTable.teamId, teamId));
+      await tx
+        .delete(demoDayApplicationsTable)
+        .where(eq(demoDayApplicationsTable.teamId, teamId));
+      await tx
+        .delete(teamInvitationsTable)
+        .where(eq(teamInvitationsTable.teamId, teamId));
+      await tx
+        .delete(teamJoinRequestsTable)
+        .where(eq(teamJoinRequestsTable.teamId, teamId));
+      await tx
+        .delete(teamLeaveRequestsTable)
+        .where(eq(teamLeaveRequestsTable.teamId, teamId));
+      // Drop any pending admin-approval requests for this team. Without this
+      // they would linger in /admin/team-requests as un-actionable "leaving
+      // Unknown" cards that error with "Team no longer exists" on approve.
+      await tx
+        .delete(membershipRequestsTable)
+        .where(
+          and(
+            eq(membershipRequestsTable.teamId, teamId),
+            eq(membershipRequestsTable.status, "pending"),
+          ),
+        );
+      await tx
+        .delete(teamMembersTable)
+        .where(eq(teamMembersTable.teamId, teamId));
       await tx
         .delete(announcementsTable)
-        .where(and(eq(announcementsTable.target, "team"), eq(announcementsTable.teamId, teamId)));
+        .where(
+          and(
+            eq(announcementsTable.target, "team"),
+            eq(announcementsTable.teamId, teamId),
+          ),
+        );
 
       await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
 
@@ -885,7 +1099,11 @@ router.delete("/teams/:id", async (req, res): Promise<void> => {
 
   if (teamName === null) {
     if (blockedReason === "forbidden") {
-      res.status(403).json({ error: "Only the team leader or an admin can delete this team." });
+      res
+        .status(403)
+        .json({
+          error: "Only the team leader or an admin can delete this team.",
+        });
       return;
     }
     if (blockedReason === "has_revenue") {
@@ -911,7 +1129,10 @@ router.delete("/teams/:id", async (req, res): Promise<void> => {
 });
 
 router.post("/teams/:id/reject", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+  if (
+    !req.isAuthenticated() ||
+    !["coordinator", "admin"].includes(req.user.role ?? "")
+  ) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -931,20 +1152,37 @@ router.post("/teams/:id/reject", async (req, res): Promise<void> => {
   const [team] = await db
     .update(teamsTable)
     .set({ status: "rejected", rejectionReason: parsed.data.reason })
-    .where(and(eq(teamsTable.id, params.data.id), eq(teamsTable.status, "pending")))
+    .where(
+      and(eq(teamsTable.id, params.data.id), eq(teamsTable.status, "pending")),
+    )
     .returning();
   if (!team) {
     res.status(404).json({ error: "Team not found or not in a pending state" });
     return;
   }
-  await createNotification(team.leaderId, "Team Registration Rejected", `Your team "${team.name}" was rejected: ${parsed.data.reason}`, "team_rejected", "/team");
-  await logAudit(req.user.id, "reject_team", "team", team.id, parsed.data.reason);
+  await createNotification(
+    team.leaderId,
+    "Team Registration Rejected",
+    `Your team "${team.name}" was rejected: ${parsed.data.reason}`,
+    "team_rejected",
+    "/team",
+  );
+  await logAudit(
+    req.user.id,
+    "reject_team",
+    "team",
+    team.id,
+    parsed.data.reason,
+  );
   const teamData = await getTeamWithStats(team.id);
   res.json(teamData);
 });
 
 router.post("/teams/:id/request-changes", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || !["coordinator", "admin"].includes(req.user.role ?? "")) {
+  if (
+    !req.isAuthenticated() ||
+    !["coordinator", "admin"].includes(req.user.role ?? "")
+  ) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -961,21 +1199,36 @@ router.post("/teams/:id/request-changes", async (req, res): Promise<void> => {
   // Auto-approve flow: only pending teams can have changes requested.
   const [team] = await db
     .update(teamsTable)
-    .set({ status: "changes_requested", coordinatorComment: parsed.data.comment })
-    .where(and(eq(teamsTable.id, params.data.id), eq(teamsTable.status, "pending")))
+    .set({
+      status: "changes_requested",
+      coordinatorComment: parsed.data.comment,
+    })
+    .where(
+      and(eq(teamsTable.id, params.data.id), eq(teamsTable.status, "pending")),
+    )
     .returning();
   if (!team) {
     res.status(404).json({ error: "Team not found or not in a pending state" });
     return;
   }
-  await createNotification(team.leaderId, "Changes Requested", `Changes requested for team "${team.name}": ${parsed.data.comment}`, "team_changes_requested", "/team");
+  await createNotification(
+    team.leaderId,
+    "Changes Requested",
+    `Changes requested for team "${team.name}": ${parsed.data.comment}`,
+    "team_changes_requested",
+    "/team",
+  );
   const teamData = await getTeamWithStats(team.id);
   res.json(teamData);
 });
 
 router.post("/teams/:id/members", async (req, res): Promise<void> => {
   if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Admin only — students must use the team invitation flow." });
+    res
+      .status(403)
+      .json({
+        error: "Admin only — students must use the team invitation flow.",
+      });
     return;
   }
   const params = AddTeamMemberParams.safeParse(req.params);
@@ -988,17 +1241,25 @@ router.post("/teams/:id/members", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, parsed.data.email));
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, parsed.data.email));
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const [existing] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, user.id));
+  const [existing] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, user.id));
   if (existing) {
     res.status(400).json({ error: "User is already a member of a team" });
     return;
   }
-  await db.insert(teamMembersTable).values({ teamId: params.data.id, userId: user.id });
+  await db
+    .insert(teamMembersTable)
+    .values({ teamId: params.data.id, userId: user.id });
   const teamDetail = await getTeamWithStats(params.data.id);
   res.status(201).json({ ...teamDetail, projects: [] });
 });
@@ -1013,7 +1274,10 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, params.data.id));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
@@ -1021,24 +1285,39 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
   const isAdmin = req.user.role === "admin";
   const isLeader = team.leaderId === req.user.id;
   if (!isAdmin && !isLeader) {
-    res.status(403).json({ error: "Only the team leader or an admin can remove members." });
+    res
+      .status(403)
+      .json({ error: "Only the team leader or an admin can remove members." });
     return;
   }
   // A leader cannot remove themselves through this endpoint
   if (isLeader && !isAdmin && params.data.userId === req.user.id) {
-    res.status(400).json({ error: "You cannot remove yourself. Transfer leadership first." });
+    res
+      .status(400)
+      .json({
+        error: "You cannot remove yourself. Transfer leadership first.",
+      });
     return;
   }
   // Prevent removing the team leader
   if (team.leaderId === params.data.userId) {
-    res.status(400).json({ error: "Cannot remove the team leader. Transfer leadership first." });
+    res
+      .status(400)
+      .json({
+        error: "Cannot remove the team leader. Transfer leadership first.",
+      });
     return;
   }
   // Confirm the target is actually a member of this team
   const [membership] = await db
     .select()
     .from(teamMembersTable)
-    .where(and(eq(teamMembersTable.teamId, params.data.id), eq(teamMembersTable.userId, params.data.userId)));
+    .where(
+      and(
+        eq(teamMembersTable.teamId, params.data.id),
+        eq(teamMembersTable.userId, params.data.userId),
+      ),
+    );
   if (!membership) {
     res.status(404).json({ error: "That user is not a member of this team." });
     return;
@@ -1072,8 +1351,16 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
   }
   await db
     .delete(teamMembersTable)
-    .where(and(eq(teamMembersTable.teamId, params.data.id), eq(teamMembersTable.userId, params.data.userId)));
-  const [removedUser] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.userId));
+    .where(
+      and(
+        eq(teamMembersTable.teamId, params.data.id),
+        eq(teamMembersTable.userId, params.data.userId),
+      ),
+    );
+  const [removedUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, params.data.userId));
   await logAudit(
     req.user.id,
     "team_member_removed",
@@ -1097,89 +1384,133 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
   res.json({ ...teamDetail, projects: [] });
 });
 
-router.post("/teams/:id/transfer-leadership", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const params = TransferTeamLeadershipParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = TransferTeamLeadershipBody.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
-  if (!team) {
-    res.status(404).json({ error: "Team not found" });
-    return;
-  }
-  if (team.leaderId !== req.user.id) {
-    res.status(403).json({ error: "Only the current team leader can transfer leadership." });
-    return;
-  }
-  if (parsed.data.newLeaderId === team.leaderId) {
-    res.status(400).json({ error: "That member is already the team leader." });
-    return;
-  }
-  const [target] = await db
-    .select()
-    .from(teamMembersTable)
-    .where(and(eq(teamMembersTable.teamId, params.data.id), eq(teamMembersTable.userId, parsed.data.newLeaderId)));
-  if (!target) {
-    res.status(400).json({ error: "The new leader must be a current member of this team." });
-    return;
-  }
-  const previousLeaderId = team.leaderId;
-  await db
-    .update(teamsTable)
-    .set({ leaderId: parsed.data.newLeaderId })
-    .where(eq(teamsTable.id, params.data.id));
-  const [newLeaderUser] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.newLeaderId));
-  await logAudit(
-    previousLeaderId,
-    "team_leader_transferred",
-    "team",
-    team.id,
-    JSON.stringify({
+router.post(
+  "/teams/:id/transfer-leadership",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const params = TransferTeamLeadershipParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = TransferTeamLeadershipBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [team] = await db
+      .select()
+      .from(teamsTable)
+      .where(eq(teamsTable.id, params.data.id));
+    if (!team) {
+      res.status(404).json({ error: "Team not found" });
+      return;
+    }
+    if (team.leaderId !== req.user.id) {
+      res
+        .status(403)
+        .json({
+          error: "Only the current team leader can transfer leadership.",
+        });
+      return;
+    }
+    if (parsed.data.newLeaderId === team.leaderId) {
+      res
+        .status(400)
+        .json({ error: "That member is already the team leader." });
+      return;
+    }
+    const [target] = await db
+      .select()
+      .from(teamMembersTable)
+      .where(
+        and(
+          eq(teamMembersTable.teamId, params.data.id),
+          eq(teamMembersTable.userId, parsed.data.newLeaderId),
+        ),
+      );
+    if (!target) {
+      res
+        .status(400)
+        .json({
+          error: "The new leader must be a current member of this team.",
+        });
+      return;
+    }
+    const previousLeaderId = team.leaderId;
+    await db
+      .update(teamsTable)
+      .set({ leaderId: parsed.data.newLeaderId })
+      .where(eq(teamsTable.id, params.data.id));
+    const [newLeaderUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, parsed.data.newLeaderId));
+    await logAudit(
       previousLeaderId,
-      newLeaderId: parsed.data.newLeaderId,
-      newLeaderEmail: newLeaderUser?.email ?? null,
-      newLeaderName: fullName(newLeaderUser),
-    }),
-  );
-  await createNotification(
-    parsed.data.newLeaderId,
-    "You're now the team leader",
-    `You are the new leader of "${team.name}".`,
-    "team_leadership_received",
-    "/team",
-  );
-  await createNotification(
-    previousLeaderId,
-    "Leadership transferred",
-    `You transferred leadership of "${team.name}" to a teammate.`,
-    "team_leadership_transferred",
-    "/team",
-  );
-  const teamDetail = await getTeamWithStats(params.data.id);
-  res.json({ ...teamDetail, projects: [] });
-});
+      "team_leader_transferred",
+      "team",
+      team.id,
+      JSON.stringify({
+        previousLeaderId,
+        newLeaderId: parsed.data.newLeaderId,
+        newLeaderEmail: newLeaderUser?.email ?? null,
+        newLeaderName: fullName(newLeaderUser),
+      }),
+    );
+    await createNotification(
+      parsed.data.newLeaderId,
+      "You're now the team leader",
+      `You are the new leader of "${team.name}".`,
+      "team_leadership_received",
+      "/team",
+    );
+    await createNotification(
+      previousLeaderId,
+      "Leadership transferred",
+      `You transferred leadership of "${team.name}" to a teammate.`,
+      "team_leadership_transferred",
+      "/team",
+    );
+    const teamDetail = await getTeamWithStats(params.data.id);
+    res.json({ ...teamDetail, projects: [] });
+  },
+);
 
 // ============= INVITATIONS =============
 
-async function ensureTeamMember(teamId: number, userId: string): Promise<boolean> {
-  const [m] = await db.select().from(teamMembersTable).where(and(eq(teamMembersTable.teamId, teamId), eq(teamMembersTable.userId, userId)));
+async function ensureTeamMember(
+  teamId: number,
+  userId: string,
+): Promise<boolean> {
+  const [m] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(
+      and(
+        eq(teamMembersTable.teamId, teamId),
+        eq(teamMembersTable.userId, userId),
+      ),
+    );
   return !!m;
 }
 
 async function shapeInvitation(inv: typeof teamInvitationsTable.$inferSelect) {
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, inv.teamId));
-  const [invitee] = await db.select().from(usersTable).where(eq(usersTable.id, inv.inviteeId));
-  const [inviter] = await db.select().from(usersTable).where(eq(usersTable.id, inv.inviterId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, inv.teamId));
+  const [invitee] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, inv.inviteeId));
+  const [inviter] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, inv.inviterId));
   return {
     id: inv.id,
     teamId: inv.teamId,
@@ -1207,7 +1538,10 @@ router.get("/teams/:id/invitations", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await ensureTeamMember(params.data.id, req.user.id)) && req.user.role !== "admin") {
+  if (
+    !(await ensureTeamMember(params.data.id, req.user.id)) &&
+    req.user.role !== "admin"
+  ) {
     res.status(403).json({ error: "You are not a member of this team" });
     return;
   }
@@ -1239,7 +1573,10 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Only team members can send invitations" });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, params.data.id));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
@@ -1260,7 +1597,10 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
     res.status(400).json({ error: "inviteeId is required on this endpoint" });
     return;
   }
-  const [invitee] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.inviteeId));
+  const [invitee] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, parsed.data.inviteeId));
   if (!invitee) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -1270,18 +1610,27 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
     return;
   }
   if (invitee.campusId !== team.campusId) {
-    res.status(400).json({ error: "You can only invite students from the same campus" });
+    res
+      .status(400)
+      .json({ error: "You can only invite students from the same campus" });
     return;
   }
   // Check roster whitelist
   const matchClauses = [eq(rosterTable.email, invitee.email)];
-  if (invitee.formsUserId) matchClauses.push(eq(rosterTable.studentId, invitee.formsUserId));
-  const [roster] = await db.select().from(rosterTable).where(and(or(...matchClauses), eq(rosterTable.isWhitelisted, true)));
+  if (invitee.formsUserId)
+    matchClauses.push(eq(rosterTable.studentId, invitee.formsUserId));
+  const [roster] = await db
+    .select()
+    .from(rosterTable)
+    .where(and(or(...matchClauses), eq(rosterTable.isWhitelisted, true)));
   if (!roster) {
     res.status(400).json({ error: "Student is not on the roster" });
     return;
   }
-  const [onTeam] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, invitee.id));
+  const [onTeam] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, invitee.id));
   if (onTeam) {
     res.status(400).json({ error: "Student is already on a team" });
     return;
@@ -1290,18 +1639,26 @@ router.post("/teams/:id/invitations", async (req, res): Promise<void> => {
   const [dup] = await db
     .select()
     .from(teamInvitationsTable)
-    .where(and(
-      eq(teamInvitationsTable.teamId, params.data.id),
-      eq(teamInvitationsTable.inviteeId, invitee.id),
-      eq(teamInvitationsTable.status, "pending"),
-    ));
+    .where(
+      and(
+        eq(teamInvitationsTable.teamId, params.data.id),
+        eq(teamInvitationsTable.inviteeId, invitee.id),
+        eq(teamInvitationsTable.status, "pending"),
+      ),
+    );
   if (dup) {
-    res.status(400).json({ error: "An invitation is already pending for this student" });
+    res
+      .status(400)
+      .json({ error: "An invitation is already pending for this student" });
     return;
   }
   const [inv] = await db
     .insert(teamInvitationsTable)
-    .values({ teamId: params.data.id, inviteeId: invitee.id, inviterId: req.user.id })
+    .values({
+      teamId: params.data.id,
+      inviteeId: invitee.id,
+      inviterId: req.user.id,
+    })
     .returning();
   await createNotification(
     invitee.id,
@@ -1321,7 +1678,12 @@ router.get("/invitations/my", async (req, res): Promise<void> => {
   const invs = await db
     .select()
     .from(teamInvitationsTable)
-    .where(and(eq(teamInvitationsTable.inviteeId, req.user.id), eq(teamInvitationsTable.status, "pending")))
+    .where(
+      and(
+        eq(teamInvitationsTable.inviteeId, req.user.id),
+        eq(teamInvitationsTable.status, "pending"),
+      ),
+    )
     .orderBy(sql`created_at desc`);
   const result = await Promise.all(invs.map(shapeInvitation));
   res.json(result);
@@ -1337,7 +1699,10 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [inv] = await db.select().from(teamInvitationsTable).where(eq(teamInvitationsTable.id, params.data.id));
+  const [inv] = await db
+    .select()
+    .from(teamInvitationsTable)
+    .where(eq(teamInvitationsTable.id, params.data.id));
   if (!inv) {
     res.status(404).json({ error: "Invitation not found" });
     return;
@@ -1350,12 +1715,18 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invitation is no longer pending" });
     return;
   }
-  const [onTeam] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
+  const [onTeam] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, req.user.id));
   if (onTeam) {
     res.status(400).json({ error: "You are already on a team" });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, inv.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, inv.teamId));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
@@ -1364,23 +1735,33 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
   // under the lock, then insert. This prevents two concurrent acceptances
   // from racing past the limit.
   const acceptResult = await db.transaction(async (tx) => {
-    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, inv.teamId)).for("update");
+    await tx
+      .select({ id: teamsTable.id })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, inv.teamId))
+      .for("update");
     const limit = await getTeamMemberLimit(tx);
     const count = await getTeamMemberCount(inv.teamId, tx);
     if (count >= limit) return { kind: "full" as const, count, limit };
     try {
-      await tx.insert(teamMembersTable).values({ teamId: inv.teamId, userId: req.user.id });
+      await tx
+        .insert(teamMembersTable)
+        .values({ teamId: inv.teamId, userId: req.user.id });
     } catch {
       return { kind: "duplicate" as const };
     }
     return { kind: "ok" as const };
   });
   if (acceptResult.kind === "full") {
-    res.status(400).json({ error: teamFullMessage(acceptResult.count, acceptResult.limit) });
+    res
+      .status(400)
+      .json({ error: teamFullMessage(acceptResult.count, acceptResult.limit) });
     return;
   }
   if (acceptResult.kind === "duplicate") {
-    res.status(409).json({ error: "Could not join team. You may already be on a team." });
+    res
+      .status(409)
+      .json({ error: "Could not join team. You may already be on a team." });
     return;
   }
   await db
@@ -1391,17 +1772,21 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
   await db
     .update(teamInvitationsTable)
     .set({ status: "cancelled", respondedAt: new Date() })
-    .where(and(
-      eq(teamInvitationsTable.inviteeId, req.user.id),
-      eq(teamInvitationsTable.status, "pending"),
-    ));
+    .where(
+      and(
+        eq(teamInvitationsTable.inviteeId, req.user.id),
+        eq(teamInvitationsTable.status, "pending"),
+      ),
+    );
   await db
     .update(teamJoinRequestsTable)
     .set({ status: "cancelled", respondedAt: new Date() })
-    .where(and(
-      eq(teamJoinRequestsTable.requesterId, req.user.id),
-      eq(teamJoinRequestsTable.status, "pending"),
-    ));
+    .where(
+      and(
+        eq(teamJoinRequestsTable.requesterId, req.user.id),
+        eq(teamJoinRequestsTable.status, "pending"),
+      ),
+    );
   // Notify inviter and team members
   await createNotification(
     inv.inviterId,
@@ -1410,7 +1795,10 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
     "team_invitation_accepted",
     "/team",
   );
-  const others = await db.select().from(teamMembersTable).where(eq(teamMembersTable.teamId, team.id));
+  const others = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.teamId, team.id));
   for (const m of others) {
     if (m.userId !== req.user.id && m.userId !== inv.inviterId) {
       await createNotification(
@@ -1436,7 +1824,10 @@ router.post("/invitations/:id/decline", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [inv] = await db.select().from(teamInvitationsTable).where(eq(teamInvitationsTable.id, params.data.id));
+  const [inv] = await db
+    .select()
+    .from(teamInvitationsTable)
+    .where(eq(teamInvitationsTable.id, params.data.id));
   if (!inv) {
     res.status(404).json({ error: "Invitation not found" });
     return;
@@ -1453,7 +1844,10 @@ router.post("/invitations/:id/decline", async (req, res): Promise<void> => {
     .update(teamInvitationsTable)
     .set({ status: "declined", respondedAt: new Date() })
     .where(eq(teamInvitationsTable.id, inv.id));
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, inv.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, inv.teamId));
   await createNotification(
     inv.inviterId,
     "Invitation Declined",
@@ -1487,7 +1881,11 @@ router.post("/invitations/:id/cancel", async (req, res): Promise<void> => {
     return;
   }
   if (!(await ensureTeamMember(inv.teamId, req.user.id))) {
-    res.status(403).json({ error: "Only members of the sending team can cancel this invitation" });
+    res
+      .status(403)
+      .json({
+        error: "Only members of the sending team can cancel this invitation",
+      });
     return;
   }
   // Idempotent: already-cancelled is treated as success.
@@ -1520,7 +1918,9 @@ router.post("/invitations/:id/cancel", async (req, res): Promise<void> => {
     }
     res
       .status(409)
-      .json({ error: `Invitation is no longer pending (status: ${latest?.status ?? "unknown"})` });
+      .json({
+        error: `Invitation is no longer pending (status: ${latest?.status ?? "unknown"})`,
+      });
     return;
   }
   res.json({ success: true });
@@ -1529,8 +1929,14 @@ router.post("/invitations/:id/cancel", async (req, res): Promise<void> => {
 // ============= JOIN REQUESTS =============
 
 async function shapeJoinRequest(jr: typeof teamJoinRequestsTable.$inferSelect) {
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, jr.teamId));
-  const [requester] = await db.select().from(usersTable).where(eq(usersTable.id, jr.requesterId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, jr.teamId));
+  const [requester] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, jr.requesterId));
   return {
     id: jr.id,
     teamId: jr.teamId,
@@ -1556,14 +1962,22 @@ router.get("/teams/:id/join-requests", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await ensureTeamMember(params.data.id, req.user.id)) && req.user.role !== "admin") {
+  if (
+    !(await ensureTeamMember(params.data.id, req.user.id)) &&
+    req.user.role !== "admin"
+  ) {
     res.status(403).json({ error: "You are not a member of this team" });
     return;
   }
   const rows = await db
     .select()
     .from(teamJoinRequestsTable)
-    .where(and(eq(teamJoinRequestsTable.teamId, params.data.id), eq(teamJoinRequestsTable.status, "pending")))
+    .where(
+      and(
+        eq(teamJoinRequestsTable.teamId, params.data.id),
+        eq(teamJoinRequestsTable.status, "pending"),
+      ),
+    )
     .orderBy(sql`created_at desc`);
   const result = await Promise.all(rows.map(shapeJoinRequest));
   res.json(result);
@@ -1584,16 +1998,24 @@ router.post("/teams/:id/join-requests", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, params.data.id));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
   }
   if (req.user.campusId && team.campusId !== req.user.campusId) {
-    res.status(403).json({ error: "You can only request to join teams at your campus" });
+    res
+      .status(403)
+      .json({ error: "You can only request to join teams at your campus" });
     return;
   }
-  const [onTeam] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, req.user.id));
+  const [onTeam] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, req.user.id));
   if (onTeam) {
     res.status(400).json({ error: "You are already on a team" });
     return;
@@ -1601,21 +2023,32 @@ router.post("/teams/:id/join-requests", async (req, res): Promise<void> => {
   const [dup] = await db
     .select()
     .from(teamJoinRequestsTable)
-    .where(and(
-      eq(teamJoinRequestsTable.teamId, params.data.id),
-      eq(teamJoinRequestsTable.requesterId, req.user.id),
-      eq(teamJoinRequestsTable.status, "pending"),
-    ));
+    .where(
+      and(
+        eq(teamJoinRequestsTable.teamId, params.data.id),
+        eq(teamJoinRequestsTable.requesterId, req.user.id),
+        eq(teamJoinRequestsTable.status, "pending"),
+      ),
+    );
   if (dup) {
-    res.status(400).json({ error: "You already have a pending request for this team" });
+    res
+      .status(400)
+      .json({ error: "You already have a pending request for this team" });
     return;
   }
   const [jr] = await db
     .insert(teamJoinRequestsTable)
-    .values({ teamId: params.data.id, requesterId: req.user.id, message: parsed.data.message ?? null })
+    .values({
+      teamId: params.data.id,
+      requesterId: req.user.id,
+      message: parsed.data.message ?? null,
+    })
     .returning();
   // Notify all team members
-  const members = await db.select().from(teamMembersTable).where(eq(teamMembersTable.teamId, params.data.id));
+  const members = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.teamId, params.data.id));
   for (const m of members) {
     await createNotification(
       m.userId,
@@ -1638,7 +2071,10 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [jr] = await db.select().from(teamJoinRequestsTable).where(eq(teamJoinRequestsTable.id, params.data.id));
+  const [jr] = await db
+    .select()
+    .from(teamJoinRequestsTable)
+    .where(eq(teamJoinRequestsTable.id, params.data.id));
   if (!jr) {
     res.status(404).json({ error: "Request not found" });
     return;
@@ -1648,60 +2084,95 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     return;
   }
   if (!(await ensureTeamMember(jr.teamId, req.user.id))) {
-    res.status(403).json({ error: "Only team members can approve join requests" });
+    res
+      .status(403)
+      .json({ error: "Only team members can approve join requests" });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, jr.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, jr.teamId));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
   }
-  const [onTeam] = await db.select().from(teamMembersTable).where(eq(teamMembersTable.userId, jr.requesterId));
+  const [onTeam] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, jr.requesterId));
   if (onTeam) {
     await db
       .update(teamJoinRequestsTable)
-      .set({ status: "cancelled", respondedAt: new Date(), decidedById: req.user.id })
+      .set({
+        status: "cancelled",
+        respondedAt: new Date(),
+        decidedById: req.user.id,
+      })
       .where(eq(teamJoinRequestsTable.id, jr.id));
     res.status(400).json({ error: "Requester is already on a team" });
     return;
   }
   // Enforce team capacity atomically.
   const approveResult = await db.transaction(async (tx) => {
-    await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, jr.teamId)).for("update");
+    await tx
+      .select({ id: teamsTable.id })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, jr.teamId))
+      .for("update");
     const limit = await getTeamMemberLimit(tx);
     const count = await getTeamMemberCount(jr.teamId, tx);
     if (count >= limit) return { kind: "full" as const, count, limit };
     try {
-      await tx.insert(teamMembersTable).values({ teamId: jr.teamId, userId: jr.requesterId });
+      await tx
+        .insert(teamMembersTable)
+        .values({ teamId: jr.teamId, userId: jr.requesterId });
     } catch {
       return { kind: "duplicate" as const };
     }
     return { kind: "ok" as const };
   });
   if (approveResult.kind === "full") {
-    res.status(400).json({ error: teamFullMessage(approveResult.count, approveResult.limit) });
+    res
+      .status(400)
+      .json({
+        error: teamFullMessage(approveResult.count, approveResult.limit),
+      });
     return;
   }
   if (approveResult.kind === "duplicate") {
-    res.status(409).json({ error: "Could not add member. They may already be on a team." });
+    res
+      .status(409)
+      .json({ error: "Could not add member. They may already be on a team." });
     return;
   }
   await db
     .update(teamJoinRequestsTable)
-    .set({ status: "approved", respondedAt: new Date(), decidedById: req.user.id })
+    .set({
+      status: "approved",
+      respondedAt: new Date(),
+      decidedById: req.user.id,
+    })
     .where(eq(teamJoinRequestsTable.id, jr.id));
   // Cancel requester's other pending invites + join requests
   await db
     .update(teamInvitationsTable)
     .set({ status: "cancelled", respondedAt: new Date() })
-    .where(and(eq(teamInvitationsTable.inviteeId, jr.requesterId), eq(teamInvitationsTable.status, "pending")));
+    .where(
+      and(
+        eq(teamInvitationsTable.inviteeId, jr.requesterId),
+        eq(teamInvitationsTable.status, "pending"),
+      ),
+    );
   await db
     .update(teamJoinRequestsTable)
     .set({ status: "cancelled", respondedAt: new Date() })
-    .where(and(
-      eq(teamJoinRequestsTable.requesterId, jr.requesterId),
-      eq(teamJoinRequestsTable.status, "pending"),
-    ));
+    .where(
+      and(
+        eq(teamJoinRequestsTable.requesterId, jr.requesterId),
+        eq(teamJoinRequestsTable.status, "pending"),
+      ),
+    );
   await createNotification(
     jr.requesterId,
     "Request Approved",
@@ -1709,8 +2180,14 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     "team_join_approved",
     "/team",
   );
-  const others = await db.select().from(teamMembersTable).where(eq(teamMembersTable.teamId, team.id));
-  const [requester] = await db.select().from(usersTable).where(eq(usersTable.id, jr.requesterId));
+  const others = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.teamId, team.id));
+  const [requester] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, jr.requesterId));
   for (const m of others) {
     if (m.userId !== jr.requesterId) {
       await createNotification(
@@ -1736,7 +2213,10 @@ router.post("/join-requests/:id/decline", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [jr] = await db.select().from(teamJoinRequestsTable).where(eq(teamJoinRequestsTable.id, params.data.id));
+  const [jr] = await db
+    .select()
+    .from(teamJoinRequestsTable)
+    .where(eq(teamJoinRequestsTable.id, params.data.id));
   if (!jr) {
     res.status(404).json({ error: "Request not found" });
     return;
@@ -1746,14 +2226,23 @@ router.post("/join-requests/:id/decline", async (req, res): Promise<void> => {
     return;
   }
   if (!(await ensureTeamMember(jr.teamId, req.user.id))) {
-    res.status(403).json({ error: "Only team members can decline join requests" });
+    res
+      .status(403)
+      .json({ error: "Only team members can decline join requests" });
     return;
   }
   await db
     .update(teamJoinRequestsTable)
-    .set({ status: "declined", respondedAt: new Date(), decidedById: req.user.id })
+    .set({
+      status: "declined",
+      respondedAt: new Date(),
+      decidedById: req.user.id,
+    })
     .where(eq(teamJoinRequestsTable.id, jr.id));
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, jr.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, jr.teamId));
   await createNotification(
     jr.requesterId,
     "Request Declined",
@@ -1766,8 +2255,13 @@ router.post("/join-requests/:id/decline", async (req, res): Promise<void> => {
 
 // ============= LEAVE REQUESTS =============
 
-async function shapeLeaveRequest(lr: typeof teamLeaveRequestsTable.$inferSelect) {
-  const [requester] = await db.select().from(usersTable).where(eq(usersTable.id, lr.requesterId));
+async function shapeLeaveRequest(
+  lr: typeof teamLeaveRequestsTable.$inferSelect,
+) {
+  const [requester] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, lr.requesterId));
   return {
     id: lr.id,
     teamId: lr.teamId,
@@ -1792,19 +2286,29 @@ router.get("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, params.data.id));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
   }
   if (team.leaderId !== req.user.id && req.user.role !== "admin") {
-    res.status(403).json({ error: "Only the team leader can view leave requests" });
+    res
+      .status(403)
+      .json({ error: "Only the team leader can view leave requests" });
     return;
   }
   const rows = await db
     .select()
     .from(teamLeaveRequestsTable)
-    .where(and(eq(teamLeaveRequestsTable.teamId, params.data.id), eq(teamLeaveRequestsTable.status, "pending")))
+    .where(
+      and(
+        eq(teamLeaveRequestsTable.teamId, params.data.id),
+        eq(teamLeaveRequestsTable.status, "pending"),
+      ),
+    )
     .orderBy(sql`created_at desc`);
   const result = await Promise.all(rows.map(shapeLeaveRequest));
   res.json(result);
@@ -1825,13 +2329,20 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, params.data.id));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
   }
   if (team.leaderId === req.user.id) {
-    res.status(400).json({ error: "Team leaders cannot leave the team. Transfer leadership first." });
+    res
+      .status(400)
+      .json({
+        error: "Team leaders cannot leave the team. Transfer leadership first.",
+      });
     return;
   }
   if (!(await ensureTeamMember(params.data.id, req.user.id))) {
@@ -1842,18 +2353,24 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
   const [dup] = await db
     .select()
     .from(teamLeaveRequestsTable)
-    .where(and(
-      eq(teamLeaveRequestsTable.teamId, params.data.id),
-      eq(teamLeaveRequestsTable.requesterId, userId),
-      eq(teamLeaveRequestsTable.status, "pending"),
-    ));
+    .where(
+      and(
+        eq(teamLeaveRequestsTable.teamId, params.data.id),
+        eq(teamLeaveRequestsTable.requesterId, userId),
+        eq(teamLeaveRequestsTable.status, "pending"),
+      ),
+    );
   if (dup) {
     res.status(400).json({ error: "You already have a pending leave request" });
     return;
   }
   const [lr] = await db
     .insert(teamLeaveRequestsTable)
-    .values({ teamId: params.data.id, requesterId: userId, reason: parsed.data.reason ?? undefined })
+    .values({
+      teamId: params.data.id,
+      requesterId: userId,
+      reason: parsed.data.reason ?? undefined,
+    })
     .returning();
   await createNotification(
     team.leaderId,
@@ -1875,7 +2392,10 @@ router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [lr] = await db.select().from(teamLeaveRequestsTable).where(eq(teamLeaveRequestsTable.id, params.data.id));
+  const [lr] = await db
+    .select()
+    .from(teamLeaveRequestsTable)
+    .where(eq(teamLeaveRequestsTable.id, params.data.id));
   if (!lr) {
     res.status(404).json({ error: "Request not found" });
     return;
@@ -1884,13 +2404,18 @@ router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Request is no longer pending" });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, lr.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, lr.teamId));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
   }
   if (team.leaderId !== req.user.id && req.user.role !== "admin") {
-    res.status(403).json({ error: "Only the team leader can approve leave requests" });
+    res
+      .status(403)
+      .json({ error: "Only the team leader can approve leave requests" });
     return;
   }
   if (lr.requesterId === team.leaderId) {
@@ -1899,10 +2424,19 @@ router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
   }
   await db
     .delete(teamMembersTable)
-    .where(and(eq(teamMembersTable.teamId, lr.teamId), eq(teamMembersTable.userId, lr.requesterId)));
+    .where(
+      and(
+        eq(teamMembersTable.teamId, lr.teamId),
+        eq(teamMembersTable.userId, lr.requesterId),
+      ),
+    );
   await db
     .update(teamLeaveRequestsTable)
-    .set({ status: "approved", respondedAt: new Date(), decidedById: req.user.id })
+    .set({
+      status: "approved",
+      respondedAt: new Date(),
+      decidedById: req.user.id,
+    })
     .where(eq(teamLeaveRequestsTable.id, lr.id));
   await createNotification(
     lr.requesterId,
@@ -1924,7 +2458,10 @@ router.post("/leave-requests/:id/decline", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [lr] = await db.select().from(teamLeaveRequestsTable).where(eq(teamLeaveRequestsTable.id, params.data.id));
+  const [lr] = await db
+    .select()
+    .from(teamLeaveRequestsTable)
+    .where(eq(teamLeaveRequestsTable.id, params.data.id));
   if (!lr) {
     res.status(404).json({ error: "Request not found" });
     return;
@@ -1933,18 +2470,27 @@ router.post("/leave-requests/:id/decline", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Request is no longer pending" });
     return;
   }
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, lr.teamId));
+  const [team] = await db
+    .select()
+    .from(teamsTable)
+    .where(eq(teamsTable.id, lr.teamId));
   if (!team) {
     res.status(404).json({ error: "Team not found" });
     return;
   }
   if (team.leaderId !== req.user.id && req.user.role !== "admin") {
-    res.status(403).json({ error: "Only the team leader can decline leave requests" });
+    res
+      .status(403)
+      .json({ error: "Only the team leader can decline leave requests" });
     return;
   }
   await db
     .update(teamLeaveRequestsTable)
-    .set({ status: "declined", respondedAt: new Date(), decidedById: req.user.id })
+    .set({
+      status: "declined",
+      respondedAt: new Date(),
+      decidedById: req.user.id,
+    })
     .where(eq(teamLeaveRequestsTable.id, lr.id));
   await createNotification(
     lr.requesterId,

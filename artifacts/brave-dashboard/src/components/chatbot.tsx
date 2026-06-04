@@ -32,8 +32,17 @@ const initialMessages = (): ChatMessage[] => [
   },
 ];
 
+// Whether the user has hidden the floating launcher via its ✕ button.
+// Intentionally a module-level, in-memory flag (NOT state / NOT storage):
+// it survives client-side route changes — Layout and this component remount
+// on navigation, but the module stays loaded — yet resets to `false` on a
+// full page reload/refresh. So a hidden launcher reappears only when the
+// whole page is reloaded, exactly as required.
+let launcherDismissed = false;
+
 export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
   const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(launcherDismissed);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -198,50 +207,71 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
 
   return (
     <>
-      {/* Floating launcher button — only visible when the chat is closed. */}
-      {!open && (
-        <button
-          ref={launcherRef}
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open BRAVE assistant"
-          data-testid="button-open-chatbot"
-          className="fixed bottom-6 right-6 z-50 cursor-pointer group focus:outline-none"
-        >
-          {/* Soft pulsing halo */}
-          <span
-            aria-hidden="true"
-            className="absolute inset-0 rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(125,228,255,0.45) 0%, rgba(26,31,77,0) 70%)",
-              animation: "brave-chatbot-pulse 2.4s ease-in-out infinite",
-            }}
-          />
-          <span
-            aria-hidden="true"
-            className="absolute -inset-1 rounded-full opacity-70"
-            style={{
-              boxShadow: "0 0 0 0 rgba(125,228,255,0.55)",
-              animation:
-                "brave-chatbot-ping 2.4s cubic-bezier(0,0,0.2,1) infinite",
-            }}
-          />
-          <span
-            className="relative block h-16 w-16 transition-transform group-hover:scale-110 group-active:scale-95"
-            style={{
-              filter: "drop-shadow(0 12px 24px rgba(26,31,77,0.5))",
-            }}
+      {/* Floating launcher — visible only when the chat is closed AND the
+          user hasn't hidden it for this page load. */}
+      {!open && !dismissed && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <button
+            ref={launcherRef}
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Open BRAVE assistant"
+            data-testid="button-open-chatbot"
+            className="relative block cursor-pointer group focus:outline-none"
           >
-            <img
-              src={chatbotIconUrl}
-              alt=""
+            {/* Soft pulsing halo */}
+            <span
               aria-hidden="true"
-              draggable={false}
-              className="h-full w-full select-none object-contain"
+              className="absolute inset-0 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(circle, rgba(125,228,255,0.45) 0%, rgba(26,31,77,0) 70%)",
+                animation: "brave-chatbot-pulse 2.4s ease-in-out infinite",
+              }}
             />
-          </span>
-        </button>
+            <span
+              aria-hidden="true"
+              className="absolute -inset-1 rounded-full opacity-70"
+              style={{
+                boxShadow: "0 0 0 0 rgba(125,228,255,0.55)",
+                animation:
+                  "brave-chatbot-ping 2.4s cubic-bezier(0,0,0.2,1) infinite",
+              }}
+            />
+            <span
+              className="relative block h-16 w-16 transition-transform group-hover:scale-110 group-active:scale-95"
+              style={{
+                filter: "drop-shadow(0 12px 24px rgba(26,31,77,0.5))",
+              }}
+            >
+              <img
+                src={chatbotIconUrl}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                className="h-full w-full select-none object-contain"
+              />
+            </span>
+          </button>
+
+          {/* ✕ — hide the launcher for this page load. Reappears only on a
+              full page reload (see `launcherDismissed`). stopPropagation keeps
+              the click off the launcher / outside-click handlers. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              launcherDismissed = true;
+              setDismissed(true);
+            }}
+            aria-label="Hide assistant"
+            title="Hide assistant"
+            data-testid="button-dismiss-chatbot"
+            className="absolute -top-1 -right-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white text-gray-600 shadow-md ring-1 ring-black/10 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4402f]"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
 
       {/* Chat panel. */}

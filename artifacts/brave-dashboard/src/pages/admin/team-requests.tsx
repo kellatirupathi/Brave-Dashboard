@@ -27,7 +27,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCheck, Check, X, ArrowRight, LogOut, ListChecks } from "lucide-react";
+import {
+  UserCheck,
+  Check,
+  X,
+  ArrowRight,
+  LogOut,
+  ListChecks,
+} from "lucide-react";
 
 const PENDING_KEY = ["admin", "membership-requests", "pending"] as const;
 const HISTORY_KEY = ["admin", "membership-requests", "history"] as const;
@@ -139,17 +146,21 @@ export default function AdminTeamRequests() {
       else next.add(id);
       return next;
     });
-  const allSelected =
-    pending.length > 0 && selectedIds.size === pending.length;
+  const allSelected = pending.length > 0 && selectedIds.size === pending.length;
   const toggleSelectAll = () =>
     setSelectedIds((prev) =>
-      prev.size === pending.length ? new Set() : new Set(pending.map((m) => m.id)),
+      prev.size === pending.length
+        ? new Set()
+        : new Set(pending.map((m) => m.id)),
     );
 
   const approveMutation = useMutation({
     mutationFn: (id: number) => approveMembershipRequest(id),
     onSuccess: () => {
-      toast({ title: "Request approved", description: "The change has been applied." });
+      toast({
+        title: "Request approved",
+        description: "The change has been applied.",
+      });
       invalidate();
     },
     onError: (err) => {
@@ -324,55 +335,76 @@ export default function AdminTeamRequests() {
                 </div>
               ) : null}
 
-              {pending.map((mr) => (
-                <Card
-                  key={mr.id}
-                  className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex flex-1 items-start gap-3">
-                    {selectMode ? (
-                      <Checkbox
-                        className="mt-1"
-                        checked={selectedIds.has(mr.id)}
-                        onCheckedChange={() => toggleSelected(mr.id)}
-                        aria-label={`Select request for ${mr.targetName}`}
-                      />
-                    ) : null}
-                    <div className="flex-1">
-                      <RequestSummary mr={mr} />
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        Submitted {formatDateTime(mr.createdAt)}
+              {pending.map((mr) => {
+                // Scope the loading/disabled state to THIS row only. Using the
+                // mutation's own `variables` means a click on one card never
+                // touches the buttons on the others — only the acted-on button
+                // shows a spinner and goes disabled.
+                const isApproving =
+                  approveMutation.isPending &&
+                  approveMutation.variables === mr.id;
+                const isRejecting =
+                  rejectMutation.isPending &&
+                  rejectMutation.variables?.id === mr.id;
+                const rowBusy = isApproving || isRejecting;
+                return (
+                  <Card
+                    key={mr.id}
+                    className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="flex flex-1 items-start gap-3">
+                      {selectMode ? (
+                        <Checkbox
+                          className="mt-1"
+                          checked={selectedIds.has(mr.id)}
+                          onCheckedChange={() => toggleSelected(mr.id)}
+                          aria-label={`Select request for ${mr.targetName}`}
+                        />
+                      ) : null}
+                      <div className="flex-1">
+                        <RequestSummary mr={mr} />
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Submitted {formatDateTime(mr.createdAt)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <MembershipHistoryPopover
-                      userId={mr.targetUserId}
-                      name={mr.targetName}
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => approveMutation.mutate(mr.id)}
-                      disabled={busy}
-                    >
-                      <Check className="mr-1 h-4 w-4" />
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setRejectTarget(mr);
-                        setRejectNote("");
-                      }}
-                      disabled={busy}
-                    >
-                      <X className="mr-1 h-4 w-4" />
-                      Reject
-                    </Button>
-                  </div>
-                </Card>
-              ))}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <MembershipHistoryPopover
+                        userId={mr.targetUserId}
+                        name={mr.targetName}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => approveMutation.mutate(mr.id)}
+                        disabled={rowBusy || bulkBusy}
+                      >
+                        {isApproving ? (
+                          <Spinner className="mr-1" />
+                        ) : (
+                          <Check className="mr-1 h-4 w-4" />
+                        )}
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setRejectTarget(mr);
+                          setRejectNote("");
+                        }}
+                        disabled={rowBusy || bulkBusy}
+                      >
+                        {isRejecting ? (
+                          <Spinner className="mr-1" />
+                        ) : (
+                          <X className="mr-1 h-4 w-4" />
+                        )}
+                        Reject
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
