@@ -21,7 +21,10 @@ const router: IRouter = Router();
  */
 function enrichComparisonUrls(
   detail: unknown,
-  lookup: Map<number, { brdUrl: string | null; clientName: string | null }>,
+  lookup: Map<
+    number,
+    { brdUrl: string | null; clientName: string | null; status: string | null }
+  >,
 ): unknown {
   if (!detail || typeof detail !== "object") return detail;
   const obj = detail as Record<string, unknown>;
@@ -32,19 +35,33 @@ function enrichComparisonUrls(
     uniqueness_comparison: comparison.map((row) => {
       if (!row || typeof row !== "object") return row;
       const r = row as Record<string, unknown>;
-      // Already has a BRD url — leave it untouched.
-      if (r["compared_brd_url"]) return r;
       const label =
-        typeof r["entry_label"] === "string" ? r["entry_label"] : "";
+        typeof r["entry_label"] === "string"
+          ? (r["entry_label"] as string)
+          : "";
       const idMatch = label.match(/#(\d+)/);
-      const matchedId = idMatch ? Number(idMatch[1]) : null;
-      const matched = matchedId != null ? lookup.get(matchedId) : undefined;
-      if (!matched) return r;
+      const existingId =
+        typeof r["compared_entry_id"] === "number"
+          ? (r["compared_entry_id"] as number)
+          : null;
+      const resolvedId = existingId ?? (idMatch ? Number(idMatch[1]) : null);
+      const matched = resolvedId != null ? lookup.get(resolvedId) : undefined;
+      // Attach the compared entry's CURRENT review status (verified / rejected
+      // / submitted) so the admin UI can show whether that BRD was approved or
+      // rejected. Live value — not the analysis-time snapshot.
+      const withStatus =
+        matched && r["compared_status"] == null
+          ? { ...r, compared_status: matched.status }
+          : r;
+      // Already has a BRD url — keep it (plus any status we just attached).
+      if (withStatus["compared_brd_url"]) return withStatus;
+      if (!matched) return withStatus;
       return {
-        ...r,
-        compared_entry_id: r["compared_entry_id"] ?? matchedId,
+        ...withStatus,
+        compared_entry_id: withStatus["compared_entry_id"] ?? resolvedId,
         compared_brd_url: matched.brdUrl,
-        compared_client_name: r["compared_client_name"] ?? matched.clientName,
+        compared_client_name:
+          withStatus["compared_client_name"] ?? matched.clientName,
       };
     }),
   };
@@ -175,13 +192,14 @@ router.get(
           id: revenueEntriesTable.id,
           brdUrl: revenueEntriesTable.brdUrl,
           clientName: revenueEntriesTable.clientName,
+          status: revenueEntriesTable.status,
         })
         .from(revenueEntriesTable)
         .where(eq(revenueEntriesTable.teamId, entry.teamId));
       const brdLookup = new Map(
         teamEntries.map((e) => [
           e.id,
-          { brdUrl: e.brdUrl, clientName: e.clientName },
+          { brdUrl: e.brdUrl, clientName: e.clientName, status: e.status },
         ]),
       );
 
