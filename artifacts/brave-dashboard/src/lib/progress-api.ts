@@ -264,6 +264,29 @@ export function sendBulkHeatmapReminders(
   });
 }
 
+export type RemindNeverLoggedResponse = {
+  ok: true;
+  targeted: number;
+  notified: number;
+  emailQueued: number;
+};
+
+// Remind students who have never logged in (in-app notification + email).
+// Scoped to the given campus, or all campuses (admin) when omitted.
+export function remindNeverLoggedInStudents(filter?: {
+  campusId?: number;
+}): Promise<RemindNeverLoggedResponse> {
+  return customFetch<RemindNeverLoggedResponse>(
+    `/api/heatmap/remind-never-logged-in`,
+    {
+      method: "POST",
+      body: JSON.stringify(
+        filter?.campusId ? { campusId: filter.campusId } : {},
+      ),
+    },
+  );
+}
+
 export type CampusOption = {
   id: number;
   name: string;

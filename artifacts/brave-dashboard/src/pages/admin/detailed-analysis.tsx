@@ -684,7 +684,7 @@ export default function DetailedAnalysisPage() {
   const validEntryId = entryId && Number.isInteger(entryId) ? entryId : null;
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Link
           href="/admin/queue"

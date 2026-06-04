@@ -18,6 +18,7 @@ import {
   TrendingUp,
   BarChart3,
   List,
+  UserX,
 } from "lucide-react";
 import {
   Bar,
@@ -66,6 +67,7 @@ import {
   getHeatmap,
   sendHeatmapReminder,
   sendBulkHeatmapReminders,
+  remindNeverLoggedInStudents,
   listCampusesForFilter,
   getHeatmapAnalytics,
   listHeatmapStudents,
@@ -91,6 +93,10 @@ const FUNNEL_STAGE_META: Record<
   students_logged_in: {
     icon: <LogIn className="h-4 w-4" />,
     color: "bg-cyan-500",
+  },
+  never_logged_in_students: {
+    icon: <UserX className="h-4 w-4" />,
+    color: "bg-rose-500",
   },
   submitted_journal: {
     icon: <ClipboardList className="h-4 w-4" />,
@@ -120,6 +126,7 @@ const FUNNEL_STAGE_HEX: Record<string, string> = {
   registered_teams: "#94a3b8", // slate-400
   teams_logged_in: "#0ea5e9", // sky-500
   students_logged_in: "#06b6d4", // cyan-500
+  never_logged_in_students: "#f43f5e", // rose-500
   submitted_journal: "#3b82f6", // blue-500
   visited_client: "#8b5cf6", // violet-500
   active_conversation: "#d946ef", // fuchsia-500
@@ -139,12 +146,18 @@ function conversionPillClass(pct: number): string {
 // left edge and a full-width track, so the coloured fill (= share of the top
 // stage) visibly tapers down the list. The right rail shows the headline count,
 // % of the top stage, and a colour-coded step-to-step conversion pill.
+const NEVER_LOGGED_KEY = "never_logged_in_students";
+
 function FunnelChart({
   stages,
   loading,
+  onRemindNeverLogged,
+  remindingNeverLogged,
 }: {
   stages: { key: string; label: string; count: number }[];
   loading: boolean;
+  onRemindNeverLogged?: () => void;
+  remindingNeverLogged?: boolean;
 }) {
   if (loading) {
     return (
@@ -192,10 +205,21 @@ function FunnelChart({
       {/* Funnel bars. */}
       <div className="space-y-2.5">
         {stages.map((s, i) => {
+          const isNeverLogged = s.key === NEVER_LOGGED_KEY;
           const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
-          const prev = i > 0 ? stages[i - 1] : null;
+          // "Never logged-in" is an informational side-stat, not a funnel step.
+          // It carries no conversion pill, and the next real stage chains its
+          // step-conversion off the last genuine funnel stage (skipping it).
+          const prev = (() => {
+            for (let k = i - 1; k >= 0; k--) {
+              if (stages[k].key !== NEVER_LOGGED_KEY) return stages[k];
+            }
+            return null;
+          })();
           const stepPct =
-            prev && prev.count > 0 ? (s.count / prev.count) * 100 : null;
+            isNeverLogged || !prev || prev.count <= 0
+              ? null
+              : (s.count / prev.count) * 100;
           const meta = FUNNEL_STAGE_META[s.key] ?? {
             icon: null,
             color: "bg-primary",
@@ -250,6 +274,24 @@ function FunnelChart({
                   ) : (
                     <span className="text-[10px] text-muted-foreground">—</span>
                   )}
+                </span>
+                {/* Remind slot — only the never-logged-in row gets a button;
+                    other rows keep an equal-width spacer so columns align. */}
+                <span className="w-24 flex justify-end">
+                  {isNeverLogged && onRemindNeverLogged ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      disabled={remindingNeverLogged || s.count === 0}
+                      onClick={onRemindNeverLogged}
+                      title="Send a notification + email to every student who has never logged in"
+                      data-testid="funnel-remind-never-logged"
+                    >
+                      <Bell className="h-3 w-3 mr-1" />
+                      Remind
+                    </Button>
+                  ) : null}
                 </span>
               </div>
             </div>
@@ -646,6 +688,33 @@ export default function HeatmapPage() {
     },
   });
 
+  // Remind every student who has never logged in — notification + email.
+  const [remindNeverOpen, setRemindNeverOpen] = useState(false);
+  const neverLoggedCount =
+    analytics?.funnel.find((s) => s.key === "never_logged_in_students")
+      ?.count ?? 0;
+  const remindNeverMut = useMutation({
+    mutationFn: () =>
+      remindNeverLoggedInStudents(
+        campusFilterForApi ? { campusId: campusFilterForApi } : undefined,
+      ),
+    onSuccess: (r) => {
+      toast({
+        title: "Reminders sent",
+        description: `Targeted ${r.targeted.toLocaleString("en-IN")} never-logged-in student${r.targeted === 1 ? "" : "s"} — ${r.notified.toLocaleString("en-IN")} in-app notification${r.notified === 1 ? "" : "s"}, ${r.emailQueued.toLocaleString("en-IN")} email${r.emailQueued === 1 ? "" : "s"} queued.`,
+      });
+      setRemindNeverOpen(false);
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Reminder failed",
+        description: err.message,
+        variant: "destructive",
+      });
+      setRemindNeverOpen(false);
+    },
+  });
+
   // Apply text + status + week-specific filters client-side. Campus is
   // already filtered server-side via the query.
   // Sort priority: Active → Inconsistent → Silent → Never logged.
@@ -902,6 +971,8 @@ export default function HeatmapPage() {
                 <FunnelChart
                   stages={analytics?.funnel ?? []}
                   loading={analyticsLoading}
+                  onRemindNeverLogged={() => setRemindNeverOpen(true)}
+                  remindingNeverLogged={remindNeverMut.isPending}
                 />
               )}
             </CardContent>
@@ -1278,6 +1349,41 @@ export default function HeatmapPage() {
               data-testid="bulk-remind-confirm"
             >
               {bulkRemindMut.isPending ? "Sending…" : "Send reminders"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Never-logged-in remind confirmation */}
+      <AlertDialog open={remindNeverOpen} onOpenChange={setRemindNeverOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Remind {neverLoggedCount.toLocaleString("en-IN")} never-logged-in
+              student{neverLoggedCount === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Every student who has never logged in
+              {campusFilterForApi
+                ? " (current campus)"
+                : " (all campuses)"}{" "}
+              will receive both an in-app notification and an email asking them
+              to log in. Emails are sent in the background and may take a few
+              minutes to finish.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remindNeverMut.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={remindNeverMut.isPending || neverLoggedCount === 0}
+              onClick={() => remindNeverMut.mutate()}
+              data-testid="remind-never-logged-confirm"
+            >
+              {remindNeverMut.isPending
+                ? "Sending…"
+                : "Send notification + email"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

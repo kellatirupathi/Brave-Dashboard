@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, asc, sql } from "drizzle-orm";
+import { eq, and, gte, asc, isNull, sql } from "drizzle-orm";
 import {
   db,
   teamsTable,
@@ -13,6 +13,8 @@ import {
 } from "@workspace/db";
 import { z } from "zod/v4";
 import { getReminderSettings } from "./programme-weeks";
+import { sendEmail, getAppUrl } from "../lib/email/brevo";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -379,6 +381,131 @@ router.post("/heatmap/remind-bulk", async (req, res): Promise<void> => {
   });
 });
 
+const RemindNeverLoggedBody = z.object({
+  campusId: z.number().int().positive().optional(),
+});
+
+// Remind students who have NEVER logged in (last_seen_at IS NULL). Sends BOTH
+// an in-app notification AND an email to each targeted student, scoped to the
+// admin's chosen campus (or the coordinator's own campus). Notifications are
+// written synchronously; emails are dispatched in the background so a large
+// cohort doesn't block the HTTP response.
+router.post(
+  "/heatmap/remind-never-logged-in",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const role = req.user.role;
+    if (role !== "admin" && role !== "coordinator") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = RemindNeverLoggedBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    // Resolve campus scope — coordinators are locked to their own campus.
+    let campusFilter: number | null = null;
+    if (role === "coordinator") {
+      const [me] = await db
+        .select({ campusId: usersTable.campusId })
+        .from(usersTable)
+        .where(eq(usersTable.id, req.user.id))
+        .limit(1);
+      if (!me?.campusId) {
+        res.status(403).json({ error: "Coordinator has no campus" });
+        return;
+      }
+      campusFilter = me.campusId;
+    } else if (parsed.data.campusId != null) {
+      campusFilter = parsed.data.campusId;
+    }
+
+    const { notificationsEnabled, emailsEnabled } = await getReminderSettings();
+    if (!notificationsEnabled && !emailsEnabled) {
+      res.status(409).json({
+        error:
+          "Both in-app notifications and emails are disabled by admin in /admin/config. Enable at least one to send reminders.",
+      });
+      return;
+    }
+
+    // Target = students who have never been seen, within scope.
+    const conditions = [
+      eq(usersTable.role, "student" as const),
+      isNull(usersTable.lastSeenAt),
+    ];
+    if (campusFilter != null) {
+      conditions.push(eq(usersTable.campusId, campusFilter));
+    }
+    const targets = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+      })
+      .from(usersTable)
+      .where(and(...conditions));
+
+    if (targets.length === 0) {
+      res.json({ ok: true, targeted: 0, notified: 0, emailQueued: 0 });
+      return;
+    }
+
+    // In-app notifications — one batched insert.
+    let notified = 0;
+    if (notificationsEnabled) {
+      await db.insert(notificationsTable).values(
+        targets.map((s) => ({
+          userId: s.id,
+          title: "Log in to the BRAVE Dashboard",
+          body: "You haven't logged in yet. Please log in to get started with the BRAVE programme and submit your weekly journal.",
+          type: "reminder" as const,
+          link: "/journal",
+        })),
+      );
+      notified = targets.length;
+    }
+
+    // Emails — sent individually (never disclosing recipients to each other)
+    // in the background, so a cohort of hundreds doesn't time out the request.
+    const emailTargets = emailsEnabled
+      ? targets.filter((s) => s.email && s.email.includes("@"))
+      : [];
+    if (emailTargets.length > 0) {
+      const appUrl = getAppUrl();
+      void (async () => {
+        let emailed = 0;
+        for (const s of emailTargets) {
+          const ok = await sendEmail({
+            to: { email: s.email, name: s.firstName || undefined },
+            subject: "[BRAVE] Log in to your BRAVE Dashboard",
+            text: `Hi ${s.firstName || "there"},\n\nWe noticed you haven't logged in to the BRAVE Dashboard yet. Please log in to get started with the programme and submit your weekly journal.\n\nLog in here: ${appUrl}\n\n— BRAVE Dashboard`,
+          });
+          if (ok) emailed += 1;
+        }
+        logger.info(
+          { targeted: emailTargets.length, emailed, campusFilter },
+          "[heatmap] never-logged-in email blast complete",
+        );
+      })().catch((err) =>
+        logger.error({ err }, "[heatmap] never-logged-in email blast failed"),
+      );
+    }
+
+    res.json({
+      ok: true,
+      targeted: targets.length,
+      notified,
+      emailQueued: emailTargets.length,
+    });
+  },
+);
+
 // =============================================================================
 // GET /heatmap/analytics
 //
@@ -422,6 +549,11 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
           { key: "registered_teams", label: "Registered teams", count: 0 },
           { key: "teams_logged_in", label: "Teams logged in", count: 0 },
           { key: "students_logged_in", label: "Students logged in", count: 0 },
+          {
+            key: "never_logged_in_students",
+            label: "Never logged-in students",
+            count: 0,
+          },
           { key: "submitted_journal", label: "Submitted journal", count: 0 },
           { key: "visited_client", label: "Visited client", count: 0 },
           {
@@ -504,6 +636,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
     registered_teams: string;
     teams_logged_in: string;
     students_logged_in: string;
+    never_logged_in_students: string;
     submitted_journal: string;
     visited_client: string;
     active_conversation: string;
@@ -551,6 +684,11 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
           AND u.last_seen_at >= ${rangeStart}
           AND u.last_seen_at <= ${rangeEnd}
           ${campusClause})                                                         AS students_logged_in,
+      (SELECT COUNT(*)
+         FROM users u
+        WHERE u.role = 'student'
+          AND u.last_seen_at IS NULL
+          ${campusClause})                                                         AS never_logged_in_students,
       (SELECT COUNT(*) FROM team_journal WHERE submitted)    AS submitted_journal,
       (SELECT COUNT(*) FROM team_journal WHERE visited)      AS visited_client,
       (SELECT COUNT(*) FROM team_journal WHERE conversation) AS active_conversation,
@@ -606,6 +744,11 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
         key: "students_logged_in",
         label: "Students logged in",
         count: Number(f?.students_logged_in ?? 0),
+      },
+      {
+        key: "never_logged_in_students",
+        label: "Never logged-in students",
+        count: Number(f?.never_logged_in_students ?? 0),
       },
       {
         key: "submitted_journal",

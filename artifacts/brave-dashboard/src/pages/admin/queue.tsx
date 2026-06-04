@@ -137,17 +137,30 @@ export default function AdminQueue() {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-        <TabsList>
-          <TabsTrigger value="pending" data-testid="tab-pending">
-            Pending review
-          </TabsTrigger>
-          <TabsTrigger value="approved" data-testid="tab-approved">
-            Approved
-          </TabsTrigger>
-          <TabsTrigger value="rejected" data-testid="tab-rejected">
-            Rejected
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="pending" data-testid="tab-pending">
+              Pending review
+            </TabsTrigger>
+            <TabsTrigger value="approved" data-testid="tab-approved">
+              Approved
+            </TabsTrigger>
+            <TabsTrigger value="rejected" data-testid="tab-rejected">
+              Rejected
+            </TabsTrigger>
+          </TabsList>
+          <Link href="/admin/queue/detailed-analysis">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              data-testid="link-view-all-analysis"
+            >
+              <Bot className="w-4 h-4" />
+              View all analysis
+            </Button>
+          </Link>
+        </div>
 
         <TabsContent value="pending" className="mt-6">
           <QueueList status="submitted" search={search} />
@@ -353,7 +366,10 @@ function QueueRow({
           ) : null}
 
           {item.brdUrl ? (
-            <div className="mt-3 relative z-20" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="mt-3 relative z-20"
+              onClick={(e) => e.stopPropagation()}
+            >
               <AiBrdAuditCard item={item} />
             </div>
           ) : null}
