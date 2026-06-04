@@ -836,7 +836,7 @@ export default function HeatmapPage() {
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
+                <div className="max-w-4xl">
                   <CardTitle className="text-base">Programme Funnel</CardTitle>
                   <CardDescription>
                     Team-level progression through the programme.{" "}
@@ -847,8 +847,9 @@ export default function HeatmapPage() {
                   </CardDescription>
                 </div>
                 {/* Controls stack — top row holds the range dropdown then the
-                    list/graph icons; the custom date range drops to a row below. */}
-                <div className="flex flex-col gap-2 sm:items-end">
+                    list/graph icons; the custom date range drops to a row below.
+                    shrink-0 keeps the dropdown + icons on one row (no wrap). */}
+                <div className="flex flex-col gap-2 sm:items-end shrink-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {/* 1. Range dropdown */}
                     <Select
