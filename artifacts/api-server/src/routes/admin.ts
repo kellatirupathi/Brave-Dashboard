@@ -42,6 +42,8 @@ import { runSeed } from "../seed";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import { renderRevenueVerifiedEmail } from "../lib/email/templates/revenue-verified";
 import { renderRevenueRejectedEmail } from "../lib/email/templates/revenue-rejected";
+import { renderAccessApprovedEmail } from "../lib/email/templates/access-approved";
+import { renderAccessRejectedEmail } from "../lib/email/templates/access-rejected";
 import * as bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -2069,6 +2071,22 @@ router.post(
       id,
       `approved: ${result.reqRow.email}`,
     );
+    // Notify the approved student (best-effort; never blocks the response).
+    try {
+      const { subject, text } = renderAccessApprovedEmail({
+        fullName: result.reqRow.fullName,
+        niatId: result.reqRow.niatId,
+        campusName: result.reqRow.campusName,
+        appUrl: getAppUrl(),
+      });
+      await sendEmail({
+        to: { email: result.reqRow.email, name: result.reqRow.fullName },
+        subject,
+        text,
+      });
+    } catch (err) {
+      req.log.warn({ err }, "Failed to send access-approved email");
+    }
     res.json(result.updated);
   },
 );
@@ -2137,6 +2155,20 @@ router.post(
       id,
       `rejected: ${result.reqRow.email}`,
     );
+    // Notify the student of the decision (best-effort; never blocks response).
+    try {
+      const { subject, text } = renderAccessRejectedEmail({
+        fullName: result.reqRow.fullName,
+        notes: result.reqRow.notes,
+      });
+      await sendEmail({
+        to: { email: result.reqRow.email, name: result.reqRow.fullName },
+        subject,
+        text,
+      });
+    } catch (err) {
+      req.log.warn({ err }, "Failed to send access-rejected email");
+    }
     res.json(result.updated);
   },
 );
