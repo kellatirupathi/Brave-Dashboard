@@ -15,7 +15,6 @@ import {
   MessageCircle,
   Rocket,
   PackageCheck,
-  TrendingUp,
   BarChart3,
   List,
   UserX,
@@ -151,11 +150,13 @@ const NEVER_LOGGED_KEY = "never_logged_in_students";
 function FunnelChart({
   stages,
   loading,
+  engagement,
   onRemindNeverLogged,
   remindingNeverLogged,
 }: {
   stages: { key: string; label: string; count: number }[];
   loading: boolean;
+  engagement?: { dau: number; wau: number };
   onRemindNeverLogged?: () => void;
   remindingNeverLogged?: boolean;
 }) {
@@ -176,29 +177,65 @@ function FunnelChart({
   const base = stages[0]?.count ?? 0;
   const final = stages[stages.length - 1]?.count ?? 0;
   const overall = base > 0 ? (final / base) * 100 : 0;
+  // Active users within the selected date range — this is "Students logged in"
+  // for the chosen window (Today ⇒ daily active, Last week ⇒ weekly active).
+  const rangeActive =
+    stages.find((s) => s.key === "students_logged_in")?.count ?? 0;
 
   return (
     <div className="space-y-4" data-testid="funnel-chart">
-      {/* Headline summary — overall registered → closed conversion. */}
-      <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
-        <div>
-          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Overall conversion
+      {/* Headline summary — overall conversion + active users. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Overall conversion
+            </div>
+            <div className="text-2xl font-bold tabular-nums text-primary">
+              {overall.toFixed(1)}%
+            </div>
           </div>
-          <div className="text-2xl font-bold tabular-nums text-primary">
-            {overall.toFixed(1)}%
+          <div className="text-right text-xs text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground tabular-nums">
+              {base.toLocaleString("en-IN")}
+            </span>{" "}
+            registered
+            <br />→{" "}
+            <span className="font-semibold text-foreground tabular-nums">
+              {final.toLocaleString("en-IN")}
+            </span>{" "}
+            closed a project
           </div>
         </div>
-        <div className="text-right text-xs text-muted-foreground leading-relaxed">
-          <span className="font-semibold text-foreground tabular-nums">
-            {base.toLocaleString("en-IN")}
-          </span>{" "}
-          registered
-          <br />→{" "}
-          <span className="font-semibold text-foreground tabular-nums">
-            {final.toLocaleString("en-IN")}
-          </span>{" "}
-          closed a project
+
+        {/* Active users — range-aware count, with the fixed 24h / 7d windows
+            shown alongside so the daily/weekly active figures are never lost. */}
+        <div
+          className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3"
+          data-testid="funnel-active-users"
+        >
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Active users
+            </div>
+            <div className="text-2xl font-bold tabular-nums text-primary">
+              {rangeActive.toLocaleString("en-IN")}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              in selected range
+            </div>
+          </div>
+          <div className="text-right text-xs text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground tabular-nums">
+              {(engagement?.dau ?? 0).toLocaleString("en-IN")}
+            </span>{" "}
+            daily (24h)
+            <br />
+            <span className="font-semibold text-foreground tabular-nums">
+              {(engagement?.wau ?? 0).toLocaleString("en-IN")}
+            </span>{" "}
+            weekly (7d)
+          </div>
         </div>
       </div>
 
@@ -424,41 +461,6 @@ function FunnelBarChart({
   );
 }
 
-function AnalyticsCard({
-  label,
-  value,
-  loading,
-  icon,
-  color,
-}: {
-  label: string;
-  value: number | undefined;
-  loading: boolean;
-  icon: React.ReactNode;
-  color?: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="flex items-center gap-1.5 text-xs">
-          <span className="text-muted-foreground">{icon}</span>
-          {label}
-        </CardDescription>
-        <CardTitle
-          className={cn("text-3xl tabular-nums", color)}
-          data-testid={`analytics-card-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-        >
-          {loading ? (
-            <Spinner className="size-5" />
-          ) : (
-            (value ?? 0).toLocaleString("en-IN")
-          )}
-        </CardTitle>
-      </CardHeader>
-    </Card>
-  );
-}
-
 function statusBadge(s: HeatmapTeamRow["status"]) {
   switch (s) {
     case "active":
@@ -494,12 +496,7 @@ function cellClass(b: HeatmapTeamWeek): string {
   return b.hasJournal ? "bg-emerald-500" : "bg-muted/40";
 }
 
-const HEATMAP_TABS = [
-  "funnel",
-  "coverage",
-  "engagement",
-  "team-status",
-] as const;
+const HEATMAP_TABS = ["funnel", "coverage"] as const;
 type HeatmapTab = (typeof HEATMAP_TABS)[number];
 
 export default function HeatmapPage() {
@@ -549,7 +546,7 @@ export default function HeatmapPage() {
         weeksBack,
         ...(campusFilterForApi ? { campusId: campusFilterForApi } : {}),
       }),
-    enabled: activeTab === "coverage" || activeTab === "team-status",
+    enabled: activeTab === "coverage",
   });
 
   // Campus list for the dropdown (admin only).
@@ -601,7 +598,7 @@ export default function HeatmapPage() {
         ...(campusFilterForApi ? { campusId: campusFilterForApi } : {}),
         ...funnelDateParams,
       }),
-    enabled: activeTab === "funnel" || activeTab === "engagement",
+    enabled: activeTab === "funnel",
   });
 
   // Per-student funnel table.
@@ -777,16 +774,6 @@ export default function HeatmapPage() {
     [filteredTeams, page],
   );
 
-  const counts = useMemo(() => {
-    const teams = data?.teams ?? [];
-    return {
-      total: teams.length,
-      active: teams.filter((t) => t.status === "active").length,
-      silent: teams.filter((t) => t.status === "silent").length,
-      never: teams.filter((t) => t.status === "never_logged").length,
-    };
-  }, [data]);
-
   const anyFilterActive =
     query.trim() !== "" ||
     filter !== "all" ||
@@ -816,18 +803,12 @@ export default function HeatmapPage() {
       {/* URL-routed tabs (?tab=…): Funnel / Per-team coverage / Engagement /
           Team Status. Each tab loads its own data on demand. */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="funnel" data-testid="tab-funnel">
             Funnel
           </TabsTrigger>
           <TabsTrigger value="coverage" data-testid="tab-coverage">
             Per-team coverage
-          </TabsTrigger>
-          <TabsTrigger value="engagement" data-testid="tab-engagement">
-            Engagement
-          </TabsTrigger>
-          <TabsTrigger value="team-status" data-testid="tab-team-status">
-            Team Status
           </TabsTrigger>
         </TabsList>
 
@@ -972,74 +953,13 @@ export default function HeatmapPage() {
                 <FunnelChart
                   stages={analytics?.funnel ?? []}
                   loading={analyticsLoading}
+                  engagement={analytics?.engagement}
                   onRemindNeverLogged={() => setRemindNeverOpen(true)}
                   remindingNeverLogged={remindNeverMut.isPending}
                 />
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Engagement — DAU/WAU + Logged in summary */}
-        <TabsContent value="engagement" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <AnalyticsCard
-              label="DAU (last 24h)"
-              value={analytics?.engagement.dau}
-              loading={analyticsLoading}
-              icon={<TrendingUp className="h-4 w-4" />}
-              color="text-primary"
-            />
-            <AnalyticsCard
-              label="WAU (last 7d)"
-              value={analytics?.engagement.wau}
-              loading={analyticsLoading}
-              icon={<TrendingUp className="h-4 w-4" />}
-              color="text-primary"
-            />
-            <AnalyticsCard
-              label="Logged in to Dashboard"
-              value={analytics?.totals.loggedInEver}
-              loading={analyticsLoading}
-              icon={<LogIn className="h-4 w-4" />}
-            />
-          </div>
-        </TabsContent>
-
-        {/* Team Status — the original 4 counters */}
-        <TabsContent value="team-status" className="mt-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Total teams</CardDescription>
-                <CardTitle className="text-3xl">{counts.total}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Active</CardDescription>
-                <CardTitle className="text-3xl text-emerald-600">
-                  {counts.active}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Silent (&gt; 14d)</CardDescription>
-                <CardTitle className="text-3xl text-orange-600">
-                  {counts.silent}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Never logged</CardDescription>
-                <CardTitle className="text-3xl text-red-600">
-                  {counts.never}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-          </div>
         </TabsContent>
 
         {/* Per-team weekly journal coverage — the heavy grid in its own tab. */}
