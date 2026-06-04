@@ -297,9 +297,13 @@ export type HeatmapAnalytics = {
 
 export function getHeatmapAnalytics(filter?: {
   campusId?: number;
+  from?: string;
+  to?: string;
 }): Promise<HeatmapAnalytics> {
   const params = new URLSearchParams();
   if (filter?.campusId) params.set("campusId", String(filter.campusId));
+  if (filter?.from) params.set("from", filter.from);
+  if (filter?.to) params.set("to", filter.to);
   const qs = params.toString();
   return customFetch<HeatmapAnalytics>(
     `/api/heatmap/analytics${qs ? `?${qs}` : ""}`,

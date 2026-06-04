@@ -106,19 +106,35 @@ const FUNNEL_STAGE_META: Record<
   string,
   { icon: React.ReactNode; color: string }
 > = {
-  registered: { icon: <Users className="h-4 w-4" />, color: "bg-slate-400" },
-  logged_in: { icon: <LogIn className="h-4 w-4" />, color: "bg-sky-500" },
-  journal: {
+  registered_teams: {
+    icon: <Users className="h-4 w-4" />,
+    color: "bg-slate-400",
+  },
+  teams_logged_in: {
+    icon: <LogIn className="h-4 w-4" />,
+    color: "bg-sky-500",
+  },
+  students_logged_in: {
+    icon: <LogIn className="h-4 w-4" />,
+    color: "bg-cyan-500",
+  },
+  submitted_journal: {
     icon: <ClipboardList className="h-4 w-4" />,
     color: "bg-blue-500",
   },
-  client: { icon: <Briefcase className="h-4 w-4" />, color: "bg-violet-500" },
-  conversation: {
+  visited_client: {
+    icon: <Briefcase className="h-4 w-4" />,
+    color: "bg-violet-500",
+  },
+  active_conversation: {
     icon: <MessageCircle className="h-4 w-4" />,
     color: "bg-fuchsia-500",
   },
-  started: { icon: <Rocket className="h-4 w-4" />, color: "bg-amber-500" },
-  closed: {
+  started_project: {
+    icon: <Rocket className="h-4 w-4" />,
+    color: "bg-amber-500",
+  },
+  closed_project: {
     icon: <PackageCheck className="h-4 w-4" />,
     color: "bg-emerald-500",
   },
@@ -221,7 +237,7 @@ function FunnelChart({
                 <div
                   className={cn("h-full rounded-md transition-all", meta.color)}
                   style={{ width: `${Math.max(pctOfTotal, 1.5)}%` }}
-                  title={`${s.count.toLocaleString("en-IN")} students`}
+                  title={`${s.count.toLocaleString("en-IN")}`}
                 />
               </div>
 
@@ -363,14 +379,48 @@ export default function HeatmapPage() {
     enabled: !isCoordinator,
   });
 
+  // Programme funnel date filter. "Registered teams" baseline ignores this;
+  // every other stage is scoped to the chosen range. Default = Today.
+  const [funnelRange, setFunnelRange] = useState<"today" | "week" | "custom">(
+    "today",
+  );
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+
+  const funnelDateParams = useMemo<{ from?: string; to?: string }>(() => {
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate(),
+      ).padStart(2, "0")}`;
+    if (funnelRange === "today") {
+      return { from: fmt(new Date()), to: fmt(new Date()) };
+    }
+    if (funnelRange === "week") {
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+      return { from: fmt(weekAgo), to: fmt(now) };
+    }
+    // custom — only send bounds the user actually picked.
+    return {
+      ...(customFrom ? { from: customFrom } : {}),
+      ...(customTo ? { to: customTo } : {}),
+    };
+  }, [funnelRange, customFrom, customTo]);
+
   // Programme funnel + engagement card data. Scoped to the same campus
   // filter as the heatmap so all three sections move together.
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
-    queryKey: ["heatmap-analytics", campusFilterForApi ?? "all"],
+    queryKey: [
+      "heatmap-analytics",
+      campusFilterForApi ?? "all",
+      funnelDateParams.from ?? "",
+      funnelDateParams.to ?? "",
+    ],
     queryFn: () =>
-      getHeatmapAnalytics(
-        campusFilterForApi ? { campusId: campusFilterForApi } : undefined,
-      ),
+      getHeatmapAnalytics({
+        ...(campusFilterForApi ? { campusId: campusFilterForApi } : {}),
+        ...funnelDateParams,
+      }),
   });
 
   // Per-student funnel table.
@@ -603,12 +653,59 @@ export default function HeatmapPage() {
         <TabsContent value="funnel" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Programme Funnel</CardTitle>
-              <CardDescription>
-                Each stage counts students who reached it <em>and</em> every
-                stage above. Bars narrow as students drop off; the label between
-                rows shows step-to-step conversion.
-              </CardDescription>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">Programme Funnel</CardTitle>
+                  <CardDescription>
+                    Team-level progression through the programme.{" "}
+                    <em>Registered teams</em> is the baseline (all-time); every
+                    other stage counts activity within the selected date range.
+                    Each row shows count · % of the top stage · step-to-step
+                    conversion.
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    value={funnelRange}
+                    onValueChange={(v) =>
+                      setFunnelRange(v as "today" | "week" | "custom")
+                    }
+                  >
+                    <SelectTrigger
+                      className="w-36"
+                      data-testid="funnel-range-select"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="week">Last week</SelectItem>
+                      <SelectItem value="custom">Custom range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {funnelRange === "custom" && (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="date"
+                        value={customFrom}
+                        max={customTo || undefined}
+                        onChange={(e) => setCustomFrom(e.target.value)}
+                        className="w-[150px]"
+                        data-testid="funnel-from-date"
+                      />
+                      <span className="text-xs text-muted-foreground">to</span>
+                      <Input
+                        type="date"
+                        value={customTo}
+                        min={customFrom || undefined}
+                        onChange={(e) => setCustomTo(e.target.value)}
+                        className="w-[150px]"
+                        data-testid="funnel-to-date"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="pt-2">
               <FunnelChart
@@ -688,12 +785,9 @@ export default function HeatmapPage() {
       <Card>
         <Tabs defaultValue="coverage" className="w-full">
           <CardHeader className="pb-3">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-[200px] grid-cols-1">
               <TabsTrigger value="coverage" data-testid="tab-coverage">
                 Per-team coverage
-              </TabsTrigger>
-              <TabsTrigger value="students" data-testid="tab-students">
-                Student-wise funnel
               </TabsTrigger>
             </TabsList>
           </CardHeader>
@@ -974,132 +1068,6 @@ export default function HeatmapPage() {
               )}
             </TabsContent>
 
-            <TabsContent value="students" className="mt-0 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <CardTitle>Student-wise Funnel</CardTitle>
-                  <CardDescription>
-                    Per-student totals across all of their team's journal
-                    entries.
-                    {studentsData && (
-                      <span className="ml-1">
-                        Showing {sortedStudents.length} of {studentsData.total}
-                        {studentsData.total > sortedStudents.length &&
-                          " (top 200)"}
-                      </span>
-                    )}
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search student"
-                      value={studentQuery}
-                      onChange={(e) => setStudentQuery(e.target.value)}
-                      className="pl-9 w-56"
-                      data-testid="student-funnel-search"
-                    />
-                  </div>
-                  <Select
-                    value={studentSort}
-                    onValueChange={(v) =>
-                      setStudentSort(v as typeof studentSort)
-                    }
-                  >
-                    <SelectTrigger
-                      className="w-44"
-                      data-testid="student-funnel-sort"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="total">Sort: Total funnel</SelectItem>
-                      <SelectItem value="clients">
-                        Sort: Clients visited
-                      </SelectItem>
-                      <SelectItem value="conversations">
-                        Sort: Active conversations
-                      </SelectItem>
-                      <SelectItem value="started">
-                        Sort: Projects started
-                      </SelectItem>
-                      <SelectItem value="closed">
-                        Sort: Projects closed
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {studentsLoading ? (
-                <div className="flex justify-center py-12">
-                  <Spinner className="size-8" />
-                </div>
-              ) : sortedStudents.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-12 text-center">
-                  No students match the current filters.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="py-2 pr-3 font-medium min-w-[200px]">
-                          Student
-                        </th>
-                        <th className="py-2 px-3 font-medium">Team</th>
-                        <th className="py-2 px-3 font-medium text-right">
-                          #Clients visited
-                        </th>
-                        <th className="py-2 px-3 font-medium text-right">
-                          #Active conversations
-                        </th>
-                        <th className="py-2 px-3 font-medium text-right">
-                          #Projects started
-                        </th>
-                        <th className="py-2 px-3 font-medium text-right">
-                          #Projects closed
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedStudents.map((s) => (
-                        <tr
-                          key={s.userId}
-                          className="border-b hover:bg-accent/30"
-                          data-testid={`student-funnel-row-${s.userId}`}
-                        >
-                          <td className="py-2 pr-3">
-                            <div className="font-medium truncate">
-                              {`${s.firstName} ${s.lastName}`.trim() || s.email}
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {s.niatId ?? s.email} · {s.campusName ?? "—"}
-                            </div>
-                          </td>
-                          <td className="py-2 px-3 text-muted-foreground">
-                            {s.teamName ?? "—"}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono">
-                            {s.clientsVisited}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono">
-                            {s.activeConversations}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono">
-                            {s.projectsStarted}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono">
-                            {s.projectsClosed}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </TabsContent>
           </CardContent>
         </Tabs>
       </Card>

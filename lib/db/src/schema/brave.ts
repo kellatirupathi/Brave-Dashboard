@@ -73,6 +73,17 @@ export const leaveRequestStatusEnum = pgEnum("leave_request_status", [
   "approved",
   "declined",
 ]);
+export const membershipRequestTypeEnum = pgEnum("membership_request_type", [
+  "join_by_code",
+  "invite_accept",
+  "join_request_approve",
+  "leave",
+  "leader_remove",
+]);
+export const membershipRequestStatusEnum = pgEnum(
+  "membership_request_status",
+  ["pending", "approved", "rejected"],
+);
 
 // Campuses
 export const campusesTable = pgTable("campuses", {
@@ -346,6 +357,37 @@ export const insertTeamLeaveRequestSchema = createInsertSchema(
   teamLeaveRequestsTable,
 ).omit({ id: true, createdAt: true });
 export type TeamLeaveRequest = typeof teamLeaveRequestsTable.$inferSelect;
+
+// Membership requests — admin approval gate for all team membership changes.
+// Each gated mutation (join-by-code, accept invite, approve join-request, leave,
+// leader-remove) creates a pending row here instead of applying the change. An
+// admin then approves (applies the change + email + notif) or rejects (notif).
+export const membershipRequestsTable = pgTable("membership_requests", {
+  id: serial("id").primaryKey(),
+  type: membershipRequestTypeEnum("type").notNull(),
+  status: membershipRequestStatusEnum("status").notNull().default("pending"),
+  teamId: integer("team_id").notNull(),
+  // The user whose membership is being added/removed.
+  targetUserId: text("target_user_id").notNull(),
+  // Who initiated the request (joiner, leaver, approving leader, removing leader).
+  actorUserId: text("actor_user_id").notNull(),
+  campusId: integer("campus_id"),
+  // Source rows that must be updated when the request is approved.
+  sourceInvitationId: integer("source_invitation_id"),
+  sourceJoinRequestId: integer("source_join_request_id"),
+  reason: text("reason"),
+  // Admin decision note (shown to the requester on reject).
+  decisionNote: text("decision_note"),
+  decidedById: text("decided_by_id"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+export const insertMembershipRequestSchema = createInsertSchema(
+  membershipRequestsTable,
+).omit({ id: true, createdAt: true });
+export type MembershipRequest = typeof membershipRequestsTable.$inferSelect;
 
 // Projects
 export const projectsTable = pgTable(

@@ -1224,6 +1224,9 @@ export const GetProjectResponse = zod
                           .enum(["unique", "suspicious", "duplicate"])
                           .optional(),
                         reason: zod.string().optional(),
+                        compared_entry_id: zod.number().nullish(),
+                        compared_brd_url: zod.string().nullish(),
+                        compared_client_name: zod.string().nullish(),
                       }),
                     )
                     .optional(),
@@ -1455,6 +1458,9 @@ export const ListRevenueEntriesResponseItem = zod.object({
                   .enum(["unique", "suspicious", "duplicate"])
                   .optional(),
                 reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
               }),
             )
             .optional(),
@@ -1551,6 +1557,9 @@ export const GetRevenueEntryResponse = zod.object({
                   .enum(["unique", "suspicious", "duplicate"])
                   .optional(),
                 reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
               }),
             )
             .optional(),
@@ -1638,6 +1647,9 @@ export const UpdateRevenueEntryResponse = zod.object({
                   .enum(["unique", "suspicious", "duplicate"])
                   .optional(),
                 reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
               }),
             )
             .optional(),
@@ -1717,6 +1729,9 @@ export const SubmitRevenueEntryResponse = zod.object({
                   .enum(["unique", "suspicious", "duplicate"])
                   .optional(),
                 reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
               }),
             )
             .optional(),
@@ -1801,6 +1816,9 @@ export const VerifyRevenueEntryResponse = zod.object({
                   .enum(["unique", "suspicious", "duplicate"])
                   .optional(),
                 reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
               }),
             )
             .optional(),
@@ -1884,6 +1902,9 @@ export const RejectRevenueEntryResponse = zod.object({
                   .enum(["unique", "suspicious", "duplicate"])
                   .optional(),
                 reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
               }),
             )
             .optional(),
@@ -1963,6 +1984,9 @@ export const ReanalyseRevenueEntryResponse = zod.object({
                   .enum(["unique", "suspicious", "duplicate"])
                   .optional(),
                 reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
               }),
             )
             .optional(),
@@ -2042,6 +2066,9 @@ export const UnverifyRevenueEntryResponse = zod.object({
                   .enum(["unique", "suspicious", "duplicate"])
                   .optional(),
                 reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
               }),
             )
             .optional(),
@@ -3239,6 +3266,9 @@ export const GetBrdAnalysisHistoryResponse = zod.object({
                     .enum(["unique", "suspicious", "duplicate"])
                     .optional(),
                   reason: zod.string().optional(),
+                  compared_entry_id: zod.number().nullish(),
+                  compared_brd_url: zod.string().nullish(),
+                  compared_client_name: zod.string().nullish(),
                 }),
               )
               .optional(),
@@ -3282,6 +3312,9 @@ export const GetBrdAnalysisHistoryResponse = zod.object({
                       .enum(["unique", "suspicious", "duplicate"])
                       .optional(),
                     reason: zod.string().optional(),
+                    compared_entry_id: zod.number().nullish(),
+                    compared_brd_url: zod.string().nullish(),
+                    compared_client_name: zod.string().nullish(),
                   }),
                 )
                 .optional(),

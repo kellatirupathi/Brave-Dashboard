@@ -27,6 +27,7 @@ import {
 import type { TeamDetail } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PendingMembershipBanner } from "@/components/pending-membership-banner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
@@ -321,16 +322,23 @@ function TeamView({
     approveJoin.mutate(
       { id },
       {
-        onSuccess: () => {
-          toast({ title: "Request approved" });
+        onSuccess: (res) => {
+          // Approvals are now gated behind admin sign-off; the join request
+          // stays pending until an admin approves the membership request.
+          const message =
+            (res as { message?: string } | undefined)?.message ??
+            "Sent for admin approval. The student joins once approved.";
+          toast({ title: "Awaiting admin approval", description: message });
           invalidateAll();
         },
-        onError: (err: unknown) =>
+        onError: (err: unknown) => {
+          const e = err as { data?: { error?: string }; message?: string };
           toast({
             title: "Failed",
-            description: (err as { message?: string })?.message,
+            description: e?.data?.error ?? e?.message,
             variant: "destructive",
-          }),
+          });
+        },
       },
     );
   const handleDeclineJoin = (id: number) =>
@@ -354,21 +362,24 @@ function TeamView({
     requestLeave.mutate(
       { id: team.id, data: {} },
       {
-        onSuccess: () => {
-          toast({
-            title: "You left the team",
-            description: `You're no longer a member of ${team.name}.`,
-          });
+        onSuccess: (res) => {
+          // Leaving is now gated behind admin approval: the member stays on the
+          // team until an admin approves, so we do NOT navigate away.
+          const message =
+            (res as { message?: string } | undefined)?.message ??
+            `Your request to leave ${team.name} has been sent for admin approval.`;
+          toast({ title: "Awaiting admin approval", description: message });
           setLeaveOpen(false);
           invalidateAll();
-          setLocation("/get-started");
         },
-        onError: (err: unknown) =>
+        onError: (err: unknown) => {
+          const e = err as { data?: { error?: string }; message?: string };
           toast({
             title: "Could not leave team",
-            description: (err as { message?: string })?.message ?? "Try again.",
+            description: e?.data?.error ?? e?.message ?? "Try again.",
             variant: "destructive",
-          }),
+          });
+        },
       },
     );
   };
@@ -412,20 +423,24 @@ function TeamView({
     removeMember.mutate(
       { id: team.id, userId: removeTarget.userId },
       {
-        onSuccess: () => {
-          toast({
-            title: "Member removed",
-            description: `${name} is no longer on the team.`,
-          });
+        onSuccess: (res) => {
+          // Leader-initiated removals are now gated behind admin approval; the
+          // member stays on the team until an admin approves.
+          const message =
+            (res as { message?: string } | undefined)?.message ??
+            `Removal of ${name} has been sent for admin approval.`;
+          toast({ title: "Awaiting admin approval", description: message });
           setRemoveTarget(null);
           invalidateAll();
         },
-        onError: (err: unknown) =>
+        onError: (err: unknown) => {
+          const e = err as { data?: { error?: string }; message?: string };
           toast({
             title: "Could not remove member",
-            description: (err as { message?: string })?.message ?? "Try again.",
+            description: e?.data?.error ?? e?.message ?? "Try again.",
             variant: "destructive",
-          }),
+          });
+        },
       },
     );
   };
@@ -490,6 +505,7 @@ function TeamView({
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <PendingMembershipBanner />
       {/* HERO */}
       <Card className="relative overflow-hidden border-0 shadow-sm">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent pointer-events-none" />

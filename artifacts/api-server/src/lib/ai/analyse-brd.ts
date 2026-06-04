@@ -169,6 +169,31 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
     const brdScore = toScore(parsed["brd_score"]);
     const uniquenessScore = toScore(parsed["uniqueness_score"]);
 
+    // Tie each AI comparison row back to the REAL revenue entry it compared
+    // against, so the admin UI can open that entry's actual BRD. The AI's
+    // free-text `entry_label` ("Entry #45 — ...") is unreliable for linking,
+    // so we resolve the real id/url/client from `previousEntries` (the exact
+    // set we uploaded). Match by the `#<id>` embedded in the label; fall back
+    // to positional order when the label is missing/garbled.
+    const prevById = new Map(previousEntries.map((p) => [p.id, p]));
+    const rawComparison = Array.isArray(parsed["uniqueness_comparison"])
+      ? (parsed["uniqueness_comparison"] as Record<string, unknown>[])
+      : [];
+    const enrichedComparison = rawComparison.map((row, idx) => {
+      const label = typeof row?.entry_label === "string" ? row.entry_label : "";
+      const idMatch = label.match(/#(\d+)/);
+      let matched = idMatch ? prevById.get(Number(idMatch[1])) : undefined;
+      // Positional fallback: the AI is asked to compare in upload order.
+      if (!matched && previousEntries[idx]) matched = previousEntries[idx];
+      return {
+        ...row,
+        compared_entry_id: matched?.id ?? null,
+        compared_brd_url: matched?.brdUrl ?? null,
+        compared_client_name: matched?.clientName ?? null,
+      };
+    });
+    parsed["uniqueness_comparison"] = enrichedComparison;
+
     // Guarded write: only persist if the entry's submission state hasn't
     // changed since we started. Prevents an older, slower run from clobbering
     // results from a newer re-submission/re-analyse.

@@ -419,13 +419,18 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
           uniqueJournalEntries: 0,
         },
         funnel: [
-          { key: "registered", label: "Registered students", count: 0 },
-          { key: "logged_in", label: "Logged in", count: 0 },
-          { key: "journal", label: "Submitted a journal", count: 0 },
-          { key: "client", label: "Visited a client", count: 0 },
-          { key: "conversation", label: "Active conversation", count: 0 },
-          { key: "started", label: "Started a project", count: 0 },
-          { key: "closed", label: "Closed a project", count: 0 },
+          { key: "registered_teams", label: "Registered teams", count: 0 },
+          { key: "teams_logged_in", label: "Teams logged in", count: 0 },
+          { key: "students_logged_in", label: "Students logged in", count: 0 },
+          { key: "submitted_journal", label: "Submitted journal", count: 0 },
+          { key: "visited_client", label: "Visited client", count: 0 },
+          {
+            key: "active_conversation",
+            label: "Active conversation",
+            count: 0,
+          },
+          { key: "started_project", label: "Projects started", count: 0 },
+          { key: "closed_project", label: "Projects closed", count: 0 },
         ],
         engagement: { dau: 0, wau: 0 },
       });
@@ -439,6 +444,38 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
 
   const campusClause =
     campusFilter != null ? sql`AND u.campus_id = ${campusFilter}` : sql``;
+  const campusClauseTeams =
+    campusFilter != null ? sql`AND t.campus_id = ${campusFilter}` : sql``;
+
+  // Date-range filter for the programme funnel. Defaults to "today" (server
+  // local) when no range is supplied. The "Registered teams" baseline ignores
+  // this range; every other stage is scoped to activity within
+  // [rangeStart, rangeEnd]. `from`/`to` accept date-only (YYYY-MM-DD, snapped
+  // to start/end of that calendar day) or full ISO timestamps.
+  const nowTs = new Date();
+  const parseBoundary = (raw: unknown, endOfDay: boolean): Date | null => {
+    if (typeof raw !== "string" || raw.trim() === "") return null;
+    const s = raw.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      return new Date(`${s}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}`);
+    }
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  let rangeStart = parseBoundary(req.query.from, false);
+  let rangeEnd = parseBoundary(req.query.to, true);
+  if (!rangeStart) {
+    rangeStart = new Date(
+      nowTs.getFullYear(),
+      nowTs.getMonth(),
+      nowTs.getDate(),
+      0,
+      0,
+      0,
+      0,
+    );
+  }
+  if (!rangeEnd) rangeEnd = nowTs;
 
   // Counters: total students, ever-logged-in, unique journal entries.
   const countersP = db.execute<{
@@ -464,59 +501,61 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
   // (one team per user). LEFT JOIN team_members so team-less students still
   // count as "registered" at the top of the funnel.
   const funnelP = db.execute<{
-    registered: string;
-    logged_in: string;
+    registered_teams: string;
+    teams_logged_in: string;
+    students_logged_in: string;
     submitted_journal: string;
     visited_client: string;
     active_conversation: string;
     started_project: string;
     closed_project: string;
   }>(sql`
-    WITH team_totals AS (
+    WITH range_journals AS (
       SELECT
         j.team_id,
-        COUNT(*)                    AS journals,
-        SUM(j.clients_visited)      AS clients,
-        SUM(j.active_conversations) AS conversations,
-        SUM(j.projects_started)     AS started,
-        SUM(j.projects_closed)      AS closed
+        j.clients_visited,
+        j.active_conversations,
+        j.projects_started,
+        j.projects_closed
       FROM weekly_journals j
-      GROUP BY j.team_id
+      JOIN teams t ON t.id = j.team_id
+      WHERE j.submitted_at >= ${rangeStart}
+        AND j.submitted_at <= ${rangeEnd}
+        ${campusClauseTeams}
     ),
-    student_totals AS (
+    team_journal AS (
       SELECT
-        u.id AS user_id,
-        (u.last_seen_at IS NOT NULL)        AS logged_in,
-        COALESCE(SUM(tt.journals), 0)       AS journals,
-        COALESCE(SUM(tt.clients), 0)        AS clients,
-        COALESCE(SUM(tt.conversations), 0)  AS conversations,
-        COALESCE(SUM(tt.started), 0)        AS started,
-        COALESCE(SUM(tt.closed), 0)         AS closed
-      FROM users u
-      LEFT JOIN team_members tm ON tm.user_id = u.id
-      LEFT JOIN team_totals tt ON tt.team_id = tm.team_id
-      WHERE u.role = 'student' ${campusClause}
-      GROUP BY u.id, u.last_seen_at
-    ),
-    staged AS (
-      SELECT
-        logged_in,
-        (logged_in AND journals >= 1)                                                                          AS s_journal,
-        (logged_in AND journals >= 1 AND clients >= 1)                                                         AS s_client,
-        (logged_in AND journals >= 1 AND clients >= 1 AND conversations >= 1)                                  AS s_conversation,
-        (logged_in AND journals >= 1 AND clients >= 1 AND conversations >= 1 AND started >= 1)                 AS s_started,
-        (logged_in AND journals >= 1 AND clients >= 1 AND conversations >= 1 AND started >= 1 AND closed >= 1) AS s_closed
-      FROM student_totals
+        team_id,
+        BOOL_OR(TRUE)                      AS submitted,
+        BOOL_OR(clients_visited >= 1)      AS visited,
+        BOOL_OR(active_conversations >= 1) AS conversation,
+        BOOL_OR(projects_started >= 1)     AS started,
+        BOOL_OR(projects_closed >= 1)      AS closed
+      FROM range_journals
+      GROUP BY team_id
     )
     SELECT
-      COUNT(*)                               AS registered,
-      COUNT(*) FILTER (WHERE logged_in)      AS logged_in,
-      COUNT(*) FILTER (WHERE s_journal)      AS submitted_journal,
-      COUNT(*) FILTER (WHERE s_client)       AS visited_client,
-      COUNT(*) FILTER (WHERE s_conversation) AS active_conversation,
-      COUNT(*) FILTER (WHERE s_started)      AS started_project,
-      COUNT(*) FILTER (WHERE s_closed)       AS closed_project
-    FROM staged
+      (SELECT COUNT(*) FROM teams t WHERE TRUE ${campusClauseTeams})                AS registered_teams,
+      (SELECT COUNT(DISTINCT tm.team_id)
+         FROM team_members tm
+         JOIN users u ON u.id = tm.user_id
+         JOIN teams t ON t.id = tm.team_id
+        WHERE u.last_seen_at IS NOT NULL
+          AND u.last_seen_at >= ${rangeStart}
+          AND u.last_seen_at <= ${rangeEnd}
+          ${campusClauseTeams})                                                    AS teams_logged_in,
+      (SELECT COUNT(*)
+         FROM users u
+        WHERE u.role = 'student'
+          AND u.last_seen_at IS NOT NULL
+          AND u.last_seen_at >= ${rangeStart}
+          AND u.last_seen_at <= ${rangeEnd}
+          ${campusClause})                                                         AS students_logged_in,
+      (SELECT COUNT(*) FROM team_journal WHERE submitted)    AS submitted_journal,
+      (SELECT COUNT(*) FROM team_journal WHERE visited)      AS visited_client,
+      (SELECT COUNT(*) FROM team_journal WHERE conversation) AS active_conversation,
+      (SELECT COUNT(*) FROM team_journal WHERE started)      AS started_project,
+      (SELECT COUNT(*) FROM team_journal WHERE closed)       AS closed_project
   `);
 
   // DAU / WAU based on last_seen_at, scoped to students.
@@ -547,43 +586,50 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
       loggedInEver: Number(c?.logged_in_ever ?? 0),
       uniqueJournalEntries: Number(c?.unique_journals ?? 0),
     },
-    // Ordered top→bottom. Each stage is a strict subset of the one above,
-    // so counts are monotonically non-increasing — the frontend renders this
-    // directly as a tapering funnel with step-to-step conversion.
+    // Team-level programme funnel. "Registered teams" is the baseline (NOT
+    // date-filtered); every other stage is scoped to the requested date range.
+    // The single "Students logged in" row is a student-level count by design.
+    // Stages are independent metrics (not strictly nested), so the frontend
+    // renders count · % of top · step-to-step % directly from these counts.
     funnel: [
       {
-        key: "registered",
-        label: "Registered students",
-        count: Number(f?.registered ?? 0),
+        key: "registered_teams",
+        label: "Registered teams",
+        count: Number(f?.registered_teams ?? 0),
       },
       {
-        key: "logged_in",
-        label: "Logged in",
-        count: Number(f?.logged_in ?? 0),
+        key: "teams_logged_in",
+        label: "Teams logged in",
+        count: Number(f?.teams_logged_in ?? 0),
       },
       {
-        key: "journal",
-        label: "Submitted a journal",
+        key: "students_logged_in",
+        label: "Students logged in",
+        count: Number(f?.students_logged_in ?? 0),
+      },
+      {
+        key: "submitted_journal",
+        label: "Submitted journal",
         count: Number(f?.submitted_journal ?? 0),
       },
       {
-        key: "client",
-        label: "Visited a client",
+        key: "visited_client",
+        label: "Visited client",
         count: Number(f?.visited_client ?? 0),
       },
       {
-        key: "conversation",
+        key: "active_conversation",
         label: "Active conversation",
         count: Number(f?.active_conversation ?? 0),
       },
       {
-        key: "started",
-        label: "Started a project",
+        key: "started_project",
+        label: "Projects started",
         count: Number(f?.started_project ?? 0),
       },
       {
-        key: "closed",
-        label: "Closed a project",
+        key: "closed_project",
+        label: "Projects closed",
         count: Number(f?.closed_project ?? 0),
       },
     ],

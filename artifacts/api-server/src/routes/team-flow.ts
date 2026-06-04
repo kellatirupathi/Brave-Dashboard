@@ -25,6 +25,13 @@ import {
   getTeamMemberCount,
   teamFullMessage,
 } from "../lib/team-limits";
+import {
+  createMembershipRequest,
+  findPendingRequestForUser,
+  shapeMembershipRequest,
+  membershipRequestTypeLabel,
+} from "../lib/membership-requests";
+import { membershipRequestsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -170,33 +177,6 @@ async function shapeLeaveRequest(
   };
 }
 
-// Cancel all other pending invites + outgoing join requests for a user (used after they join a team)
-async function cancelOtherPendingForUser(
-  userId: string,
-  opts?: { keepInvitationId?: number; keepJoinRequestId?: number },
-) {
-  const invConds = [
-    eq(teamInvitationsTable.inviteeId, userId),
-    eq(teamInvitationsTable.status, "pending"),
-  ];
-  if (opts?.keepInvitationId != null)
-    invConds.push(ne(teamInvitationsTable.id, opts.keepInvitationId));
-  await db
-    .update(teamInvitationsTable)
-    .set({ status: "cancelled", respondedAt: new Date() })
-    .where(and(...invConds));
-
-  const jrConds = [
-    eq(teamJoinRequestsTable.requesterId, userId),
-    eq(teamJoinRequestsTable.status, "pending"),
-  ];
-  if (opts?.keepJoinRequestId != null)
-    jrConds.push(ne(teamJoinRequestsTable.id, opts.keepJoinRequestId));
-  await db
-    .update(teamJoinRequestsTable)
-    .set({ status: "cancelled", respondedAt: new Date() })
-    .where(and(...jrConds));
-}
 
 async function isTeamMember(userId: string, teamId: number) {
   const [m] = await db
@@ -394,47 +374,36 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
     res.status(400).json({ error: "You are already on a team" });
     return;
   }
-  // Enforce team capacity atomically (lock the team row, recount under lock).
-  const joinResult = await db.transaction(async (tx) => {
-    await tx
-      .select({ id: teamsTable.id })
-      .from(teamsTable)
-      .where(eq(teamsTable.id, team.id))
-      .for("update");
-    const limit = await getTeamMemberLimit(tx);
-    const count = await getTeamMemberCount(team.id, tx);
-    if (count >= limit) return { kind: "full" as const, count, limit };
-    try {
-      await tx
-        .insert(teamMembersTable)
-        .values({ teamId: team.id, userId: req.user.id });
-    } catch {
-      return { kind: "duplicate" as const };
-    }
-    return { kind: "ok" as const };
+  // Admin approval gate: don't add the member now. Record a pending request the
+  // admin must approve. Block stacking up multiple pending requests.
+  const alreadyPending = await findPendingRequestForUser(req.user.id);
+  if (alreadyPending) {
+    res.status(409).json({
+      error:
+        "You already have a membership request awaiting admin approval. Please wait for it to be reviewed.",
+    });
+    return;
+  }
+  // Pre-flight capacity check so the student gets immediate feedback. Capacity
+  // is re-checked at approval time as the source of truth.
+  const limit = await getTeamMemberLimit();
+  const count = await getTeamMemberCount(team.id);
+  if (count >= limit) {
+    res.status(400).json({ error: teamFullMessage(count, limit) });
+    return;
+  }
+  const request = await createMembershipRequest({
+    type: "join_by_code",
+    teamId: team.id,
+    targetUserId: req.user.id,
+    actorUserId: req.user.id,
+    campusId: team.campusId,
   });
-  if (joinResult.kind === "full") {
-    res
-      .status(400)
-      .json({ error: teamFullMessage(joinResult.count, joinResult.limit) });
-    return;
-  }
-  if (joinResult.kind === "duplicate") {
-    res
-      .status(400)
-      .json({ error: "Could not join team (already a member of one)" });
-    return;
-  }
-  await cancelOtherPendingForUser(req.user.id);
-  await createNotification(
-    team.leaderId,
-    "New teammate joined",
-    `${req.user.firstName} ${req.user.lastName} joined your team via invite code.`,
-    "team_member_joined",
-    "/team",
-  );
-  const detail = await getTeamDetail(team.id);
-  res.json(detail);
+  res.status(202).json({
+    status: "pending_approval",
+    requestId: request.id,
+    message: `Your request to join "${team.name}" has been sent for admin approval.`,
+  });
 });
 
 // ---------- Invitations ----------
@@ -679,52 +648,35 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
     return;
   }
 
-  // Enforce team capacity atomically: lock the team row, recount members
-  // under the lock, then insert. This prevents two concurrent acceptances
-  // from racing past the limit.
-  const acceptResult = await db.transaction(async (tx) => {
-    await tx
-      .select({ id: teamsTable.id })
-      .from(teamsTable)
-      .where(eq(teamsTable.id, team.id))
-      .for("update");
-    const limit = await getTeamMemberLimit(tx);
-    const count = await getTeamMemberCount(team.id, tx);
-    if (count >= limit) return { kind: "full" as const, count, limit };
-    try {
-      await tx
-        .insert(teamMembersTable)
-        .values({ teamId: team.id, userId: req.user.id });
-    } catch {
-      return { kind: "duplicate" as const };
-    }
-    return { kind: "ok" as const };
+  // Admin approval gate: keep the invitation pending and record a membership
+  // request the admin must approve before the student actually joins.
+  const alreadyPending = await findPendingRequestForUser(req.user.id);
+  if (alreadyPending) {
+    res.status(409).json({
+      error:
+        "You already have a membership request awaiting admin approval. Please wait for it to be reviewed.",
+    });
+    return;
+  }
+  const limit = await getTeamMemberLimit();
+  const count = await getTeamMemberCount(team.id);
+  if (count >= limit) {
+    res.status(400).json({ error: teamFullMessage(count, limit) });
+    return;
+  }
+  const request = await createMembershipRequest({
+    type: "invite_accept",
+    teamId: team.id,
+    targetUserId: req.user.id,
+    actorUserId: req.user.id,
+    campusId: team.campusId,
+    sourceInvitationId: inv.id,
   });
-  if (acceptResult.kind === "full") {
-    res
-      .status(400)
-      .json({ error: teamFullMessage(acceptResult.count, acceptResult.limit) });
-    return;
-  }
-  if (acceptResult.kind === "duplicate") {
-    res.status(400).json({ error: "Could not join team" });
-    return;
-  }
-  await db
-    .update(teamInvitationsTable)
-    .set({ status: "accepted", respondedAt: new Date() })
-    .where(eq(teamInvitationsTable.id, inv.id));
-  await cancelOtherPendingForUser(req.user.id, { keepInvitationId: inv.id });
-
-  await createNotification(
-    inv.inviterId,
-    "Invitation Accepted",
-    `${req.user.firstName} ${req.user.lastName} joined "${team.name}".`,
-    "invitation_accepted",
-    "/team",
-  );
-  const detail = await getTeamDetail(team.id);
-  res.json(detail);
+  res.status(202).json({
+    status: "pending_approval",
+    requestId: request.id,
+    message: `Your request to join "${team.name}" has been sent for admin approval.`,
+  });
 });
 
 router.post("/invitations/:id/decline", async (req, res): Promise<void> => {
@@ -925,53 +877,35 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
       .json({ error: "Requester has already joined another team" });
     return;
   }
-  // Enforce team capacity atomically (lock the team row, recount under lock).
-  const approveResult = await db.transaction(async (tx) => {
-    await tx
-      .select({ id: teamsTable.id })
-      .from(teamsTable)
-      .where(eq(teamsTable.id, team.id))
-      .for("update");
-    const limit = await getTeamMemberLimit(tx);
-    const count = await getTeamMemberCount(team.id, tx);
-    if (count >= limit) return { kind: "full" as const, count, limit };
-    try {
-      await tx
-        .insert(teamMembersTable)
-        .values({ teamId: team.id, userId: jr.requesterId });
-    } catch {
-      return { kind: "duplicate" as const };
-    }
-    return { kind: "ok" as const };
-  });
-  if (approveResult.kind === "full") {
-    res.status(400).json({
-      error: teamFullMessage(approveResult.count, approveResult.limit),
+  // Admin approval gate: a leader approving a join request now only records a
+  // membership request for an admin to action. The join request stays pending.
+  const alreadyPending = await findPendingRequestForUser(jr.requesterId);
+  if (alreadyPending) {
+    res.status(409).json({
+      error:
+        "This student already has a membership request awaiting admin approval.",
     });
     return;
   }
-  if (approveResult.kind === "duplicate") {
-    res.status(400).json({ error: "Could not add member" });
+  const limit = await getTeamMemberLimit();
+  const count = await getTeamMemberCount(team.id);
+  if (count >= limit) {
+    res.status(400).json({ error: teamFullMessage(count, limit) });
     return;
   }
-  await db
-    .update(teamJoinRequestsTable)
-    .set({
-      status: "approved",
-      respondedAt: new Date(),
-      decidedById: req.user.id,
-    })
-    .where(eq(teamJoinRequestsTable.id, jr.id));
-  await cancelOtherPendingForUser(jr.requesterId, { keepJoinRequestId: jr.id });
-
-  await createNotification(
-    jr.requesterId,
-    "Join Request Approved",
-    `You're now a member of "${team.name}".`,
-    "join_approved",
-    "/team",
-  );
-  res.json(await getTeamDetail(team.id));
+  const request = await createMembershipRequest({
+    type: "join_request_approve",
+    teamId: team.id,
+    targetUserId: jr.requesterId,
+    actorUserId: req.user.id,
+    campusId: team.campusId,
+    sourceJoinRequestId: jr.id,
+  });
+  res.status(202).json({
+    status: "pending_approval",
+    requestId: request.id,
+    message: "Approval sent for admin review. The student joins once approved.",
+  });
 });
 
 router.post("/join-requests/:id/decline", async (req, res): Promise<void> => {
@@ -1074,41 +1008,29 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     return;
   }
 
-  // Members leave instantly — no leader approval. We still write a row to
-  // teamLeaveRequestsTable as an audit trail (status=approved, decided by
-  // the requester themselves) so leader-side history queries keep working.
-  const now = new Date();
-  const lr = await db.transaction(async (tx) => {
-    await tx
-      .delete(teamMembersTable)
-      .where(
-        and(
-          eq(teamMembersTable.teamId, team.id),
-          eq(teamMembersTable.userId, req.user.id),
-        ),
-      );
-    const [row] = await tx
-      .insert(teamLeaveRequestsTable)
-      .values({
-        teamId: team.id,
-        requesterId: req.user.id,
-        reason: parsed.data.reason ?? null,
-        status: "approved",
-        respondedAt: now,
-        decidedById: req.user.id,
-      })
-      .returning();
-    return row;
+  // Admin approval gate: members no longer leave instantly. We record a pending
+  // membership request; the member stays on the team until an admin approves.
+  const alreadyPending = await findPendingRequestForUser(req.user.id);
+  if (alreadyPending) {
+    res.status(409).json({
+      error:
+        "You already have a membership request awaiting admin approval. Please wait for it to be reviewed.",
+    });
+    return;
+  }
+  const request = await createMembershipRequest({
+    type: "leave",
+    teamId: team.id,
+    targetUserId: req.user.id,
+    actorUserId: req.user.id,
+    campusId: team.campusId,
+    reason: parsed.data.reason ?? null,
   });
-
-  await createNotification(
-    team.leaderId,
-    "Member left team",
-    `${req.user.firstName} ${req.user.lastName} left "${team.name}".`,
-    "leave_approved",
-    "/team",
-  );
-  res.status(201).json(await shapeLeaveRequest(lr));
+  res.status(202).json({
+    status: "pending_approval",
+    requestId: request.id,
+    message: `Your request to leave "${team.name}" has been sent for admin approval.`,
+  });
 });
 
 router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
@@ -1130,39 +1052,13 @@ router.post("/leave-requests/:id/approve", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Request is no longer pending" });
     return;
   }
-  const team = await getTeamOrNull(lr.teamId);
-  if (!team) {
-    res.status(404).json({ error: "Team no longer exists" });
-    return;
-  }
-  if (team.leaderId !== req.user.id && req.user.role !== "admin") {
-    res.status(403).json({ error: "Only the leader can approve" });
-    return;
-  }
-  await db
-    .delete(teamMembersTable)
-    .where(
-      and(
-        eq(teamMembersTable.teamId, team.id),
-        eq(teamMembersTable.userId, lr.requesterId),
-      ),
-    );
-  await db
-    .update(teamLeaveRequestsTable)
-    .set({
-      status: "approved",
-      respondedAt: new Date(),
-      decidedById: req.user.id,
-    })
-    .where(eq(teamLeaveRequestsTable.id, lr.id));
-  await createNotification(
-    lr.requesterId,
-    "Leave Request Approved",
-    `You have been removed from "${team.name}".`,
-    "leave_approved",
-    "/team",
-  );
-  res.json(await getTeamDetail(team.id));
+  // Member-initiated leaves now flow through the admin approval gate
+  // (membership_requests). This legacy leader-approval path is intentionally
+  // disabled so it cannot mutate membership and bypass the gate.
+  res.status(409).json({
+    error:
+      "Leaving a team now requires admin approval. This action is no longer available to team leaders.",
+  });
 });
 
 router.post("/leave-requests/:id/decline", async (req, res): Promise<void> => {
@@ -1210,6 +1106,29 @@ router.post("/leave-requests/:id/decline", async (req, res): Promise<void> => {
     "/team",
   );
   res.json(await shapeLeaveRequest(updated));
+});
+
+// ---------- Membership requests (admin approval gate) ----------
+
+// A student/leader sees their own pending membership requests so the UI can
+// show an "Awaiting admin approval" banner. Returns pending requests where the
+// caller is either the actor (initiator) or the target (affected member).
+router.get("/membership-requests/mine", async (req, res): Promise<void> => {
+  if (!requireAuth(req, res)) return;
+  const rows = await db
+    .select()
+    .from(membershipRequestsTable)
+    .where(
+      and(
+        eq(membershipRequestsTable.status, "pending"),
+        or(
+          eq(membershipRequestsTable.actorUserId, req.user.id),
+          eq(membershipRequestsTable.targetUserId, req.user.id),
+        ),
+      ),
+    )
+    .orderBy(desc(membershipRequestsTable.createdAt));
+  res.json(await Promise.all(rows.map(shapeMembershipRequest)));
 });
 
 export default router;

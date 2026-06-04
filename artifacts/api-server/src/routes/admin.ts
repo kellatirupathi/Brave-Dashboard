@@ -29,6 +29,12 @@ import {
   UpdateAccessRequestParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import {
+  shapeMembershipRequest,
+  applyMembershipRequest,
+  notifyMembershipRejected,
+} from "../lib/membership-requests";
+import { membershipRequestsTable } from "@workspace/db";
 import { invalidateChatbotProviderCache } from "./chatbot";
 import { deleteSessionsForUser } from "../lib/auth";
 import { runSeed } from "../seed";
@@ -240,6 +246,15 @@ router.get("/admin/users", async (req, res): Promise<void> => {
   }
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+  // Role-priority ordering: admins first, then coordinators, then students.
+  // Within each role group, preserve the existing creation order.
+  const roleOrder = sql`CASE ${usersTable.role}
+      WHEN 'admin' THEN 0
+      WHEN 'coordinator' THEN 1
+      WHEN 'student' THEN 2
+      ELSE 3
+    END`;
+
   const [{ count: totalCount }] = whereClause
     ? await db
         .select({ count: sql<number>`count(*)::int` })
@@ -252,13 +267,13 @@ router.get("/admin/users", async (req, res): Promise<void> => {
         .select()
         .from(usersTable)
         .where(whereClause)
-        .orderBy(usersTable.createdAt)
+        .orderBy(roleOrder, usersTable.createdAt)
         .limit(effectivePageSize)
         .offset(offset)
     : await db
         .select()
         .from(usersTable)
-        .orderBy(usersTable.createdAt)
+        .orderBy(roleOrder, usersTable.createdAt)
         .limit(effectivePageSize)
         .offset(offset);
 
@@ -1933,5 +1948,185 @@ router.post("/admin/test-email", async (req, res): Promise<void> => {
   }
   res.json({ ok: true });
 });
+
+// ---------- Membership requests (admin approval gate) ----------
+
+// List membership requests, filtered by status. Defaults to pending. Used by the
+// admin "Team Requests" page (Pending + History tabs).
+router.get(
+  "/admin/membership-requests",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Admin access required" });
+      return;
+    }
+    const statusParam =
+      typeof req.query.status === "string" ? req.query.status : "pending";
+    const conds = [];
+    if (statusParam === "pending") {
+      conds.push(eq(membershipRequestsTable.status, "pending"));
+    } else if (statusParam === "approved") {
+      conds.push(eq(membershipRequestsTable.status, "approved"));
+    } else if (statusParam === "rejected") {
+      conds.push(eq(membershipRequestsTable.status, "rejected"));
+    } else if (statusParam === "history") {
+      conds.push(
+        inArray(membershipRequestsTable.status, ["approved", "rejected"]),
+      );
+    }
+    // "all" → no status filter.
+    const rows = await db
+      .select()
+      .from(membershipRequestsTable)
+      .where(conds.length ? and(...conds) : undefined)
+      .orderBy(
+        statusParam === "pending"
+          ? desc(membershipRequestsTable.createdAt)
+          : desc(membershipRequestsTable.decidedAt),
+      );
+    res.json(await Promise.all(rows.map(shapeMembershipRequest)));
+  },
+);
+
+const MembershipDecisionBody = z.object({
+  note: z.string().trim().max(1000).optional(),
+});
+
+// Approve a pending membership request: apply the real change (membership +
+// source rows + email + notification). Re-checks invariants at approval time.
+router.post(
+  "/admin/membership-requests/:id/approve",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Admin access required" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid request id" });
+      return;
+    }
+    const parsed = MembershipDecisionBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request body" });
+      return;
+    }
+    // Atomically claim the pending request so two concurrent approvals can't
+    // both run applyMembershipRequest (which would double-apply side effects).
+    const [mr] = await db
+      .update(membershipRequestsTable)
+      .set({
+        status: "approved",
+        decidedById: req.user.id,
+        decidedAt: new Date(),
+        decisionNote: parsed.data.note ?? null,
+      })
+      .where(
+        and(
+          eq(membershipRequestsTable.id, id),
+          eq(membershipRequestsTable.status, "pending"),
+        ),
+      )
+      .returning();
+    if (!mr) {
+      const [existing] = await db
+        .select({ status: membershipRequestsTable.status })
+        .from(membershipRequestsTable)
+        .where(eq(membershipRequestsTable.id, id));
+      if (!existing) {
+        res.status(404).json({ error: "Request not found" });
+      } else {
+        res.status(409).json({ error: "This request has already been decided." });
+      }
+      return;
+    }
+    const result = await applyMembershipRequest(mr, req.user.id);
+    if (!result.ok) {
+      // Apply failed an invariant (capacity / one-team / leader rule). Release
+      // the claim so an admin can retry or reject it.
+      await db
+        .update(membershipRequestsTable)
+        .set({
+          status: "pending",
+          decidedById: null,
+          decidedAt: null,
+          decisionNote: null,
+        })
+        .where(eq(membershipRequestsTable.id, id));
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    await logAudit(
+      req.user.id,
+      "membership_request_approved",
+      "team",
+      mr.teamId,
+      JSON.stringify({ requestId: mr.id, type: mr.type, targetUserId: mr.targetUserId }),
+    );
+    res.json(await shapeMembershipRequest(mr));
+  },
+);
+
+// Reject a pending membership request: no membership change, only a
+// notification to the initiator (and target for add-flows).
+router.post(
+  "/admin/membership-requests/:id/reject",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Admin access required" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid request id" });
+      return;
+    }
+    const parsed = MembershipDecisionBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request body" });
+      return;
+    }
+    const note = parsed.data.note ?? null;
+    // Atomically claim the pending request so a concurrent approve/reject can't
+    // double-process it.
+    const [updated] = await db
+      .update(membershipRequestsTable)
+      .set({
+        status: "rejected",
+        decidedById: req.user.id,
+        decidedAt: new Date(),
+        decisionNote: note,
+      })
+      .where(
+        and(
+          eq(membershipRequestsTable.id, id),
+          eq(membershipRequestsTable.status, "pending"),
+        ),
+      )
+      .returning();
+    if (!updated) {
+      const [existing] = await db
+        .select({ status: membershipRequestsTable.status })
+        .from(membershipRequestsTable)
+        .where(eq(membershipRequestsTable.id, id));
+      if (!existing) {
+        res.status(404).json({ error: "Request not found" });
+      } else {
+        res.status(409).json({ error: "This request has already been decided." });
+      }
+      return;
+    }
+    const mr = updated;
+    await notifyMembershipRejected(mr, note);
+    await logAudit(
+      req.user.id,
+      "membership_request_rejected",
+      "team",
+      mr.teamId,
+      JSON.stringify({ requestId: mr.id, type: mr.type, targetUserId: mr.targetUserId }),
+    );
+    res.json(await shapeMembershipRequest(updated));
+  },
+);
 
 export default router;

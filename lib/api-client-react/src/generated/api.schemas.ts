@@ -568,6 +568,9 @@ export type BrdAiAnalysisUniquenessComparisonItem = {
   similarity_percent?: number;
   flag?: BrdAiAnalysisUniquenessComparisonItemFlag;
   reason?: string;
+  compared_entry_id?: number | null;
+  compared_brd_url?: string | null;
+  compared_client_name?: string | null;
 };
 
 /**

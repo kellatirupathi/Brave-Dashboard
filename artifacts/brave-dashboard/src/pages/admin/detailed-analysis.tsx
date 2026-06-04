@@ -156,6 +156,7 @@ function AnalysisBody({ detail }: { detail: BrdAiAnalysis }) {
               <thead className="bg-muted/50">
                 <tr className="text-left">
                   <th className="p-2 font-medium">Entry</th>
+                  <th className="p-2 font-medium">BRD File</th>
                   <th className="p-2 font-medium">Similarity</th>
                   <th className="p-2 font-medium">Flag</th>
                   <th className="p-2 font-medium">Reason</th>
@@ -163,8 +164,45 @@ function AnalysisBody({ detail }: { detail: BrdAiAnalysis }) {
               </thead>
               <tbody>
                 {(detail.uniqueness_comparison ?? []).map((c, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="p-2 align-top">{c.entry_label ?? "—"}</td>
+                  <tr
+                    key={i}
+                    className={
+                      "border-t " +
+                      (c.flag === "duplicate"
+                        ? "bg-red-50"
+                        : c.flag === "suspicious"
+                          ? "bg-amber-50"
+                          : "")
+                    }
+                  >
+                    <td className="p-2 align-top">
+                      <div>{c.entry_label ?? "—"}</div>
+                      {c.compared_client_name ? (
+                        <div className="text-xs text-muted-foreground">
+                          {c.compared_client_name}
+                        </div>
+                      ) : null}
+                      {c.compared_entry_id ? (
+                        <Link
+                          href={`/admin/queue/detailed-analysis?entryId=${c.compared_entry_id}`}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Open analysis →
+                        </Link>
+                      ) : null}
+                    </td>
+                    <td className="p-2 align-top">
+                      {c.compared_brd_url ? (
+                        <DocumentLinkButton
+                          url={c.compared_brd_url}
+                          label="View BRD"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">
+                          —
+                        </span>
+                      )}
+                    </td>
                     <td className="p-2 align-top whitespace-nowrap">
                       {c.similarity_percent ?? 0}%
                     </td>

@@ -32,14 +32,19 @@ export default function Invitations() {
 
   const onAccept = (inv: TeamInvitation) => {
     accept.mutate({ id: inv.id }, {
-      onSuccess: () => {
-        toast({ title: "Joined team", description: `Welcome to ${inv.teamName}!` });
+      onSuccess: (res) => {
+        // Joins are now gated behind admin approval; the invitation stays
+        // pending until an admin approves the membership request.
+        const message =
+          (res as { message?: string } | undefined)?.message ??
+          `Your request to join ${inv.teamName} has been sent for admin approval.`;
+        toast({ title: "Awaiting admin approval", description: message });
         queryClient.invalidateQueries({ queryKey: getListMyInvitationsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
-        setLocation("/team");
       },
       onError: (err: unknown) => {
-        toast({ title: "Could not accept", description: (err as { message?: string })?.message ?? "Try again.", variant: "destructive" });
+        const e = err as { data?: { error?: string }; message?: string };
+        toast({ title: "Could not accept", description: e?.data?.error ?? e?.message ?? "Try again.", variant: "destructive" });
       },
     });
   };

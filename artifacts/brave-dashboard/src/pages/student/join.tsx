@@ -27,11 +27,16 @@ export default function JoinByCode() {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
     join.mutate({ data: { code: trimmed } }, {
-      onSuccess: async (team) => {
-        toast({ title: "Joined team!", description: `Welcome to ${team.name}.` });
+      onSuccess: async (res) => {
+        // The server now gates joins behind admin approval: it returns a
+        // pending-approval payload instead of the joined team.
+        const message =
+          (res as { message?: string } | undefined)?.message ??
+          "Your request to join has been sent for admin approval.";
+        toast({ title: "Awaiting admin approval", description: message });
         await refreshAuth();
-        invalidateMembershipQueries(queryClient, { teamId: team.id });
-        setLocation("/team");
+        invalidateMembershipQueries(queryClient);
+        setLocation("/get-started");
       },
       onError: (err: unknown) => {
         const e = err as {

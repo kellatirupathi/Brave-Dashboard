@@ -34,6 +34,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, KeyRound, Search, ArrowRight, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SupportBanner } from "@/components/support-banner";
+import { PendingMembershipBanner } from "@/components/pending-membership-banner";
 
 export default function GetStarted() {
   const { user, refresh: refreshAuth } = useAuth();
@@ -172,6 +173,7 @@ export default function GetStarted() {
           teams at your campus.
         </p>
       </div>
+      <PendingMembershipBanner />
 
       {pendingInvitations.length > 0 && (
         <Card

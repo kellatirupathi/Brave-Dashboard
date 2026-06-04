@@ -29,6 +29,7 @@ import {
   BarChart3,
   MessageSquare,
   Bell,
+  UserCheck,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { cn } from "@/lib/utils";
@@ -286,6 +287,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     admin: [
       { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
       { name: "Review Queue", href: "/admin/queue", icon: CheckSquare },
+      { name: "Team Requests", href: "/admin/team-requests", icon: UserCheck },
       {
         name: "Programme",
         icon: Users,

@@ -3207,6 +3207,15 @@ components:
                 enum: [unique, suspicious, duplicate]
               reason:
                 type: string
+              compared_entry_id:
+                type: integer
+                nullable: true
+              compared_brd_url:
+                type: string
+                nullable: true
+              compared_client_name:
+                type: string
+                nullable: true
         analysed_at:
           type: string
       additionalProperties: true

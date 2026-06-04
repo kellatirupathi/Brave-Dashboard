@@ -3,6 +3,10 @@ import { eq, and, ilike, sql, or, ne, inArray, notInArray } from "drizzle-orm";
 import { getProjectClientCount } from "../lib/project-stats";
 import { getTeamMemberLimit, getTeamMemberCount, teamFullMessage } from "../lib/team-limits";
 import {
+  createMembershipRequest,
+  findPendingRequestForUser,
+} from "../lib/membership-requests";
+import {
   db,
   teamsTable,
   usersTable,
@@ -1037,6 +1041,33 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
     .where(and(eq(teamMembersTable.teamId, params.data.id), eq(teamMembersTable.userId, params.data.userId)));
   if (!membership) {
     res.status(404).json({ error: "That user is not a member of this team." });
+    return;
+  }
+  // Admin approval gate: a team leader removing a member no longer removes them
+  // instantly — it records a pending request for an admin to approve. Admin
+  // direct removals stay instant (handled by the branch below).
+  if (!isAdmin) {
+    const alreadyPending = await findPendingRequestForUser(params.data.userId);
+    if (alreadyPending) {
+      res.status(409).json({
+        error:
+          "There is already a membership request for this student awaiting admin approval.",
+      });
+      return;
+    }
+    const request = await createMembershipRequest({
+      type: "leader_remove",
+      teamId: team.id,
+      targetUserId: params.data.userId,
+      actorUserId: req.user.id,
+      campusId: team.campusId,
+    });
+    res.status(202).json({
+      status: "pending_approval",
+      requestId: request.id,
+      message:
+        "Removal request sent for admin approval. The member stays until approved.",
+    });
     return;
   }
   await db
