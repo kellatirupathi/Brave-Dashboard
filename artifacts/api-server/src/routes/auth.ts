@@ -126,10 +126,17 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
     .select()
     .from(rosterTable)
     .where(and(or(...matchClauses), eq(rosterTable.isWhitelisted, true)));
-  // If we matched roster and the user has no campus / name set yet, propagate from roster
+  // If we matched roster and the user has no campus / name / real email set
+  // yet, propagate from roster. Forms-SSO accounts start life with a synthetic
+  // `sso_<formsUserId>@forms.local` address; when the matched roster row holds
+  // a real email we surface (and persist) it so the profile/email field shows
+  // the real address instead of the placeholder.
+  const isSyntheticEmail = (e: string | null | undefined): boolean =>
+    !!e && (/@forms\.local$/i.test(e) || /^sso_/i.test(e));
   let campusId = dbUser.campusId ?? null;
   let firstName = dbUser.firstName;
   let lastName = dbUser.lastName;
+  let email = dbUser.email;
   if (rosterEntry) {
     const updates: Partial<typeof usersTable.$inferInsert> = {};
     if (campusId == null && rosterEntry.campusId != null) {
@@ -149,6 +156,14 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
         updates.lastName = ln;
       }
     }
+    if (
+      isSyntheticEmail(email) &&
+      rosterEntry.email &&
+      !isSyntheticEmail(rosterEntry.email)
+    ) {
+      email = rosterEntry.email;
+      updates.email = rosterEntry.email;
+    }
     if (Object.keys(updates).length > 0) {
       await db
         .update(usersTable)
@@ -159,7 +174,7 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
   return {
     id: dbUser.id,
     replitId: dbUser.replitId ?? null,
-    email: dbUser.email,
+    email,
     niatId: dbUser.niatId ?? null,
     firstName: firstName ?? "",
     lastName: lastName ?? "",

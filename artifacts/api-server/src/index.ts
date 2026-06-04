@@ -36,6 +36,37 @@ async function reportUsersWithoutCampus(): Promise<void> {
   }
 }
 
+// One-shot repair: Forms-SSO accounts are created with a synthetic
+// `sso_<formsUserId>@forms.local` email. When their whitelisted roster row
+// carries a real address (e.g. captured from an approved access request),
+// copy it onto the users row so the users table matches the roster instead of
+// showing the placeholder. Matches strictly by forms_user_id and only ever
+// replaces a synthetic email with a non-synthetic one. Idempotent.
+async function backfillSyntheticUserEmails(): Promise<void> {
+  try {
+    const result = await db.execute(sql`
+      UPDATE users u
+      SET email = r.email,
+          updated_at = now()
+      FROM roster r
+      WHERE r.student_id = u.forms_user_id
+        AND r.is_whitelisted = TRUE
+        AND r.email IS NOT NULL
+        AND r.email NOT LIKE '%@forms.local'
+        AND u.email LIKE '%@forms.local'
+    `);
+    const rowCount = (result as { rowCount?: number }).rowCount ?? 0;
+    if (rowCount > 0) {
+      logger.info({ rowCount }, "Backfilled synthetic user emails from roster");
+    }
+  } catch (err) {
+    logger.error(
+      { err },
+      "Failed to backfill synthetic user emails from roster",
+    );
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -84,6 +115,11 @@ async function runBootstrap(): Promise<void> {
     await backfillOrderBookEntries();
   } catch (err) {
     logger.error({ err }, "backfillOrderBookEntries failed");
+  }
+  try {
+    await backfillSyntheticUserEmails();
+  } catch (err) {
+    logger.error({ err }, "backfillSyntheticUserEmails failed");
   }
   try {
     await reportUsersWithoutCampus();

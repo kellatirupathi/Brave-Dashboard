@@ -1876,10 +1876,21 @@ async function provisionApprovedAccessRequest(
       userRow.role === "admin" || userRow.role === "coordinator"
         ? userRow.role
         : "student";
+    // Replace the synthetic `sso_<id>@forms.local` placeholder with the real
+    // email captured on the request, so the users table stores the same real
+    // address as the roster row written below. Never overwrite an already-real
+    // email, and never write another synthetic value.
+    const isSyntheticEmail = (e: string | null | undefined): boolean =>
+      !!e && (/@forms\.local$/i.test(e) || /^sso_/i.test(e));
+    const nextEmail =
+      isSyntheticEmail(userRow.email) && !isSyntheticEmail(reqRow.email)
+        ? reqRow.email
+        : userRow.email;
     await tx
       .update(usersTable)
       .set({
         role: nextRole,
+        email: nextEmail,
         campusId: reqRow.campusId ?? userRow.campusId ?? null,
         niatId: reqRow.niatId ?? userRow.niatId ?? null,
         firstName: userRow.firstName || firstName,
