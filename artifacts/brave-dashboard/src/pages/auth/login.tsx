@@ -599,7 +599,7 @@ export default function Login() {
             className="text-center mt-6"
             style={{ fontSize: 12, color: "rgba(255,243,223,.42)" }}
           >
-            NIAT India · Boosting Revenue through AI Value Engineering
+            Nxtwave · Boosting Revenue through AI Value Engineering
           </p>
         </div>
       </div>
