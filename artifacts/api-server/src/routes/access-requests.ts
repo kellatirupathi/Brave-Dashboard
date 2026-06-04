@@ -54,11 +54,16 @@ router.get("/access-requests/me", async (req, res): Promise<void> => {
   res.json({ request: rows[0] ?? null, isOnRoster });
 });
 
-// Note: the email is intentionally NOT accepted from the client. It is always
-// bound server-side to req.user.email so a caller cannot submit a request for
-// another identity (which would also couple with the reject re-freeze logic).
+// Identity is still bound server-side: the request is always linked to
+// req.user.id, and roster matching keys off the account's real email
+// (req.user.email) — so a caller can never claim another identity or
+// self-grant roster access. The optional `email` here is only the
+// *contact* email shown to admins. Forms-SSO accounts have a synthetic
+// `sso_<id>@forms.local` address, so we let the student supply a real one;
+// when omitted we fall back to the account email (previous behaviour).
 const SubmitAccessRequestBody = z.object({
   fullName: z.string().trim().min(1),
+  email: z.string().trim().email().optional(),
   campusId: z.number().int().positive(),
   mobileNumber: z.string().trim().min(1),
   sectionName: z.string().trim().min(1),
@@ -83,6 +88,11 @@ router.post("/access-requests", async (req, res): Promise<void> => {
     return;
   }
   const data = parsed.data;
+  // Contact email shown to admins. Prefer the student-supplied address (real
+  // mailbox) over the synthetic `sso_<id>@forms.local` account email. Identity
+  // is still bound by userId above, so this never affects who the request
+  // belongs to or roster matching.
+  const contactEmail = data.email && data.email.length > 0 ? data.email : email;
   const [campus] = await db
     .select()
     .from(campusesTable)
@@ -107,7 +117,7 @@ router.post("/access-requests", async (req, res): Promise<void> => {
     .values({
       userId,
       fullName: data.fullName,
-      email,
+      email: contactEmail,
       niatId: data.niatId ?? null,
       campusId: data.campusId,
       campusName: campus.name,

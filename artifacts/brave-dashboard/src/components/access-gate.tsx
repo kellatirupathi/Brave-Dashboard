@@ -2,13 +2,19 @@
 // BRAVE roster. Drives the new-user access flow: no request -> form,
 // pending -> waiting screen, rejected -> rejected screen. While the gate is
 // rendered, the student cannot reach any other page in the app.
-import { useState } from "react";
+//
+// Layout: a non-interactive ("frozen") replica of the dashboard sidebar is
+// shown on the left purely as a preview — none of its items are links and the
+// whole column is pointer-events-none / aria-hidden. The actual gate content
+// (the access-request form or a status screen) sits to the right of it.
+import { useState, type ComponentType } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
   getMyAccessRequest,
   submitAccessRequest,
   listCampusOptions,
+  type CampusOption,
   type SubmitAccessRequestInput,
 } from "@/lib/access-api";
 import { normalizeError } from "@/lib/api-error";
@@ -16,21 +22,144 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Spinner } from "@/components/ui/spinner";
-import { Clock, LogOut, ShieldAlert, RefreshCw } from "lucide-react";
+import { BraveLogo } from "@/components/brave-logo";
+import { cn } from "@/lib/utils";
+import {
+  Clock,
+  LogOut,
+  ShieldAlert,
+  RefreshCw,
+  Check,
+  ChevronsUpDown,
+  ChevronRight,
+  LayoutDashboard,
+  BookOpenCheck,
+  FolderKanban,
+  Trophy,
+  FileText,
+  Users,
+  BookOpen,
+} from "lucide-react";
 
 const MY_REQUEST_KEY = ["access-request", "me"];
 
+// Forms-SSO auto-provisioned accounts get a synthetic address of the form
+// `sso_<uuid>@forms.local`. We never want to prefill that into the editable
+// email field — the student should type their real email instead.
+function isSyntheticEmail(email: string | null | undefined): boolean {
+  if (!email) return true;
+  return /@forms\.local$/i.test(email) || /^sso_/i.test(email);
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// Static preview of the student sidebar. Intentionally inert: plain spans (not
+// links), wrapped in pointer-events-none + aria-hidden so nothing here is
+// clickable or focusable. Mirrors the styling tokens used by the real sidebar
+// (components/sidebar.tsx) so it reads as the same component, frozen.
+const FROZEN_NAV: Array<{
+  name: string;
+  icon: ComponentType<{ className?: string }>;
+  active?: boolean;
+}> = [
+  { name: "Dashboard", icon: LayoutDashboard, active: true },
+  { name: "Weekly Journal", icon: BookOpenCheck },
+  { name: "Projects", icon: FolderKanban },
+  { name: "Leaderboard", icon: Trophy },
+  { name: "Demo Day", icon: FileText },
+  { name: "My Team", icon: Users },
+  { name: "Resources", icon: BookOpen },
+];
+
+function FrozenSidebar() {
+  const { user } = useAuth();
+  const initials =
+    `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.trim() || "?";
+  return (
+    <div
+      aria-hidden="true"
+      className="hidden lg:flex w-64 shrink-0 bg-sidebar border-r border-sidebar-border h-screen sticky top-0 flex-col text-sidebar-foreground pointer-events-none select-none"
+    >
+      <div className="p-6">
+        <BraveLogo className="text-2xl" />
+        <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-2">
+          Dashboard
+        </p>
+      </div>
+
+      <nav className="flex-1 px-4 space-y-1 py-4">
+        {FROZEN_NAV.map((item) => {
+          const Icon = item.icon;
+          return (
+            <span
+              key={item.name}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium",
+                item.active
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                  : "text-sidebar-foreground/70",
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              {item.name}
+            </span>
+          );
+        })}
+      </nav>
+
+      <div className="p-4 border-t border-sidebar-border">
+        <div className="w-full flex items-center gap-3 px-3 py-3 rounded-md text-left">
+          {user?.profileImage ? (
+            <img
+              src={user.profileImage}
+              alt=""
+              className="w-8 h-8 rounded-full"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-sidebar-primary/20 text-sidebar-primary flex items-center justify-center text-sm font-bold uppercase">
+              {initials}
+            </div>
+          )}
+          <div className="flex-1 overflow-hidden">
+            <p className="text-sm font-medium truncate">
+              {user ? `${user.firstName} ${user.lastName}`.trim() : "Student"}
+            </p>
+            <p className="text-xs text-sidebar-foreground/50 truncate capitalize">
+              {user?.role ?? "student"}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-sidebar-foreground/40" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Page shell: frozen sidebar on the left, gate content on the right.
 function GateShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="max-w-lg w-full space-y-8">{children}</div>
+    <div className="flex min-h-screen bg-background text-foreground">
+      <FrozenSidebar />
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <div className="min-h-screen flex items-start lg:items-center justify-center p-6">
+          <div className="w-full max-w-lg space-y-8 py-8">{children}</div>
+        </div>
+      </main>
     </div>
   );
 }
@@ -49,6 +178,80 @@ function LogoutLink() {
   );
 }
 
+// Searchable + scrollable campus picker. Built on Popover + cmdk Command:
+// CommandInput gives free-text search, CommandList scrolls
+// (max-h-[300px] overflow-y-auto by default).
+function CampusCombobox({
+  campuses,
+  value,
+  onChange,
+  loading,
+}: {
+  campuses: CampusOption[];
+  value: string;
+  onChange: (id: string) => void;
+  loading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = campuses.find((c) => String(c.id) === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={loading}
+          id="campus"
+          className="w-full justify-between font-normal"
+        >
+          <span className={cn(!selected && "text-muted-foreground")}>
+            {loading
+              ? "Loading campuses…"
+              : selected
+                ? selected.name
+                : "Select your campus"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+      >
+        <Command>
+          <CommandInput placeholder="Search campus…" />
+          <CommandList>
+            <CommandEmpty>No campus found.</CommandEmpty>
+            <CommandGroup>
+              {campuses.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={c.name}
+                  onSelect={() => {
+                    onChange(String(c.id));
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === String(c.id) ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  {c.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function AccessRequestForm() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -61,7 +264,11 @@ function AccessRequestForm() {
   const [fullName, setFullName] = useState(
     user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "",
   );
-  const [email] = useState(user?.email ?? "");
+  // Editable contact email. Never prefill the synthetic SSO placeholder —
+  // start blank for those so the student types a real address.
+  const [email, setEmail] = useState(
+    isSyntheticEmail(user?.email) ? "" : (user?.email ?? ""),
+  );
   const [campusId, setCampusId] = useState<string>("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [sectionName, setSectionName] = useState("");
@@ -79,6 +286,11 @@ function AccessRequestForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const trimmedEmail = email.trim();
+    if (!isValidEmail(trimmedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
     const id = Number(campusId);
     if (!Number.isInteger(id) || id <= 0) {
       setError("Please select your campus.");
@@ -86,6 +298,7 @@ function AccessRequestForm() {
     }
     submit.mutate({
       fullName: fullName.trim(),
+      email: trimmedEmail,
       campusId: id,
       mobileNumber: mobileNumber.trim(),
       sectionName: sectionName.trim(),
@@ -104,8 +317,8 @@ function AccessRequestForm() {
           BRAVE Programme Dashboard
         </h1>
         <p className="text-muted-foreground leading-relaxed">
-          We couldn&apos;t find you on the BRAVE roster yet. Request access below
-          and a programme administrator will review it.
+          We couldn&apos;t find you on the BRAVE roster yet. Request access
+          below and a programme administrator will review it.
         </p>
       </div>
 
@@ -130,11 +343,13 @@ function AccessRequestForm() {
               id="email"
               type="email"
               value={email}
-              disabled
-              readOnly
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
             />
             <p className="text-xs text-muted-foreground">
-              Linked to your signed-in account.
+              We&apos;ll use this to contact you about your access request.
             </p>
           </div>
 
@@ -173,26 +388,12 @@ function AccessRequestForm() {
 
           <div className="space-y-2">
             <Label htmlFor="campus">Campus</Label>
-            <Select
+            <CampusCombobox
+              campuses={campuses ?? []}
               value={campusId}
-              onValueChange={setCampusId}
-              disabled={campusesLoading}
-            >
-              <SelectTrigger id="campus">
-                <SelectValue
-                  placeholder={
-                    campusesLoading ? "Loading campuses…" : "Select your campus"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {(campuses ?? []).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={setCampusId}
+              loading={campusesLoading}
+            />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -204,6 +405,7 @@ function AccessRequestForm() {
               submit.isPending ||
               !campusId ||
               !fullName.trim() ||
+              !email.trim() ||
               !mobileNumber.trim() ||
               !sectionName.trim()
             }

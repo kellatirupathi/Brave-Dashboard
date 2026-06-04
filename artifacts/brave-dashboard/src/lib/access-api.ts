@@ -30,10 +30,13 @@ export type MyAccessRequest = {
 
 export type CampusOption = { id: number; name: string };
 
-// Note: email is intentionally omitted — the server binds it to the
-// authenticated account so a caller cannot request access for another identity.
+// `email` is the student-supplied contact address. Identity is still bound
+// server-side to the authenticated account (userId) and roster matching uses
+// the account's real email — so this only sets the contact email admins see
+// (Forms-SSO accounts otherwise carry a synthetic sso_<id>@forms.local).
 export type SubmitAccessRequestInput = {
   fullName: string;
+  email: string;
   campusId: number;
   mobileNumber: string;
   sectionName: string;
@@ -87,10 +90,13 @@ export function getAdminAccessRequest(id: number): Promise<AccessRequest> {
 
 // Admin: approve — provisions roster + user (idempotent).
 export function approveAccessRequest(id: number): Promise<AccessRequest> {
-  return customFetch<AccessRequest>(`/api/admin/access-requests/${id}/approve`, {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
+  return customFetch<AccessRequest>(
+    `/api/admin/access-requests/${id}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+  );
 }
 
 // Admin: reject — re-freezes access (un-whitelists roster) if previously granted.
