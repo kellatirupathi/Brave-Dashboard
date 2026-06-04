@@ -1,0 +1,52 @@
+Requirement 1 — Admin approval for all team membership changes (add / remove / leave)
+Context: In the BRAVE Dashboard, students currently join, leave, and get removed from teams instantly. Admin has no way to track who is adding or removing members. Make admin the central approval gate for every membership change.
+
+Build this:
+
+Every membership change must first create an admin approval request instead of changing the team immediately. This applies to:
+A student joining via invite code
+A student accepting a team invitation
+A team member approving someone's join request
+A member leaving a team
+A leader removing a member
+Team creation is NOT gated. When an admin directly adds/removes a member, it stays instant (admin is the authority).
+Student-side experience: after the action, the student is not added/removed yet. Show a "Awaiting admin approval" status/banner. Once the admin decides, the screen auto-updates to the normal state (added, removed, or unchanged).
+Admin-side experience: add a "Team Requests" item in the admin sidebar and a separate page listing all requests (Pending + History) showing who, which team, join vs leave/remove, who requested it. Admin can Approve or Reject (with an optional note).
+Approve → apply the actual membership change (add to / remove from the team) + send an email to the student (e.g. "You've joined X" / "You've been removed from X") + in-app notification.
+Reject → no change; the student stays as they were and gets a "rejected" notification.
+Keep existing rules at approval time: one team per student, team capacity limit, leader cannot be removed/leave without transferring leadership.
+Requirement 2 — Show the real BRD documents (and duplicates) in the Detailed AI BRD Analysis
+Context: On the admin page /admin/queue/detailed-analysis?entryId=..., the Team Uniqueness section shows a comparison table (Entry · Similarity · Flag · Reason). The "Entry" column is only an AI-generated text label like "Entry #95 — D. Chennaiah" — there is no link to open the actual BRD of the compared entry.
+
+Build this:
+
+For each compared (previous) entry in the Team Uniqueness table, add a "View BRD" link/button that opens that entry's real BRD document (same as the current entry's "View BRD"), so the admin can open and read the compared BRD.
+Tie each comparison row back to the real revenue entry (its actual ID and BRD file URL) on the backend — the AI's free-text label alone is not reliable. The analyser already knows which previous entries it compared against (their IDs + BRD URLs); persist/return those so the links work.
+Clearly display which compared entries are duplicates vs near-duplicates — exact duplicates highlighted (e.g. red) and near-duplicates (suspicious) highlighted (e.g. amber), each with its real BRD openable next to it.
+(Optional, confirm: also show the compared entry's team/client name and a link to that entry's own detailed-analysis page.)
+Requirement 3 — Order the Admin Users table by role
+Context: The admin Users page (/admin/users) table shows users in a mixed order.
+
+Build this:
+
+Always order the Users table by role priority: Admins first → Coordinators next → Students last, every time the page loads.
+Keep the existing order within each role group (only enforce the admin → coordinator → student grouping between groups).
+The search box and the "All roles / All sources" filters still work on top of this ordering.
+Requirement 4 — Programme Funnel changes on the Activity Heatmap
+Context: On the admin Activity Heatmap page (/admin/heatmap), the Funnel tab shows a student-based "Programme Funnel" with no date filter. Lower on the page there's a two-tab section: "Per-team coverage" + "Student-wise funnel".
+
+Build this:
+
+Remove the "Student-wise funnel" tab (and its per-student table) — keep only Per-team coverage in that lower section.
+Add a date filter to the Programme Funnel with three modes: Today, Last week, and a custom date-to-date range (start → end). Selecting any of these recomputes the funnel for that period. Default on page load = Today.
+Replace the funnel stages with these, in order (all team-level except stage 3):
+Registered teams — total teams (the funnel baseline, NOT date-filtered)
+Teams logged in — teams with ≥1 login (within the selected range)
+Students logged in — students with a login (within the range) — the only student-level row
+Submitted a journal — teams that submitted a journal (within the range)
+Visited a client — teams that visited a client
+Active conversation — teams with an active conversation
+Projects Started — teams that started projects
+Projects Closed — teams that closed projects
+Each row shows count · % of the top · step-to-step %.
+The selected date range filters activity within the window (logged in / journal submitted / client visited during the range); Registered teams stays the full team count as the denominator.
