@@ -34,7 +34,6 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   CalendarDays,
   Flag,
-  Plus,
   Copy,
   UserPlus,
   Check,
@@ -48,7 +47,7 @@ import {
   Trash2,
   Mail,
   ShieldCheck,
-  Sparkles,
+  Inbox,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,6 +132,7 @@ function nameInitials(name?: string | null, email?: string | null) {
   return (email ?? "?").substring(0, 2).toUpperCase();
 }
 
+// Small label/value tile used in the stats strip below the hero.
 function StatTile({
   label,
   value,
@@ -145,19 +145,36 @@ function StatTile({
   accent: string;
 }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+    <Card className="rounded-2xl p-4 transition-shadow hover:shadow-md">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {label}
         </span>
         <div
-          className={`w-7 h-7 rounded-md flex items-center justify-center ${accent}`}
+          className={`flex h-7 w-7 items-center justify-center rounded-lg ${accent}`}
         >
-          <Icon className="w-3.5 h-3.5" />
+          <Icon className="h-3.5 w-3.5" />
         </div>
       </div>
-      <div className="text-2xl font-bold tracking-tight">{value}</div>
+      <div className="truncate text-2xl font-bold tracking-tight">{value}</div>
     </Card>
+  );
+}
+
+// Consistent section-header chip so every card reads at the same altitude.
+function SectionIcon({
+  icon: Icon,
+  className,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  className: string;
+}) {
+  return (
+    <span
+      className={`flex h-7 w-7 items-center justify-center rounded-lg ${className}`}
+    >
+      <Icon className="h-4 w-4" />
+    </span>
   );
 }
 
@@ -253,6 +270,10 @@ function TeamView({
     joinRequests?.filter((j) => j.status === "pending") ?? [];
   const pendingLeaves =
     leaveRequests?.filter((l) => l.status === "pending") ?? [];
+  const totalRequests =
+    pendingInvitations.length +
+    pendingJoins.length +
+    (isLeader ? pendingLeaves.length : 0);
 
   const { data: students = [] } = useSearchCampusStudents(
     { q: searchQ },
@@ -504,39 +525,41 @@ function TeamView({
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
+    <div className="mx-auto max-w-6xl space-y-6 pb-12">
       <PendingMembershipBanner />
-      {/* HERO */}
-      <Card className="relative overflow-hidden border-0 shadow-sm">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent pointer-events-none" />
+
+      {/* ===================== HERO ===================== */}
+      <Card className="relative overflow-hidden rounded-2xl border-0 shadow-sm">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent" />
+        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
         <div className="relative p-6 md:p-8">
-          <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+          <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
             <div className="shrink-0">
               {team.photoUrl ? (
                 <img
                   src={team.photoUrl}
                   alt={team.name}
-                  className="w-28 h-28 rounded-2xl object-cover ring-4 ring-background shadow-lg"
+                  className="h-28 w-28 rounded-2xl object-cover shadow-lg ring-4 ring-background"
                 />
               ) : (
-                <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-primary/25 to-primary/5 text-primary flex items-center justify-center text-4xl font-extrabold ring-4 ring-background shadow-lg">
+                <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/30 to-primary/5 text-4xl font-extrabold text-primary shadow-lg ring-4 ring-background">
                   {team.name.substring(0, 2).toUpperCase()}
                 </div>
               )}
             </div>
 
-            <div className="flex-1 text-center md:text-left min-w-0">
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-2">
+            <div className="min-w-0 flex-1 text-center md:text-left">
+              <div className="mb-2 flex flex-wrap items-center justify-center gap-2 md:justify-start">
                 <Badge
                   variant={team.status === "active" ? "default" : "outline"}
-                  className="capitalize gap-1"
+                  className="gap-1 capitalize"
                 >
-                  <ShieldCheck className="w-3 h-3" /> {team.status}
+                  <ShieldCheck className="h-3 w-3" /> {team.status}
                 </Badge>
                 <Badge variant="secondary">{team.campusName}</Badge>
                 {isLeader ? (
-                  <Badge className="bg-amber-500/15 text-amber-700 border border-amber-500/30 hover:bg-amber-500/15 gap-1">
-                    <Crown className="w-3 h-3" /> Leader
+                  <Badge className="gap-1 border border-amber-500/30 bg-amber-500/15 text-amber-700 hover:bg-amber-500/15">
+                    <Crown className="h-3 w-3" /> Leader
                   </Badge>
                 ) : (
                   <Badge
@@ -548,7 +571,7 @@ function TeamView({
                   </Badge>
                 )}
               </div>
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
                 <InlineEditField
                   value={team.name}
                   editable={isLeader}
@@ -556,12 +579,12 @@ function TeamView({
                   maxLength={80}
                   ariaLabel="Team name"
                   testId="text-team-name"
-                  className="text-3xl md:text-4xl font-bold tracking-tight"
+                  className="text-3xl font-bold tracking-tight md:text-4xl"
                   onSave={(next) => saveTeamField("name", next)}
                 />
               </h1>
               {isLeader || team.tagline ? (
-                <p className="text-muted-foreground mt-1.5 text-base md:text-lg">
+                <p className="mt-1.5 text-base text-muted-foreground md:text-lg">
                   <InlineEditField
                     value={team.tagline ?? ""}
                     editable={isLeader}
@@ -569,35 +592,19 @@ function TeamView({
                     maxLength={120}
                     ariaLabel="Team tagline"
                     testId="text-team-tagline"
-                    className="text-base md:text-lg text-muted-foreground"
+                    className="text-base text-muted-foreground md:text-lg"
                     onSave={(next) => saveTeamField("tagline", next)}
                   />
                 </p>
               ) : null}
-              <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-4 gap-y-1 mt-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Users className="w-4 h-4" /> {team.members.length}{" "}
-                  {team.members.length === 1 ? "member" : "members"}
-                </span>
-                {team.createdAt && (
-                  <span className="flex items-center gap-1.5">
-                    <CalendarDays className="w-4 h-4" /> Since{" "}
-                    {formatDate(team.createdAt)}
-                  </span>
-                )}
-                <span className="flex items-center gap-1.5">
-                  <Flag className="w-4 h-4" /> {milestones?.length ?? 0}{" "}
-                  milestones
-                </span>
-              </div>
             </div>
 
-            <div className="flex flex-col items-center md:items-end gap-3">
+            <div className="flex flex-col items-center gap-3 md:items-end">
               <div className="flex -space-x-2">
                 {team.members.slice(0, 5).map((m) => (
                   <Avatar
                     key={m.userId}
-                    className="ring-2 ring-background w-9 h-9"
+                    className="h-9 w-9 ring-2 ring-background"
                   >
                     <AvatarImage src={m.profileImage ?? undefined} />
                     <AvatarFallback className="text-xs">
@@ -606,17 +613,18 @@ function TeamView({
                   </Avatar>
                 ))}
                 {team.members.length > 5 && (
-                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium ring-2 ring-background">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-xs font-medium ring-2 ring-background">
                     +{team.members.length - 5}
                   </div>
                 )}
               </div>
               {isTeamFull ? (
                 <div
-                  className="text-sm text-muted-foreground rounded-md border px-3 py-2"
+                  className="flex items-center gap-1.5 rounded-full border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground"
                   data-testid="text-team-full"
                 >
-                  Team is full ({memberCount}/{teamMemberLimit} members)
+                  <Users className="h-3.5 w-3.5" />
+                  Team is full ({memberCount}/{teamMemberLimit})
                 </div>
               ) : (
                 <Button
@@ -625,7 +633,7 @@ function TeamView({
                   data-testid="button-hero-invite"
                   className="gap-2"
                 >
-                  <UserPlus className="w-4 h-4" /> Invite member
+                  <UserPlus className="h-4 w-4" /> Invite member
                 </Button>
               )}
             </div>
@@ -633,21 +641,53 @@ function TeamView({
         </div>
       </Card>
 
-      {/* MAIN GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ===================== STAT TILES ===================== */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatTile
+          label="Members"
+          value={`${memberCount}/${teamMemberLimit}`}
+          icon={Users}
+          accent="bg-primary/10 text-primary"
+        />
+        <StatTile
+          label="Milestones"
+          value={milestones?.length ?? 0}
+          icon={Flag}
+          accent="bg-violet-500/10 text-violet-600"
+        />
+        <StatTile
+          label="Member since"
+          value={team.createdAt ? formatDate(team.createdAt) : "—"}
+          icon={CalendarDays}
+          accent="bg-emerald-500/10 text-emerald-600"
+        />
+        <StatTile
+          label="Your role"
+          value={isLeader ? "Leader" : "Member"}
+          icon={isLeader ? Crown : ShieldCheck}
+          accent="bg-amber-500/10 text-amber-600"
+        />
+      </div>
+
+      {/* ===================== MAIN GRID ===================== */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* LEFT COLUMN */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="space-y-6 lg:col-span-1">
           {/* Invite code */}
-          <Card>
+          <Card className="rounded-2xl">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-primary" /> Invite code
+              <CardTitle className="flex items-center gap-2 text-base">
+                <SectionIcon
+                  icon={KeyRound}
+                  className="bg-primary/10 text-primary"
+                />
+                Invite code
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="bg-muted/40 border-2 border-dashed rounded-lg py-4 px-3 text-center">
+              <div className="rounded-xl border-2 border-dashed bg-muted/40 px-3 py-4 text-center">
                 <p
-                  className="font-mono text-2xl font-bold tracking-[0.25em] text-primary uppercase break-all"
+                  className="break-all font-mono text-2xl font-bold uppercase tracking-[0.25em] text-primary"
                   data-testid="input-invite-code"
                 >
                   {team.inviteCode}
@@ -659,21 +699,24 @@ function TeamView({
                 className="w-full gap-2"
                 data-testid="button-copy-code"
               >
-                <Copy className="w-4 h-4" /> Copy code
+                <Copy className="h-4 w-4" /> Copy code
               </Button>
-              <p className="text-xs text-muted-foreground text-center">
+              <p className="text-center text-xs text-muted-foreground">
                 Share with classmates so they can join your team.
               </p>
             </CardContent>
           </Card>
 
           {/* Team members */}
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="w-4 h-4 text-primary" />
+          <Card className="rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <SectionIcon
+                  icon={Users}
+                  className="bg-primary/10 text-primary"
+                />
                 Team Members
-                <span className="text-xs font-normal text-muted-foreground ml-1">
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
                   ({team.members.length})
                 </span>
               </CardTitle>
@@ -685,7 +728,7 @@ function TeamView({
                     className="h-8 w-8"
                     data-testid="button-open-invite"
                   >
-                    <UserPlus className="w-4 h-4" />
+                    <UserPlus className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
@@ -704,13 +747,13 @@ function TeamView({
                       data-testid="input-search-students"
                       autoFocus
                     />
-                    <div className="max-h-72 overflow-y-auto space-y-1">
+                    <div className="max-h-72 space-y-1 overflow-y-auto">
                       {searchQ.trim().length < 2 ? (
-                        <p className="text-sm text-muted-foreground p-2">
+                        <p className="p-2 text-sm text-muted-foreground">
                           Type at least 2 characters to search.
                         </p>
                       ) : students.length === 0 ? (
-                        <p className="text-sm text-muted-foreground p-2">
+                        <p className="p-2 text-sm text-muted-foreground">
                           No matching students.
                         </p>
                       ) : (
@@ -724,10 +767,10 @@ function TeamView({
                           return (
                             <div
                               key={rowKey}
-                              className="flex items-center gap-3 p-2 rounded hover:bg-muted/50"
+                              className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/50"
                               data-testid={`student-${rowKey}`}
                             >
-                              <Avatar className="w-8 h-8">
+                              <Avatar className="h-8 w-8">
                                 <AvatarImage
                                   src={s.profileImage ?? undefined}
                                 />
@@ -739,11 +782,11 @@ function TeamView({
                                   )}
                                 </AvatarFallback>
                               </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
                                   {s.firstName} {s.lastName}
                                 </p>
-                                <p className="text-xs text-muted-foreground truncate">
+                                <p className="truncate text-xs text-muted-foreground">
                                   {s.niatId ?? s.email}
                                 </p>
                               </div>
@@ -788,10 +831,10 @@ function TeamView({
                   return (
                     <div
                       key={member.userId}
-                      className="flex items-center gap-3 p-2 -mx-2 rounded-lg hover:bg-muted/40 transition-colors"
+                      className="-mx-2 flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-muted/50"
                       data-testid={`member-${member.userId}`}
                     >
-                      <Avatar className="w-9 h-9">
+                      <Avatar className="h-9 w-9">
                         <AvatarImage src={member.profileImage || undefined} />
                         <AvatarFallback className="text-xs">
                           {memberInitials(
@@ -802,16 +845,16 @@ function TeamView({
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 overflow-hidden">
-                        <p className="text-sm font-medium truncate">
+                        <p className="truncate text-sm font-medium">
                           {memberName}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="truncate text-xs text-muted-foreground">
                           {member.niatId ?? member.email}
                         </p>
                       </div>
                       {member.isLeader && (
-                        <Badge className="bg-amber-500/15 text-amber-700 border border-amber-500/30 hover:bg-amber-500/15 text-[10px] px-1.5 h-5 gap-1">
-                          <Crown className="w-3 h-3" /> Leader
+                        <Badge className="h-5 gap-1 border border-amber-500/30 bg-amber-500/15 px-1.5 text-[10px] text-amber-700 hover:bg-amber-500/15">
+                          <Crown className="h-3 w-3" /> Leader
                         </Badge>
                       )}
                       {showLeaderMenu && (
@@ -824,7 +867,7 @@ function TeamView({
                               data-testid={`button-member-menu-${member.userId}`}
                               aria-label={`Manage ${memberName}`}
                             >
-                              <MoreVertical className="w-4 h-4" />
+                              <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -837,7 +880,7 @@ function TeamView({
                               }
                               data-testid={`menu-make-leader-${member.userId}`}
                             >
-                              <Crown className="w-4 h-4 mr-2" /> Make leader
+                              <Crown className="mr-2 h-4 w-4" /> Make leader
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onSelect={() =>
@@ -849,7 +892,7 @@ function TeamView({
                               className="text-destructive focus:text-destructive"
                               data-testid={`menu-remove-${member.userId}`}
                             >
-                              <UserMinus className="w-4 h-4 mr-2" /> Remove from
+                              <UserMinus className="mr-2 h-4 w-4" /> Remove from
                               team
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -864,11 +907,11 @@ function TeamView({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full mt-4 gap-2"
+                  className="mt-4 w-full gap-2"
                   data-testid="button-open-leave"
                   onClick={() => setLeaveOpen(true)}
                 >
-                  <LogOut className="w-4 h-4" /> Leave team
+                  <LogOut className="h-4 w-4" /> Leave team
                 </Button>
               )}
             </CardContent>
@@ -876,10 +919,14 @@ function TeamView({
 
           {/* Danger zone */}
           {isLeader && (
-            <Card className="border-destructive/30">
+            <Card className="rounded-2xl border-destructive/30 bg-destructive/[0.02]">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base text-destructive flex items-center gap-2">
-                  <Trash2 className="w-4 h-4" /> Danger zone
+                <CardTitle className="flex items-center gap-2 text-base text-destructive">
+                  <SectionIcon
+                    icon={Trash2}
+                    className="bg-destructive/10 text-destructive"
+                  />
+                  Danger zone
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -895,7 +942,7 @@ function TeamView({
                   onClick={() => setDeleteTeamOpen(true)}
                   data-testid="button-open-delete-team"
                 >
-                  <Trash2 className="w-4 h-4" /> Delete team
+                  <Trash2 className="h-4 w-4" /> Delete team
                 </Button>
               </CardContent>
             </Card>
@@ -903,14 +950,28 @@ function TeamView({
         </div>
 
         {/* RIGHT COLUMN */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-2">
+          {/* Requests summary strip — only shown when something needs action. */}
+          {totalRequests > 0 && (
+            <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+              <Inbox className="h-4 w-4 text-primary" />
+              <span className="font-medium text-foreground">
+                {totalRequests} {totalRequests === 1 ? "request" : "requests"}{" "}
+                need your attention
+              </span>
+            </div>
+          )}
+
           {pendingInvitations.length > 0 && (
-            <Card data-testid="card-sent-invitations">
+            <Card className="rounded-2xl" data-testid="card-sent-invitations">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-violet-600" />
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <SectionIcon
+                    icon={Mail}
+                    className="bg-violet-500/10 text-violet-600"
+                  />
                   Pending invitations sent
-                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
                     ({pendingInvitations.length})
                   </span>
                 </CardTitle>
@@ -920,19 +981,19 @@ function TeamView({
                   {pendingInvitations.map((inv) => (
                     <div
                       key={inv.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card"
+                      className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-primary/30"
                       data-testid={`sent-invite-${inv.id}`}
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <p className="truncate text-sm font-medium">
                           {inv.inviteeName}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="truncate text-xs text-muted-foreground">
                           {inv.inviteeNiatId ?? inv.inviteeEmail} • Invited by{" "}
                           {inv.inviterName}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex shrink-0 items-center gap-2">
                         <Badge variant="outline">Pending</Badge>
                         <Button
                           variant="outline"
@@ -960,12 +1021,15 @@ function TeamView({
           )}
 
           {pendingJoins.length > 0 && (
-            <Card data-testid="card-join-requests">
+            <Card className="rounded-2xl" data-testid="card-join-requests">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <UserPlus className="w-4 h-4 text-emerald-600" />
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <SectionIcon
+                    icon={UserPlus}
+                    className="bg-emerald-500/10 text-emerald-600"
+                  />
                   Join requests
-                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
                     ({pendingJoins.length})
                   </span>
                 </CardTitle>
@@ -975,7 +1039,7 @@ function TeamView({
                   {pendingJoins.map((jr) => (
                     <div
                       key={jr.id}
-                      className="flex items-start gap-3 p-3 rounded-lg border bg-card"
+                      className="flex items-start gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-emerald-500/30"
                       data-testid={`join-request-${jr.id}`}
                     >
                       <Avatar>
@@ -986,7 +1050,7 @@ function TeamView({
                           {nameInitials(jr.requesterName, jr.requesterEmail)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium">
                           {jr.requesterName}
                         </p>
@@ -994,27 +1058,27 @@ function TeamView({
                           {jr.requesterNiatId ?? jr.requesterEmail}
                         </p>
                         {jr.message && (
-                          <p className="text-sm mt-2 italic">"{jr.message}"</p>
+                          <p className="mt-2 text-sm italic">"{jr.message}"</p>
                         )}
                       </div>
-                      <div className="flex gap-2 shrink-0">
+                      <div className="flex shrink-0 gap-2">
                         <Button
                           size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
+                          className="bg-green-600 text-white hover:bg-green-700"
                           onClick={() => handleApproveJoin(jr.id)}
                           disabled={approveJoin.isPending}
                           data-testid={`button-approve-join-${jr.id}`}
                         >
-                          <Check className="w-4 h-4" />
+                          <Check className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
-                          className="bg-red-400 hover:bg-red-500 text-white"
+                          className="bg-red-400 text-white hover:bg-red-500"
                           onClick={() => handleDeclineJoin(jr.id)}
                           disabled={declineJoin.isPending}
                           data-testid={`button-decline-join-${jr.id}`}
                         >
-                          <X className="w-4 h-4" />
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -1025,12 +1089,15 @@ function TeamView({
           )}
 
           {isLeader && pendingLeaves.length > 0 && (
-            <Card data-testid="card-leave-requests">
+            <Card className="rounded-2xl" data-testid="card-leave-requests">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <LogOut className="w-4 h-4 text-orange-600" />
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <SectionIcon
+                    icon={LogOut}
+                    className="bg-orange-500/10 text-orange-600"
+                  />
                   Leave requests
-                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
                     ({pendingLeaves.length})
                   </span>
                 </CardTitle>
@@ -1040,7 +1107,7 @@ function TeamView({
                   {pendingLeaves.map((lr) => (
                     <div
                       key={lr.id}
-                      className="flex items-start gap-3 p-3 rounded-lg border bg-card"
+                      className="flex items-start gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-orange-500/30"
                       data-testid={`leave-request-${lr.id}`}
                     >
                       <Avatar>
@@ -1051,7 +1118,7 @@ function TeamView({
                           {nameInitials(lr.requesterName, lr.requesterEmail)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium">
                           {lr.requesterName}
                         </p>
@@ -1059,27 +1126,27 @@ function TeamView({
                           wants to leave the team
                         </p>
                         {lr.reason && (
-                          <p className="text-sm mt-2 italic">"{lr.reason}"</p>
+                          <p className="mt-2 text-sm italic">"{lr.reason}"</p>
                         )}
                       </div>
-                      <div className="flex gap-2 shrink-0">
+                      <div className="flex shrink-0 gap-2">
                         <Button
                           size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
+                          className="bg-green-600 text-white hover:bg-green-700"
                           onClick={() => handleApproveLeave(lr.id)}
                           disabled={approveLeave.isPending}
                           data-testid={`button-approve-leave-${lr.id}`}
                         >
-                          <Check className="w-4 h-4" />
+                          <Check className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
-                          className="bg-red-400 hover:bg-red-500 text-white"
+                          className="bg-red-400 text-white hover:bg-red-500"
                           onClick={() => handleDeclineLeave(lr.id)}
                           disabled={declineLeave.isPending}
                           data-testid={`button-decline-leave-${lr.id}`}
                         >
-                          <X className="w-4 h-4" />
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -1090,44 +1157,48 @@ function TeamView({
           )}
 
           {/* Milestone timeline */}
-          <Card>
+          <Card className="rounded-2xl">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Flag className="w-4 h-4 text-primary" /> Milestone Timeline
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <SectionIcon
+                    icon={Flag}
+                    className="bg-primary/10 text-primary"
+                  />
+                  Milestone Timeline
                 </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="ml-9 mt-1 text-xs text-muted-foreground">
                   Track your team's journey
                 </p>
               </div>
             </CardHeader>
             <CardContent>
               {milestonesLoading ? (
-                <div className="py-8 flex justify-center">
+                <div className="flex justify-center py-8">
                   <Spinner />
                 </div>
               ) : !milestones || milestones.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
-                  <Flag className="w-8 h-8 mx-auto mb-3 opacity-50" />
+                <div className="rounded-xl border-2 border-dashed py-12 text-center text-muted-foreground">
+                  <Flag className="mx-auto mb-3 h-8 w-8 opacity-50" />
                   <p>No milestones yet.</p>
                 </div>
               ) : (
-                <div className="relative border-l-2 border-muted ml-3 space-y-6 pb-2">
-                  {milestones.map((m, idx) => (
+                <div className="relative ml-3 space-y-6 border-l-2 border-muted pb-2">
+                  {milestones.map((m) => (
                     <div key={m.id} className="relative pl-6">
-                      <div className="absolute w-3 h-3 rounded-full -left-[7.5px] top-2 ring-4 ring-background bg-primary" />
-                      <div className="bg-muted/30 p-4 rounded-lg border hover:border-primary/40 transition-colors">
-                        <div className="flex items-center justify-between mb-1.5 gap-3">
+                      <div className="absolute -left-[7.5px] top-2 h-3 w-3 rounded-full bg-primary ring-4 ring-background" />
+                      <div className="rounded-xl border bg-muted/30 p-4 transition-colors hover:border-primary/40">
+                        <div className="mb-1.5 flex items-center justify-between gap-3">
                           <h4 className="font-bold text-foreground">
                             {m.title}
                           </h4>
-                          <div className="flex items-center text-xs text-muted-foreground shrink-0">
-                            <CalendarDays className="w-3 h-3 mr-1" />{" "}
+                          <div className="flex shrink-0 items-center text-xs text-muted-foreground">
+                            <CalendarDays className="mr-1 h-3 w-3" />{" "}
                             {formatDate(m.date)}
                           </div>
                         </div>
                         {m.description && (
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                             {m.description}
                           </p>
                         )}
