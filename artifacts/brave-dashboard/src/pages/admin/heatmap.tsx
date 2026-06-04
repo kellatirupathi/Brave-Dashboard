@@ -777,78 +777,87 @@ export default function HeatmapPage() {
                     conversion.
                   </CardDescription>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* View toggle — list (default) ↔ bar chart. Lives top-right
-                      of the section; the chart renders in the same card. */}
-                  <div className="flex items-center rounded-md border p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setFunnelView("list")}
-                      className={cn(
-                        "inline-flex items-center justify-center rounded-sm p-1.5 transition-colors",
-                        funnelView === "list"
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-accent",
-                      )}
-                      title="List view"
-                      data-testid="funnel-view-list"
-                    >
-                      <List className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFunnelView("chart")}
-                      className={cn(
-                        "inline-flex items-center justify-center rounded-sm p-1.5 transition-colors",
-                        funnelView === "chart"
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-accent",
-                      )}
-                      title="Graph view"
-                      data-testid="funnel-view-chart"
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  {funnelView === "chart" && (
+                {/* Controls stack — top row holds the range dropdown then the
+                    list/graph icons; the custom date range drops to a row below. */}
+                <div className="flex flex-col gap-2 sm:items-end">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* 1. Range dropdown */}
                     <Select
-                      value={funnelChartOrientation}
+                      value={funnelRange}
                       onValueChange={(v) =>
-                        setFunnelChartOrientation(
-                          v as "vertical" | "horizontal",
-                        )
+                        setFunnelRange(v as "today" | "week" | "custom")
                       }
                     >
                       <SelectTrigger
-                        className="w-32"
-                        data-testid="funnel-orientation-select"
+                        className="w-36"
+                        data-testid="funnel-range-select"
                       >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="vertical">Vertical</SelectItem>
-                        <SelectItem value="horizontal">Horizontal</SelectItem>
+                        <SelectItem value="today">Today</SelectItem>
+                        <SelectItem value="week">Last week</SelectItem>
+                        <SelectItem value="custom">Custom range</SelectItem>
                       </SelectContent>
                     </Select>
-                  )}
-                  <Select
-                    value={funnelRange}
-                    onValueChange={(v) =>
-                      setFunnelRange(v as "today" | "week" | "custom")
-                    }
-                  >
-                    <SelectTrigger
-                      className="w-36"
-                      data-testid="funnel-range-select"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="today">Today</SelectItem>
-                      <SelectItem value="week">Last week</SelectItem>
-                      <SelectItem value="custom">Custom range</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                    {/* Chart orientation — only in graph view */}
+                    {funnelView === "chart" && (
+                      <Select
+                        value={funnelChartOrientation}
+                        onValueChange={(v) =>
+                          setFunnelChartOrientation(
+                            v as "vertical" | "horizontal",
+                          )
+                        }
+                      >
+                        <SelectTrigger
+                          className="w-32"
+                          data-testid="funnel-orientation-select"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="vertical">Vertical</SelectItem>
+                          <SelectItem value="horizontal">Horizontal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+
+                    {/* 2 + 3. List (menu) icon then graph icon */}
+                    <div className="flex items-center rounded-md border p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setFunnelView("list")}
+                        className={cn(
+                          "inline-flex items-center justify-center rounded-sm p-1.5 transition-colors",
+                          funnelView === "list"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-accent",
+                        )}
+                        title="List view"
+                        data-testid="funnel-view-list"
+                      >
+                        <List className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFunnelView("chart")}
+                        className={cn(
+                          "inline-flex items-center justify-center rounded-sm p-1.5 transition-colors",
+                          funnelView === "chart"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-accent",
+                        )}
+                        title="Graph view"
+                        data-testid="funnel-view-chart"
+                      >
+                        <BarChart3 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Custom range — sits below the dropdown + icons row */}
                   {funnelRange === "custom" && (
                     <div className="flex items-center gap-1.5">
                       <Input
