@@ -42,6 +42,19 @@ async function downloadBrdBytes(brdUrl: string): Promise<Buffer | null> {
 }
 
 /**
+ * Only PDFs are analysed. The Gemini Files API is told every upload is
+ * `application/pdf`, so a non-PDF (Word doc, image) or an empty/corrupt file
+ * makes generateContent fail with "The document has no pages". This is a cheap
+ * structural guard: a real PDF begins with the `%PDF-` magic header. We scan
+ * the first 1KB (not just byte 0) to tolerate a leading BOM / stray bytes that
+ * some generators emit.
+ */
+function isLikelyPdf(bytes: Buffer | null | undefined): boolean {
+  if (!bytes || bytes.length < 5) return false;
+  return bytes.subarray(0, 1024).toString("latin1").includes("%PDF-");
+}
+
+/**
  * Run the AI auditor on a single revenue entry by id. Idempotent. Safe to
  * call even if no Gemini key is configured (becomes a silent no-op).
  *
@@ -112,6 +125,16 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
       );
       return;
     }
+    // Only PDFs are analysed. If the attached BRD isn't a real PDF (a Word doc,
+    // an image, or an empty/corrupt file), skip the Gemini call entirely —
+    // sending it would only fail with "The document has no pages".
+    if (!isLikelyPdf(currentBytes)) {
+      logger.warn(
+        { entryId, brdUrl: entry.brdUrl },
+        "[brd-ai] BRD is not a valid PDF — skipping analysis (only PDFs are analysed)",
+      );
+      return;
+    }
 
     // Upload current first.
     const currentUpload = await uploadPdfToGemini(
@@ -128,6 +151,15 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
         if (!prev.brdUrl) return null;
         const bytes = await downloadBrdBytes(prev.brdUrl);
         if (!bytes) return null;
+        // Skip non-PDF previous BRDs too — one bad file in the comparison set
+        // would otherwise fail the whole generateContent call.
+        if (!isLikelyPdf(bytes)) {
+          logger.warn(
+            { entryId, previousEntryId: prev.id, brdUrl: prev.brdUrl },
+            "[brd-ai] previous BRD is not a valid PDF — excluded from comparison",
+          );
+          return null;
+        }
         const uploaded = await uploadPdfToGemini(
           apiKey,
           bytes,
@@ -240,7 +272,12 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
     }
 
     logger.info(
-      { entryId, brdScore, uniquenessScore, previousCount: previousUploads.length },
+      {
+        entryId,
+        brdScore,
+        uniquenessScore,
+        previousCount: previousUploads.length,
+      },
       "[brd-ai] analysis stored",
     );
   } catch (err) {
