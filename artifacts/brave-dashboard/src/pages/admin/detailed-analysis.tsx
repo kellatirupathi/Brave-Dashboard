@@ -195,7 +195,9 @@ function AnalysisBody({ detail }: { detail: BrdAiAnalysis }) {
                       {c.compared_brd_url ? (
                         <DocumentLinkButton
                           url={c.compared_brd_url}
-                          label="View BRD"
+                          label="BRD"
+                          className="h-7 px-2.5 text-xs"
+                          testId={`compared-brd-${c.compared_entry_id ?? i}`}
                         />
                       ) : (
                         <span className="text-xs text-muted-foreground italic">
@@ -403,7 +405,12 @@ function ListView() {
   const byTeam = useMemo(() => {
     const groups = new Map<
       string,
-      { teamId: number; teamName: string; campusName: string; rows: BrdAnalysisListItem[] }
+      {
+        teamId: number;
+        teamName: string;
+        campusName: string;
+        rows: BrdAnalysisListItem[];
+      }
     >();
     for (const it of items) {
       const key = `${it.teamId}`;
@@ -514,7 +521,10 @@ function ListView() {
                       )}
                     </td>
                     <td className="p-3">
-                      <Badge variant="outline" className={scoreColor(it.brdScore)}>
+                      <Badge
+                        variant="outline"
+                        className={scoreColor(it.brdScore)}
+                      >
                         {it.brdScore ?? "?"}/100
                       </Badge>
                     </td>
@@ -637,7 +647,10 @@ function TeamGroup({
                       )}
                     </td>
                     <td className="p-2 align-middle">
-                      <Badge variant="outline" className={scoreColor(it.brdScore)}>
+                      <Badge
+                        variant="outline"
+                        className={scoreColor(it.brdScore)}
+                      >
                         {it.brdScore ?? "?"}/100
                       </Badge>
                     </td>

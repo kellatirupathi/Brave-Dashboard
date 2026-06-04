@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useSearch } from "wouter";
 import {
   Activity,
   Bell,
@@ -15,7 +16,20 @@ import {
   Rocket,
   PackageCheck,
   TrendingUp,
+  BarChart3,
+  List,
 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
   Card,
@@ -60,46 +74,6 @@ import {
   type HeatmapStudentRow,
 } from "@/lib/progress-api";
 
-function HeroCard({
-  label,
-  value,
-  sub,
-  loading,
-  icon,
-  accent,
-}: {
-  label: string;
-  value: number | undefined;
-  sub: string;
-  loading: boolean;
-  icon: React.ReactNode;
-  accent?: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardDescription className="text-xs font-medium uppercase tracking-wide">
-            {label}
-          </CardDescription>
-          <span className={cn("text-muted-foreground", accent)}>{icon}</span>
-        </div>
-        <CardTitle
-          className={cn("text-4xl tabular-nums mt-1", accent)}
-          data-testid={`hero-card-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-        >
-          {loading ? (
-            <Spinner className="size-6" />
-          ) : (
-            (value ?? 0).toLocaleString("en-IN")
-          )}
-        </CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">{sub}</p>
-      </CardHeader>
-    </Card>
-  );
-}
-
 // Per-stage icon + colour for the funnel. Keyed by the backend stage `key`.
 // Colours progress cool→warm→green to read as a journey toward "closed".
 const FUNNEL_STAGE_META: Record<
@@ -138,6 +112,19 @@ const FUNNEL_STAGE_META: Record<
     icon: <PackageCheck className="h-4 w-4" />,
     color: "bg-emerald-500",
   },
+};
+
+// Hex equivalents of the Tailwind funnel colours above — recharts needs real
+// colour values, not class names. Keyed by the same backend stage `key`.
+const FUNNEL_STAGE_HEX: Record<string, string> = {
+  registered_teams: "#94a3b8", // slate-400
+  teams_logged_in: "#0ea5e9", // sky-500
+  students_logged_in: "#06b6d4", // cyan-500
+  submitted_journal: "#3b82f6", // blue-500
+  visited_client: "#8b5cf6", // violet-500
+  active_conversation: "#d946ef", // fuchsia-500
+  started_project: "#f59e0b", // amber-500
+  closed_project: "#10b981", // emerald-500
 };
 
 // Colour for a step-conversion pill: green = healthy retention, amber =
@@ -273,6 +260,128 @@ function FunnelChart({
   );
 }
 
+// Same funnel data rendered as a real bar chart. `orientation` flips between
+// vertical bars (category on the X axis) and horizontal bars (category on the
+// Y axis), so admins can read it whichever way suits the stage labels.
+function FunnelBarChart({
+  stages,
+  orientation,
+}: {
+  stages: { key: string; label: string; count: number }[];
+  orientation: "vertical" | "horizontal";
+}) {
+  const data = stages.map((s) => ({
+    ...s,
+    fill: FUNNEL_STAGE_HEX[s.key] ?? "#6366f1",
+  }));
+
+  if (orientation === "horizontal") {
+    return (
+      <div data-testid="funnel-bar-chart-horizontal">
+        <ResponsiveContainer
+          width="100%"
+          height={Math.max(280, data.length * 46)}
+        >
+          <BarChart
+            data={data}
+            layout="vertical"
+            margin={{ top: 8, right: 44, left: 8, bottom: 8 }}
+            barCategoryGap="25%"
+          >
+            <CartesianGrid
+              horizontal={false}
+              strokeDasharray="3 3"
+              stroke="#e5e7eb"
+            />
+            <XAxis
+              type="number"
+              allowDecimals={false}
+              tick={{ fontSize: 11 }}
+            />
+            <YAxis
+              type="category"
+              dataKey="label"
+              width={150}
+              tick={{ fontSize: 11 }}
+            />
+            <RechartsTooltip
+              cursor={{ fill: "rgba(0,0,0,0.04)" }}
+              formatter={(value) =>
+                [Number(value).toLocaleString("en-IN"), "Teams"] as [
+                  string,
+                  string,
+                ]
+              }
+            />
+            <Bar
+              dataKey="count"
+              radius={[0, 4, 4, 0]}
+              isAnimationActive={false}
+            >
+              {data.map((d) => (
+                <Cell key={d.key} fill={d.fill} />
+              ))}
+              <LabelList
+                dataKey="count"
+                position="right"
+                className="fill-foreground"
+                fontSize={11}
+              />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="funnel-bar-chart-vertical">
+      <ResponsiveContainer width="100%" height={360}>
+        <BarChart
+          data={data}
+          margin={{ top: 20, right: 12, left: 0, bottom: 60 }}
+          barCategoryGap="20%"
+        >
+          <CartesianGrid
+            vertical={false}
+            strokeDasharray="3 3"
+            stroke="#e5e7eb"
+          />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 10 }}
+            interval={0}
+            angle={-30}
+            textAnchor="end"
+            height={70}
+          />
+          <YAxis allowDecimals={false} width={40} tick={{ fontSize: 11 }} />
+          <RechartsTooltip
+            cursor={{ fill: "rgba(0,0,0,0.04)" }}
+            formatter={(value) =>
+              [Number(value).toLocaleString("en-IN"), "Teams"] as [
+                string,
+                string,
+              ]
+            }
+          />
+          <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+            {data.map((d) => (
+              <Cell key={d.key} fill={d.fill} />
+            ))}
+            <LabelList
+              dataKey="count"
+              position="top"
+              className="fill-foreground"
+              fontSize={11}
+            />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function AnalyticsCard({
   label,
   value,
@@ -343,11 +452,38 @@ function cellClass(b: HeatmapTeamWeek): string {
   return b.hasJournal ? "bg-emerald-500" : "bg-muted/40";
 }
 
+const HEATMAP_TABS = [
+  "funnel",
+  "coverage",
+  "engagement",
+  "team-status",
+] as const;
+type HeatmapTab = (typeof HEATMAP_TABS)[number];
+
 export default function HeatmapPage() {
   const { user } = useAuth();
   const isCoordinator = user?.role === "coordinator";
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Active tab is driven by the URL (?tab=…) so deep links and the browser
+  // back/forward buttons land on the right section, and each tab loads its own
+  // data on demand. Defaults to the funnel.
+  const search = useSearch();
+  const [location, setLocation] = useLocation();
+  const tabParam = new URLSearchParams(search).get("tab");
+  const activeTab: HeatmapTab = (HEATMAP_TABS as readonly string[]).includes(
+    tabParam ?? "",
+  )
+    ? (tabParam as HeatmapTab)
+    : "funnel";
+  const setActiveTab = (v: string) => setLocation(`${location}?tab=${v}`);
+
+  // Programme Funnel: list (default) vs bar-chart view, plus chart orientation.
+  const [funnelView, setFunnelView] = useState<"list" | "chart">("list");
+  const [funnelChartOrientation, setFunnelChartOrientation] = useState<
+    "vertical" | "horizontal"
+  >("vertical");
 
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "silent" | "never">("all");
@@ -363,6 +499,7 @@ export default function HeatmapPage() {
       ? Number(selectedCampusId)
       : undefined;
 
+  // Heavy per-team grid — only fetched for the tabs that render it.
   const { data, isLoading, error } = useQuery({
     queryKey: ["heatmap", weeksBack, campusFilterForApi ?? "all"],
     queryFn: () =>
@@ -370,6 +507,7 @@ export default function HeatmapPage() {
         weeksBack,
         ...(campusFilterForApi ? { campusId: campusFilterForApi } : {}),
       }),
+    enabled: activeTab === "coverage" || activeTab === "team-status",
   });
 
   // Campus list for the dropdown (admin only).
@@ -421,6 +559,7 @@ export default function HeatmapPage() {
         ...(campusFilterForApi ? { campusId: campusFilterForApi } : {}),
         ...funnelDateParams,
       }),
+    enabled: activeTab === "funnel" || activeTab === "engagement",
   });
 
   // Per-student funnel table.
@@ -605,41 +744,15 @@ export default function HeatmapPage() {
         </p>
       </div>
 
-      {/* Hero Strip — 3 headline KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <HeroCard
-          label="Total Students"
-          value={analytics?.totals.totalStudents}
-          sub={`Across ${campuses?.length ?? "—"} campuses`}
-          loading={analyticsLoading}
-          icon={<Users className="h-5 w-5" />}
-        />
-        <HeroCard
-          label="Weekly Active (WAU)"
-          value={analytics?.engagement.wau}
-          sub={
-            analytics && analytics.totals.totalStudents > 0
-              ? `${((analytics.engagement.wau / analytics.totals.totalStudents) * 100).toFixed(1)}% of students`
-              : "—"
-          }
-          loading={analyticsLoading}
-          icon={<TrendingUp className="h-5 w-5" />}
-          accent="text-primary"
-        />
-        <HeroCard
-          label="Total Teams"
-          value={counts.total}
-          sub={`${counts.active} active · ${counts.silent} silent · ${counts.never} never logged`}
-          loading={isLoading}
-          icon={<Activity className="h-5 w-5" />}
-        />
-      </div>
-
-      {/* Tabs: Funnel / Engagement / Team Status */}
-      <Tabs defaultValue="funnel" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+      {/* URL-routed tabs (?tab=…): Funnel / Per-team coverage / Engagement /
+          Team Status. Each tab loads its own data on demand. */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="funnel" data-testid="tab-funnel">
             Funnel
+          </TabsTrigger>
+          <TabsTrigger value="coverage" data-testid="tab-coverage">
+            Per-team coverage
           </TabsTrigger>
           <TabsTrigger value="engagement" data-testid="tab-engagement">
             Engagement
@@ -665,6 +778,59 @@ export default function HeatmapPage() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* View toggle — list (default) ↔ bar chart. Lives top-right
+                      of the section; the chart renders in the same card. */}
+                  <div className="flex items-center rounded-md border p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setFunnelView("list")}
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-sm p-1.5 transition-colors",
+                        funnelView === "list"
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-accent",
+                      )}
+                      title="List view"
+                      data-testid="funnel-view-list"
+                    >
+                      <List className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFunnelView("chart")}
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-sm p-1.5 transition-colors",
+                        funnelView === "chart"
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-accent",
+                      )}
+                      title="Graph view"
+                      data-testid="funnel-view-chart"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {funnelView === "chart" && (
+                    <Select
+                      value={funnelChartOrientation}
+                      onValueChange={(v) =>
+                        setFunnelChartOrientation(
+                          v as "vertical" | "horizontal",
+                        )
+                      }
+                    >
+                      <SelectTrigger
+                        className="w-32"
+                        data-testid="funnel-orientation-select"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="vertical">Vertical</SelectItem>
+                        <SelectItem value="horizontal">Horizontal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                   <Select
                     value={funnelRange}
                     onValueChange={(v) =>
@@ -708,10 +874,27 @@ export default function HeatmapPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-2">
-              <FunnelChart
-                stages={analytics?.funnel ?? []}
-                loading={analyticsLoading}
-              />
+              {funnelView === "chart" ? (
+                analyticsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Spinner className="size-8" />
+                  </div>
+                ) : (analytics?.funnel ?? []).length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-12 text-center">
+                    No funnel data yet.
+                  </div>
+                ) : (
+                  <FunnelBarChart
+                    stages={analytics?.funnel ?? []}
+                    orientation={funnelChartOrientation}
+                  />
+                )
+              ) : (
+                <FunnelChart
+                  stages={analytics?.funnel ?? []}
+                  loading={analyticsLoading}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -777,22 +960,11 @@ export default function HeatmapPage() {
             </Card>
           </div>
         </TabsContent>
-      </Tabs>
 
-      {/* Per-team coverage + Student-wise funnel — one section, two tabs.
-          Each tab renders from its own endpoint; switching tabs unmounts the
-          other heavy table, which also keeps the page light. */}
-      <Card>
-        <Tabs defaultValue="coverage" className="w-full">
-          <CardHeader className="pb-3">
-            <TabsList className="grid w-full max-w-[200px] grid-cols-1">
-              <TabsTrigger value="coverage" data-testid="tab-coverage">
-                Per-team coverage
-              </TabsTrigger>
-            </TabsList>
-          </CardHeader>
-          <CardContent>
-            <TabsContent value="coverage" className="mt-0 space-y-4">
+        {/* Per-team weekly journal coverage — the heavy grid in its own tab. */}
+        <TabsContent value="coverage" className="mt-4">
+          <Card>
+            <CardContent className="pt-6 space-y-4">
               {/* Top toolbar — bulk button + campus / week dropdowns + clear filters */}
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1066,11 +1238,10 @@ export default function HeatmapPage() {
                   </div>
                 </div>
               )}
-            </TabsContent>
-
-          </CardContent>
-        </Tabs>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Bulk send confirmation */}
       <AlertDialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>

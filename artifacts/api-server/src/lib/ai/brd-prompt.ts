@@ -92,34 +92,57 @@ CASE A — No previous BRDs provided (first submission by this team):
 
 CASE B — One or more previous BRDs provided:
 Compare the current BRD against every previously submitted BRD from the same team.
-Compare based on: text content, document structure, images, amounts, dates,
-client names, and transaction details.
 
-Scoring logic:
-- 100 = completely unique, no similarity found
-- 70–99 = mostly unique, minor structural similarities (same template is acceptable
-  if transaction details like amount, date, client are different)
-- 30–69 = suspicious — same template AND similar content, needs admin review
-- 0–29 = likely duplicate — nearly identical document resubmitted
+CRITICAL — WHAT TO IGNORE (do NOT let these affect the score or reasons):
+Every team uses the SAME agreement/invoice TEMPLATE, the SAME document LAYOUT and
+section headings, and the SAME developer team across all of their BRDs. This is
+expected and by design. Therefore you MUST completely ignore the following — they
+are NEVER evidence of duplication and must NEVER appear in your reasons:
+- The agreement / invoice template, layout, fonts, or section headings being identical
+- The developer team / team owner being the same
+- Boilerplate legal text, terms & conditions, or standard clauses being the same
 
-IMPORTANT: Do not penalise a team for using the same invoice or receipt template
-across entries. Focus on whether the actual transaction details differ
-(amount, date, customer name, payment reference number).
+WHAT TO ACTUALLY COMPARE (the data filled INTO each section, plus images):
+Look strictly at the real CONTENT entered inside the sections of the document:
+- Business / product description text — what is being sold, the project scope wording
+- Customer / client details — client name, business, contact, address, location
+- Transaction details — invoice number, line items, quantity, unit price, total amount
+- Dates — invoice date, agreement date, signature date, payment date
+- Payment proof IMAGE — the actual screenshot/cheque/receipt: the amount on it, the
+  date on it, the reference/UTR/cheque number, the payer/payee, and whether it is the
+  SAME image pixel-for-pixel as a previous one
+Two BRDs that share the template but describe a DIFFERENT client, DIFFERENT project,
+DIFFERENT amount and carry a DIFFERENT payment-proof image are UNIQUE — score them high.
+Two BRDs are duplicates when this real section content matches: same client, same
+amount, same dates, and/or the same payment-proof image reused.
+
+Scoring logic (based ONLY on section content + images, never the template):
+- 100 = section content is entirely different (different client, project, amount,
+  dates, and a different payment-proof image)
+- 70–99 = mostly unique — most section content differs; only minor overlaps
+- 30–69 = suspicious — significant section content overlaps (e.g. same client or
+  same amount or same project description) and needs admin review
+- 0–29 = likely duplicate — the section content is essentially the same, and/or the
+  same payment-proof image / same amount / same dates are reused
 
 Provide exactly 2 to 5 short one-line comparison findings.
-Each line MUST start with exactly one of these:
-✅  — compared to that BRD and found to be unique
-⚠️  — partially similar (same template or layout but different transaction data)
-❌  — likely duplicate (same content, same amounts, same dates)
+Each line MUST start with exactly one of these and MUST cite the section content
+(client, project, amount, dates, or payment proof) — never the template or team:
+✅  — section content differs from that BRD (genuinely unique)
+⚠️  — some section content overlaps (e.g. same client OR same amount) — review
+❌  — section content is duplicated (same client/amount/dates or same payment proof)
 
 For each previous BRD, provide:
 - A label (e.g. "Entry #2 — April BRD")
-- Similarity percentage (0 = completely different, 100 = exact duplicate)
+- Similarity percentage (0 = completely different content, 100 = same content/images)
 - A flag: "unique", "suspicious", or "duplicate"
-- One short reason explaining the similarity percentage
+- One short reason that names the SECTION CONTENT that matched or differed
+  (client, project description, amount, dates, payment-proof image) — do NOT write
+  "same template" or "same developer team" as a reason
 
 Also provide a plain English uniqueness_summary — one or two sentences explaining
-the overall uniqueness result and flagging anything the admin should review.
+the overall uniqueness result based on the section content and payment proof,
+flagging anything the admin should review.
 
 ---
 
@@ -127,7 +150,8 @@ STRICT RULES:
 - Analyse every page of every PDF provided, including all embedded images
 - Never skip image analysis — payment screenshots are the most important proof
 - Be strict on empty or fake documents — score them low
-- Be fair on templates — same format is fine if transaction details differ
+- For uniqueness, judge ONLY the content filled into the sections and the payment-proof
+  image — never the shared template, layout, or developer team
 - Never return null for any required field — use empty arrays or 0 if needed
 - Return ONLY valid JSON — no markdown, no extra text before or after
 

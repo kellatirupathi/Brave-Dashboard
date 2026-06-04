@@ -11,6 +11,45 @@ import {
 
 const router: IRouter = Router();
 
+/**
+ * Backfill `compared_brd_url` / `compared_entry_id` / `compared_client_name` on
+ * each uniqueness-comparison row at read time. Older analyses were stored before
+ * those fields were enriched (or the enrichment failed), so the admin UI showed
+ * "—" instead of a "View BRD" button. We resolve the real entry by the `#<id>`
+ * embedded in the AI's free-text `entry_label`, using a lookup of every revenue
+ * entry that belongs to the same team. Non-mutating; safe on null/garbled JSON.
+ */
+function enrichComparisonUrls(
+  detail: unknown,
+  lookup: Map<number, { brdUrl: string | null; clientName: string | null }>,
+): unknown {
+  if (!detail || typeof detail !== "object") return detail;
+  const obj = detail as Record<string, unknown>;
+  const comparison = obj["uniqueness_comparison"];
+  if (!Array.isArray(comparison)) return detail;
+  return {
+    ...obj,
+    uniqueness_comparison: comparison.map((row) => {
+      if (!row || typeof row !== "object") return row;
+      const r = row as Record<string, unknown>;
+      // Already has a BRD url — leave it untouched.
+      if (r["compared_brd_url"]) return r;
+      const label =
+        typeof r["entry_label"] === "string" ? r["entry_label"] : "";
+      const idMatch = label.match(/#(\d+)/);
+      const matchedId = idMatch ? Number(idMatch[1]) : null;
+      const matched = matchedId != null ? lookup.get(matchedId) : undefined;
+      if (!matched) return r;
+      return {
+        ...r,
+        compared_entry_id: r["compared_entry_id"] ?? matchedId,
+        compared_brd_url: matched.brdUrl,
+        compared_client_name: r["compared_client_name"] ?? matched.clientName,
+      };
+    }),
+  };
+}
+
 function requireAdmin(
   req: Parameters<Parameters<IRouter["get"]>[1]>[0],
   res: Parameters<Parameters<IRouter["get"]>[1]>[1],
@@ -50,10 +89,7 @@ router.get("/brd-analysis/all", async (req, res): Promise<void> => {
       })
       .from(revenueEntriesTable)
       .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
-      .leftJoin(
-        campusesTable,
-        eq(campusesTable.id, teamsTable.campusId),
-      )
+      .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
       .leftJoin(
         projectsTable,
         eq(projectsTable.id, revenueEntriesTable.projectId),
@@ -87,92 +123,116 @@ router.get("/brd-analysis/all", async (req, res): Promise<void> => {
 
 // GET /brd-analysis/history/:entryId — every past analysis row for one entry,
 // plus the entry header context. Sorted most-recent first.
-router.get("/brd-analysis/history/:entryId", async (req, res): Promise<void> => {
-  if (!requireAdmin(req, res)) return;
-  const entryId = Number(req.params["entryId"]);
-  if (!Number.isInteger(entryId) || entryId <= 0) {
-    res.status(400).json({ error: "Invalid entry id" });
-    return;
-  }
-  try {
-    const [entry] = await db
-      .select({
-        id: revenueEntriesTable.id,
-        teamId: revenueEntriesTable.teamId,
-        teamName: teamsTable.name,
-        campusName: campusesTable.name,
-        projectId: revenueEntriesTable.projectId,
-        projectTitle: projectsTable.title,
-        clientName: revenueEntriesTable.clientName,
-        amount: revenueEntriesTable.amount,
-        verifiedAmount: revenueEntriesTable.verifiedAmount,
-        status: revenueEntriesTable.status,
-        brdUrl: revenueEntriesTable.brdUrl,
-        brdScore: revenueEntriesTable.brdScore,
-        uniquenessScore: revenueEntriesTable.uniquenessScore,
-        aiAnalysisDetail: revenueEntriesTable.aiAnalysisDetail,
-        aiAnalysedAt: revenueEntriesTable.aiAnalysedAt,
-        submittedAt: revenueEntriesTable.submittedAt,
-        paymentDate: revenueEntriesTable.paymentDate,
-      })
-      .from(revenueEntriesTable)
-      .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
-      .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
-      .leftJoin(
-        projectsTable,
-        eq(projectsTable.id, revenueEntriesTable.projectId),
-      )
-      .where(eq(revenueEntriesTable.id, entryId));
-
-    if (!entry) {
-      res.status(404).json({ error: "Entry not found" });
+router.get(
+  "/brd-analysis/history/:entryId",
+  async (req, res): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
+    const entryId = Number(req.params["entryId"]);
+    if (!Number.isInteger(entryId) || entryId <= 0) {
+      res.status(400).json({ error: "Invalid entry id" });
       return;
     }
+    try {
+      const [entry] = await db
+        .select({
+          id: revenueEntriesTable.id,
+          teamId: revenueEntriesTable.teamId,
+          teamName: teamsTable.name,
+          campusName: campusesTable.name,
+          projectId: revenueEntriesTable.projectId,
+          projectTitle: projectsTable.title,
+          clientName: revenueEntriesTable.clientName,
+          amount: revenueEntriesTable.amount,
+          verifiedAmount: revenueEntriesTable.verifiedAmount,
+          status: revenueEntriesTable.status,
+          brdUrl: revenueEntriesTable.brdUrl,
+          brdScore: revenueEntriesTable.brdScore,
+          uniquenessScore: revenueEntriesTable.uniquenessScore,
+          aiAnalysisDetail: revenueEntriesTable.aiAnalysisDetail,
+          aiAnalysedAt: revenueEntriesTable.aiAnalysedAt,
+          submittedAt: revenueEntriesTable.submittedAt,
+          paymentDate: revenueEntriesTable.paymentDate,
+        })
+        .from(revenueEntriesTable)
+        .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
+        .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+        .leftJoin(
+          projectsTable,
+          eq(projectsTable.id, revenueEntriesTable.projectId),
+        )
+        .where(eq(revenueEntriesTable.id, entryId));
 
-    const history = await db
-      .select({
-        id: brdAnalysisHistoryTable.id,
-        brdScore: brdAnalysisHistoryTable.brdScore,
-        uniquenessScore: brdAnalysisHistoryTable.uniquenessScore,
-        analysisJson: brdAnalysisHistoryTable.analysisJson,
-        analysedAt: brdAnalysisHistoryTable.analysedAt,
-      })
-      .from(brdAnalysisHistoryTable)
-      .where(eq(brdAnalysisHistoryTable.revenueEntryId, entryId))
-      .orderBy(desc(brdAnalysisHistoryTable.analysedAt));
+      if (!entry) {
+        res.status(404).json({ error: "Entry not found" });
+        return;
+      }
 
-    res.json({
-      entry: {
-        id: entry.id,
-        teamId: entry.teamId,
-        teamName: entry.teamName ?? `Team #${entry.teamId}`,
-        campusName: entry.campusName ?? "—",
-        projectId: entry.projectId,
-        projectTitle: entry.projectTitle ?? "—",
-        clientName: entry.clientName,
-        amount: entry.amount,
-        verifiedAmount: entry.verifiedAmount,
-        status: entry.status,
-        brdUrl: entry.brdUrl,
-        paymentDate: entry.paymentDate,
-        submittedAt: entry.submittedAt?.toISOString() ?? null,
-        brdScore: entry.brdScore,
-        uniquenessScore: entry.uniquenessScore,
-        aiAnalysisDetail: entry.aiAnalysisDetail,
-        aiAnalysedAt: entry.aiAnalysedAt?.toISOString() ?? null,
-      },
-      history: history.map((h) => ({
-        id: h.id,
-        brdScore: h.brdScore,
-        uniquenessScore: h.uniquenessScore,
-        analysisJson: h.analysisJson,
-        analysedAt: h.analysedAt.toISOString(),
-      })),
-    });
-  } catch (err) {
-    req.log.error({ err, entryId }, "[brd-analysis/history] failed");
-    res.status(500).json({ error: "Failed to load analysis history" });
-  }
-});
+      // Lookup of every revenue entry from this team, so we can resolve the BRD
+      // file behind each comparison row even for analyses stored before the
+      // comparison rows carried `compared_brd_url`.
+      const teamEntries = await db
+        .select({
+          id: revenueEntriesTable.id,
+          brdUrl: revenueEntriesTable.brdUrl,
+          clientName: revenueEntriesTable.clientName,
+        })
+        .from(revenueEntriesTable)
+        .where(eq(revenueEntriesTable.teamId, entry.teamId));
+      const brdLookup = new Map(
+        teamEntries.map((e) => [
+          e.id,
+          { brdUrl: e.brdUrl, clientName: e.clientName },
+        ]),
+      );
+
+      const history = await db
+        .select({
+          id: brdAnalysisHistoryTable.id,
+          brdScore: brdAnalysisHistoryTable.brdScore,
+          uniquenessScore: brdAnalysisHistoryTable.uniquenessScore,
+          analysisJson: brdAnalysisHistoryTable.analysisJson,
+          analysedAt: brdAnalysisHistoryTable.analysedAt,
+        })
+        .from(brdAnalysisHistoryTable)
+        .where(eq(brdAnalysisHistoryTable.revenueEntryId, entryId))
+        .orderBy(desc(brdAnalysisHistoryTable.analysedAt));
+
+      res.json({
+        entry: {
+          id: entry.id,
+          teamId: entry.teamId,
+          teamName: entry.teamName ?? `Team #${entry.teamId}`,
+          campusName: entry.campusName ?? "—",
+          projectId: entry.projectId,
+          projectTitle: entry.projectTitle ?? "—",
+          clientName: entry.clientName,
+          amount: entry.amount,
+          verifiedAmount: entry.verifiedAmount,
+          status: entry.status,
+          brdUrl: entry.brdUrl,
+          paymentDate: entry.paymentDate,
+          submittedAt: entry.submittedAt?.toISOString() ?? null,
+          brdScore: entry.brdScore,
+          uniquenessScore: entry.uniquenessScore,
+          aiAnalysisDetail: enrichComparisonUrls(
+            entry.aiAnalysisDetail,
+            brdLookup,
+          ),
+          aiAnalysedAt: entry.aiAnalysedAt?.toISOString() ?? null,
+        },
+        history: history.map((h) => ({
+          id: h.id,
+          brdScore: h.brdScore,
+          uniquenessScore: h.uniquenessScore,
+          analysisJson: enrichComparisonUrls(h.analysisJson, brdLookup),
+          analysedAt: h.analysedAt.toISOString(),
+        })),
+      });
+    } catch (err) {
+      req.log.error({ err, entryId }, "[brd-analysis/history] failed");
+      res.status(500).json({ error: "Failed to load analysis history" });
+    }
+  },
+);
 
 export default router;
