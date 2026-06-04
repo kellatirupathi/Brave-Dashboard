@@ -49,6 +49,38 @@ export function listAdminMembershipRequests(
   );
 }
 
+export type MembershipTimelineEventKind =
+  | "account_created"
+  | "joined"
+  | "left"
+  | "removed"
+  | "request";
+
+export type MembershipTimelineEvent = {
+  id: string;
+  kind: MembershipTimelineEventKind;
+  title: string;
+  teamName: string | null;
+  status: MembershipRequestStatus | null;
+  note: string | null;
+  at: string;
+};
+
+export type MembershipTimeline = {
+  user: { id: string; name: string; email: string } | null;
+  events: MembershipTimelineEvent[];
+};
+
+// Admin: a single student's membership life-cycle timeline (account created,
+// joins, leaves, removals, and every membership request with its status).
+export function getStudentMembershipHistory(
+  userId: string,
+): Promise<MembershipTimeline> {
+  return customFetch<MembershipTimeline>(
+    `/api/admin/users/${encodeURIComponent(userId)}/membership-history`,
+  );
+}
+
 export function approveMembershipRequest(
   id: number,
   note?: string,

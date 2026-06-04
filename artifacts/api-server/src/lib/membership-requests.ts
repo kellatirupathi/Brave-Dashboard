@@ -8,7 +8,7 @@
 // All apply-time invariants (one team per student, team capacity, leader can't
 // leave/be removed) are re-checked here at approval time, not at request time,
 // because the world may have moved on between request and decision.
-import { and, eq, ne, desc } from "drizzle-orm";
+import { and, eq, ne, desc, inArray } from "drizzle-orm";
 import {
   db,
   membershipRequestsTable,
@@ -489,6 +489,153 @@ export async function applyMembershipRequest(
     }
   }
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Per-student membership life-cycle timeline (admin popover on Team Requests).
+// Aggregates a single student's account creation, current team membership,
+// historical leaves, and every membership request (join-by-code / invite /
+// join-request / leave / leader-remove) with its status.
+// ---------------------------------------------------------------------------
+export type MembershipTimelineEventKind =
+  | "account_created"
+  | "joined"
+  | "left"
+  | "removed"
+  | "request";
+
+export type MembershipTimelineEvent = {
+  id: string;
+  kind: MembershipTimelineEventKind;
+  title: string;
+  teamName: string | null;
+  status: MembershipRequest["status"] | null;
+  note: string | null;
+  at: string; // ISO timestamp
+};
+
+export type MembershipTimeline = {
+  user: { id: string; name: string; email: string } | null;
+  events: MembershipTimelineEvent[];
+};
+
+const REQUEST_TIMELINE_TITLES: Record<MembershipRequestType, string> = {
+  join_by_code: "Joined via invite code",
+  invite_accept: "Accepted team invitation",
+  join_request_approve: "Join request",
+  leave: "Requested to leave team",
+  leader_remove: "Removal requested by team leader",
+};
+
+export async function buildMembershipTimeline(
+  userId: string,
+): Promise<MembershipTimeline> {
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  const memberships = await db
+    .select()
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, userId));
+
+  const leaves = await db
+    .select()
+    .from(teamLeaveRequestsTable)
+    .where(
+      and(
+        eq(teamLeaveRequestsTable.requesterId, userId),
+        eq(teamLeaveRequestsTable.status, "approved"),
+      ),
+    );
+
+  const requests = await db
+    .select()
+    .from(membershipRequestsTable)
+    .where(eq(membershipRequestsTable.targetUserId, userId))
+    .orderBy(desc(membershipRequestsTable.createdAt));
+
+  // Resolve all referenced team names in one query.
+  const teamIds = new Set<number>();
+  for (const m of memberships) teamIds.add(m.teamId);
+  for (const l of leaves) teamIds.add(l.teamId);
+  for (const r of requests) teamIds.add(r.teamId);
+  const teamNameById = new Map<number, string>();
+  if (teamIds.size > 0) {
+    const teams = await db
+      .select({ id: teamsTable.id, name: teamsTable.name })
+      .from(teamsTable)
+      .where(inArray(teamsTable.id, Array.from(teamIds)));
+    for (const t of teams) teamNameById.set(t.id, t.name);
+  }
+
+  const events: MembershipTimelineEvent[] = [];
+
+  if (user?.createdAt) {
+    events.push({
+      id: `account-${user.id}`,
+      kind: "account_created",
+      title: "Account created",
+      teamName: null,
+      status: null,
+      note: null,
+      at: user.createdAt.toISOString(),
+    });
+  }
+
+  for (const m of memberships) {
+    if (!m.joinedAt) continue;
+    events.push({
+      id: `member-${m.id}`,
+      kind: "joined",
+      title: "Joined team",
+      teamName: teamNameById.get(m.teamId) ?? null,
+      status: null,
+      note: null,
+      at: m.joinedAt.toISOString(),
+    });
+  }
+
+  for (const l of leaves) {
+    const at = l.respondedAt ?? l.createdAt;
+    if (!at) continue;
+    events.push({
+      id: `leave-${l.id}`,
+      kind: "left",
+      title: "Left team",
+      teamName: teamNameById.get(l.teamId) ?? null,
+      status: null,
+      note: l.reason ?? null,
+      at: at.toISOString(),
+    });
+  }
+
+  for (const r of requests) {
+    const at = r.createdAt;
+    if (!at) continue;
+    const kind: MembershipTimelineEventKind =
+      r.type === "leader_remove" ? "removed" : "request";
+    events.push({
+      id: `request-${r.id}`,
+      kind,
+      title: REQUEST_TIMELINE_TITLES[r.type] ?? "Membership request",
+      teamName: teamNameById.get(r.teamId) ?? null,
+      status: r.status,
+      note: r.decisionNote ?? r.reason ?? null,
+      at: at.toISOString(),
+    });
+  }
+
+  // Newest first.
+  events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+  return {
+    user: user
+      ? { id: user.id, name: displayName(user), email: user.email }
+      : null,
+    events,
+  };
 }
 
 // Send the rejection notification (no membership change happens).

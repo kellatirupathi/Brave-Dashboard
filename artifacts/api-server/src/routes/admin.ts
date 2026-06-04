@@ -33,6 +33,7 @@ import {
   shapeMembershipRequest,
   applyMembershipRequest,
   notifyMembershipRejected,
+  buildMembershipTimeline,
 } from "../lib/membership-requests";
 import { membershipRequestsTable } from "@workspace/db";
 import { invalidateChatbotProviderCache } from "./chatbot";
@@ -1985,6 +1986,28 @@ router.get(
           : desc(membershipRequestsTable.decidedAt),
       );
     res.json(await Promise.all(rows.map(shapeMembershipRequest)));
+  },
+);
+
+// Per-student membership life-cycle timeline (admin popover on Team Requests).
+router.get(
+  "/admin/users/:userId/membership-history",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Admin access required" });
+      return;
+    }
+    const userId = req.params.userId;
+    if (!userId) {
+      res.status(400).json({ error: "Invalid user id" });
+      return;
+    }
+    const timeline = await buildMembershipTimeline(userId);
+    if (!timeline.user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json(timeline);
   },
 );
 
