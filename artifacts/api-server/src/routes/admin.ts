@@ -1778,11 +1778,27 @@ router.get("/admin/access-requests", async (req, res): Promise<void> => {
     return;
   }
   const status = req.query.status as string | undefined;
-  const requests = status
+  const search = (req.query.search as string | undefined)?.trim();
+  const clauses = [];
+  if (status && status !== "all") {
+    clauses.push(eq(accessRequestsTable.status, status));
+  }
+  if (search) {
+    const like = `%${search}%`;
+    clauses.push(
+      or(
+        ilike(accessRequestsTable.fullName, like),
+        ilike(accessRequestsTable.email, like),
+        ilike(accessRequestsTable.niatId, like),
+        ilike(accessRequestsTable.campusName, like),
+      ),
+    );
+  }
+  const requests = clauses.length
     ? await db
         .select()
         .from(accessRequestsTable)
-        .where(eq(accessRequestsTable.status, status))
+        .where(and(...clauses))
     : await db.select().from(accessRequestsTable);
   res.json(
     requests.sort(
@@ -1823,6 +1839,296 @@ router.patch("/admin/access-requests/:id", async (req, res): Promise<void> => {
   );
   res.json(updated);
 });
+
+// --- New-User Access Request review (powers the separate /admin/new-users
+// page). Approve provisions roster + user; reject revokes the whitelist.
+// Additive: existing GET/PATCH above are untouched. ---
+
+type AccessRequestTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function provisionApprovedAccessRequest(
+  tx: AccessRequestTx,
+  reqRow: typeof accessRequestsTable.$inferSelect,
+): Promise<void> {
+  const parts = reqRow.fullName.trim().split(/\s+/);
+  const firstName = parts[0] ?? "";
+  const lastName = parts.slice(1).join(" ");
+
+  // Resolve the SSO user (by stored userId, then email).
+  let userRow: typeof usersTable.$inferSelect | undefined;
+  if (reqRow.userId) {
+    [userRow] = await tx
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, reqRow.userId));
+  }
+  if (!userRow) {
+    [userRow] = await tx
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, reqRow.email));
+  }
+
+  if (userRow) {
+    // Never downgrade an elevated account (admin/coordinator) that happens to
+    // match by email — only promote genuine students.
+    const nextRole =
+      userRow.role === "admin" || userRow.role === "coordinator"
+        ? userRow.role
+        : "student";
+    await tx
+      .update(usersTable)
+      .set({
+        role: nextRole,
+        campusId: reqRow.campusId ?? userRow.campusId ?? null,
+        niatId: reqRow.niatId ?? userRow.niatId ?? null,
+        firstName: userRow.firstName || firstName,
+        lastName: userRow.lastName || lastName,
+        isActive: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(usersTable.id, userRow.id));
+  } else {
+    [userRow] = await tx
+      .insert(usersTable)
+      .values({
+        email: reqRow.email,
+        role: "student",
+        campusId: reqRow.campusId ?? null,
+        niatId: reqRow.niatId ?? null,
+        firstName,
+        lastName,
+      })
+      .returning();
+  }
+
+  const studentId = userRow.formsUserId ?? userRow.id;
+
+  // Upsert the roster row, idempotently (guard on studentId/email).
+  const [existingRoster] = await tx
+    .select()
+    .from(rosterTable)
+    .where(
+      or(
+        eq(rosterTable.studentId, studentId),
+        eq(rosterTable.email, reqRow.email),
+      ),
+    );
+  if (existingRoster) {
+    await tx
+      .update(rosterTable)
+      .set({
+        isWhitelisted: true,
+        fullName: reqRow.fullName,
+        email: reqRow.email,
+        campusName: reqRow.campusName,
+        campusId: reqRow.campusId ?? existingRoster.campusId ?? null,
+        niatId: reqRow.niatId ?? existingRoster.niatId ?? null,
+        batchSectionName:
+          reqRow.sectionName ?? existingRoster.batchSectionName ?? null,
+      })
+      .where(eq(rosterTable.id, existingRoster.id));
+  } else {
+    await tx.insert(rosterTable).values({
+      studentId,
+      fullName: reqRow.fullName,
+      email: reqRow.email,
+      campusName: reqRow.campusName,
+      campusId: reqRow.campusId ?? null,
+      niatId: reqRow.niatId ?? null,
+      batchSectionName: reqRow.sectionName ?? null,
+      isWhitelisted: true,
+    });
+  }
+}
+
+const accessRequestCsvEscape = (v: unknown): string => {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+// CSV export — MUST be registered before the ":id" route below so the literal
+// path wins over the param route.
+router.get(
+  "/admin/access-requests/export.csv",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const rows = await db.select().from(accessRequestsTable);
+    rows.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const header = [
+      "Full Name",
+      "NIAT ID",
+      "Email",
+      "Campus",
+      "Mobile",
+      "Section",
+      "Status",
+      "Submitted",
+      "Decided",
+    ].join(",");
+    const lines = rows.map((r) =>
+      [
+        r.fullName,
+        r.niatId,
+        r.email,
+        r.campusName,
+        r.mobileNumber,
+        r.sectionName,
+        r.status,
+        new Date(r.createdAt).toISOString(),
+        r.decidedAt ? new Date(r.decidedAt).toISOString() : "",
+      ]
+        .map(accessRequestCsvEscape)
+        .join(","),
+    );
+    const csv = "\ufeff" + [header, ...lines].join("\n");
+    const filename = `brave-new-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
+  },
+);
+
+router.get("/admin/access-requests/:id", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [row] = await db
+    .select()
+    .from(accessRequestsTable)
+    .where(eq(accessRequestsTable.id, id));
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(row);
+});
+
+router.post(
+  "/admin/access-requests/:id/approve",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const adminId = req.user.id;
+    const result = await db.transaction(async (tx) => {
+      const [reqRow] = await tx
+        .select()
+        .from(accessRequestsTable)
+        .where(eq(accessRequestsTable.id, id));
+      if (!reqRow) return null;
+      await provisionApprovedAccessRequest(tx, reqRow);
+      const [updated] = await tx
+        .update(accessRequestsTable)
+        .set({
+          status: "approved",
+          decidedBy: adminId,
+          decidedAt: new Date(),
+        })
+        .where(eq(accessRequestsTable.id, id))
+        .returning();
+      return { reqRow, updated };
+    });
+    if (!result) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    await logAudit(
+      adminId,
+      "access_request_approved",
+      "access_request",
+      id,
+      `approved: ${result.reqRow.email}`,
+    );
+    res.json(result.updated);
+  },
+);
+
+router.post(
+  "/admin/access-requests/:id/reject",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const adminId = req.user.id;
+    const result = await db.transaction(async (tx) => {
+      const [reqRow] = await tx
+        .select()
+        .from(accessRequestsTable)
+        .where(eq(accessRequestsTable.id, id));
+      if (!reqRow) return null;
+      // Re-freeze precisely: resolve the user this request belongs to and
+      // un-whitelist only their roster row. roster.email is NOT unique, so a
+      // blanket email update could revoke unrelated students.
+      let userRow: typeof usersTable.$inferSelect | undefined;
+      if (reqRow.userId) {
+        [userRow] = await tx
+          .select()
+          .from(usersTable)
+          .where(eq(usersTable.id, reqRow.userId));
+      }
+      if (!userRow) {
+        [userRow] = await tx
+          .select()
+          .from(usersTable)
+          .where(eq(usersTable.email, reqRow.email));
+      }
+      if (userRow) {
+        const studentId = userRow.formsUserId ?? userRow.id;
+        await tx
+          .update(rosterTable)
+          .set({ isWhitelisted: false })
+          .where(eq(rosterTable.studentId, studentId));
+      }
+      const [updated] = await tx
+        .update(accessRequestsTable)
+        .set({
+          status: "rejected",
+          decidedBy: adminId,
+          decidedAt: new Date(),
+        })
+        .where(eq(accessRequestsTable.id, id))
+        .returning();
+      return { reqRow, updated };
+    });
+    if (!result) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    await logAudit(
+      adminId,
+      "access_request_rejected",
+      "access_request",
+      id,
+      `rejected: ${result.reqRow.email}`,
+    );
+    res.json(result.updated);
+  },
+);
 
 // Dev-only: re-run the seed routine that the CLI runs. Hidden in production.
 router.post("/admin/dev/reseed", async (req, res): Promise<void> => {

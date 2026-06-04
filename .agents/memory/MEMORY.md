@@ -1,2 +1,3 @@
 - [DB schema rollout](db-schema-rollout.md) — this repo applies schema via `drizzle-kit push`, NOT migration files; the `lib/db/migrations/` SQL files are legacy and not drizzle-driven.
 - [Membership approval gate](membership-approval-gate.md) — ALL team membership changes go through `membership_requests`; admin approve/reject must atomically claim the pending row; legacy leave-request leader-approval is disabled.
+- [Non-unique email identity](identity-non-unique-email.md) — user/roster email is NOT unique; key user-scoped queries on userId/formsUserId, never email; reject re-freeze un-whitelists by roster.studentId.

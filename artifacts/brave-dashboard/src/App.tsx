@@ -68,6 +68,8 @@ import AdminAuditLog from "@/pages/admin/audit-log";
 import AdminAnnouncements from "@/pages/admin/announcements";
 import AdminFeedback from "@/pages/admin/feedback";
 import AdminResources from "@/pages/admin/resources";
+import AdminNewUsersRequests from "@/pages/admin/new-users-requests";
+import AdminNewUserDetail from "@/pages/admin/new-user-detail";
 
 // Coordinator
 import CoordinatorProjects from "@/pages/coordinator/projects";
@@ -88,6 +90,7 @@ import Profile from "@/pages/profile";
 // Components
 import { Layout } from "@/components/layout";
 import { Spinner } from "@/components/ui/spinner";
+import { AccessGate } from "@/components/access-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -119,11 +122,12 @@ function ProtectedRoute({
     return <Redirect to="/login" />;
   }
 
-  // TEMPORARILY DISABLED: roster gate for student dashboard access.
-  // Any Forms-authenticated user is allowed in for now.
-  // if (user.role === "student" && !user.isOnRoster) {
-  //   return <Redirect to="/not-on-roster" />;
-  // }
+  // New-user access gate: students not yet on the roster see only the
+  // full-screen gate (request form / pending / rejected) — every other
+  // student page is blocked until an admin approves their access request.
+  if (user.role === "student" && !user.isOnRoster) {
+    return <AccessGate />;
+  }
 
   if (!allowedRoles.includes(user.role || "")) {
     if (user.role === "student") return <Redirect to="/" />;
@@ -204,11 +208,11 @@ function RootRedirect() {
     return <Landing />;
   }
 
-  // TEMPORARILY DISABLED: roster gate for student dashboard access.
-  // Any Forms-authenticated user is allowed in for now.
-  // if (user.role === "student" && !user.isOnRoster) {
-  //   return <Redirect to="/not-on-roster" />;
-  // }
+  // New-user access gate (see ProtectedRoute): block the root route for
+  // students who are not yet on the roster.
+  if (user.role === "student" && !user.isOnRoster) {
+    return <AccessGate />;
+  }
 
   if (user.role === "coordinator") return <Redirect to="/coordinator" />;
   if (user.role === "admin") return <Redirect to="/admin" />;
@@ -399,6 +403,18 @@ function Router() {
       </Route>
       <Route path="/admin/roster">
         <ProtectedRoute component={AdminRoster} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/new-users-requests/:id">
+        <ProtectedRoute
+          component={AdminNewUserDetail}
+          allowedRoles={["admin"]}
+        />
+      </Route>
+      <Route path="/admin/new-users-requests">
+        <ProtectedRoute
+          component={AdminNewUsersRequests}
+          allowedRoles={["admin"]}
+        />
       </Route>
       <Route path="/admin/audit-log">
         <ProtectedRoute component={AdminAuditLog} allowedRoles={["admin"]} />

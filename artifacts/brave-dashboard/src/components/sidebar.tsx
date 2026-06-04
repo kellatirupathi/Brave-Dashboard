@@ -30,6 +30,7 @@ import {
   MessageSquare,
   Bell,
   UserCheck,
+  UserPlus,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { cn } from "@/lib/utils";
@@ -313,6 +314,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         children: [
           { name: "Campuses", href: "/admin/campuses", icon: Building2 },
           { name: "Users", href: "/admin/users", icon: Users },
+          {
+            name: "New Users",
+            href: "/admin/new-users-requests",
+            icon: UserPlus,
+          },
         ],
       },
       {

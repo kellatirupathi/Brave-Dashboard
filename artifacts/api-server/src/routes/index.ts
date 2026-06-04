@@ -28,6 +28,7 @@ import adminNotificationsRouter from "./admin-notifications";
 import cronOverdueNotificationsRouter from "./cron-overdue-notifications";
 import cronBackupSupabaseRouter from "./cron-backup-supabase";
 import brdAnalysisRouter from "./brd-analysis";
+import accessRequestsRouter from "./access-requests";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,7 @@ router.use(cronOverdueNotificationsRouter);
 router.use(cronBackupSupabaseRouter);
 // AI BRD analysis history + cross-entry view (additive only)
 router.use(brdAnalysisRouter);
+// New-User Access Request gate (student submit + status — additive only)
+router.use(accessRequestsRouter);
 
 export default router;

@@ -229,6 +229,12 @@ export const accessRequestsTable = pgTable("access_requests", {
   campusName: text("campus_name").notNull(),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
+  userId: text("user_id"),
+  campusId: integer("campus_id"),
+  mobileNumber: text("mobile_number"),
+  sectionName: text("section_name"),
+  decidedBy: text("decided_by"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
