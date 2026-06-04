@@ -1,0 +1,75 @@
+FEATURE: New-User Access Request gate + admin approval (BRAVE Dashboard)
+
+Build a "new user access request" flow for students who log in via Forms SSO but are NOT on the roster. Reuse the EXISTING `access_requests` table and the existing admin endpoints where possible — this is an extension, not a rebuild.
+
+=== CONFIRMED DECISIONS (do exactly this) ===
+1. Use the existing `access_requests` table (lib/db/src/schema/brave.ts) — extend it, do not create a new table.
+2. The gate fires ONLY when the SSO-authenticated user (role = student) is NOT on the roster. If they ARE on the roster → existing flow untouched (Get Started, etc.). Already-existing/roster users are never gated.
+3. Campus field is a dropdown that stores campusId (integer FK to campuses), not a free-text name.
+4. NO "Add" button on the admin page.
+5. Export = CSV download of the requests.
+6. On approve, the user is created/updated as role = "student".
+
+=== DATA MODEL (lib/db/src/schema/brave.ts) ===
+Add these columns to `accessRequestsTable` (keep all existing columns):
+- userId: text (nullable)            // the SSO user.id who submitted, used to look up their request on re-login
+- campusId: integer (nullable)       // selected campus
+- mobileNumber: text (nullable)
+- sectionName: text (nullable)
+Keep `status` as text with values: "pending" | "approved" | "rejected" (default "pending"). Keep campusName (populate it from the chosen campus for display/CSV).
+Push schema with: pnpm --filter @workspace/db run push  (and/or add a numbered SQL migration in lib/db/migrations).
+
+=== STUDENT (gate) BEHAVIOR ===
+The backend already exposes `isOnRoster` on the auth user (the disabled roster gate in artifacts/brave-dashboard/src/App.tsx references user.isOnRoster). Use it.
+
+For an authenticated student who is NOT on the roster, do NOT show Leaderboard, Get Started, or Resources (block all normal student pages). Instead render a single full-screen gate based on their access_requests row (look up by userId, fall back to email):
+- No request yet  → show the ACCESS REQUEST FORM with fields:
+    Full name, NIAT ID, Email, Campus (dropdown of campuses → stores campusId), Mobile number, Section name, and a Submit button.
+- status = pending  → show "You've submitted your request. Please wait until admin approval." (form hidden)
+- status = rejected → show a "Your request was rejected" status screen (no actions for the student)
+- (status = approved → they are now on the roster, so the gate no longer triggers and normal app shows)
+
+Add a PUBLIC/auth'd submit endpoint (e.g. POST /api/access-requests) that:
+- requires the user to be authenticated (SSO) and NOT on roster,
+- validates fields with zod, resolves campusName from campusId,
+- upserts ONE pending access_requests row for that userId (block duplicates while one is pending),
+- returns the saved request.
+
+=== ADMIN BEHAVIOR ===
+Sidebar: add a new item "New Users" under the existing "Setup" submenu (artifacts/brave-dashboard/src/components/sidebar.tsx) → route /admin/new-users-requests (admin role only; add to App.tsx route map + ProtectedRoute).
+
+List page /admin/new-users-requests:
+- Top-left title: "New requests".
+- Top-right controls: a SEARCH box, a STATUS dropdown (All / Pending / Approved / Rejected), and an EXPORT (CSV) button. NO Add button.
+- Body: row-wise CARDS, each a compact 2-line summary (line 1: name + NIAT ID; line 2: campus · email · mobile/section). 
+- Right side of each card: View, Approve, Reject buttons. Once decided, show an "Approved" or "Rejected" badge there too.
+- Clicking View opens a DETAIL page (or modal) showing the full candidate details.
+  - On the detail page, show the OPPOSITE action at the bottom so a decision is always reversible: if currently approved → show a Reject button; if currently rejected → show an Approve button; if pending → show both. Admin can flip the decision from here at any time.
+
+Reuse/extend the existing admin endpoints (artifacts/api-server/src/routes/admin.ts: GET /admin/access-requests, PATCH /admin/access-requests/:id). Add:
+- GET /api/admin/access-requests?status=&search=  → list shaped requests (filter by status + search across name/email/niatId/campus).
+- GET /api/admin/access-requests/:id              → single request detail.
+- POST /api/admin/access-requests/:id/approve     → APPROVE:
+    * set status = "approved", record decidedBy/decidedAt,
+    * INSERT a roster row (rosterTable) for the candidate with isWhitelisted = true (studentId, fullName, email, campusName, campusId, niatId, batchSectionName = sectionName),
+    * UPSERT the user (usersTable): if a user row already exists for that SSO identity (by userId/email), UPDATE it (campusId, niatId, first/last name from full name); else INSERT a new user with role = "student". 
+    * After this the student is on the roster → their Leaderboard / Get Started / Resources unfreeze automatically.
+- POST /api/admin/access-requests/:id/reject      → set status = "rejected", record decidedBy/decidedAt. (Reversible — approving later runs the approve logic above.)
+- GET /api/admin/access-requests/export.csv       → CSV of all requests (UTF-8 BOM, like the existing teams CSV export in admin-teams.ts).
+
+Make approve/reject reversible and idempotent (approving an already-approved request must not create duplicate roster/user rows — guard on existing roster/user by email/niatId).
+
+=== SKIP CONDITIONS (do NOT gate) ===
+- Users already on the roster → straight to Get Started (existing behavior, unchanged).
+- Existing/approved users → unchanged.
+- Coordinators and admins → never gated.
+
+=== STACK NOTES ===
+pnpm monorepo, TypeScript, Express 5 API (artifacts/api-server), React + Vite + wouter + @tanstack/react-query + shadcn/ui (artifacts/brave-dashboard), Drizzle ORM + Postgres (lib/db). Indian ₹ formatting conventions already exist. Run `pnpm run typecheck` and `pnpm run build` before finishing. These new admin endpoints can be hand-written (bypass Orval codegen) like the existing membership-api.ts/progress-api.ts pattern.
+
+=== ACCEPTANCE CRITERIA ===
+- A new SSO student NOT on roster sees ONLY the access-request form; cannot reach Leaderboard/Get Started/Resources.
+- After submitting, they see the "waiting for admin approval" screen; on reject they see a "rejected" screen.
+- Admin sees the request at /admin/new-users-requests (under Setup → New Users), can search/filter/export, view details, and approve/reject — reversibly.
+- On approve, the candidate is added to BOTH roster and users (role student) and immediately gains full access on next load.
+- Students already on the roster are completely unaffected.
