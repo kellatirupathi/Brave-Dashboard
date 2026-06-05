@@ -5,6 +5,7 @@ import {
   useDeleteOrderBookEntry,
   useCreateRevenueEntry,
   useSubmitRevenueEntry,
+  useUpdateRevenueEntry,
   useRequestUploadUrl,
   useUpdateProject,
   useDeleteProject,
@@ -115,6 +116,7 @@ export default function ProjectDetail() {
   const deleteOrderBook = useDeleteOrderBookEntry();
   const createRevenue = useCreateRevenueEntry();
   const submitRevenue = useSubmitRevenueEntry();
+  const updateRevenue = useUpdateRevenueEntry();
   const requestUpload = useRequestUploadUrl();
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
@@ -126,6 +128,7 @@ export default function ProjectDetail() {
   const [isRevenueOpen, setIsRevenueOpen] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
+  const [editingRevenueId, setEditingRevenueId] = useState<number | null>(null);
   const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
   const [isDeleteProjectOpen, setIsDeleteProjectOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -355,6 +358,59 @@ export default function ProjectDetail() {
             description: err instanceof Error ? err.message : "Try again",
             variant: "destructive",
           }),
+      },
+    );
+  };
+
+  // Prefill the edit form from an existing revenue entry. Only offered for
+  // draft / rejected entries so a team can fix details or upload a new BRD.
+  const startEditRevenue = (entry: (typeof project.revenueEntries)[number]) => {
+    setEditingRevenueId(entry.id);
+    setClientName(entry.clientName);
+    setAmount(String(entry.amount));
+    setPaymentDate((entry.paymentDate ?? "").slice(0, 10));
+    setBrdUrl(entry.brdUrl ?? null);
+  };
+
+  const handleEditRevenue = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingRevenueId == null || !amount || !paymentDate) return;
+    if (!brdUrl) {
+      toast({
+        title: "BRD document required",
+        description: "Keep the existing BRD or upload a new one before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateRevenue.mutate(
+      {
+        id: editingRevenueId,
+        data: {
+          clientName,
+          amount: Number(amount),
+          paymentDate,
+          brdUrl,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Revenue entry updated",
+            description: "Resubmit it for verification when you're ready.",
+          });
+          refresh();
+          setEditingRevenueId(null);
+          resetForms();
+        },
+        onError: (err: unknown) => {
+          const e2 = err as { data?: { error?: string }; message?: string };
+          toast({
+            title: "Could not update",
+            description: e2?.data?.error ?? e2?.message ?? "Try again",
+            variant: "destructive",
+          });
+        },
       },
     );
   };
@@ -817,6 +873,29 @@ export default function ProjectDetail() {
                             )}
                           </div>
                         )}
+                        {isLeader && entry.status === "rejected" && (
+                          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEditRevenue(entry)}
+                              data-testid={`button-edit-revenue-${entry.id}`}
+                            >
+                              <Pencil className="w-4 h-4 mr-2" /> Edit &amp; fix
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={
+                                submitRevenue.isPending || !entry.brdUrl
+                              }
+                              onClick={() => handleSubmitRevenue(entry.id)}
+                              data-testid={`button-resubmit-revenue-${entry.id}`}
+                            >
+                              <Send className="w-4 h-4 mr-2" /> Resubmit for
+                              verification
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1026,6 +1105,88 @@ export default function ProjectDetail() {
                 data-testid="button-save-edit-order"
               >
                 {updateOrderBook.isPending && (
+                  <Spinner className="w-4 h-4 mr-2" />
+                )}{" "}
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit revenue entry — offered for draft / rejected entries so a team
+          can fix details or upload a new BRD and resubmit for verification. */}
+      <Dialog
+        open={editingRevenueId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingRevenueId(null);
+            resetForms();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Revenue Entry</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditRevenue} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Client Name</label>
+              <Input
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                required
+                data-testid="input-edit-revenue-client"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Amount (₹)</label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="0"
+                  value={amount}
+                  onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
+                  required
+                  data-testid="input-edit-revenue-amount"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Payment Date</label>
+                <Input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  max={new Date().toISOString().split("T")[0]}
+                  required
+                  data-testid="input-edit-revenue-date"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Future dates are not allowed.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                BRD document (PDF) <span className="text-destructive">*</span>
+              </label>
+              <FilePicker field="brd" currentUrl={brdUrl} accept={BRD_ACCEPT} />
+              <p className="text-xs text-muted-foreground">
+                Upload a new BRD to replace the previous one, or keep the
+                existing file.
+              </p>
+            </div>
+            <div className="flex justify-end pt-4">
+              <Button
+                type="submit"
+                disabled={
+                  updateRevenue.isPending || uploadingField !== null || !brdUrl
+                }
+                data-testid="button-save-edit-revenue"
+              >
+                {updateRevenue.isPending && (
                   <Spinner className="w-4 h-4 mr-2" />
                 )}{" "}
                 Save Changes

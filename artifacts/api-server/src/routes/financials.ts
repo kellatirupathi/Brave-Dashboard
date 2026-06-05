@@ -447,6 +447,19 @@ router.patch("/revenue-entries/:id", async (req, res): Promise<void> => {
   if (!(await requireTeamLeader(req, res, existingRev.teamId))) {
     return;
   }
+  // Lock down which statuses a team can edit. Drafts (not yet submitted) and
+  // rejected entries (sent back to be fixed) are editable; submitted and
+  // verified entries are read-only. Admins bypass this guard.
+  if (
+    req.user.role !== "admin" &&
+    existingRev.status !== "draft" &&
+    existingRev.status !== "rejected"
+  ) {
+    res
+      .status(409)
+      .json({ error: "Only draft or rejected entries can be edited." });
+    return;
+  }
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.paymentDate) {
     const paymentDateStr =
