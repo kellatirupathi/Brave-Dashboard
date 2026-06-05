@@ -18,7 +18,7 @@ import {
   BarChart3,
   List,
   UserX,
-  TrendingDown,
+  ChevronDown,
 } from "lucide-react";
 import {
   Bar,
@@ -178,12 +178,11 @@ function conversionPillClass(pct: number): string {
   return "bg-red-100 text-red-700";
 }
 
-// A bar-free conversion funnel rendered as a "leakage-spine" timeline: a
-// continuous coloured spine connects circular share-of-total ring nodes (the
-// stage icon sits at each node's core). The drop-off (−N · % drop) and the
-// % continued ride INTO each node, so leakage reads on a single downward scan.
-// The inverse side-stat (students NOT logged in) gets a dashed spine + rose
-// ring + a "leftover" caption so it reads as a warning, never as success.
+// A bar-free conversion funnel: a connected vertical flow of stage cards. Each
+// card shows the stage name, count, and its share of the top stage as a
+// circular % ring (no bars). The connector between cards carries the
+// step-to-step conversion and absolute drop-off, so it still reads top-down as
+// a funnel — just more glanceable and less chart-like.
 function FunnelChart({
   stages,
   loading,
@@ -287,16 +286,16 @@ function FunnelChart({
         </div>
       </div>
 
-      {/* Funnel — a "leakage-spine" timeline. A continuous coloured spine
-          connects circular share-of-total ring nodes (stage icon at the core);
-          the drop-off (−N · % drop) + % continued ride INTO each node, so
-          leakage reads on a single downward scan. No bars. */}
-      <div className="pl-1" data-testid="funnel-timeline">
+      {/* Funnel — a connected vertical flow of stage cards. No bars: each
+          stage shows its share of the top stage as a circular % ring, and the
+          connector between cards carries the step-to-step drop-off. */}
+      <div>
         {stages.map((s, i) => {
           const isInverse = inverseKey != null && s.key === inverseKey;
           const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
-          // Nearest EARLIER non-inverse stage — the inverse side-stat never
-          // breaks the chain.
+          // An inverse stage (e.g. students NOT logged in) is an informational
+          // side-stat, not a forward funnel step: no conversion pill, and the
+          // next real stage chains off the prior genuine stage.
           const prev = (() => {
             for (let k = i - 1; k >= 0; k--) {
               if (!(inverseKey != null && stages[k].key === inverseKey))
@@ -309,180 +308,110 @@ function FunnelChart({
               ? null
               : (s.count / prev.count) * 100;
           const dropped = prev ? Math.max(prev.count - s.count, 0) : 0;
-          const droppedPct =
-            prev && prev.count > 0 ? (dropped / prev.count) * 100 : 0;
           const meta = FUNNEL_STAGE_META[s.key] ?? {
             icon: null,
             color: "bg-primary",
           };
           const hex = FUNNEL_STAGE_HEX[s.key] ?? "#6366f1";
           const ringPct = Math.min(Math.max(pctOfTotal, 0), 100);
-          const isLast = i === stages.length - 1;
-          const nextIsInverse =
-            inverseKey != null && stages[i + 1]?.key === inverseKey;
           return (
-            <div
-              key={s.key}
-              className="relative grid grid-cols-[2.75rem_minmax(0,1fr)] gap-x-3 sm:gap-x-4"
-              data-testid={`funnel-stage-${s.key}`}
-            >
-              {/* Left rail: incoming spine · node ring · outgoing spine. */}
-              <div className="relative flex flex-col items-center">
-                {i > 0 ? (
-                  <div className="flex w-full flex-1 justify-center">
-                    <div
-                      className={cn(
-                        "w-[3px] flex-1",
-                        isInverse
-                          ? "border-l-2 border-dashed border-muted-foreground/40"
-                          : "rounded-full",
-                      )}
-                      style={
-                        isInverse
-                          ? undefined
-                          : {
-                              backgroundImage: `linear-gradient(to bottom, ${
-                                FUNNEL_STAGE_HEX[stages[i - 1].key] ?? "#6366f1"
-                              }, ${hex})`,
-                            }
-                      }
-                    />
-                  </div>
-                ) : (
-                  <div className="flex-1" />
-                )}
-
-                {/* Node = compact share-of-total ring with the stage icon. */}
-                <div
-                  className="relative my-1 h-11 w-11 shrink-0"
-                  title={`${pctOfTotal.toFixed(0)}% of the top stage`}
-                >
-                  <div
-                    className={cn(
-                      "h-11 w-11 rounded-full shadow-sm ring-1",
-                      isInverse ? "ring-rose-300/60" : "ring-black/5",
-                    )}
-                    style={{
-                      background: `conic-gradient(${hex} ${ringPct}%, hsl(var(--muted)) ${ringPct}% 100%)`,
-                    }}
-                  />
-                  <div
-                    className={cn(
-                      "absolute inset-[3px] flex items-center justify-center rounded-full text-white",
-                      meta.color,
-                    )}
-                  >
-                    {meta.icon}
-                  </div>
-                </div>
-
-                {!isLast ? (
-                  <div className="flex w-full flex-1 justify-center">
-                    <div
-                      className={cn(
-                        "w-[3px] flex-1",
-                        nextIsInverse
-                          ? "border-l-2 border-dashed border-muted-foreground/40"
-                          : "rounded-full",
-                      )}
-                      style={
-                        nextIsInverse
-                          ? undefined
-                          : {
-                              backgroundImage: `linear-gradient(to bottom, ${hex}, ${
-                                FUNNEL_STAGE_HEX[stages[i + 1].key] ?? "#6366f1"
-                              })`,
-                            }
-                      }
-                    />
-                  </div>
-                ) : (
-                  <div className="flex-1" />
-                )}
-              </div>
-
-              {/* Right: leakage line · label · count · Remind. */}
-              <div className="min-w-0 pb-5 pt-3">
-                {/* Leakage line — the funnel's whole point, surfaced first. */}
-                {i > 0 && stepPct !== null ? (
-                  <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <div key={s.key}>
+              {/* Connector from the previous stage — conversion + drop-off. */}
+              {i > 0 ? (
+                <div className="flex items-center justify-center gap-2 py-1.5">
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  {stepPct !== null ? (
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
-                        dropped > 0
-                          ? "bg-rose-100 text-rose-700"
-                          : "bg-emerald-100 text-emerald-700",
-                      )}
-                      title="Dropped off since the previous stage"
-                    >
-                      <TrendingDown className="h-3 w-3" />
-                      {dropped > 0
-                        ? `−${dropped.toLocaleString("en-IN")} · ${droppedPct.toFixed(0)}% drop`
-                        : "no drop-off"}
-                    </span>
-                    <span
-                      className={cn(
-                        "inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums",
                         conversionPillClass(stepPct),
                       )}
                       title="Continued from the previous stage"
                     >
                       {stepPct.toFixed(0)}% continued
-                    </span>
-                  </div>
-                ) : null}
-
-                {/* Inverse side-stat caption (replaces the conversion line). */}
-                {isInverse ? (
-                  <div className="mb-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-rose-700">
-                      <UserX className="h-3 w-3" />
-                      never logged in · leftover
-                    </span>
-                  </div>
-                ) : null}
-
-                {/* Stage label. */}
-                <div
-                  className="truncate text-sm font-medium leading-snug"
-                  title={s.label}
-                >
-                  {s.label}
-                </div>
-
-                {/* Count + share of the top stage. */}
-                <div className="mt-0.5 flex items-baseline gap-1.5">
-                  <span className="text-xl font-bold tabular-nums text-foreground">
-                    {s.count.toLocaleString("en-IN")}
-                  </span>
-                  {i > 0 ? (
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {pctOfTotal.toFixed(0)}% of {base.toLocaleString("en-IN")}
+                      {dropped > 0 ? (
+                        <span className="font-normal opacity-80">
+                          {" "}
+                          · −{dropped.toLocaleString("en-IN")}
+                        </span>
+                      ) : null}
                     </span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">
-                      top of funnel
+                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      remaining
                     </span>
                   )}
                 </div>
+              ) : null}
 
-                {/* Remind button — inverse stage only. */}
+              {/* Stage card. */}
+              <div
+                className={cn(
+                  "flex items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
+                  isInverse && "border-dashed",
+                )}
+                data-testid={`funnel-stage-${s.key}`}
+              >
+                {/* Coloured icon chip. */}
+                <span
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-lg text-white shrink-0",
+                    meta.color,
+                  )}
+                >
+                  {meta.icon}
+                </span>
+
+                {/* Full stage name + count. */}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium leading-snug">
+                    {s.label}
+                  </div>
+                  <div className="mt-0.5 flex items-baseline gap-1.5">
+                    <span className="text-2xl font-bold tabular-nums">
+                      {s.count.toLocaleString("en-IN")}
+                    </span>
+                    {i > 0 ? (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        of {base.toLocaleString("en-IN")}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Remind button (inverse stage only). */}
                 {isInverse && onRemindNeverLogged ? (
                   <Button
                     size="sm"
                     variant="outline"
-                    className="mt-2 h-8 px-2.5 text-xs"
+                    className="h-8 px-2.5 text-xs shrink-0"
                     disabled={remindingNeverLogged || remindTargetCount === 0}
                     onClick={onRemindNeverLogged}
                     title="Send a notification + email to every student who has never logged in"
                     data-testid="funnel-remind-never-logged"
                   >
-                    <Bell className="mr-1 h-3 w-3" />
-                    {remindingNeverLogged
-                      ? "Sending…"
-                      : `Remind ${remindTargetCount.toLocaleString("en-IN")}`}
+                    <Bell className="h-3 w-3 mr-1" />
+                    Remind
                   </Button>
                 ) : null}
+
+                {/* Circular % ring — the bar replacement. */}
+                <div
+                  className="relative h-12 w-12 shrink-0"
+                  title={`${pctOfTotal.toFixed(0)}% of the top stage`}
+                >
+                  <div
+                    className="h-12 w-12 rounded-full"
+                    style={{
+                      background: `conic-gradient(${hex} ${ringPct}%, hsl(var(--muted)) ${ringPct}% 100%)`,
+                    }}
+                  />
+                  <div className="absolute inset-[3px] flex items-center justify-center rounded-full bg-card">
+                    <span className="text-[11px] font-bold tabular-nums">
+                      {pctOfTotal.toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           );
