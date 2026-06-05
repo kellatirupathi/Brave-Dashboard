@@ -57,6 +57,10 @@ import {
   Check,
   X,
 } from "lucide-react";
+import {
+  CoordinatorsCell,
+  type CampusCoordinator,
+} from "@/components/coordinators-popover";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -69,7 +73,10 @@ export default function AdminCampusDetail() {
   const { toast } = useToast();
   const deleteCampus = useDeleteCampus();
   const updateCampus = useUpdateCampus();
-  const { data: coordinatorUsersResp } = useListUsers({ role: "coordinator", pageSize: 1000 });
+  const { data: coordinatorUsersResp } = useListUsers({
+    role: "coordinator",
+    pageSize: 1000,
+  });
   const coordinatorUsers = coordinatorUsersResp?.items ?? [];
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -77,7 +84,8 @@ export default function AdminCampusDetail() {
   const [draftName, setDraftName] = useState("");
   const [draftCity, setDraftCity] = useState("");
   const [draftState, setDraftState] = useState("");
-  const [draftCoordinatorId, setDraftCoordinatorId] = useState<string>(UNASSIGNED);
+  const [draftCoordinatorId, setDraftCoordinatorId] =
+    useState<string>(UNASSIGNED);
 
   const startEdit = () => {
     if (!campus) return;
@@ -95,7 +103,8 @@ export default function AdminCampusDetail() {
       name: draftName.trim(),
       city: draftCity.trim(),
       state: draftState.trim(),
-      coordinatorId: draftCoordinatorId === UNASSIGNED ? null : draftCoordinatorId,
+      coordinatorId:
+        draftCoordinatorId === UNASSIGNED ? null : draftCoordinatorId,
     };
     if (!payload.name || !payload.city || !payload.state) {
       toast({
@@ -109,14 +118,24 @@ export default function AdminCampusDetail() {
       {
         onSuccess: () => {
           toast({ title: "Campus updated" });
-          queryClient.invalidateQueries({ queryKey: getGetCampusQueryKey(campusId) });
-          queryClient.invalidateQueries({ queryKey: getListCampusesQueryKey() });
+          queryClient.invalidateQueries({
+            queryKey: getGetCampusQueryKey(campusId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getListCampusesQueryKey(),
+          });
           setIsEditing(false);
         },
         onError: (err) => {
           const data = (err as { data?: unknown }).data;
-          let message = err instanceof Error ? err.message : "Please try again.";
-          if (data && typeof data === "object" && "error" in data && typeof (data as { error: unknown }).error === "string") {
+          let message =
+            err instanceof Error ? err.message : "Please try again.";
+          if (
+            data &&
+            typeof data === "object" &&
+            "error" in data &&
+            typeof (data as { error: unknown }).error === "string"
+          ) {
             message = (data as { error: string }).error;
           }
           toast({
@@ -135,14 +154,22 @@ export default function AdminCampusDetail() {
       {
         onSuccess: () => {
           toast({ title: "Campus deleted" });
-          queryClient.invalidateQueries({ queryKey: getListCampusesQueryKey() });
+          queryClient.invalidateQueries({
+            queryKey: getListCampusesQueryKey(),
+          });
           setDeleteOpen(false);
           setLocation("/admin/campuses");
         },
         onError: (err) => {
           const data = (err as { data?: unknown }).data;
-          let message = err instanceof Error ? err.message : "Please try again.";
-          if (data && typeof data === "object" && "error" in data && typeof (data as { error: unknown }).error === "string") {
+          let message =
+            err instanceof Error ? err.message : "Please try again.";
+          if (
+            data &&
+            typeof data === "object" &&
+            "error" in data &&
+            typeof (data as { error: unknown }).error === "string"
+          ) {
             message = (data as { error: string }).error;
           }
           toast({
@@ -164,7 +191,12 @@ export default function AdminCampusDetail() {
   });
   const { data: teamsResp, isLoading: teamsLoading } = useListTeams(
     { campusId, pageSize: 1000 },
-    { query: { queryKey: getListTeamsQueryKey({ campusId, pageSize: 1000 }), enabled } },
+    {
+      query: {
+        queryKey: getListTeamsQueryKey({ campusId, pageSize: 1000 }),
+        enabled,
+      },
+    },
   );
   const teams = teamsResp?.items ?? [];
   const { data: auditLog = [] } = useGetAuditLog(
@@ -211,8 +243,14 @@ export default function AdminCampusDetail() {
   const teamIds = new Set((teams as any[]).map((t) => t.id));
   const recentActivity = (auditLog as any[])
     .filter((log) => {
-      if (log.targetType === "campus" && log.targetId === campus.id) return true;
-      if (log.targetType === "team" && log.targetId && teamIds.has(log.targetId)) return true;
+      if (log.targetType === "campus" && log.targetId === campus.id)
+        return true;
+      if (
+        log.targetType === "team" &&
+        log.targetId &&
+        teamIds.has(log.targetId)
+      )
+        return true;
       return false;
     })
     .slice(0, 15);
@@ -225,6 +263,9 @@ export default function AdminCampusDetail() {
     (acc, t) => acc + (t.totalRevenue ?? 0),
     0,
   );
+  const campusCoordinators = (
+    (campus as { coordinators?: CampusCoordinator[] }).coordinators ?? []
+  ).filter((c) => c.name && c.name.trim());
 
   return (
     <div className="space-y-6">
@@ -319,9 +360,17 @@ export default function AdminCampusDetail() {
           {!isEditing && (
             <div className="flex items-center gap-2 text-sm">
               <UserCog className="w-4 h-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Coordinator:</span>
+              <span className="text-muted-foreground">
+                {campusCoordinators.length > 1
+                  ? "Coordinators:"
+                  : "Coordinator:"}
+              </span>
               <span className="font-medium" data-testid="text-coordinator-name">
-                {campus.coordinatorName || "Unassigned"}
+                <CoordinatorsCell
+                  coordinators={campusCoordinators}
+                  fallbackName={campus.coordinatorName}
+                  align="end"
+                />
               </span>
             </div>
           )}
@@ -446,69 +495,71 @@ export default function AdminCampusDetail() {
             </p>
           ) : (
             <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Team</TableHead>
-                  <TableHead>Leader</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Members</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Order Book</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[...(teams as any[])]
-                  .sort((a, b) => (b.totalRevenue ?? 0) - (a.totalRevenue ?? 0))
-                  .map((t) => {
-                    const variant =
-                      t.status === "active"
-                        ? "default"
-                        : t.status === "pending"
-                          ? "secondary"
-                          : "destructive";
-                    return (
-                      <TableRow
-                        key={t.id}
-                        className="cursor-pointer hover-elevate"
-                        onClick={() => setLocation(`/admin/teams/${t.id}`)}
-                        data-testid={`row-team-${t.id}`}
-                      >
-                        <TableCell className="font-semibold">
-                          <Link
-                            href={`/admin/teams/${t.id}`}
-                            className="hover:underline"
-                            data-testid={`link-team-${t.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {t.name}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {t.leaderName}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={variant as any}
-                            className="text-[10px] capitalize"
-                          >
-                            {t.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {t.memberCount}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-primary">
-                          {formatINR(t.totalRevenue ?? 0)}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {formatINR(t.totalOrderBook ?? 0)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-              </TableBody>
-            </Table>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Team</TableHead>
+                    <TableHead>Leader</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Members</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
+                    <TableHead className="text-right">Order Book</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[...(teams as any[])]
+                    .sort(
+                      (a, b) => (b.totalRevenue ?? 0) - (a.totalRevenue ?? 0),
+                    )
+                    .map((t) => {
+                      const variant =
+                        t.status === "active"
+                          ? "default"
+                          : t.status === "pending"
+                            ? "secondary"
+                            : "destructive";
+                      return (
+                        <TableRow
+                          key={t.id}
+                          className="cursor-pointer hover-elevate"
+                          onClick={() => setLocation(`/admin/teams/${t.id}`)}
+                          data-testid={`row-team-${t.id}`}
+                        >
+                          <TableCell className="font-semibold">
+                            <Link
+                              href={`/admin/teams/${t.id}`}
+                              className="hover:underline"
+                              data-testid={`link-team-${t.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {t.name}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {t.leaderName}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={variant as any}
+                              className="text-[10px] capitalize"
+                            >
+                              {t.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {t.memberCount}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-primary">
+                            {formatINR(t.totalRevenue ?? 0)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatINR(t.totalOrderBook ?? 0)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
