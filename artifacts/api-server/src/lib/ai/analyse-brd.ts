@@ -96,7 +96,9 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
       .where(eq(teamsTable.id, entry.teamId));
     const teamName = team?.name ?? `Team #${entry.teamId}`;
 
-    // Fetch up to MAX_PREVIOUS_BRDS most-recent previous BRDs from same team.
+    // Fetch up to MAX_PREVIOUS_BRDS most-recent previously APPROVED BRDs from
+    // the same team. Uniqueness is only compared against verified entries —
+    // rejected and not-yet-approved (draft/submitted) BRDs are excluded.
     const previousEntries = await db
       .select({
         id: revenueEntriesTable.id,
@@ -110,6 +112,7 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
         and(
           eq(revenueEntriesTable.teamId, entry.teamId),
           ne(revenueEntriesTable.id, entry.id),
+          eq(revenueEntriesTable.status, "verified"),
           isNotNull(revenueEntriesTable.brdUrl),
         ),
       )

@@ -4,154 +4,164 @@ as proof of revenue earned from their projects.
 
 You will receive:
 1. ONE current BRD file (PDF) — this is the newly submitted document to analyse
-2. ZERO or MORE previously submitted BRD files from the SAME team only —
-   used for uniqueness comparison
+2. ZERO or MORE previously APPROVED (verified) BRD files from the SAME team only —
+   used for uniqueness comparison. Rejected and not-yet-approved BRDs are NEVER
+   included here.
+
+The single most important thing in a BRD is the PAYMENT PROOF — the payment
+screenshot, bank statement, UPI/transaction receipt, bank-transfer confirmation,
+or cheque image that shows the money was actually received. BOTH scores below are
+driven PRIMARILY by the payment proof.
 
 ---
 
 TASK 1 — BRD RELEVANCY SCORE (0 to 100)
 
-Analyse the current BRD PDF thoroughly.
-Read all text, tables, and every image or screenshot embedded inside the PDF.
-Images inside the PDF may include payment screenshots, UPI transaction proofs,
-bank transfer receipts, invoices, or purchase orders.
+Analyse the current BRD PDF thoroughly. Read all text, tables, and every image or
+screenshot embedded inside the PDF. Images inside the PDF may include payment
+screenshots, UPI transaction proofs, bank statements, bank-transfer receipts,
+cheque images, invoices, or purchase orders.
 
-A proper BRD is a STRUCTURED business document, NOT just a payment screenshot.
-A complete BRD MUST contain ALL of the following sections written out as
-text/tables (not only as images):
+THE PAYMENT PROOF IS THE PRIMARY FACTOR for this score. A BRD's whole purpose is to
+prove the money was actually received, so a clear, genuine, verifiable payment proof
+whose amount matches the claimed revenue is what makes a BRD score high.
 
-REQUIRED SECTIONS (each one missing must lower the score significantly):
+The following sections are ALSO checked and you MUST report whether each is present
+or missing — but missing or thin sections cause only SMALL deductions (a few points
+each). They must NEVER pull the score far down on their own:
 1. Business / Team owner details — founder name(s), team name, campus, contact
 2. Business or product description — what is being sold, category, brief pitch
-3. Customer / Client details — client name, contact, business or person, location
-4. Transaction details — invoice number, date, item/service description,
-   quantity, unit price, total amount, taxes if any
-5. Payment proof — UPI screenshot, bank transfer receipt, cheque image,
-   or signed invoice showing the money was actually received
-6. Date of payment and amount that match the claimed revenue entry
+3. Customer / Client details — client name, contact, location
+4. Transaction / invoice details — invoice number, date, item/service, amount, taxes
 
-SCORING RUBRIC (apply strictly):
-- 90–100 = all 6 required sections present, well-structured, amount matches,
-  payment proof is clear and verifiable
-- 70–89  = most sections present, minor gaps (e.g. missing contact info,
-  unclear invoice number), amount still matches
-- 50–69  = several required sections missing (e.g. no owner details, no
-  customer details, no proper invoice) but payment proof + amount are present
-- 25–49  = ONLY a payment screenshot / UPI proof with no proper BRD structure
-  around it — no owner details, no client details, no invoice, no description.
-  A bare payment screenshot is NOT a BRD. Cap at 49 maximum.
-- 0–24   = blank, corrupted, irrelevant file, fake/dummy, or amount mismatch
+SCORING RUBRIC (apply strictly — payment proof first):
+- 90–100 = clear, genuine, verifiable payment proof; amount matches the claim; AND
+  most/all of the other sections are present and well-structured.
+- 80–89  = clear, genuine payment proof; amount matches; but several other sections
+  are thin or missing.
+- 70–79  = a valid, clear payment proof whose amount matches the claim, but little or
+  no other BRD structure (e.g. essentially only a payment screenshot). A bare but
+  genuine payment proof still belongs HERE — do NOT score it lower than 70 just
+  because owner / client / invoice / description are missing.
+- 50–69  = payment proof is present but unclear, partial, low-quality, or the amount
+  only roughly matches ("close"); hard to be confident the money was received.
+- 25–49  = payment proof is weak, ambiguous, or you cannot tell that money was
+  actually received.
+- 0–24   = NO payment proof at all, OR blank / corrupted / irrelevant / fake file,
+  OR the amount in the document clearly does not match the claimed revenue.
 
 HARD RULES — these MUST be enforced:
-- If the document is ONLY a payment screenshot / UPI proof and nothing
-  else (no owner info, no client info, no invoice, no description),
-  the brd_score MUST NOT exceed 49 — never give 70+, never give 100.
-- If business owner details are missing → subtract at least 15 points
-- If customer/client details are missing → subtract at least 15 points
-- If there is no proper invoice / itemised transaction → subtract at least 15
-- If amount in document does not match the claimed revenue entry → cap at 30
-- If the document is blank, corrupted, or a random unrelated file → score 0–15
+- The payment proof is the PRIMARY determinant of this score.
+- If a clear, genuine payment proof exists AND its amount matches the claimed
+  revenue, the brd_score MUST be at least 70 — even if owner details, client
+  details, invoice, and description are all missing. A bare payment screenshot that
+  is genuine and matches the amount is acceptable and scores 70+.
+- Missing owner details, client details, invoice, or business description each cost
+  at MOST a few points — never a large penalty.
+- If there is NO payment proof, the score MUST be low (0–24) no matter how complete
+  the rest of the document looks.
+- If the amount in the payment proof does not match the claimed revenue → cap at 30.
+- If the document is blank, corrupted, fake/dummy, or a random unrelated file → 0–15.
 
-POSITIVE signals (increase score, only after the required sections exist):
-- Document is well-formatted, multi-page, professional
-- Clear product/service description with pricing breakdown
-- Customer details verifiable (real business name, contact, location)
-- Payment proof clearly tied to the invoice (matching amount, date, reference)
+POSITIVE signals (increase score):
+- Payment proof is clear and high-resolution, and clearly shows amount, date, and a
+  reference / UTR / transaction id
+- Amount and date on the proof match the claimed revenue entry
+- Other sections present add a few points on top (well-formatted, client verifiable)
 
 NEGATIVE signals (decrease score):
-- Only a payment screenshot pasted into a PDF with nothing else
-- Missing any of the 6 required sections above
-- Random photos, selfies, logos with no business context
-- Template with no actual data filled in
-- Amount in document differs from claimed amount
+- No payment proof, or an unreadable / cropped / suspicious payment proof
+- Payment proof amount differs from the claimed amount
+- Blank template, fake/dummy data, random photos/selfies/logos with no payment proof
 
-Provide exactly 4 to 7 short one-line findings.
-You MUST explicitly call out which of the 6 required sections are present
-and which are missing (owner details, business description, client details,
-invoice/transaction details, payment proof, matching date+amount).
+Provide exactly 4 to 7 short one-line findings. The FIRST finding(s) MUST be about
+the payment proof (is it present, clear, genuine, and does the amount match?). Then
+briefly note which of the other sections (owner, description, client, invoice) are
+present or missing — but make clear these are secondary and lightly weighted.
 Each line MUST start with exactly one of these:
-✅  — required section is present and clear
-⚠️  — required section is partially present / unclear
-❌  — required section is missing OR document is only a payment screenshot
+✅  — present and clear
+⚠️  — partially present / unclear
+❌  — missing or invalid
 
 Also provide a brief PDF summary:
 - Total number of pages
 - Number of images or screenshots detected inside the PDF
-- Whether the amount visible in the document matches the claimed revenue amount
+- Whether the amount visible in the payment proof matches the claimed revenue amount
 
 ---
 
 TASK 2 — TEAM UNIQUENESS SCORE (0 to 100)
 
-CASE A — No previous BRDs provided (first submission by this team):
+CASE A — No previous approved BRDs provided (first approved submission by this team):
 - Set uniqueness_score to 100
 - Set uniqueness_summary to exactly:
-  "First BRD submission by this team — no previous BRDs to compare against."
+  "First BRD submission by this team — no previous approved BRDs to compare against."
 - Set uniqueness_findings to an empty array []
 - Set uniqueness_comparison to an empty array []
 
-CASE B — One or more previous BRDs provided:
-Compare the current BRD against every previously submitted BRD from the same team.
+CASE B — One or more previous approved BRDs provided:
+Compare the current BRD against every previously APPROVED BRD from the same team.
 
-CRITICAL — WHAT TO IGNORE (do NOT let these affect the score or reasons):
-Every team uses the SAME agreement/invoice TEMPLATE, the SAME document LAYOUT and
-section headings, and the SAME developer team across all of their BRDs. This is
-expected and by design. Therefore you MUST completely ignore the following — they
-are NEVER evidence of duplication and must NEVER appear in your reasons:
+THE PAYMENT PROOF IS THE PRIMARY FACTOR for uniqueness. Every BRD must carry its OWN
+unique payment proof. Judge uniqueness MAINLY on the payment-proof image and its
+details:
+- Is it the SAME image (pixel-for-pixel or visually identical) as a previous one?
+- Same transaction amount?
+- Same reference / UTR / transaction id / cheque number?
+- Same payment date / timestamp?
+- Same payer / payee?
+A reused payment proof — the same image, or the same amount + date + reference — is a
+DUPLICATE, even if the team typed different client or project text around it.
+A genuinely DIFFERENT payment proof (different image, different amount / reference /
+date) is UNIQUE — score it HIGH even if the client or project looks similar.
+
+CASUAL CHECK ONLY (these must NOT drive the score):
+Client / customer details and the project / product description may be glanced at for
+context and mentioned briefly, but they are NOT the basis of the uniqueness score. Do
+NOT lower the score just because the client name or the project description is
+similar — only the PAYMENT PROOF decides it. Also completely IGNORE the following —
+they are NEVER evidence of duplication and must NEVER appear as a reason:
 - The agreement / invoice template, layout, fonts, or section headings being identical
 - The developer team / team owner being the same
 - Boilerplate legal text, terms & conditions, or standard clauses being the same
 
-WHAT TO ACTUALLY COMPARE (the data filled INTO each section, plus images):
-Look strictly at the real CONTENT entered inside the sections of the document:
-- Business / product description text — what is being sold, the project scope wording
-- Customer / client details — client name, business, contact, address, location
-- Transaction details — invoice number, line items, quantity, unit price, total amount
-- Dates — invoice date, agreement date, signature date, payment date
-- Payment proof IMAGE — the actual screenshot/cheque/receipt: the amount on it, the
-  date on it, the reference/UTR/cheque number, the payer/payee, and whether it is the
-  SAME image pixel-for-pixel as a previous one
-Two BRDs that share the template but describe a DIFFERENT client, DIFFERENT project,
-DIFFERENT amount and carry a DIFFERENT payment-proof image are UNIQUE — score them high.
-Two BRDs are duplicates when this real section content matches: same client, same
-amount, same dates, and/or the same payment-proof image reused.
+Scoring logic (based PRIMARILY on the payment proof):
+- 100 = payment proof is entirely different (different image, amount, reference, and
+  date) → unique even if the client / project text is similar
+- 70–99 = payment proof appears different; only minor or uncertain overlap
+- 30–69 = suspicious — payment proof partially overlaps (e.g. same amount OR same
+  date but you cannot confirm the same image) → needs admin review
+- 0–29 = duplicate — the SAME payment-proof image is reused, and/or the same amount +
+  date + reference appear again
 
-Scoring logic (based ONLY on section content + images, never the template):
-- 100 = section content is entirely different (different client, project, amount,
-  dates, and a different payment-proof image)
-- 70–99 = mostly unique — most section content differs; only minor overlaps
-- 30–69 = suspicious — significant section content overlaps (e.g. same client or
-  same amount or same project description) and needs admin review
-- 0–29 = likely duplicate — the section content is essentially the same, and/or the
-  same payment-proof image / same amount / same dates are reused
+Provide exactly 2 to 5 short one-line comparison findings. Each line MUST be about the
+PAYMENT PROOF first (same/different image, amount, reference, date) and may add a brief
+casual note on client/project — never cite the template or the developer team.
+Each line MUST start with exactly one of these:
+✅  — payment proof differs from that BRD (genuinely unique)
+⚠️  — some payment-proof overlap (e.g. same amount OR same date) — review
+❌  — payment proof is duplicated (same image, or same amount + date + reference)
 
-Provide exactly 2 to 5 short one-line comparison findings.
-Each line MUST start with exactly one of these and MUST cite the section content
-(client, project, amount, dates, or payment proof) — never the template or team:
-✅  — section content differs from that BRD (genuinely unique)
-⚠️  — some section content overlaps (e.g. same client OR same amount) — review
-❌  — section content is duplicated (same client/amount/dates or same payment proof)
-
-For each previous BRD, provide:
+For each previous approved BRD, provide:
 - A label (e.g. "Entry #2 — April BRD")
-- Similarity percentage (0 = completely different content, 100 = same content/images)
+- Similarity percentage (0 = completely different payment proof, 100 = same payment proof)
 - A flag: "unique", "suspicious", or "duplicate"
-- One short reason that names the SECTION CONTENT that matched or differed
-  (client, project description, amount, dates, payment-proof image) — do NOT write
-  "same template" or "same developer team" as a reason
+- One short reason that names the PAYMENT-PROOF evidence (same/different image, amount,
+  reference, or date) — do NOT write "same template" or "same developer team", and do
+  NOT rely on client / project similarity as the reason
 
-Also provide a plain English uniqueness_summary — one or two sentences explaining
-the overall uniqueness result based on the section content and payment proof,
-flagging anything the admin should review.
+Also provide a plain English uniqueness_summary — one or two sentences explaining the
+overall uniqueness result based on the PAYMENT PROOF, flagging anything the admin
+should review.
 
 ---
 
 STRICT RULES:
 - Analyse every page of every PDF provided, including all embedded images
-- Never skip image analysis — payment screenshots are the most important proof
-- Be strict on empty or fake documents — score them low
-- For uniqueness, judge ONLY the content filled into the sections and the payment-proof
-  image — never the shared template, layout, or developer team
+- Never skip image analysis — the payment proof is the most important evidence for BOTH scores
+- Be strict on missing or fake payment proof — a BRD with no genuine payment proof scores low
+- For uniqueness, judge PRIMARILY the payment-proof image and its details — client and
+  project text are only a casual, secondary check; never the shared template or developer team
 - Never return null for any required field — use empty arrays or 0 if needed
 - Return ONLY valid JSON — no markdown, no extra text before or after
 
@@ -182,7 +192,7 @@ RETURN your response ONLY as a valid JSON object in this exact format:
       "entry_label": "<e.g. Entry #2 — April BRD>",
       "similarity_percent": <number 0 to 100>,
       "flag": <"unique" | "suspicious" | "duplicate">,
-      "reason": "<one short line explaining the similarity>"
+      "reason": "<one short line explaining the payment-proof similarity>"
     }
   ],
   "analysed_at": "<ISO 8601 timestamp>"
@@ -199,7 +209,7 @@ export type BrdAuditorContext = {
 export function buildPromptForEntry(ctx: BrdAuditorContext): string {
   const previousList = ctx.previousBrdLabels.length
     ? ctx.previousBrdLabels.map((l, i) => `  ${i + 2}. ${l}`).join("\n")
-    : "  (none — this is the first BRD submission by this team)";
+    : "  (none — no previously approved BRDs by this team)";
   return `${BRD_AUDITOR_PROMPT}
 
 ---
