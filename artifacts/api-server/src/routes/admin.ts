@@ -290,7 +290,15 @@ router.get("/admin/users", async (req, res): Promise<void> => {
           .where(eq(campusesTable.id, u.campusId));
         campusName = campus?.name ?? null;
       }
-      const { passwordHash, ...safe } = u;
+      // Strip passwordHash plus the super-admin/permission columns — these are
+      // exposed only via the dedicated /admin/access and /admin/permissions
+      // endpoints, never through general user listings.
+      const {
+        passwordHash,
+        isSuperAdmin: _sa,
+        adminPermissions: _ap,
+        ...safe
+      } = u;
       return {
         ...safe,
         campusId: u.role === "admin" ? null : safe.campusId,
@@ -483,7 +491,12 @@ router.post("/admin/users", async (req, res): Promise<void> => {
     undefined,
     `Created ${user.role} ${user.id}: ${user.email}`,
   );
-  const { passwordHash: _, ...safe } = user;
+  const {
+    passwordHash: _,
+    isSuperAdmin: _sa,
+    adminPermissions: _ap,
+    ...safe
+  } = user;
   res.status(201).json({ ...safe, campusName: null });
 });
 
@@ -596,7 +609,12 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
     undefined,
     `${user.id} ${JSON.stringify(updates)}`,
   );
-  const { passwordHash, ...safe } = user;
+  const {
+    passwordHash,
+    isSuperAdmin: _sa,
+    adminPermissions: _ap,
+    ...safe
+  } = user;
   res.json({ ...safe, campusName: null });
 });
 

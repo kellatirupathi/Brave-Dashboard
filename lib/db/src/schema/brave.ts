@@ -127,6 +127,12 @@ export const usersTable = pgTable(
     campusId: integer("campus_id"),
     passwordHash: text("password_hash"),
     isActive: boolean("is_active").notNull().default(true),
+    // Super Admin capability (additive). A super admin is an `admin` with this
+    // flag set — all existing `role === "admin"` checks still pass unchanged.
+    isSuperAdmin: boolean("is_super_admin").notNull().default(false),
+    // Per-page permission map for normal admins. NULL means FULL access
+    // (DEFAULT-ALLOW) — every existing admin keeps full access automatically.
+    adminPermissions: jsonb("admin_permissions"),
     provisionedVia: provisionedViaEnum("provisioned_via")
       .notNull()
       .default("manual"),

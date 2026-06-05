@@ -29,6 +29,7 @@ import cronOverdueNotificationsRouter from "./cron-overdue-notifications";
 import cronBackupSupabaseRouter from "./cron-backup-supabase";
 import brdAnalysisRouter from "./brd-analysis";
 import accessRequestsRouter from "./access-requests";
+import adminPermissionsRouter from "./admin-permissions";
 
 const router: IRouter = Router();
 
@@ -73,5 +74,7 @@ router.use(cronBackupSupabaseRouter);
 router.use(brdAnalysisRouter);
 // New-User Access Request gate (student submit + status — additive only)
 router.use(accessRequestsRouter);
+// Super Admin + per-page admin permissions (additive only, isolated)
+router.use(adminPermissionsRouter);
 
 export default router;

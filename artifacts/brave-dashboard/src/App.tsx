@@ -13,6 +13,7 @@ import {
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useMyAdminAccess, isRouteBlocked } from "@/lib/admin-access";
 import {
   useGetMyTeam,
   getGetMyTeamQueryKey,
@@ -60,6 +61,8 @@ import AdminProjectDetail from "@/pages/admin/project-detail";
 import AdminLeaderboard from "@/pages/admin/leaderboard";
 import AdminDemoDay from "@/pages/admin/demo-day";
 import AdminUsers from "@/pages/admin/users";
+import AdminUserNew from "@/pages/admin/user-new";
+import AdminUserPermissions from "@/pages/admin/user-permissions";
 import AdminCampuses from "@/pages/admin/campuses";
 import AdminCampusDetail from "@/pages/admin/campus-detail";
 import AdminConfig from "@/pages/admin/config";
@@ -109,6 +112,12 @@ function ProtectedRoute({
   allowedRoles: string[];
 }) {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
+  // Resolve per-page admin permissions (default-allow). Enabled only for
+  // admins; the query is cached and shared with the sidebar.
+  const isAdmin = user?.role === "admin";
+  const { data: adminAccess, isLoading: accessLoading } =
+    useMyAdminAccess(!!isAdmin);
 
   if (isLoading) {
     return (
@@ -134,6 +143,24 @@ function ProtectedRoute({
     if (user.role === "coordinator") return <Redirect to="/coordinator" />;
     if (user.role === "admin") return <Redirect to="/admin" />;
     return <Redirect to="/login" />;
+  }
+
+  // Restricted-admin route gate (default-allow). Super admins and admins with
+  // no stored permissions are never blocked. A restricted admin hitting a
+  // blocked page is bounced to the dashboard (or /profile if the dashboard
+  // itself is blocked, to avoid a redirect loop).
+  if (isAdmin) {
+    if (accessLoading) {
+      return (
+        <div className="min-h-screen w-full flex items-center justify-center bg-background">
+          <Spinner className="size-10" />
+        </div>
+      );
+    }
+    if (adminAccess && isRouteBlocked(adminAccess, location)) {
+      const dashboardBlocked = isRouteBlocked(adminAccess, "/admin");
+      return <Redirect to={dashboardBlocked ? "/profile" : "/admin"} />;
+    }
   }
 
   return (
@@ -385,6 +412,15 @@ function Router() {
       </Route>
       <Route path="/admin/demo-day">
         <ProtectedRoute component={AdminDemoDay} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/users/new">
+        <ProtectedRoute component={AdminUserNew} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/users/:id/permissions">
+        <ProtectedRoute
+          component={AdminUserPermissions}
+          allowedRoles={["admin"]}
+        />
       </Route>
       <Route path="/admin/users">
         <ProtectedRoute component={AdminUsers} allowedRoles={["admin"]} />

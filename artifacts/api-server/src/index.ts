@@ -4,6 +4,7 @@ import { db, usersTable } from "@workspace/db";
 import { and, inArray, isNull, sql } from "drizzle-orm";
 import { bootstrapCanonicalCampuses } from "./bootstrap-campuses";
 import { bootstrapAdmins } from "./bootstrap-admins";
+import { bootstrapSuperAdmins } from "./bootstrap-superadmins";
 import { catchUpPendingBrdAnalyses } from "./lib/ai/analyse-brd";
 
 async function reportUsersWithoutCampus(): Promise<void> {
@@ -110,6 +111,11 @@ async function runBootstrap(): Promise<void> {
     await bootstrapAdmins();
   } catch (err) {
     logger.error({ err }, "bootstrapAdmins failed");
+  }
+  try {
+    await bootstrapSuperAdmins();
+  } catch (err) {
+    logger.error({ err }, "bootstrapSuperAdmins failed");
   }
   try {
     await backfillOrderBookEntries();

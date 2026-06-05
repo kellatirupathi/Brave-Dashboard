@@ -53,7 +53,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -77,6 +76,8 @@ import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/lib/api-error";
+import { useLocation } from "wouter";
+import { useMyAdminAccess } from "@/lib/admin-access";
 import * as XLSX from "xlsx";
 
 const createUserSchema = z.object({
@@ -237,6 +238,11 @@ export default function AdminUsers() {
   const importCsv = useImportUsersCsv();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  // Current user's admin access — used to surface the super-admin-only
+  // "Permissions" row action. This page is admin-only, so always enabled.
+  const { data: myAccess } = useMyAdminAccess(true);
+  const callerIsSuperAdmin = !!myAccess?.isSuperAdmin;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -712,12 +718,15 @@ export default function AdminUsers() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <Button
+            data-testid="button-add-user"
+            onClick={() => setLocation("/admin/users/new")}
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add User
+          </Button>
+          {/* Legacy create dialog kept dormant (never opened) — the Add User
+              button now navigates to the standalone /admin/users/new page. */}
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-user">
-                <Plus className="w-4 h-4 mr-2" /> Add User
-              </Button>
-            </DialogTrigger>
             <DialogContent className="sm:max-w-[480px]">
               <DialogHeader>
                 <DialogTitle>Add User</DialogTitle>
@@ -1108,6 +1117,18 @@ export default function AdminUsers() {
                           >
                             <Pencil className="w-4 h-4 mr-2" /> Edit
                           </DropdownMenuItem>
+                          {callerIsSuperAdmin && user.role === "admin" && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setLocation(
+                                  `/admin/users/${user.id}/permissions`,
+                                )
+                              }
+                              data-testid={`button-permissions-${user.id}`}
+                            >
+                              <ShieldCheck className="w-4 h-4 mr-2" /> Permissions
+                            </DropdownMenuItem>
+                          )}
                           {user.role !== "student" && user.hasPassword && (
                             <DropdownMenuItem
                               onClick={() => setChangePasswordTarget(user)}

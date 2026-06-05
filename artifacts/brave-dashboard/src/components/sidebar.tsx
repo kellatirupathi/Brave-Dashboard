@@ -33,6 +33,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
+import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { cn } from "@/lib/utils";
 import { BraveLogo } from "./brave-logo";
 import {
@@ -234,6 +235,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const resourcesVisibleForStudent =
     resourcesSettings?.enabledForStudents ?? true;
 
+  // Per-page admin permissions (default-allow). Enabled only for admins; the
+  // query is cached and shared with ProtectedRoute. Restricted admins have
+  // hidden pages filtered out of the nav below.
+  const { data: adminAccess } = useMyAdminAccess(user?.role === "admin");
+
   if (!user) return null;
 
   const role = user.role;
@@ -344,7 +350,25 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     ],
   };
 
-  const items = (navItems[role as keyof typeof navItems] || []) as NavItem[];
+  const rawItems = (navItems[role as keyof typeof navItems] ||
+    []) as NavItem[];
+  // For restricted admins, drop hidden leaves and any group left empty.
+  // Super admins / default-allow admins keep the full nav (isHidden → false).
+  const items: NavItem[] =
+    role === "admin"
+      ? rawItems
+          .map((item): NavItem | null => {
+            if (isGroup(item)) {
+              const children = item.children.filter(
+                (c) => !isHidden(adminAccess, c.href),
+              );
+              if (children.length === 0) return null;
+              return { ...item, children };
+            }
+            return isHidden(adminAccess, item.href) ? null : item;
+          })
+          .filter((item): item is NavItem => item !== null)
+      : rawItems;
 
   return (
     <>
