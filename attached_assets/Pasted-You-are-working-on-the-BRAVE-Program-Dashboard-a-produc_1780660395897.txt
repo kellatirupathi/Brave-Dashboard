@@ -1,0 +1,60 @@
+You are working on the "BRAVE Program Dashboard" — a production, full-stack pnpm-workspace monorepo (TypeScript) that is LIVE with ~7,500 students and many admins. Stack: Express 5 API in `artifacts/api-server` (mounted at `/api`), React + Vite + Tailwind + shadcn/ui frontend in `artifacts/brave-dashboard` (routing via `wouter`, data via `@tanstack/react-query`), and Drizzle ORM + Postgres schema in `lib/db/src/schema/brave.ts`. There are 3 roles in `userRoleEnum`: `student`, `coordinator`, `admin`.
+
+GOAL: Add a "Super Admin" capability on top of the existing `admin` role, plus a per-page permission system that super admins use to control what each normal admin can do.
+
+NON-NEGOTIABLE SAFETY RULES (this is in production):
+- Make ALL changes ADDITIVE and BACKWARD-COMPATIBLE. Do not break any existing behavior.
+- Do NOT touch the `student` or `coordinator` roles, their pages, flows, logins, or permissions in any way. This is admin-only.
+- Use DEFAULT-ALLOW everywhere: an admin with no stored permission record must have FULL access (exactly like today). Every existing admin must keep working identically until a super admin explicitly restricts them.
+- Do NOT add a 4th role value to the enum and do NOT rewrite the ~20+ existing `req.user.role === "admin"` checks. Instead, a super admin is an `admin` with an extra boolean flag — so all existing admin checks keep passing unchanged for both admins and super admins.
+- Keep the existing "Add User" modal code in place (dormant) as a fallback; just point the button to the new page.
+
+DATA MODEL (additive columns on the `users` table in `lib/db/src/schema/brave.ts`):
+- `isSuperAdmin: boolean("is_super_admin").notNull().default(false)` — an admin with full, unrestricted access who can manage other admins.
+- `adminPermissions: jsonb("admin_permissions")` (nullable) — `null` means FULL access (default for every existing admin). Otherwise a JSON map keyed by page href: `{ "/admin/teams": { view, edit, delete, hidden }, ... }`.
+(These columns must be pushed to the DB before the new code runs, because queries select them.)
+
+PAGE REGISTRY (the permission key for each page is its route href). Define this list on BOTH server and client and keep them in sync:
+/admin (Dashboard), /admin/queue (Review Queue), /admin/team-requests (Team Requests), /admin/teams (Teams), /admin/projects (Projects), /admin/roster (Roster), /admin/leaderboard (Leaderboard), /admin/heatmap (Heatmap), /admin/journals (Journals), /admin/demo-day (Demo Day), /admin/campuses (Campuses), /admin/users (Users), /admin/new-users-requests (New User Requests), /admin/announcements (Announcements), /admin/feedback (Feedback), /admin/audit-log (Audit Log), /admin/campus-insights (Campus Insights), /admin/notifications (Notifications), /admin/config (Config), /admin/resources (Resources).
+
+PERMISSION SEMANTICS (per page, 4 toggles):
+- view = can open/read the page. If off, the page is blocked.
+- edit = can create/update on the page. If off, hide/disable Add/Edit/Save buttons.
+- delete = can delete. If off, hide/disable Delete buttons.
+- hidden = remove the page from the sidebar AND block the URL entirely (overrides the rest).
+- Super admins are never restricted by this map. Admins with `adminPermissions = null` get everything.
+
+BACKEND (in `artifacts/api-server/src`):
+1. Create a pure helper module `lib/admin-permissions.ts` (no express, no db) exporting: the ADMIN_PAGES list, the types (PagePermission, AdminPermissions, PermissionAction), `FULL_PAGE_PERMISSION`, `normalizeAdminPermissions(raw)` (fills defaults for every page), `sanitizeForStorage(raw)` (keeps only known page keys), `isSuperAdmin(user)` (role==="admin" && isSuperAdmin===true), and `canAccessPage(user, pageKey, action)` implementing DEFAULT-ALLOW (super admin or null map → true; unknown page → true; hidden → false; else the action boolean).
+2. Create a route file `routes/admin-permissions.ts` and register it in `routes/index.ts` (add `router.use(...)`). It must re-read the authoritative current user from the DB by `req.user.id` (don't trust the session shape). Endpoints:
+   - `GET /api/admin/access/me` — any admin (incl. super admin). Returns `{ isSuperAdmin, permissions: normalizeAdminPermissions(...), pages: ADMIN_PAGES }` for the caller. 403 for non-admins.
+   - `GET /api/admin/permissions/:userId` — SUPER ADMIN ONLY. Returns that admin's `{ userId, email, role, isSuperAdmin, permissions, pages }`.
+   - `PUT /api/admin/permissions/:userId` — SUPER ADMIN ONLY. Body `{ isSuperAdmin?: boolean, permissions?: map }`. Only valid for users whose role is "admin". ALWAYS persist the per-page map when provided (even while promoting to super admin) so that later un-checking "super admin" restores the exact previous permissions. Use the existing `logAudit(actorId, action, "user", undefined, details)` helper (best-effort) for the change.
+3. Create `bootstrap-superadmins.ts` and call it from `index.ts` inside the existing `runBootstrap()` right AFTER `bootstrapAdmins()` (wrapped in try/catch, same pattern). It reads `SUPER_ADMIN_EMAILS` (comma-separated env) PLUS the primary bootstrap admin email (so there is always at least one super admin), and sets `role="admin", isSuperAdmin=true, isActive=true` for matching emails via an `inArray` update. Idempotent; never demotes anyone; never touches non-listed users. IMPORTANT: do not move bootstrap before `app.listen()`.
+4. Do NOT add the new columns to the auth-user serialization (`toAuthUser`) — the auth response is validated by a generated Zod schema that would strip them. Expose them only through the hand-written endpoints above.
+
+FRONTEND (in `artifacts/brave-dashboard/src`):
+1. Create a hand-written client `lib/admin-access.ts` (same pattern as the existing `lib/membership-api.ts` / `lib/progress-api.ts` — bypass Orval codegen). Export: ADMIN_PAGES (mirror of server), types, `FULL_PAGE_PERMISSION`, `fullPermissions()`, a `useMyAdminAccess(enabled)` react-query hook (queryKey `["admin-access-me"]`, calls `/api/admin/access/me`, `staleTime` 60s, `retry:false`), `canAccess(access, pageKey, action)` and `isHidden(access, pageKey)` (DEFAULT-ALLOW when access is undefined/loading), `pageKeyForLocation(location)` (exact or longest section-prefix match so /admin/teams/123 → /admin/teams), `isRouteBlocked(access, location)` (hidden OR view off; false for super admins), and `fetchUserPermissions(userId)` + `saveUserPermissions(userId, payload)` using `fetch` with `credentials:"include"`.
+2. Create a controlled component `components/admin-permissions-table.tsx` using shadcn `Checkbox`: a table with columns Page | View | Edit | Delete | Hide for every ADMIN_PAGES row, plus a prominent "Move to super admin" checkbox above it. When super admin is on, show the grid disabled/greyed (but keep the values so they’re restored if unchecked). Props: `value`, `onChange`, `superAdmin`, `onSuperAdminChange`, `disabled`.
+3. Create a full page `pages/admin/user-new.tsx` to REPLACE the Add-User modal flow. Fields: first name, last name, email, Role select (Admin/Coordinator/Student), Sign-in method select (SSO / Password — usable for ANY non-student role; students are SSO-only and the select is disabled), Forms user id (when SSO), password + confirm (when Password, min 8, must match), campus select (coordinator/student), niat id / batch (student). When Role = Admin AND the current user is a super admin, render the AdminPermissionsTable + "Move to super admin" toggle below. On submit: POST the user to the existing `POST /api/admin/users` (body exactly: `{ formsUserId, email, firstName, lastName, role, campusId, niatId, batchSectionName, password }` with nulls where empty; admin campusId = null), read the created user's `id` from the response, then if it’s an admin and you’re a super admin, call `saveUserPermissions(id, { isSuperAdmin, permissions })`. Invalidate the users list query and navigate back to /admin/users. If the current admin is NOT a super admin, hide the permissions section (the admin is created with full access).
+4. Create a page `pages/admin/user-permissions.tsx` (super-admin edit of an existing admin). Read `:id` via wouter `useParams<{ id: string }>()`, `fetchUserPermissions(id)` on mount, render AdminPermissionsTable, and `saveUserPermissions` on Save. Show a forbidden message if the fetch 403s.
+5. Wire routes in `App.tsx` (place specific routes BEFORE `/admin/users`): `/admin/users/new` and `/admin/users/:id/permissions`, both as `<ProtectedRoute allowedRoles={["admin"]}>`.
+6. In `App.tsx` `ProtectedRoute`: call `useMyAdminAccess(user?.role === "admin")` and `useLocation()` at the TOP (before any early return — hooks must be unconditional), and after the existing role checks add: if `user.role === "admin" && isRouteBlocked(adminAccess, location)` then `<Redirect to="/admin" />`. This blocks hidden/view-off pages by URL for restricted admins only; super admins/unrestricted admins are never affected (default-allow while loading).
+7. In `components/sidebar.tsx`: call `useMyAdminAccess(user?.role === "admin")`, and for `role === "admin" && adminAccess && !adminAccess.isSuperAdmin`, filter the admin nav items (and group children) removing any whose href `isHidden(...)`; drop groups whose children all become hidden. Render the filtered list. Leave student/coordinator menus untouched.
+8. In `pages/admin/users.tsx`: import `useLocation` (wouter) and `useMyAdminAccess`; change the "Add User" button to navigate to `/admin/users/new`; and in each user-row actions dropdown, add a "Permissions" item — shown ONLY when the current user is a super admin AND that row’s user.role === "admin" — that navigates to `/admin/users/${user.id}/permissions`.
+
+UI BEHAVIOR TO ACHIEVE:
+- Super admin: logs in via the same `/admin/login`, sees every page and every button, and can open any admin from the Users list to set per-page permissions or promote/demote with the "Move to super admin" checkbox.
+- Restricted admin: hidden pages vanish from the sidebar and are blocked by URL; view-off pages are blocked; edit-off/delete-off hide those buttons. By default nothing is restricted.
+
+AFTER IMPLEMENTING:
+- Push the schema: `pnpm --filter @workspace/db run push` (adds `users.is_super_admin` and `users.admin_permissions`) — this MUST happen before/with the new code or user/auth queries will error.
+- Run `pnpm run typecheck && pnpm run build`.
+- Optionally set `SUPER_ADMIN_EMAILS` (comma-separated). Otherwise the primary bootstrap admin becomes the first super admin automatically on startup.
+
+ACCEPTANCE CRITERIA:
+1. Existing admins/coordinators/students behave exactly as before (full access, nothing hidden) with no migration data backfill needed.
+2. A super admin can create an admin with specific view/edit/delete/hide permissions from the new Add User page, and edit an existing admin’s permissions.
+3. Toggling "Move to super admin" on then off restores the admin’s previous per-page permissions.
+4. Hidden pages are removed from the sidebar and blocked by direct URL for the restricted admin only.
+5. Only super admins can see/use the permission controls and the GET/PUT permission endpoints (others get 403).

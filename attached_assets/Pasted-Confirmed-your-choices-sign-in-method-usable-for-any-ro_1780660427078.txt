@@ -1,0 +1,60 @@
+Confirmed your choices: sign-in method usable for any role, and I'll go with my recommended defaults for the rest (backend + UI enforcement, hide/view/edit/delete meanings, same /admin/login). Now here's exactly how it behaves in the UI for each role.
+
+One safety reconciliation on point #4: to avoid locking existing admins out of a page they use today, the Users page itself stays accessible to admins (per their permissions). Only the permission controls inside it (the table + super-admin checkbox + creating/restricting admins) are super-admin-only. This keeps current behavior intact.
+
+1. Super Admin — what they see and do
+Logs in at the same /admin/login. Lands on the same admin dashboard.
+Sidebar shows every admin page — never hidden, never restricted. Every Create/Edit/Delete button is always enabled.
+On the Users page they get extra power that admins don't see:
+The Add User button opens a full new page (not the popup).
+When viewing/editing an admin, they see the permissions table and the "Move to super admin" checkbox.
+They can open any existing admin and tighten or loosen that admin's per-page access live.
+The permission table never applies to a super admin themselves — they're always full-access.
+2. Admin — what they see and do
+By default (all existing admins, and any new admin with nothing changed):
+
+Identical to today — every page in the sidebar, every button works, full CRUD. No visible difference.
+Once a super admin restricts them, the UI reacts like this:
+
+Toggle (per page)	Effect in the admin's UI
+hide = ON	Page disappears from the sidebar, and typing the URL directly is blocked (bounced to dashboard).
+view = ON	Page is visible and readable.
+view = OFF	Page/data not accessible (treated like blocked).
+edit = OFF	Add / Edit / Save buttons are hidden or greyed out on that page. They can still read.
+delete = OFF	Delete buttons hidden or greyed out.
+A restricted admin never sees the permissions table or the super-admin checkbox — those controls simply don't render for them.
+Backend mirrors this: even if they hit the API directly, a blocked action is rejected. So the UI hiding isn't just cosmetic.
+3. The "Add User" page (replaces the popup)
+Clicking Add User navigates to a new route. Layout:
+
+
+Add User
+─────────────────────────────────────────────
+Name        [____________________]
+Email       [____________________]
+Sign-in     ( ) SSO   ( ) Password        ← usable for any role
+Role        [ Admin  ▼ ]   (Student / Coordinator / Admin)
+Campus      [____________]  (for coordinator/student)
+
+┌─ Permissions  (shows ONLY when Role = Admin) ───────────┐
+│ [ ] Move to super admin   ← full access, hides table     │
+│                                                          │
+│  Page              View   Edit   Delete   Hide           │
+│  Dashboard         [✓]    [✓]    [✓]     [ ]            │
+│  Teams             [✓]    [✓]    [✓]     [ ]            │
+│  Projects          [✓]    [✓]    [✓]     [ ]            │
+│  Leaderboard       [✓]    [✓]    [✓]     [ ]            │
+│  …all admin pages… [✓]    [✓]    [✓]     [ ]            │
+└──────────────────────────────────────────────────────────┘
+              [ Cancel ]   [ Create User ]
+Defaults: every box checked, Hide unchecked → new admin = full access, just like today.
+Pick Student/Coordinator → the whole Permissions section is hidden (those roles are untouched).
+Same page is reused for Edit of an existing admin, pre-filled with their current permissions.
+4. The "Move to super admin" checkbox
+Check it → the permission table greys out/collapses (it no longer matters) and on save the user becomes a super admin with full access.
+Uncheck it → they drop back to admin, and the table comes back showing the exact permissions they had before being promoted (we keep that saved, nothing is lost).
+5. Safety recap (so production isn't disturbed)
+No permission record = full access → every existing admin keeps everything automatically.
+Student/coordinator UI: zero change.
+Old Add-User popup stays working until the new page is verified.
+This is the behavior I'll build to. One thing still open before I can write the implementation plan: who is the first super admin? Give me the email of an existing admin to promote (or say "seed via env var at startup"), and I'll then lay out the full step-by-step plan before touching any code.
