@@ -138,9 +138,7 @@ export default function Journal() {
       setBlockers(weekData.journal.blockers ?? "");
       setNextWeekPlan(weekData.journal.nextWeekPlan ?? "");
       setClientsVisited(String(weekData.journal.clientsVisited ?? 0));
-      setActiveConversations(
-        String(weekData.journal.activeConversations ?? 0),
-      );
+      setActiveConversations(String(weekData.journal.activeConversations ?? 0));
       setProjectsStarted(String(weekData.journal.projectsStarted ?? 0));
       setProjectsClosed(String(weekData.journal.projectsClosed ?? 0));
     } else if (weekData && !weekData.journal) {
@@ -358,7 +356,7 @@ export default function Journal() {
                       testId: "journal-projects-started",
                     },
                     {
-                      label: "Projects closed",
+                      label: "Projects complete",
                       value: projectsClosed,
                       setValue: setProjectsClosed,
                       testId: "journal-projects-closed",

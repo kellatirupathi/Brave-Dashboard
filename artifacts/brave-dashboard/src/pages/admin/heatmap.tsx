@@ -89,11 +89,19 @@ const FUNNEL_STAGE_META: Record<
     icon: <LogIn className="h-4 w-4" />,
     color: "bg-sky-500",
   },
+  registered_students: {
+    icon: <Users className="h-4 w-4" />,
+    color: "bg-indigo-500",
+  },
   students_logged_in: {
     icon: <LogIn className="h-4 w-4" />,
     color: "bg-cyan-500",
   },
   never_logged_in_students: {
+    icon: <UserX className="h-4 w-4" />,
+    color: "bg-rose-500",
+  },
+  students_not_logged_in: {
     icon: <UserX className="h-4 w-4" />,
     color: "bg-rose-500",
   },
@@ -124,14 +132,30 @@ const FUNNEL_STAGE_META: Record<
 const FUNNEL_STAGE_HEX: Record<string, string> = {
   registered_teams: "#94a3b8", // slate-400
   teams_logged_in: "#0ea5e9", // sky-500
+  registered_students: "#6366f1", // indigo-500
   students_logged_in: "#06b6d4", // cyan-500
   never_logged_in_students: "#f43f5e", // rose-500
+  students_not_logged_in: "#f43f5e", // rose-500
   submitted_journal: "#3b82f6", // blue-500
   visited_client: "#8b5cf6", // violet-500
   active_conversation: "#d946ef", // fuchsia-500
   started_project: "#f59e0b", // amber-500
   closed_project: "#10b981", // emerald-500
 };
+
+// The Teams funnel = the team-level journey through the programme, in order.
+// Labels are team-centric (the Teams tab makes the subject explicit). Keys
+// match the backend analytics payload. The Students funnel is derived
+// separately from `totals` + the student login counts.
+const TEAM_FUNNEL_STAGES: { key: string; label: string }[] = [
+  { key: "registered_teams", label: "Registered teams" },
+  { key: "teams_logged_in", label: "Teams logged in" },
+  { key: "submitted_journal", label: "Submitted a journal" },
+  { key: "visited_client", label: "Visited a client" },
+  { key: "active_conversation", label: "Active conversation" },
+  { key: "started_project", label: "Started a project" },
+  { key: "closed_project", label: "Completed a project" },
+];
 
 // Colour for a step-conversion pill: green = healthy retention, amber =
 // moderate, red = heavy drop-off. Lets admins spot the leaky step at a glance.
@@ -145,18 +169,32 @@ function conversionPillClass(pct: number): string {
 // left edge and a full-width track, so the coloured fill (= share of the top
 // stage) visibly tapers down the list. The right rail shows the headline count,
 // % of the top stage, and a colour-coded step-to-step conversion pill.
-const NEVER_LOGGED_KEY = "never_logged_in_students";
-
 function FunnelChart({
   stages,
   loading,
   engagement,
+  rangeActiveCount,
+  successCount,
+  successLabel,
+  inverseKey = null,
+  remindTargetCount = 0,
   onRemindNeverLogged,
   remindingNeverLogged,
 }: {
   stages: { key: string; label: string; count: number }[];
   loading: boolean;
   engagement?: { dau: number; wau: number };
+  // Active-user count for the headline card (always programme-wide students).
+  rangeActiveCount: number;
+  // Numerator + caption for the "overall conversion" headline (e.g. teams that
+  // completed a project, or students that logged in).
+  successCount: number;
+  successLabel: string;
+  // A stage that is an inverse/side-stat (e.g. students NOT logged in): no
+  // conversion pill, and it hosts the "Remind" button. null = none.
+  inverseKey?: string | null;
+  // All-time count actually targeted by the remind action (never-logged-in).
+  remindTargetCount?: number;
   onRemindNeverLogged?: () => void;
   remindingNeverLogged?: boolean;
 }) {
@@ -175,12 +213,7 @@ function FunnelChart({
     );
   }
   const base = stages[0]?.count ?? 0;
-  const final = stages[stages.length - 1]?.count ?? 0;
-  const overall = base > 0 ? (final / base) * 100 : 0;
-  // Active users within the selected date range — this is "Students logged in"
-  // for the chosen window (Today ⇒ daily active, Last week ⇒ weekly active).
-  const rangeActive =
-    stages.find((s) => s.key === "students_logged_in")?.count ?? 0;
+  const overall = base > 0 ? (successCount / base) * 100 : 0;
 
   return (
     <div className="space-y-4" data-testid="funnel-chart">
@@ -202,9 +235,9 @@ function FunnelChart({
             registered
             <br />→{" "}
             <span className="font-semibold text-foreground tabular-nums">
-              {final.toLocaleString("en-IN")}
+              {successCount.toLocaleString("en-IN")}
             </span>{" "}
-            closed a project
+            {successLabel}
           </div>
         </div>
 
@@ -219,7 +252,7 @@ function FunnelChart({
               Active users
             </div>
             <div className="text-2xl font-bold tabular-nums text-primary">
-              {rangeActive.toLocaleString("en-IN")}
+              {rangeActiveCount.toLocaleString("en-IN")}
             </div>
             <div className="text-[11px] text-muted-foreground">
               in selected range
@@ -242,19 +275,20 @@ function FunnelChart({
       {/* Funnel bars. */}
       <div className="space-y-2.5">
         {stages.map((s, i) => {
-          const isNeverLogged = s.key === NEVER_LOGGED_KEY;
+          const isInverse = inverseKey != null && s.key === inverseKey;
           const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
-          // "Never logged-in" is an informational side-stat, not a funnel step.
-          // It carries no conversion pill, and the next real stage chains its
-          // step-conversion off the last genuine funnel stage (skipping it).
+          // An inverse stage (e.g. students NOT logged in) is an informational
+          // side-stat, not a forward funnel step: it carries no conversion
+          // pill, and the next real stage chains off the prior genuine stage.
           const prev = (() => {
             for (let k = i - 1; k >= 0; k--) {
-              if (stages[k].key !== NEVER_LOGGED_KEY) return stages[k];
+              if (!(inverseKey != null && stages[k].key === inverseKey))
+                return stages[k];
             }
             return null;
           })();
           const stepPct =
-            isNeverLogged || !prev || prev.count <= 0
+            isInverse || !prev || prev.count <= 0
               ? null
               : (s.count / prev.count) * 100;
           const meta = FUNNEL_STAGE_META[s.key] ?? {
@@ -315,12 +349,12 @@ function FunnelChart({
                 {/* Remind slot — only the never-logged-in row gets a button;
                     other rows keep an equal-width spacer so columns align. */}
                 <span className="w-24 flex justify-end">
-                  {isNeverLogged && onRemindNeverLogged ? (
+                  {isInverse && onRemindNeverLogged ? (
                     <Button
                       size="sm"
                       variant="outline"
                       className="h-7 px-2 text-xs"
-                      disabled={remindingNeverLogged || s.count === 0}
+                      disabled={remindingNeverLogged || remindTargetCount === 0}
                       onClick={onRemindNeverLogged}
                       title="Send a notification + email to every student who has never logged in"
                       data-testid="funnel-remind-never-logged"
@@ -558,17 +592,29 @@ export default function HeatmapPage() {
 
   // Programme funnel date filter. "Registered teams" baseline ignores this;
   // every other stage is scoped to the chosen range. Default = Today.
-  const [funnelRange, setFunnelRange] = useState<"today" | "week" | "custom">(
-    "today",
+  const [funnelRange, setFunnelRange] = useState<
+    "today" | "week" | "all" | "custom"
+  >("today");
+  // Which entity's funnel is shown — Teams (default) or Students. Same chart,
+  // same controls; only the underlying stage data swaps.
+  const [funnelEntity, setFunnelEntity] = useState<"teams" | "students">(
+    "teams",
   );
   const [customFrom, setCustomFrom] = useState<string>("");
   const [customTo, setCustomTo] = useState<string>("");
 
-  const funnelDateParams = useMemo<{ from?: string; to?: string }>(() => {
+  const funnelDateParams = useMemo<{
+    from?: string;
+    to?: string;
+    range?: "all";
+  }>(() => {
     const fmt = (d: Date) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
         d.getDate(),
       ).padStart(2, "0")}`;
+    if (funnelRange === "all") {
+      return { range: "all" };
+    }
     if (funnelRange === "today") {
       return { from: fmt(new Date()), to: fmt(new Date()) };
     }
@@ -592,6 +638,7 @@ export default function HeatmapPage() {
       campusFilterForApi ?? "all",
       funnelDateParams.from ?? "",
       funnelDateParams.to ?? "",
+      funnelDateParams.range ?? "",
     ],
     queryFn: () =>
       getHeatmapAnalytics({
@@ -600,6 +647,63 @@ export default function HeatmapPage() {
       }),
     enabled: activeTab === "funnel",
   });
+
+  // Split the single analytics payload into the two funnels. The Teams funnel
+  // is the team-level journey (always 7 stages); the Students funnel is
+  // registration → logged in → not logged in, derived from totals + the
+  // student login counts (both scoped to the selected range; "All time" ⇒
+  // ever / never).
+  const teamFunnelStages = useMemo(() => {
+    const byKey = new Map(
+      (analytics?.funnel ?? []).map((s) => [s.key, s.count] as const),
+    );
+    return TEAM_FUNNEL_STAGES.map((t) => ({
+      key: t.key,
+      label: t.label,
+      count: byKey.get(t.key) ?? 0,
+    }));
+  }, [analytics]);
+  const studentFunnelStages = useMemo(() => {
+    const total = analytics?.totals.totalStudents ?? 0;
+    const loggedIn =
+      (analytics?.funnel ?? []).find((s) => s.key === "students_logged_in")
+        ?.count ?? 0;
+    return [
+      {
+        key: "registered_students",
+        label: "Registered students",
+        count: total,
+      },
+      {
+        key: "students_logged_in",
+        label: "Students logged in",
+        count: loggedIn,
+      },
+      {
+        key: "students_not_logged_in",
+        label: "Students not logged in",
+        count: Math.max(total - loggedIn, 0),
+      },
+    ];
+  }, [analytics]);
+
+  const isTeamsFunnel = funnelEntity === "teams";
+  const activeFunnelStages = isTeamsFunnel
+    ? teamFunnelStages
+    : studentFunnelStages;
+  // Headline "overall conversion" endpoint per entity.
+  const funnelSuccessCount = isTeamsFunnel
+    ? (teamFunnelStages.find((s) => s.key === "closed_project")?.count ?? 0)
+    : (studentFunnelStages.find((s) => s.key === "students_logged_in")?.count ??
+      0);
+  const funnelSuccessLabel = isTeamsFunnel
+    ? "completed a project"
+    : "logged in";
+  const funnelInverseKey = isTeamsFunnel ? null : "students_not_logged_in";
+  // Active-users card is always programme-wide student logins for the range.
+  const funnelRangeActive =
+    (analytics?.funnel ?? []).find((s) => s.key === "students_logged_in")
+      ?.count ?? 0;
 
   // Per-student funnel table.
   const [studentQuery, setStudentQuery] = useState("");
@@ -820,11 +924,11 @@ export default function HeatmapPage() {
                 <div className="max-w-4xl">
                   <CardTitle className="text-base">Programme Funnel</CardTitle>
                   <CardDescription>
-                    Team-level progression through the programme.{" "}
-                    <em>Registered teams</em> is the baseline (all-time); every
-                    other stage counts activity within the selected date range.
-                    Each row shows count · % of the top stage · step-to-step
-                    conversion.
+                    Switch between the <em>Teams</em> and <em>Students</em>{" "}
+                    funnels below. The first stage (registered) is the all-time
+                    baseline; every other stage counts activity within the
+                    selected date range. Each row shows count · % of the top
+                    stage · step-to-step conversion.
                   </CardDescription>
                 </div>
                 {/* Controls stack — top row holds the range dropdown then the
@@ -836,7 +940,7 @@ export default function HeatmapPage() {
                     <Select
                       value={funnelRange}
                       onValueChange={(v) =>
-                        setFunnelRange(v as "today" | "week" | "custom")
+                        setFunnelRange(v as "today" | "week" | "all" | "custom")
                       }
                     >
                       <SelectTrigger
@@ -848,6 +952,7 @@ export default function HeatmapPage() {
                       <SelectContent>
                         <SelectItem value="today">Today</SelectItem>
                         <SelectItem value="week">Last week</SelectItem>
+                        <SelectItem value="all">All time</SelectItem>
                         <SelectItem value="custom">Custom range</SelectItem>
                       </SelectContent>
                     </Select>
@@ -934,27 +1039,56 @@ export default function HeatmapPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-2">
+              {/* Teams / Students switch — same chart + controls, different
+                  data. Defaults to Teams. */}
+              <Tabs
+                value={funnelEntity}
+                onValueChange={(v) =>
+                  setFunnelEntity(v as "teams" | "students")
+                }
+                className="mb-4"
+              >
+                <TabsList>
+                  <TabsTrigger value="teams" data-testid="funnel-entity-teams">
+                    Teams
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="students"
+                    data-testid="funnel-entity-students"
+                  >
+                    Students
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
               {funnelView === "chart" ? (
                 analyticsLoading ? (
                   <div className="flex justify-center py-12">
                     <Spinner className="size-8" />
                   </div>
-                ) : (analytics?.funnel ?? []).length === 0 ? (
+                ) : activeFunnelStages.length === 0 ? (
                   <div className="text-sm text-muted-foreground py-12 text-center">
                     No funnel data yet.
                   </div>
                 ) : (
                   <FunnelBarChart
-                    stages={analytics?.funnel ?? []}
+                    stages={activeFunnelStages}
                     orientation={funnelChartOrientation}
                   />
                 )
               ) : (
                 <FunnelChart
-                  stages={analytics?.funnel ?? []}
+                  stages={activeFunnelStages}
                   loading={analyticsLoading}
                   engagement={analytics?.engagement}
-                  onRemindNeverLogged={() => setRemindNeverOpen(true)}
+                  rangeActiveCount={funnelRangeActive}
+                  successCount={funnelSuccessCount}
+                  successLabel={funnelSuccessLabel}
+                  inverseKey={funnelInverseKey}
+                  remindTargetCount={neverLoggedCount}
+                  onRemindNeverLogged={
+                    isTeamsFunnel ? undefined : () => setRemindNeverOpen(true)
+                  }
                   remindingNeverLogged={remindNeverMut.isPending}
                 />
               )}

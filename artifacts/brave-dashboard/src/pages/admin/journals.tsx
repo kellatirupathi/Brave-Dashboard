@@ -25,7 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Command,
   CommandEmpty,
@@ -397,7 +401,7 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                           ["Clients visited", j.clientsVisited],
                           ["Active conversations", j.activeConversations],
                           ["Projects started", j.projectsStarted],
-                          ["Projects closed", j.projectsClosed],
+                          ["Projects complete", j.projectsClosed],
                         ] as const
                       ).map(([label, value]) => (
                         <div

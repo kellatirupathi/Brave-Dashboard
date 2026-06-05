@@ -16,7 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShieldCheck } from "lucide-react";
+import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
+import { Check, Minus, ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Props = {
   permissions: AdminPermissions;
@@ -27,6 +29,53 @@ type Props = {
 };
 
 type Field = keyof PagePermission;
+
+// The four toggleable columns, in render order. Each gets a "select/deselect
+// all" checkbox in the header that drives every row's value for that field.
+const COLUMNS: { field: Field; label: string }[] = [
+  { field: "view", label: "View" },
+  { field: "edit", label: "Edit" },
+  { field: "delete", label: "Delete" },
+  { field: "hidden", label: "Hide" },
+];
+
+// Header "select all" checkbox. Tri-state: filled check when every page is on,
+// a minus when only some are on, empty when none. Clicking when not fully on
+// selects all; clicking when fully on deselects all.
+function ColumnToggle({
+  state,
+  disabled,
+  onToggle,
+  testId,
+  ariaLabel,
+}: {
+  state: boolean | "indeterminate";
+  disabled?: boolean;
+  onToggle: (next: boolean) => void;
+  testId: string;
+  ariaLabel: string;
+}) {
+  return (
+    <CheckboxPrimitive.Root
+      checked={state}
+      disabled={disabled}
+      onCheckedChange={(v) => onToggle(v === true)}
+      aria-label={ariaLabel}
+      data-testid={testId}
+      className={cn(
+        "grid place-content-center peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground",
+      )}
+    >
+      <CheckboxPrimitive.Indicator className="grid place-content-center text-current">
+        {state === "indeterminate" ? (
+          <Minus className="h-4 w-4" />
+        ) : (
+          <Check className="h-4 w-4" />
+        )}
+      </CheckboxPrimitive.Indicator>
+    </CheckboxPrimitive.Root>
+  );
+}
 
 export function AdminPermissionsTable({
   permissions,
@@ -46,6 +95,29 @@ export function AdminPermissionsTable({
       ...permissions,
       [href]: { ...current, [field]: value },
     });
+  };
+
+  // Set one field across every page in a single change (header "select all").
+  const setColumn = (field: Field, value: boolean) => {
+    const next: AdminPermissions = { ...permissions };
+    for (const page of ADMIN_PAGES) {
+      const current = next[page.href] ?? { ...FULL_PAGE_PERMISSION };
+      next[page.href] = { ...current, [field]: value };
+    }
+    onChange(next);
+  };
+
+  // Resolve a column's header checkbox state: all on → true, none on → false,
+  // mixed → "indeterminate".
+  const columnState = (field: Field): boolean | "indeterminate" => {
+    let checked = 0;
+    for (const page of ADMIN_PAGES) {
+      const perm = permissions[page.href] ?? FULL_PAGE_PERMISSION;
+      if (perm[field]) checked++;
+    }
+    if (checked === 0) return false;
+    if (checked === ADMIN_PAGES.length) return true;
+    return "indeterminate";
   };
 
   return (
@@ -75,10 +147,20 @@ export function AdminPermissionsTable({
           <TableHeader>
             <TableRow>
               <TableHead className="min-w-[180px]">Page</TableHead>
-              <TableHead className="text-center">View</TableHead>
-              <TableHead className="text-center">Edit</TableHead>
-              <TableHead className="text-center">Delete</TableHead>
-              <TableHead className="text-center">Hide</TableHead>
+              {COLUMNS.map((col) => (
+                <TableHead key={col.field} className="text-center">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span>{col.label}</span>
+                    <ColumnToggle
+                      state={columnState(col.field)}
+                      disabled={gridDisabled}
+                      onToggle={(v) => setColumn(col.field, v)}
+                      testId={`checkbox-col-${col.field}`}
+                      ariaLabel={`Select all ${col.label} for every page`}
+                    />
+                  </div>
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>

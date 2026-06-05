@@ -171,7 +171,7 @@ export function JournalEditDialog({
                   testId: "edit-journal-projects-started",
                 },
                 {
-                  label: "Projects closed",
+                  label: "Projects complete",
                   value: projectsClosed,
                   setValue: setProjectsClosed,
                   testId: "edit-journal-projects-closed",

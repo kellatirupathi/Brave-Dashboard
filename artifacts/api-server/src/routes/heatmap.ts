@@ -562,7 +562,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
             count: 0,
           },
           { key: "started_project", label: "Projects started", count: 0 },
-          { key: "closed_project", label: "Projects closed", count: 0 },
+          { key: "closed_project", label: "Projects complete", count: 0 },
         ],
         engagement: { dau: 0, wau: 0 },
       });
@@ -594,8 +594,12 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
   };
-  let rangeStart = parseBoundary(req.query.from, false);
-  let rangeEnd = parseBoundary(req.query.to, true);
+  // "All time" mode (?range=all) drops the date scoping entirely so every
+  // stage counts activity since the beginning. Otherwise fall back to the
+  // from/to bounds, defaulting to "today" when neither is supplied.
+  const allTime = req.query.range === "all";
+  let rangeStart = allTime ? new Date(0) : parseBoundary(req.query.from, false);
+  let rangeEnd = allTime ? nowTs : parseBoundary(req.query.to, true);
   if (!rangeStart) {
     rangeStart = new Date(
       nowTs.getFullYear(),
@@ -772,7 +776,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
       },
       {
         key: "closed_project",
-        label: "Projects closed",
+        label: "Projects complete",
         count: Number(f?.closed_project ?? 0),
       },
     ],

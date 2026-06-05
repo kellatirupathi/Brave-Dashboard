@@ -108,14 +108,9 @@ function safeFilename(s: string): string {
   return s.replace(/[^a-z0-9-_.]+/gi, "_").slice(0, 80);
 }
 
-function SortIcon({
-  active,
-  dir,
-}: {
-  active: boolean;
-  dir: SortDir;
-}) {
-  if (!active) return <ArrowUpDown className="ml-1 inline h-3 w-3 opacity-50" />;
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active)
+    return <ArrowUpDown className="ml-1 inline h-3 w-3 opacity-50" />;
   return dir === "asc" ? (
     <ArrowUp className="ml-1 inline h-3 w-3" />
   ) : (
@@ -198,8 +193,9 @@ export default function AdminCampusInsights() {
 
   const isLoading = isOverview ? loadingOverview : loadingCampus;
   const programmeWeeksTotal =
-    (isOverview ? overview?.programmeWeeksTotal : campusView?.programmeWeeksTotal) ??
-    0;
+    (isOverview
+      ? overview?.programmeWeeksTotal
+      : campusView?.programmeWeeksTotal) ?? 0;
 
   // ----- Sorting state -----
   const [campusSort, setCampusSort] = useState<{
@@ -299,7 +295,7 @@ export default function AdminCampusInsights() {
     "Clients visited",
     "Active conversations",
     "Projects started",
-    "Projects closed",
+    "Projects complete",
   ];
   const teamHeaders = [
     "Team",
@@ -311,7 +307,7 @@ export default function AdminCampusInsights() {
     "Clients visited",
     "Active conversations",
     "Projects started",
-    "Projects closed",
+    "Projects complete",
   ];
 
   const weekTag = urlWeek != null ? `Week: ${urlWeek}` : "All weeks";
@@ -645,7 +641,7 @@ export default function AdminCampusInsights() {
                     className="text-right cursor-pointer select-none"
                     onClick={() => toggleCampusSort("projectsClosed")}
                   >
-                    Projects closed
+                    Projects complete
                     <SortIcon
                       active={campusSort.key === "projectsClosed"}
                       dir={campusSort.dir}
@@ -806,7 +802,7 @@ export default function AdminCampusInsights() {
                     className="text-right cursor-pointer select-none"
                     onClick={() => toggleTeamSort("projectsClosed")}
                   >
-                    Projects closed
+                    Projects complete
                     <SortIcon
                       active={teamSort.key === "projectsClosed"}
                       dir={teamSort.dir}
@@ -892,10 +888,7 @@ function WeekFilterDropdown({
   onChange: (next: number | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const label =
-    value == null
-      ? "All weeks"
-      : `Week ${value}`;
+  const label = value == null ? "All weeks" : `Week ${value}`;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -1056,4 +1049,3 @@ function CampusFilterPopover({
     </Popover>
   );
 }
-
