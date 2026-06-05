@@ -8,6 +8,7 @@ import {
   Search,
   CheckCircle2,
   X,
+  ArrowDown,
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
@@ -54,8 +55,43 @@ import {
   type HeatmapStudentRow,
 } from "@/lib/progress-api";
 
-// (Per-stage funnel colours/icons removed — the funnel now renders as plain
-// rows: label · count · % of total, with no bars, cards, or colours.)
+// Coral funnel palette — matches the BRAVE brand. Each layer's fill is
+// interpolated from a lighter coral at the top to a deeper coral at the bottom
+// so the stacked funnel reads with subtle depth (t in [0,1], top → bottom).
+function funnelColor(t: number): string {
+  const top = [232, 150, 130]; // light coral
+  const bottom = [199, 102, 78]; // deep coral
+  const k = Math.min(Math.max(t, 0), 1);
+  const c = top.map((v, i) => Math.round(v + (bottom[i] - v) * k));
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+
+// Compact label shown inside each funnel layer + a short form for the "top
+// drop-off" arrow. Falls back to the stage's own label when a key is unmapped.
+const FUNNEL_LABELS: Record<string, { display: string; short: string }> = {
+  registered_teams: {
+    display: "Total registered teams",
+    short: "Registration",
+  },
+  teams_logged_in: { display: "Teams logged in", short: "Login" },
+  submitted_journal: { display: "Submitted journals", short: "Journals" },
+  visited_client: { display: "Visited clients", short: "Client visit" },
+  active_conversation: {
+    display: "Active conversation",
+    short: "Conversation",
+  },
+  started_project: { display: "Project started", short: "Project start" },
+  closed_project: { display: "Project complete", short: "Complete" },
+  registered_students: {
+    display: "Total registered students",
+    short: "Registration",
+  },
+  students_logged_in: { display: "Students logged in", short: "Login" },
+  students_not_logged_in: {
+    display: "Students not logged in",
+    short: "Not logged in",
+  },
+};
 
 // The Teams funnel = the team-level journey through the programme, in order.
 // Labels are team-centric (the Teams tab makes the subject explicit). Keys
@@ -83,10 +119,11 @@ const TEAM_FUNNEL_STAGES: { key: string; label: string }[] = [
   },
 ];
 
-// A plain, no-frills funnel. Each stage is a single row showing the label, the
-// count, and the % of the top stage — no bars, no cards, no per-stage colours.
-// The inverse side-stat (e.g. students who never logged in) is just another row
-// that additionally hosts the Remind CTA.
+// A true funnel chart (coral trapezoids that narrow as they descend). Each layer
+// holds the label, count, and a % pill; a "Drop-off" badge sits on the seam
+// between layers. A headline bar shows overall conversion + active-user stats,
+// and a side panel flags the "Top Drop-off Point" (biggest single-step leak).
+// The inverse side-stat (students who never logged in) keeps its Remind CTA.
 function FunnelChart({
   stages,
   loading,
@@ -133,68 +170,198 @@ function FunnelChart({
 
   const base = stages[0]?.count ?? 0;
   const overall = base > 0 ? (successCount / base) * 100 : 0;
+  const subjectNoun = inverseKey != null ? "students" : "teams";
+
+  // Forward stages form the funnel; an inverse stage (students who never logged
+  // in) is shown as a "leftover" callout in the side panel with the Remind CTA.
+  const forward = stages.filter(
+    (s) => !(inverseKey != null && s.key === inverseKey),
+  );
+  const inverseStage =
+    inverseKey != null ? stages.find((s) => s.key === inverseKey) : undefined;
+  const n = forward.length;
+
+  // Even, eased taper (decoupled from raw counts) so the funnel always reads as
+  // a clean inverted pyramid — magnitude is carried by the count, % pill, and
+  // drop-off badge, exactly like the reference. Width is a % of the funnel box.
+  const STEP = 9;
+  const FLOOR = 42;
+  const widthPct = (i: number) => Math.max(100 - i * STEP, FLOOR);
+
+  // Biggest single-step leak, for the "Top Drop-off Point" card.
+  let topDrop: {
+    fromKey: string;
+    fromLabel: string;
+    toKey: string;
+    toLabel: string;
+    dropped: number;
+    pct: number;
+  } | null = null;
+  for (let i = 1; i < n; i++) {
+    const prev = forward[i - 1];
+    const cur = forward[i];
+    const dropped = Math.max(prev.count - cur.count, 0);
+    if (!topDrop || dropped > topDrop.dropped) {
+      topDrop = {
+        fromKey: prev.key,
+        fromLabel: prev.label,
+        toKey: cur.key,
+        toLabel: cur.label,
+        dropped,
+        pct: prev.count > 0 ? (dropped / prev.count) * 100 : 0,
+      };
+    }
+  }
 
   return (
     <div className="space-y-4" data-testid="funnel-chart">
-      {/* Plain one-line summary — no cards, no colours. */}
-      <div
-        className="text-sm text-muted-foreground"
-        data-testid="funnel-active-users"
-      >
-        Overall conversion{" "}
-        <span className="font-semibold text-foreground tabular-nums">
-          {overall.toFixed(1)}%
-        </span>{" "}
-        ({base.toLocaleString("en-IN")} → {successCount.toLocaleString("en-IN")}{" "}
-        {successLabel}) · Active{" "}
-        <span className="font-semibold text-foreground tabular-nums">
-          {rangeActiveCount.toLocaleString("en-IN")}
-        </span>{" "}
-        · {(engagement?.dau ?? 0).toLocaleString("en-IN")} daily ·{" "}
-        {(engagement?.wau ?? 0).toLocaleString("en-IN")} weekly
-      </div>
-
-      {/* Funnel — one plain row per stage: label · count · % of total. */}
-      <div className="border-t">
-        {stages.map((s) => {
-          const isInverse = inverseKey != null && s.key === inverseKey;
-          const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
-          return (
-            <div
-              key={s.key}
-              className="flex items-center justify-between gap-4 border-b py-2.5"
-              data-testid={`funnel-stage-${s.key}`}
-            >
-              <span className="min-w-0 truncate text-sm" title={s.label}>
-                {s.label}
-              </span>
-              <div className="flex shrink-0 items-center gap-4 tabular-nums sm:gap-6">
-                <span className="w-20 text-right text-sm font-semibold">
-                  {s.count.toLocaleString("en-IN")}
-                </span>
-                <span className="w-12 text-right text-sm text-muted-foreground">
-                  {pctOfTotal.toFixed(0)}%
-                </span>
-                {isInverse && onRemindNeverLogged ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 shrink-0"
-                    disabled={remindingNeverLogged || remindTargetCount === 0}
-                    onClick={onRemindNeverLogged}
-                    title="Send a notification + email to every student who has never logged in"
-                    data-testid="funnel-remind-never-logged"
-                  >
-                    <Bell className="mr-1 h-3 w-3" />
-                    {remindingNeverLogged
-                      ? "Sending…"
-                      : `Remind ${remindTargetCount.toLocaleString("en-IN")}`}
-                  </Button>
-                ) : null}
+      {/* Headline bar — overall conversion + active-user stats. */}
+      <div className="flex flex-col gap-3 rounded-xl border bg-gradient-to-r from-rose-50/60 via-background to-indigo-50/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-2xl font-bold tracking-tight text-[#c96a50]">
+            Overall conversion {overall.toFixed(1)}%
+          </div>
+          <div className="mt-0.5 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {base.toLocaleString("en-IN")}
+            </span>{" "}
+            {subjectNoun} registered →{" "}
+            <span className="font-medium text-foreground">
+              {successCount.toLocaleString("en-IN")}
+            </span>{" "}
+            {successLabel}
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-6" data-testid="funnel-active-users">
+          {[
+            { label: "Active", value: rangeActiveCount },
+            { label: "Daily avg", value: engagement?.dau ?? 0 },
+            { label: "Weekly active", value: engagement?.wau ?? 0 },
+          ].map((stat) => (
+            <div key={stat.label}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {stat.label}
+              </div>
+              <div className="text-lg font-bold tabular-nums">
+                {stat.value.toLocaleString("en-IN")}
               </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
+      </div>
+
+      {/* Funnel + side panel. */}
+      <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
+        {/* The funnel — stacked coral trapezoids; drop-off badges on the seams. */}
+        <div className="rounded-xl border bg-gradient-to-b from-rose-50/50 to-transparent p-4 sm:p-6">
+          <div className="flex flex-col items-stretch">
+            {forward.map((s, i) => {
+              const wTop = widthPct(i);
+              const wBot =
+                i < n - 1
+                  ? widthPct(i + 1)
+                  : Math.max(wTop - STEP, FLOOR * 0.8);
+              const rBot = wBot / wTop; // bottom edge as a fraction of this layer's width
+              const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
+              const prev = i > 0 ? forward[i - 1] : null;
+              const dropped = prev ? Math.max(prev.count - s.count, 0) : 0;
+              const dropPct =
+                prev && prev.count > 0 ? (dropped / prev.count) * 100 : 0;
+              return (
+                <div key={s.key} className="flex flex-col items-stretch">
+                  {/* Drop-off badge sitting on the seam above this layer. */}
+                  {i > 0 ? (
+                    <div className="relative z-10 -my-2 flex justify-center">
+                      <span className="inline-flex items-center gap-1 rounded-full border bg-white px-2.5 py-0.5 text-[11px] font-semibold text-[#c96a50] shadow-sm">
+                        <ArrowDown className="h-3 w-3" />
+                        <span>{`-${dropPct.toFixed(0)}% Drop-off`}</span>
+                      </span>
+                    </div>
+                  ) : null}
+
+                  {/* Trapezoid layer: label · count · % pill, in white. */}
+                  <div
+                    className="relative mx-auto flex h-14 items-center"
+                    style={{
+                      width: `${wTop}%`,
+                      background: funnelColor(n > 1 ? i / (n - 1) : 0),
+                      clipPath: `polygon(0 0, 100% 0, ${(50 + rBot * 50).toFixed(2)}% 100%, ${(50 - rBot * 50).toFixed(2)}% 100%)`,
+                    }}
+                    data-testid={`funnel-stage-${s.key}`}
+                  >
+                    <div className="flex w-full items-center gap-2 px-5 text-white">
+                      <span
+                        className="flex-1 truncate text-sm font-medium"
+                        title={s.label}
+                      >
+                        {FUNNEL_LABELS[s.key]?.display ?? s.label}
+                      </span>
+                      <span className="text-lg font-bold tabular-nums">
+                        {s.count.toLocaleString("en-IN")}
+                      </span>
+                      <span className="shrink-0 rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+                        {pctOfTotal.toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Side panel: top drop-off point + inverse leftover/Remind. */}
+        <div className="space-y-4">
+          <div className="rounded-xl border bg-card p-4">
+            <div className="text-sm font-semibold">Top Drop-off Point</div>
+            {topDrop ? (
+              <div className="mt-3 rounded-lg border-l-4 border-[#c96a50] bg-rose-50/60 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[#c96a50]">
+                  {FUNNEL_LABELS[topDrop.fromKey]?.short ?? topDrop.fromLabel} →{" "}
+                  {FUNNEL_LABELS[topDrop.toKey]?.short ?? topDrop.toLabel}
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">
+                    {topDrop.dropped.toLocaleString("en-IN")} {subjectNoun}
+                  </span>{" "}
+                  ({topDrop.pct.toFixed(0)}%) dropped off at this step — the
+                  funnel's biggest single leak.
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-muted-foreground">
+                No drop-off to report yet.
+              </div>
+            )}
+          </div>
+
+          {inverseStage ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-[#c96a50]">
+                {FUNNEL_LABELS[inverseStage.key]?.display ?? inverseStage.label}
+              </div>
+              <div className="mt-0.5 text-2xl font-bold tabular-nums text-rose-700">
+                {inverseStage.count.toLocaleString("en-IN")}
+              </div>
+              {onRemindNeverLogged ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 h-8 w-full border-rose-200 text-rose-700 hover:bg-rose-100 hover:text-rose-800"
+                  disabled={remindingNeverLogged || remindTargetCount === 0}
+                  onClick={onRemindNeverLogged}
+                  title="Send a notification + email to every student who has never logged in"
+                  data-testid="funnel-remind-never-logged"
+                >
+                  <Bell className="mr-1 h-3 w-3" />
+                  {remindingNeverLogged
+                    ? "Sending…"
+                    : `Remind ${remindTargetCount.toLocaleString("en-IN")}`}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
