@@ -15,22 +15,10 @@ import {
   MessageCircle,
   Rocket,
   PackageCheck,
-  BarChart3,
-  List,
   UserX,
-  ChevronDown,
+  TrendingDown,
+  Target,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  LabelList,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
   Card,
@@ -128,8 +116,9 @@ const FUNNEL_STAGE_META: Record<
   },
 };
 
-// Hex equivalents of the Tailwind funnel colours above — recharts needs real
-// colour values, not class names. Keyed by the same backend stage `key`.
+// Hex equivalents of the Tailwind funnel colours above — the conic-gradient
+// node rings and the gradient spine need real colour values, not class names.
+// Keyed by the same backend stage `key`.
 const FUNNEL_STAGE_HEX: Record<string, string> = {
   registered_teams: "#94a3b8", // slate-400
   teams_logged_in: "#0ea5e9", // sky-500
@@ -178,11 +167,13 @@ function conversionPillClass(pct: number): string {
   return "bg-red-100 text-red-700";
 }
 
-// A bar-free conversion funnel: a connected vertical flow of stage cards. Each
-// card shows the stage name, count, and its share of the top stage as a
-// circular % ring (no bars). The connector between cards carries the
-// step-to-step conversion and absolute drop-off, so it still reads top-down as
-// a funnel — just more glanceable and less chart-like.
+// A bar-free "flow journey" funnel. A single continuous gradient spine is
+// threaded through radial share-of-total nodes (each node = a conic ring with
+// the stage icon at its core). The retention ribbon riding into every node
+// carries the step-to-step conversion and the absolute drop-off, so leakage
+// reads on one top-down scan — no bars, no axes. The inverse side-stat (e.g.
+// students who never logged in) renders as a dashed rose "leftover" aside that
+// hosts the Remind CTA, never as a forward success step.
 function FunnelChart({
   stages,
   loading,
@@ -228,74 +219,88 @@ function FunnelChart({
   }
   const base = stages[0]?.count ?? 0;
   const overall = base > 0 ? (successCount / base) * 100 : 0;
+  const overallRing = Math.min(Math.max(overall, 0), 100);
 
   return (
-    <div className="space-y-4" data-testid="funnel-chart">
-      {/* Headline summary — overall conversion + active users. */}
+    <div className="space-y-5" data-testid="funnel-chart">
+      {/* Headline tiles — overall conversion (with a radial echo) + active
+          users. Soft gradient washes give each tile its own identity. */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
-          <div>
+        <div className="flex items-center gap-4 overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.07] to-transparent px-4 py-3.5">
+          <div
+            className="relative h-14 w-14 shrink-0"
+            title={`${overall.toFixed(1)}% overall conversion`}
+          >
+            <div
+              className="h-14 w-14 rounded-full"
+              style={{
+                background: `conic-gradient(hsl(var(--primary)) ${overallRing}%, hsl(var(--muted)) ${overallRing}% 100%)`,
+              }}
+            />
+            <div className="absolute inset-[3px] flex items-center justify-center rounded-full bg-card">
+              <Target className="h-5 w-5 text-primary" />
+            </div>
+          </div>
+          <div className="min-w-0">
             <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               Overall conversion
             </div>
-            <div className="text-2xl font-bold tabular-nums text-primary">
+            <div className="text-3xl font-bold leading-tight tabular-nums text-primary">
               {overall.toFixed(1)}%
             </div>
-          </div>
-          <div className="text-right text-xs text-muted-foreground leading-relaxed">
-            <span className="font-semibold text-foreground tabular-nums">
-              {base.toLocaleString("en-IN")}
-            </span>{" "}
-            registered
-            <br />→{" "}
-            <span className="font-semibold text-foreground tabular-nums">
-              {successCount.toLocaleString("en-IN")}
-            </span>{" "}
-            {successLabel}
+            <div className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground tabular-nums">
+                {base.toLocaleString("en-IN")}
+              </span>{" "}
+              registered →{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                {successCount.toLocaleString("en-IN")}
+              </span>{" "}
+              {successLabel}
+            </div>
           </div>
         </div>
 
         {/* Active users — range-aware count, with the fixed 24h / 7d windows
             shown alongside so the daily/weekly active figures are never lost. */}
         <div
-          className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3"
+          className="flex items-center gap-4 overflow-hidden rounded-xl border bg-gradient-to-br from-sky-500/[0.07] to-transparent px-4 py-3.5"
           data-testid="funnel-active-users"
         >
-          <div>
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sky-600">
+            <Activity className="h-6 w-6" />
+          </div>
+          <div className="min-w-0">
             <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Active users
+              Active users · selected range
             </div>
-            <div className="text-2xl font-bold tabular-nums text-primary">
+            <div className="text-3xl font-bold leading-tight tabular-nums text-sky-600">
               {rangeActiveCount.toLocaleString("en-IN")}
             </div>
-            <div className="text-[11px] text-muted-foreground">
-              in selected range
+            <div className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground tabular-nums">
+                {(engagement?.dau ?? 0).toLocaleString("en-IN")}
+              </span>{" "}
+              daily (24h) ·{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                {(engagement?.wau ?? 0).toLocaleString("en-IN")}
+              </span>{" "}
+              weekly (7d)
             </div>
-          </div>
-          <div className="text-right text-xs text-muted-foreground leading-relaxed">
-            <span className="font-semibold text-foreground tabular-nums">
-              {(engagement?.dau ?? 0).toLocaleString("en-IN")}
-            </span>{" "}
-            daily (24h)
-            <br />
-            <span className="font-semibold text-foreground tabular-nums">
-              {(engagement?.wau ?? 0).toLocaleString("en-IN")}
-            </span>{" "}
-            weekly (7d)
           </div>
         </div>
       </div>
 
-      {/* Funnel — a connected vertical flow of stage cards. No bars: each
-          stage shows its share of the top stage as a circular % ring, and the
-          connector between cards carries the step-to-step drop-off. */}
-      <div>
+      {/* The journey — a continuous gradient spine threaded through radial
+          share-of-total nodes. Each forward stage shows the retention ribbon
+          (% continued + drop-off) riding in from the stage above. No bars. */}
+      <div className="pl-1">
         {stages.map((s, i) => {
           const isInverse = inverseKey != null && s.key === inverseKey;
           const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
-          // An inverse stage (e.g. students NOT logged in) is an informational
-          // side-stat, not a forward funnel step: no conversion pill, and the
-          // next real stage chains off the prior genuine stage.
+          // Nearest EARLIER non-inverse stage — the side-stat never breaks the
+          // forward chain, so conversion always compares real stage to real
+          // stage.
           const prev = (() => {
             for (let k = i - 1; k >= 0; k--) {
               if (!(inverseKey != null && stages[k].key === inverseKey))
@@ -308,108 +313,191 @@ function FunnelChart({
               ? null
               : (s.count / prev.count) * 100;
           const dropped = prev ? Math.max(prev.count - s.count, 0) : 0;
+          const droppedPct =
+            prev && prev.count > 0 ? (dropped / prev.count) * 100 : 0;
           const meta = FUNNEL_STAGE_META[s.key] ?? {
             icon: null,
             color: "bg-primary",
           };
           const hex = FUNNEL_STAGE_HEX[s.key] ?? "#6366f1";
+          const prevHex = prev
+            ? (FUNNEL_STAGE_HEX[prev.key] ?? "#6366f1")
+            : hex;
+          const nextStage = stages[i + 1];
+          const nextHex = nextStage
+            ? (FUNNEL_STAGE_HEX[nextStage.key] ?? "#6366f1")
+            : hex;
+          const nextIsInverse =
+            inverseKey != null && nextStage?.key === inverseKey;
           const ringPct = Math.min(Math.max(pctOfTotal, 0), 100);
+          const isLast = i === stages.length - 1;
           return (
-            <div key={s.key}>
-              {/* Connector from the previous stage — conversion + drop-off. */}
-              {i > 0 ? (
-                <div className="flex items-center justify-center gap-2 py-1.5">
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  {stepPct !== null ? (
+            <div
+              key={s.key}
+              className="relative grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 sm:gap-x-4"
+              data-testid={`funnel-stage-${s.key}`}
+            >
+              {/* Left rail: incoming spine · node · outgoing spine. */}
+              <div className="relative flex flex-col items-center">
+                {i > 0 ? (
+                  <div className="flex w-full flex-1 justify-center">
+                    <div
+                      className={cn(
+                        "w-1 flex-1",
+                        isInverse
+                          ? "border-l-2 border-dashed border-rose-300"
+                          : "rounded-full",
+                      )}
+                      style={
+                        isInverse
+                          ? undefined
+                          : {
+                              backgroundImage: `linear-gradient(to bottom, ${prevHex}, ${hex})`,
+                            }
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="flex-1" />
+                )}
+
+                {/* Radial share-of-total node with the stage icon at its core
+                    and a floating share badge. */}
+                <div
+                  className="relative my-1.5 h-14 w-14 shrink-0"
+                  title={`${pctOfTotal.toFixed(0)}% of the top stage`}
+                >
+                  <div
+                    className={cn(
+                      "h-14 w-14 rounded-full shadow-sm ring-1",
+                      isInverse ? "ring-rose-200" : "ring-black/5",
+                    )}
+                    style={{
+                      background: `conic-gradient(${hex} ${ringPct}%, hsl(var(--muted)) ${ringPct}% 100%)`,
+                    }}
+                  />
+                  <div
+                    className={cn(
+                      "absolute inset-[4px] flex items-center justify-center rounded-full text-white",
+                      meta.color,
+                    )}
+                  >
+                    {meta.icon}
+                  </div>
+                  <span className="absolute -bottom-1 -right-1 rounded-full border border-background bg-card px-1.5 py-px text-[10px] font-bold tabular-nums text-foreground shadow-sm">
+                    {pctOfTotal.toFixed(0)}%
+                  </span>
+                </div>
+
+                {!isLast ? (
+                  <div className="flex w-full flex-1 justify-center">
+                    <div
+                      className={cn(
+                        "w-1 flex-1",
+                        nextIsInverse
+                          ? "border-l-2 border-dashed border-rose-300"
+                          : "rounded-full",
+                      )}
+                      style={
+                        nextIsInverse
+                          ? undefined
+                          : {
+                              backgroundImage: `linear-gradient(to bottom, ${hex}, ${nextHex})`,
+                            }
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="flex-1" />
+                )}
+              </div>
+
+              {/* Right: retention ribbon · stage card. */}
+              <div className="min-w-0 pb-3 pt-1.5">
+                {/* Retention ribbon — % continued + absolute drop-off. */}
+                {i > 0 && stepPct !== null ? (
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums",
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
                         conversionPillClass(stepPct),
                       )}
                       title="Continued from the previous stage"
                     >
                       {stepPct.toFixed(0)}% continued
-                      {dropped > 0 ? (
-                        <span className="font-normal opacity-80">
-                          {" "}
-                          · −{dropped.toLocaleString("en-IN")}
-                        </span>
-                      ) : null}
                     </span>
-                  ) : (
-                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      remaining
-                    </span>
-                  )}
-                </div>
-              ) : null}
-
-              {/* Stage card. */}
-              <div
-                className={cn(
-                  "flex items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
-                  isInverse && "border-dashed",
-                )}
-                data-testid={`funnel-stage-${s.key}`}
-              >
-                {/* Coloured icon chip. */}
-                <span
-                  className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-lg text-white shrink-0",
-                    meta.color,
-                  )}
-                >
-                  {meta.icon}
-                </span>
-
-                {/* Full stage name + count. */}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium leading-snug">
-                    {s.label}
-                  </div>
-                  <div className="mt-0.5 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold tabular-nums">
-                      {s.count.toLocaleString("en-IN")}
-                    </span>
-                    {i > 0 ? (
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        of {base.toLocaleString("en-IN")}
+                    {dropped > 0 ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-rose-600"
+                        title="Dropped off since the previous stage"
+                      >
+                        <TrendingDown className="h-3 w-3" />−
+                        {dropped.toLocaleString("en-IN")} ·{" "}
+                        {droppedPct.toFixed(0)}%
                       </span>
                     ) : null}
                   </div>
-                </div>
-
-                {/* Remind button (inverse stage only). */}
-                {isInverse && onRemindNeverLogged ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-2.5 text-xs shrink-0"
-                    disabled={remindingNeverLogged || remindTargetCount === 0}
-                    onClick={onRemindNeverLogged}
-                    title="Send a notification + email to every student who has never logged in"
-                    data-testid="funnel-remind-never-logged"
-                  >
-                    <Bell className="h-3 w-3 mr-1" />
-                    Remind
-                  </Button>
                 ) : null}
 
-                {/* Circular % ring — the bar replacement. */}
+                {/* Stage card. */}
                 <div
-                  className="relative h-12 w-12 shrink-0"
-                  title={`${pctOfTotal.toFixed(0)}% of the top stage`}
+                  className={cn(
+                    "rounded-2xl border bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md",
+                    isInverse && "border-dashed border-rose-200 bg-rose-50/40",
+                  )}
                 >
-                  <div
-                    className="h-12 w-12 rounded-full"
-                    style={{
-                      background: `conic-gradient(${hex} ${ringPct}%, hsl(var(--muted)) ${ringPct}% 100%)`,
-                    }}
-                  />
-                  <div className="absolute inset-[3px] flex items-center justify-center rounded-full bg-card">
-                    <span className="text-[11px] font-bold tabular-nums">
-                      {pctOfTotal.toFixed(0)}%
-                    </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      {isInverse ? (
+                        <span className="mb-0.5 inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-rose-500">
+                          <UserX className="h-3 w-3" />
+                          leftover · never logged in
+                        </span>
+                      ) : i === 0 ? (
+                        <span className="mb-0.5 inline-block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          top of funnel
+                        </span>
+                      ) : null}
+                      <div
+                        className="truncate text-sm font-medium leading-snug"
+                        title={s.label}
+                      >
+                        {s.label}
+                      </div>
+                      <div className="mt-0.5 flex items-baseline gap-1.5">
+                        <span
+                          className="text-2xl font-bold tabular-nums"
+                          style={{ color: isInverse ? "#e11d48" : hex }}
+                        >
+                          {s.count.toLocaleString("en-IN")}
+                        </span>
+                        {i > 0 ? (
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            of {base.toLocaleString("en-IN")}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Remind CTA — inverse stage only. */}
+                    {isInverse && onRemindNeverLogged ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 shrink-0 border-rose-200 px-2.5 text-xs text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+                        disabled={
+                          remindingNeverLogged || remindTargetCount === 0
+                        }
+                        onClick={onRemindNeverLogged}
+                        title="Send a notification + email to every student who has never logged in"
+                        data-testid="funnel-remind-never-logged"
+                      >
+                        <Bell className="mr-1 h-3 w-3" />
+                        {remindingNeverLogged
+                          ? "Sending…"
+                          : `Remind ${remindTargetCount.toLocaleString("en-IN")}`}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -417,128 +505,6 @@ function FunnelChart({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// Same funnel data rendered as a real bar chart. `orientation` flips between
-// vertical bars (category on the X axis) and horizontal bars (category on the
-// Y axis), so admins can read it whichever way suits the stage labels.
-function FunnelBarChart({
-  stages,
-  orientation,
-}: {
-  stages: { key: string; label: string; count: number }[];
-  orientation: "vertical" | "horizontal";
-}) {
-  const data = stages.map((s) => ({
-    ...s,
-    fill: FUNNEL_STAGE_HEX[s.key] ?? "#6366f1",
-  }));
-
-  if (orientation === "horizontal") {
-    return (
-      <div data-testid="funnel-bar-chart-horizontal">
-        <ResponsiveContainer
-          width="100%"
-          height={Math.max(280, data.length * 46)}
-        >
-          <BarChart
-            data={data}
-            layout="vertical"
-            margin={{ top: 8, right: 44, left: 8, bottom: 8 }}
-            barCategoryGap="25%"
-          >
-            <CartesianGrid
-              horizontal={false}
-              strokeDasharray="3 3"
-              stroke="#e5e7eb"
-            />
-            <XAxis
-              type="number"
-              allowDecimals={false}
-              tick={{ fontSize: 11 }}
-            />
-            <YAxis
-              type="category"
-              dataKey="label"
-              width={150}
-              tick={{ fontSize: 11 }}
-            />
-            <RechartsTooltip
-              cursor={{ fill: "rgba(0,0,0,0.04)" }}
-              formatter={(value) =>
-                [Number(value).toLocaleString("en-IN"), "Teams"] as [
-                  string,
-                  string,
-                ]
-              }
-            />
-            <Bar
-              dataKey="count"
-              radius={[0, 4, 4, 0]}
-              isAnimationActive={false}
-            >
-              {data.map((d) => (
-                <Cell key={d.key} fill={d.fill} />
-              ))}
-              <LabelList
-                dataKey="count"
-                position="right"
-                className="fill-foreground"
-                fontSize={11}
-              />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    );
-  }
-
-  return (
-    <div data-testid="funnel-bar-chart-vertical">
-      <ResponsiveContainer width="100%" height={360}>
-        <BarChart
-          data={data}
-          margin={{ top: 20, right: 12, left: 0, bottom: 60 }}
-          barCategoryGap="20%"
-        >
-          <CartesianGrid
-            vertical={false}
-            strokeDasharray="3 3"
-            stroke="#e5e7eb"
-          />
-          <XAxis
-            dataKey="label"
-            tick={{ fontSize: 10 }}
-            interval={0}
-            angle={-30}
-            textAnchor="end"
-            height={70}
-          />
-          <YAxis allowDecimals={false} width={40} tick={{ fontSize: 11 }} />
-          <RechartsTooltip
-            cursor={{ fill: "rgba(0,0,0,0.04)" }}
-            formatter={(value) =>
-              [Number(value).toLocaleString("en-IN"), "Teams"] as [
-                string,
-                string,
-              ]
-            }
-          />
-          <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-            {data.map((d) => (
-              <Cell key={d.key} fill={d.fill} />
-            ))}
-            <LabelList
-              dataKey="count"
-              position="top"
-              className="fill-foreground"
-              fontSize={11}
-            />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
     </div>
   );
 }
@@ -599,12 +565,6 @@ export default function HeatmapPage() {
     ? (tabParam as HeatmapTab)
     : "funnel";
   const setActiveTab = (v: string) => setLocation(`${location}?tab=${v}`);
-
-  // Programme Funnel: list (default) vs bar-chart view, plus chart orientation.
-  const [funnelView, setFunnelView] = useState<"list" | "chart">("list");
-  const [funnelChartOrientation, setFunnelChartOrientation] = useState<
-    "vertical" | "horizontal"
-  >("vertical");
 
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "silent" | "never">("all");
@@ -964,7 +924,7 @@ export default function HeatmapPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Funnel — vertical bar list, reads as a real conversion funnel */}
+        {/* Funnel — bar-free flow journey, reads top-down as a conversion funnel */}
         <TabsContent value="funnel" className="mt-4">
           <Card>
             <CardHeader>
@@ -979,12 +939,11 @@ export default function HeatmapPage() {
                     stage · step-to-step conversion.
                   </CardDescription>
                 </div>
-                {/* Controls stack — top row holds the range dropdown then the
-                    list/graph icons; the custom date range drops to a row below.
-                    shrink-0 keeps the dropdown + icons on one row (no wrap). */}
+                {/* Controls stack — the range dropdown, with the custom date
+                    range dropping to a row below it. shrink-0 keeps it on one
+                    row (no wrap). */}
                 <div className="flex flex-col gap-2 sm:items-end shrink-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* 1. Range dropdown */}
                     <Select
                       value={funnelRange}
                       onValueChange={(v) =>
@@ -1004,64 +963,9 @@ export default function HeatmapPage() {
                         <SelectItem value="custom">Custom range</SelectItem>
                       </SelectContent>
                     </Select>
-
-                    {/* Chart orientation — only in graph view */}
-                    {funnelView === "chart" && (
-                      <Select
-                        value={funnelChartOrientation}
-                        onValueChange={(v) =>
-                          setFunnelChartOrientation(
-                            v as "vertical" | "horizontal",
-                          )
-                        }
-                      >
-                        <SelectTrigger
-                          className="w-32"
-                          data-testid="funnel-orientation-select"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="vertical">Vertical</SelectItem>
-                          <SelectItem value="horizontal">Horizontal</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    {/* 2 + 3. List (menu) icon then graph icon */}
-                    <div className="flex items-center rounded-md border p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setFunnelView("list")}
-                        className={cn(
-                          "inline-flex items-center justify-center rounded-sm p-1.5 transition-colors",
-                          funnelView === "list"
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent",
-                        )}
-                        title="List view"
-                        data-testid="funnel-view-list"
-                      >
-                        <List className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFunnelView("chart")}
-                        className={cn(
-                          "inline-flex items-center justify-center rounded-sm p-1.5 transition-colors",
-                          funnelView === "chart"
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent",
-                        )}
-                        title="Graph view"
-                        data-testid="funnel-view-chart"
-                      >
-                        <BarChart3 className="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
 
-                  {/* Custom range — sits below the dropdown + icons row */}
+                  {/* Custom range — sits below the range dropdown */}
                   {funnelRange === "custom" && (
                     <div className="flex items-center gap-1.5">
                       <Input
@@ -1109,37 +1013,20 @@ export default function HeatmapPage() {
                 </TabsList>
               </Tabs>
 
-              {funnelView === "chart" ? (
-                analyticsLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Spinner className="size-8" />
-                  </div>
-                ) : activeFunnelStages.length === 0 ? (
-                  <div className="text-sm text-muted-foreground py-12 text-center">
-                    No funnel data yet.
-                  </div>
-                ) : (
-                  <FunnelBarChart
-                    stages={activeFunnelStages}
-                    orientation={funnelChartOrientation}
-                  />
-                )
-              ) : (
-                <FunnelChart
-                  stages={activeFunnelStages}
-                  loading={analyticsLoading}
-                  engagement={analytics?.engagement}
-                  rangeActiveCount={funnelRangeActive}
-                  successCount={funnelSuccessCount}
-                  successLabel={funnelSuccessLabel}
-                  inverseKey={funnelInverseKey}
-                  remindTargetCount={neverLoggedCount}
-                  onRemindNeverLogged={
-                    isTeamsFunnel ? undefined : () => setRemindNeverOpen(true)
-                  }
-                  remindingNeverLogged={remindNeverMut.isPending}
-                />
-              )}
+              <FunnelChart
+                stages={activeFunnelStages}
+                loading={analyticsLoading}
+                engagement={analytics?.engagement}
+                rangeActiveCount={funnelRangeActive}
+                successCount={funnelSuccessCount}
+                successLabel={funnelSuccessLabel}
+                inverseKey={funnelInverseKey}
+                remindTargetCount={neverLoggedCount}
+                onRemindNeverLogged={
+                  isTeamsFunnel ? undefined : () => setRemindNeverOpen(true)
+                }
+                remindingNeverLogged={remindNeverMut.isPending}
+              />
             </CardContent>
           </Card>
         </TabsContent>
