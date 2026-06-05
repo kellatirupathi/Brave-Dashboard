@@ -18,6 +18,7 @@ import {
   BarChart3,
   List,
   UserX,
+  ChevronDown,
 } from "lucide-react";
 import {
   Bar,
@@ -177,10 +178,11 @@ function conversionPillClass(pct: number): string {
   return "bg-red-100 text-red-700";
 }
 
-// A professional, left-aligned conversion funnel. Every bar shares the same
-// left edge and a full-width track, so the coloured fill (= share of the top
-// stage) visibly tapers down the list. The right rail shows the headline count,
-// % of the top stage, and a colour-coded step-to-step conversion pill.
+// A bar-free conversion funnel: a connected vertical flow of stage cards. Each
+// card shows the stage name, count, and its share of the top stage as a
+// circular % ring (no bars). The connector between cards carries the
+// step-to-step conversion and absolute drop-off, so it still reads top-down as
+// a funnel — just more glanceable and less chart-like.
 function FunnelChart({
   stages,
   loading,
@@ -284,16 +286,16 @@ function FunnelChart({
         </div>
       </div>
 
-      {/* Funnel — centered, tapering segments (no left-aligned bar track).
-          Each segment's width is its share of the top stage, so the column
-          narrows as it descends and reads as a real conversion funnel. */}
-      <div className="space-y-2">
+      {/* Funnel — a connected vertical flow of stage cards. No bars: each
+          stage shows its share of the top stage as a circular % ring, and the
+          connector between cards carries the step-to-step drop-off. */}
+      <div>
         {stages.map((s, i) => {
           const isInverse = inverseKey != null && s.key === inverseKey;
           const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
           // An inverse stage (e.g. students NOT logged in) is an informational
-          // side-stat, not a forward funnel step: it carries no conversion
-          // pill, and the next real stage chains off the prior genuine stage.
+          // side-stat, not a forward funnel step: no conversion pill, and the
+          // next real stage chains off the prior genuine stage.
           const prev = (() => {
             for (let k = i - 1; k >= 0; k--) {
               if (!(inverseKey != null && stages[k].key === inverseKey))
@@ -305,36 +307,84 @@ function FunnelChart({
             isInverse || !prev || prev.count <= 0
               ? null
               : (s.count / prev.count) * 100;
+          const dropped = prev ? Math.max(prev.count - s.count, 0) : 0;
           const meta = FUNNEL_STAGE_META[s.key] ?? {
             icon: null,
             color: "bg-primary",
           };
-          // Segment width tapers with the count; a floor (and min px width)
-          // keeps the smallest stages wide enough to read the number inside.
-          const widthPct = Math.min(100, Math.max(pctOfTotal, 6));
+          const hex = FUNNEL_STAGE_HEX[s.key] ?? "#6366f1";
+          const ringPct = Math.min(Math.max(pctOfTotal, 0), 100);
           return (
-            <div
-              key={s.key}
-              className="flex flex-col items-center gap-1.5"
-              data-testid={`funnel-stage-${s.key}`}
-            >
-              {/* Full stage name + coloured icon chip (wraps, never truncated).
-                  The inverse row also hosts the Remind button. */}
-              <div className="flex items-center justify-center gap-2 flex-wrap text-center">
+            <div key={s.key}>
+              {/* Connector from the previous stage — conversion + drop-off. */}
+              {i > 0 ? (
+                <div className="flex items-center justify-center gap-2 py-1.5">
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  {stepPct !== null ? (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums",
+                        conversionPillClass(stepPct),
+                      )}
+                      title="Continued from the previous stage"
+                    >
+                      {stepPct.toFixed(0)}% continued
+                      {dropped > 0 ? (
+                        <span className="font-normal opacity-80">
+                          {" "}
+                          · −{dropped.toLocaleString("en-IN")}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      remaining
+                    </span>
+                  )}
+                </div>
+              ) : null}
+
+              {/* Stage card. */}
+              <div
+                className={cn(
+                  "flex items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
+                  isInverse && "border-dashed",
+                )}
+                data-testid={`funnel-stage-${s.key}`}
+              >
+                {/* Coloured icon chip. */}
                 <span
                   className={cn(
-                    "flex h-6 w-6 items-center justify-center rounded-md text-white shrink-0",
+                    "flex h-10 w-10 items-center justify-center rounded-lg text-white shrink-0",
                     meta.color,
                   )}
                 >
                   {meta.icon}
                 </span>
-                <span className="text-sm font-medium">{s.label}</span>
+
+                {/* Full stage name + count. */}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium leading-snug">
+                    {s.label}
+                  </div>
+                  <div className="mt-0.5 flex items-baseline gap-1.5">
+                    <span className="text-2xl font-bold tabular-nums">
+                      {s.count.toLocaleString("en-IN")}
+                    </span>
+                    {i > 0 ? (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        of {base.toLocaleString("en-IN")}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Remind button (inverse stage only). */}
                 {isInverse && onRemindNeverLogged ? (
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 px-2 text-xs"
+                    className="h-8 px-2.5 text-xs shrink-0"
                     disabled={remindingNeverLogged || remindTargetCount === 0}
                     onClick={onRemindNeverLogged}
                     title="Send a notification + email to every student who has never logged in"
@@ -344,40 +394,24 @@ function FunnelChart({
                     Remind
                   </Button>
                 ) : null}
-              </div>
 
-              {/* Centered funnel segment with the count inside it. */}
-              <div className="w-full flex justify-center">
+                {/* Circular % ring — the bar replacement. */}
                 <div
-                  className={cn(
-                    "flex h-11 items-center justify-center rounded-md text-white shadow-sm transition-all",
-                    meta.color,
-                  )}
-                  style={{ width: `${widthPct}%`, minWidth: "4rem" }}
-                  title={`${s.count.toLocaleString("en-IN")}`}
+                  className="relative h-12 w-12 shrink-0"
+                  title={`${pctOfTotal.toFixed(0)}% of the top stage`}
                 >
-                  <span className="text-base font-bold tabular-nums">
-                    {s.count.toLocaleString("en-IN")}
-                  </span>
+                  <div
+                    className="h-12 w-12 rounded-full"
+                    style={{
+                      background: `conic-gradient(${hex} ${ringPct}%, hsl(var(--muted)) ${ringPct}% 100%)`,
+                    }}
+                  />
+                  <div className="absolute inset-[3px] flex items-center justify-center rounded-full bg-card">
+                    <span className="text-[11px] font-bold tabular-nums">
+                      {pctOfTotal.toFixed(0)}%
+                    </span>
+                  </div>
                 </div>
-              </div>
-
-              {/* Sub-line: % of the top stage + step-to-step conversion. */}
-              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <span className="tabular-nums">
-                  {pctOfTotal.toFixed(0)}% of total
-                </span>
-                {stepPct !== null ? (
-                  <span
-                    className={cn(
-                      "inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-                      conversionPillClass(stepPct),
-                    )}
-                    title="Conversion from the previous stage"
-                  >
-                    {stepPct.toFixed(0)}% from previous
-                  </span>
-                ) : null}
               </div>
             </div>
           );
