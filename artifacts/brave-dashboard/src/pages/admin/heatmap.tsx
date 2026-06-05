@@ -148,13 +148,25 @@ const FUNNEL_STAGE_HEX: Record<string, string> = {
 // match the backend analytics payload. The Students funnel is derived
 // separately from `totals` + the student login counts.
 const TEAM_FUNNEL_STAGES: { key: string; label: string }[] = [
-  { key: "registered_teams", label: "Registered teams" },
-  { key: "teams_logged_in", label: "Teams logged in" },
-  { key: "submitted_journal", label: "Submitted a journal" },
-  { key: "visited_client", label: "Visited a client" },
-  { key: "active_conversation", label: "Active conversation" },
-  { key: "started_project", label: "Started a project" },
-  { key: "closed_project", label: "Completed a project" },
+  { key: "registered_teams", label: "Total registered teams" },
+  { key: "teams_logged_in", label: "Teams logged in at least once" },
+  {
+    key: "submitted_journal",
+    label: "Teams submitted journals at least once",
+  },
+  { key: "visited_client", label: "Teams visited clients at least once" },
+  {
+    key: "active_conversation",
+    label: "Teams with at least one active conversation",
+  },
+  {
+    key: "started_project",
+    label: "Teams with at least one project started",
+  },
+  {
+    key: "closed_project",
+    label: "Teams with at least one project complete",
+  },
 ];
 
 // Colour for a step-conversion pill: green = healthy retention, amber =
@@ -272,8 +284,10 @@ function FunnelChart({
         </div>
       </div>
 
-      {/* Funnel bars. */}
-      <div className="space-y-2.5">
+      {/* Funnel — centered, tapering segments (no left-aligned bar track).
+          Each segment's width is its share of the top stage, so the column
+          narrows as it descends and reads as a real conversion funnel. */}
+      <div className="space-y-2">
         {stages.map((s, i) => {
           const isInverse = inverseKey != null && s.key === inverseKey;
           const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
@@ -295,75 +309,75 @@ function FunnelChart({
             icon: null,
             color: "bg-primary",
           };
+          // Segment width tapers with the count; a floor (and min px width)
+          // keeps the smallest stages wide enough to read the number inside.
+          const widthPct = Math.min(100, Math.max(pctOfTotal, 6));
           return (
             <div
               key={s.key}
-              className="flex items-center gap-3"
+              className="flex flex-col items-center gap-1.5"
               data-testid={`funnel-stage-${s.key}`}
             >
-              {/* Stage label + coloured icon chip */}
-              <div className="flex items-center gap-2 w-44 shrink-0">
+              {/* Full stage name + coloured icon chip (wraps, never truncated).
+                  The inverse row also hosts the Remind button. */}
+              <div className="flex items-center justify-center gap-2 flex-wrap text-center">
                 <span
                   className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-md text-white shrink-0",
+                    "flex h-6 w-6 items-center justify-center rounded-md text-white shrink-0",
                     meta.color,
                   )}
                 >
                   {meta.icon}
                 </span>
-                <span className="text-sm font-medium truncate">{s.label}</span>
+                <span className="text-sm font-medium">{s.label}</span>
+                {isInverse && onRemindNeverLogged ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    disabled={remindingNeverLogged || remindTargetCount === 0}
+                    onClick={onRemindNeverLogged}
+                    title="Send a notification + email to every student who has never logged in"
+                    data-testid="funnel-remind-never-logged"
+                  >
+                    <Bell className="h-3 w-3 mr-1" />
+                    Remind
+                  </Button>
+                ) : null}
               </div>
 
-              {/* Bar track + fill */}
-              <div className="relative flex-1 h-8 rounded-md bg-muted overflow-hidden">
+              {/* Centered funnel segment with the count inside it. */}
+              <div className="w-full flex justify-center">
                 <div
-                  className={cn("h-full rounded-md transition-all", meta.color)}
-                  style={{ width: `${Math.max(pctOfTotal, 1.5)}%` }}
+                  className={cn(
+                    "flex h-11 items-center justify-center rounded-md text-white shadow-sm transition-all",
+                    meta.color,
+                  )}
+                  style={{ width: `${widthPct}%`, minWidth: "4rem" }}
                   title={`${s.count.toLocaleString("en-IN")}`}
-                />
+                >
+                  <span className="text-base font-bold tabular-nums">
+                    {s.count.toLocaleString("en-IN")}
+                  </span>
+                </div>
               </div>
 
-              {/* Right rail: count · % of total · step pill */}
-              <div className="flex items-center justify-end gap-2 shrink-0">
-                <span className="w-16 text-right text-sm font-semibold tabular-nums">
-                  {s.count.toLocaleString("en-IN")}
+              {/* Sub-line: % of the top stage + step-to-step conversion. */}
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <span className="tabular-nums">
+                  {pctOfTotal.toFixed(0)}% of total
                 </span>
-                <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
-                  {pctOfTotal.toFixed(0)}%
-                </span>
-                <span className="w-14 text-right">
-                  {stepPct !== null ? (
-                    <span
-                      className={cn(
-                        "inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-                        conversionPillClass(stepPct),
-                      )}
-                      title="Conversion from the previous stage"
-                    >
-                      {stepPct.toFixed(0)}%
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground">—</span>
-                  )}
-                </span>
-                {/* Remind slot — only the never-logged-in row gets a button;
-                    other rows keep an equal-width spacer so columns align. */}
-                <span className="w-24 flex justify-end">
-                  {isInverse && onRemindNeverLogged ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-xs"
-                      disabled={remindingNeverLogged || remindTargetCount === 0}
-                      onClick={onRemindNeverLogged}
-                      title="Send a notification + email to every student who has never logged in"
-                      data-testid="funnel-remind-never-logged"
-                    >
-                      <Bell className="h-3 w-3 mr-1" />
-                      Remind
-                    </Button>
-                  ) : null}
-                </span>
+                {stepPct !== null ? (
+                  <span
+                    className={cn(
+                      "inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+                      conversionPillClass(stepPct),
+                    )}
+                    title="Conversion from the previous stage"
+                  >
+                    {stepPct.toFixed(0)}% from previous
+                  </span>
+                ) : null}
               </div>
             </div>
           );
@@ -671,17 +685,17 @@ export default function HeatmapPage() {
     return [
       {
         key: "registered_students",
-        label: "Registered students",
+        label: "Total registered students",
         count: total,
       },
       {
         key: "students_logged_in",
-        label: "Students logged in",
+        label: "Students logged in at least once",
         count: loggedIn,
       },
       {
         key: "students_not_logged_in",
-        label: "Students not logged in",
+        label: "Students not logged in at least once",
         count: Math.max(total - loggedIn, 0),
       },
     ];
