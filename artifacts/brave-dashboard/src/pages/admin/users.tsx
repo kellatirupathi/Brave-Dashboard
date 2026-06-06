@@ -71,6 +71,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageSizeSelect } from "@/components/page-size-select";
+import { CampusCombobox } from "@/components/campus-combobox";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -203,6 +204,7 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [campusFilter, setCampusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
@@ -219,6 +221,7 @@ export default function AdminUsers() {
     search: search || undefined,
     role: roleFilter === "all" ? undefined : roleFilter,
     provisionedVia: sourceFilter === "all" ? undefined : sourceFilter,
+    campusId: campusFilter === "all" ? undefined : Number(campusFilter),
     page,
     pageSize,
   });
@@ -669,6 +672,16 @@ export default function AdminUsers() {
             </SelectContent>
           </Select>
 
+          <CampusCombobox
+            campuses={campuses ?? []}
+            value={campusFilter}
+            onChange={(v) => {
+              setCampusFilter(v);
+              setPage(1);
+            }}
+            testId="select-campus-filter"
+          />
+
           <input
             ref={fileInputRef}
             type="file"
@@ -1026,6 +1039,7 @@ export default function AdminUsers() {
                   <TableHead>Forms User ID</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Campus</TableHead>
+                  <TableHead>Campus ID</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -1076,6 +1090,9 @@ export default function AdminUsers() {
                     <TableCell>{renderRoleBadge(user.role)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {user.role === "admin" ? "—" : user.campusName || "—"}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {user.role === "admin" ? "—" : (user.campusId ?? "—")}
                     </TableCell>
                     <TableCell>
                       <Badge

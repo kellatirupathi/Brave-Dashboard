@@ -115,6 +115,7 @@ type RosterRow = {
   fullName: string;
   email?: string | null;
   campusName: string;
+  campusId?: number | null;
   niatId?: string | null;
   batchSectionName?: string | null;
   isWhitelisted: boolean;
@@ -964,6 +965,7 @@ export default function AdminRoster() {
                       <TableHead>Name</TableHead>
                       <TableHead>NIAT ID</TableHead>
                       <TableHead>Campus</TableHead>
+                      <TableHead>Campus ID</TableHead>
                       <TableHead>Batch / Section</TableHead>
                       <TableHead className="w-[180px]">Email</TableHead>
                       <TableHead>Status</TableHead>
@@ -999,6 +1001,9 @@ export default function AdminRoster() {
                         </TableCell>
                         <TableCell className="text-sm">
                           {entry.campusName}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {(entry as RosterRow).campusId ?? "—"}
                         </TableCell>
                         <TableCell className="text-sm">
                           {entry.batchSectionName || "—"}
