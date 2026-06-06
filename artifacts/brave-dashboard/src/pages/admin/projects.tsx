@@ -64,6 +64,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageSizeSelect } from "@/components/page-size-select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -195,6 +196,7 @@ export default function AdminProjects({
   const [status, setStatus] = useState<string>("all");
   const [campusFilter, setCampusFilter] = useState<string>(ALL_CAMPUSES);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
     title: string;
@@ -216,7 +218,7 @@ export default function AdminProjects({
     status: status !== "all" ? (status as "active" | "inactive") : undefined,
     campusId: campusFilter !== ALL_CAMPUSES ? Number(campusFilter) : undefined,
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
   });
 
   // Clamp the current page back into range when filters narrow the result set.
@@ -539,18 +541,28 @@ export default function AdminProjects({
 
       {projects && projects.total > 0 && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div
-            className="text-sm text-muted-foreground"
-            data-testid="text-projects-pagination-info"
-          >
-            {(() => {
-              const start = (projects.page - 1) * projects.pageSize + 1;
-              const end = Math.min(
-                projects.page * projects.pageSize,
-                projects.total,
-              );
-              return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${projects.total.toLocaleString()}`;
-            })()}
+          <div className="flex items-center gap-3">
+            <PageSizeSelect
+              value={pageSize}
+              onChange={(s) => {
+                setPageSize(s);
+                setPage(1);
+              }}
+              testId="select-projects-page-size"
+            />
+            <div
+              className="text-sm text-muted-foreground"
+              data-testid="text-projects-pagination-info"
+            >
+              {(() => {
+                const start = (projects.page - 1) * projects.pageSize + 1;
+                const end = Math.min(
+                  projects.page * projects.pageSize,
+                  projects.total,
+                );
+                return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${projects.total.toLocaleString()}`;
+              })()}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button

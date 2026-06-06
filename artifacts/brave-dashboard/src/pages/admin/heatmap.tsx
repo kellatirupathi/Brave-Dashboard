@@ -42,6 +42,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { PageSizeSelect } from "@/components/page-size-select";
 import {
   getHeatmap,
   sendHeatmapReminder,
@@ -725,9 +726,9 @@ export default function HeatmapPage() {
   // of nodes, which makes every layout/repaint — including tab switches —
   // janky. Keeping ~50 rows in the DOM keeps interactions instant. Bulk
   // reminders still operate over the full filtered set, not just this page.
-  const PAGE_SIZE = 50;
+  const [pageSize, setPageSize] = useState(100);
   const [page, setPage] = useState(1);
-  const pageCount = Math.max(1, Math.ceil(filteredTeams.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(filteredTeams.length / pageSize));
 
   // Reset to page 1 whenever the filtered result set changes.
   useEffect(() => {
@@ -740,8 +741,8 @@ export default function HeatmapPage() {
   }, [page, pageCount]);
 
   const pagedTeams = useMemo<HeatmapTeamRow[]>(
-    () => filteredTeams.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filteredTeams, page],
+    () => filteredTeams.slice((page - 1) * pageSize, page * pageSize),
+    [filteredTeams, page, pageSize],
   );
 
   const anyFilterActive =
@@ -1131,11 +1132,21 @@ export default function HeatmapPage() {
                   {/* Pagination — keeps the DOM light by rendering one page of
                   rows at a time. Reminders still act on the full filtered set. */}
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-4 text-sm">
-                    <span className="text-muted-foreground tabular-nums">
-                      Showing {(page - 1) * PAGE_SIZE + 1}–
-                      {Math.min(page * PAGE_SIZE, filteredTeams.length)} of{" "}
-                      {filteredTeams.length.toLocaleString("en-IN")} teams
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <PageSizeSelect
+                        value={pageSize}
+                        onChange={(s) => {
+                          setPageSize(s);
+                          setPage(1);
+                        }}
+                        testId="heatmap-page-size"
+                      />
+                      <span className="text-muted-foreground tabular-nums">
+                        Showing {(page - 1) * pageSize + 1}–
+                        {Math.min(page * pageSize, filteredTeams.length)} of{" "}
+                        {filteredTeams.length.toLocaleString("en-IN")} teams
+                      </span>
+                    </div>
                     {pageCount > 1 && (
                       <div className="flex items-center gap-2">
                         <Button

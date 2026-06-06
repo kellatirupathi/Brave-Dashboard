@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageSizeSelect } from "@/components/page-size-select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ClipboardList,
@@ -223,6 +224,7 @@ export default function AdminRoster() {
   const [searchQ, setSearchQ] = useState("");
   const [campusFilter, setCampusFilter] = useState<string>(ALL_CAMPUSES);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
   // Debounce the search input so we aren't firing a request on every keystroke.
   useEffect(() => {
@@ -242,7 +244,7 @@ export default function AdminRoster() {
     q: searchQ || undefined,
     campusId: campusIdParam,
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
   });
 
   // After the server responds, if the current page is now past the last page
@@ -575,7 +577,7 @@ export default function AdminRoster() {
         "NIAT ID": r.niatId ?? "",
         "Institute Name": r.campusName ?? "",
         "Batch Section Name": r.batchSectionName ?? "",
-        "Email": r.email ?? "",
+        Email: r.email ?? "",
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -779,9 +781,7 @@ export default function AdminRoster() {
           <Button
             variant="outline"
             onClick={handleExportRoster}
-            disabled={
-              !roster || roster.total === 0 || isExporting
-            }
+            disabled={!roster || roster.total === 0 || isExporting}
             title="Download the listed roster as an Excel file"
             data-testid="button-export-roster"
           >
@@ -947,140 +947,154 @@ export default function AdminRoster() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10 px-2">
-                      <Checkbox
-                        checked={headerCheckboxState}
-                        onCheckedChange={(c) => toggleAllVisible(c === true)}
-                        aria-label="Select all rows"
-                        data-testid="checkbox-select-all-roster"
-                      />
-                    </TableHead>
-                    <TableHead className="min-w-[280px]">Student User ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>NIAT ID</TableHead>
-                    <TableHead>Campus</TableHead>
-                    <TableHead>Batch / Section</TableHead>
-                    <TableHead className="w-[180px]">Email</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roster?.items.map((entry) => (
-                    <TableRow
-                      key={entry.id}
-                      data-state={
-                        selectedIds.has(entry.id) ? "selected" : undefined
-                      }
-                    >
-                      <TableCell className="w-10 px-2">
-                        <Checkbox
-                          checked={selectedIds.has(entry.id)}
-                          onCheckedChange={(c) =>
-                            toggleRow(entry.id, c === true)
-                          }
-                          aria-label={`Select ${entry.fullName}`}
-                          data-testid={`checkbox-roster-${entry.id}`}
-                        />
-                      </TableCell>
-                      <TableCell className="font-mono text-xs whitespace-nowrap">
-                        {entry.studentId || "—"}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {entry.fullName}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {entry.niatId || "—"}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {entry.campusName}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {entry.batchSectionName || "—"}
-                      </TableCell>
-                      <TableCell
-                        className="text-sm text-muted-foreground max-w-[180px] truncate"
-                        title={entry.email ?? undefined}
-                      >
-                        {entry.email || "—"}
-                      </TableCell>
-                      <TableCell>
-                        {entry.isWhitelisted ? (
-                          <Badge className="bg-green-500 hover:bg-green-600">
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Inactive</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              data-testid={`button-actions-roster-${entry.id}`}
-                              aria-label="Open actions"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => openEdit(entry as RosterRow)}
-                              data-testid={`button-edit-roster-${entry.id}`}
-                            >
-                              <Pencil className="w-4 h-4 mr-2" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setDeleteTarget(entry as RosterRow)}
-                              className="text-destructive focus:text-destructive"
-                              data-testid={`button-delete-roster-${entry.id}`}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {roster?.items.length === 0 && (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell
-                        colSpan={9}
-                        className="h-24 text-center text-muted-foreground"
-                      >
-                        <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        {searchQ || campusFilter !== ALL_CAMPUSES
-                          ? "No matching roster entries. Try clearing the search or campus filter."
-                          : `No students on roster. Use "Import Excel" or "Add Student" to populate it.`}
-                      </TableCell>
+                      <TableHead className="w-10 px-2">
+                        <Checkbox
+                          checked={headerCheckboxState}
+                          onCheckedChange={(c) => toggleAllVisible(c === true)}
+                          aria-label="Select all rows"
+                          data-testid="checkbox-select-all-roster"
+                        />
+                      </TableHead>
+                      <TableHead className="min-w-[280px]">
+                        Student User ID
+                      </TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>NIAT ID</TableHead>
+                      <TableHead>Campus</TableHead>
+                      <TableHead>Batch / Section</TableHead>
+                      <TableHead className="w-[180px]">Email</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {roster?.items.map((entry) => (
+                      <TableRow
+                        key={entry.id}
+                        data-state={
+                          selectedIds.has(entry.id) ? "selected" : undefined
+                        }
+                      >
+                        <TableCell className="w-10 px-2">
+                          <Checkbox
+                            checked={selectedIds.has(entry.id)}
+                            onCheckedChange={(c) =>
+                              toggleRow(entry.id, c === true)
+                            }
+                            aria-label={`Select ${entry.fullName}`}
+                            data-testid={`checkbox-roster-${entry.id}`}
+                          />
+                        </TableCell>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">
+                          {entry.studentId || "—"}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {entry.fullName}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {entry.niatId || "—"}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {entry.campusName}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {entry.batchSectionName || "—"}
+                        </TableCell>
+                        <TableCell
+                          className="text-sm text-muted-foreground max-w-[180px] truncate"
+                          title={entry.email ?? undefined}
+                        >
+                          {entry.email || "—"}
+                        </TableCell>
+                        <TableCell>
+                          {entry.isWhitelisted ? (
+                            <Badge className="bg-green-500 hover:bg-green-600">
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Inactive</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                data-testid={`button-actions-roster-${entry.id}`}
+                                aria-label="Open actions"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => openEdit(entry as RosterRow)}
+                                data-testid={`button-edit-roster-${entry.id}`}
+                              >
+                                <Pencil className="w-4 h-4 mr-2" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setDeleteTarget(entry as RosterRow)
+                                }
+                                className="text-destructive focus:text-destructive"
+                                data-testid={`button-delete-roster-${entry.id}`}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {roster?.items.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={9}
+                          className="h-24 text-center text-muted-foreground"
+                        >
+                          <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          {searchQ || campusFilter !== ALL_CAMPUSES
+                            ? "No matching roster entries. Try clearing the search or campus filter."
+                            : `No students on roster. Use "Import Excel" or "Add Student" to populate it.`}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </Card>
 
           {roster && roster.total > 0 && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div
-                className="text-sm text-muted-foreground"
-                data-testid="text-roster-pagination-info"
-              >
-                {(() => {
-                  const start = (roster.page - 1) * roster.pageSize + 1;
-                  const end = Math.min(
-                    roster.page * roster.pageSize,
-                    roster.total,
-                  );
-                  return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${roster.total.toLocaleString()}`;
-                })()}
+              <div className="flex items-center gap-3">
+                <PageSizeSelect
+                  value={pageSize}
+                  onChange={(s) => {
+                    setPageSize(s);
+                    setPage(1);
+                  }}
+                  testId="select-roster-page-size"
+                />
+                <div
+                  className="text-sm text-muted-foreground"
+                  data-testid="text-roster-pagination-info"
+                >
+                  {(() => {
+                    const start = (roster.page - 1) * roster.pageSize + 1;
+                    const end = Math.min(
+                      roster.page * roster.pageSize,
+                      roster.total,
+                    );
+                    return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${roster.total.toLocaleString()}`;
+                  })()}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1105,8 +1119,7 @@ export default function AdminRoster() {
                   size="sm"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={
-                    isLoading ||
-                    roster.page * roster.pageSize >= roster.total
+                    isLoading || roster.page * roster.pageSize >= roster.total
                   }
                   data-testid="button-roster-next-page"
                 >
@@ -1126,101 +1139,101 @@ export default function AdminRoster() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>NIAT ID</TableHead>
-                    <TableHead>Campus</TableHead>
-                    <TableHead>Batch</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {accessRequests?.map((req) => (
-                    <TableRow key={req.id}>
-                      <TableCell className="font-medium">
-                        {req.fullName}
-                      </TableCell>
-                      <TableCell className="text-sm">{req.email}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {req.niatId || "—"}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {req.campusName}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {req.batch || "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(req.createdAt).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        {req.status === "pending" && (
-                          <Badge
-                            variant="outline"
-                            className="border-amber-500 text-amber-600 gap-1"
-                          >
-                            <Clock className="w-3 h-3" /> Pending
-                          </Badge>
-                        )}
-                        {req.status === "approved" && (
-                          <Badge className="bg-green-500 hover:bg-green-600 gap-1">
-                            <CheckCircle className="w-3 h-3" /> Approved
-                          </Badge>
-                        )}
-                        {req.status === "rejected" && (
-                          <Badge variant="destructive" className="gap-1">
-                            <XCircle className="w-3 h-3" /> Rejected
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {req.status === "pending" && (
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() =>
-                                handleApproveReject(req.id, "approved")
-                              }
-                              disabled={updateRequest.isPending}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="h-7 text-xs bg-red-400 hover:bg-red-500 text-white"
-                              onClick={() =>
-                                handleApproveReject(req.id, "rejected")
-                              }
-                              disabled={updateRequest.isPending}
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {accessRequests?.length === 0 && (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell
-                        colSpan={8}
-                        className="h-24 text-center text-muted-foreground"
-                      >
-                        No access requests yet
-                      </TableCell>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>NIAT ID</TableHead>
+                      <TableHead>Campus</TableHead>
+                      <TableHead>Batch</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {accessRequests?.map((req) => (
+                      <TableRow key={req.id}>
+                        <TableCell className="font-medium">
+                          {req.fullName}
+                        </TableCell>
+                        <TableCell className="text-sm">{req.email}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {req.niatId || "—"}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {req.campusName}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {req.batch || "—"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(req.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          {req.status === "pending" && (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-500 text-amber-600 gap-1"
+                            >
+                              <Clock className="w-3 h-3" /> Pending
+                            </Badge>
+                          )}
+                          {req.status === "approved" && (
+                            <Badge className="bg-green-500 hover:bg-green-600 gap-1">
+                              <CheckCircle className="w-3 h-3" /> Approved
+                            </Badge>
+                          )}
+                          {req.status === "rejected" && (
+                            <Badge variant="destructive" className="gap-1">
+                              <XCircle className="w-3 h-3" /> Rejected
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {req.status === "pending" && (
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() =>
+                                  handleApproveReject(req.id, "approved")
+                                }
+                                disabled={updateRequest.isPending}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs bg-red-400 hover:bg-red-500 text-white"
+                                onClick={() =>
+                                  handleApproveReject(req.id, "rejected")
+                                }
+                                disabled={updateRequest.isPending}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {accessRequests?.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={8}
+                          className="h-24 text-center text-muted-foreground"
+                        >
+                          No access requests yet
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </Card>
@@ -1413,9 +1426,7 @@ export default function AdminRoster() {
               }
               data-testid="button-confirm-clear-roster"
             >
-              {clearAllRoster.isPending && (
-                <Spinner className="w-4 h-4 mr-2" />
-              )}
+              {clearAllRoster.isPending && <Spinner className="w-4 h-4 mr-2" />}
               Delete all
             </Button>
           </DialogFooter>

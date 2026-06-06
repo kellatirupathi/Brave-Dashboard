@@ -69,6 +69,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageSizeSelect } from "@/components/page-size-select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -193,6 +194,7 @@ export default function AdminTeams() {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
   const { data: campusOptions = [] } = useListCampuses();
 
@@ -210,7 +212,7 @@ export default function AdminTeams() {
     status: status !== "all" ? (status as ListTeamsStatus) : undefined,
     campusId: campusFilter !== ALL_CAMPUSES ? Number(campusFilter) : undefined,
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
   });
 
   // Clamp the current page back into range when filters narrow the result set.
@@ -549,15 +551,25 @@ export default function AdminTeams() {
 
       {teams && teams.total > 0 && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div
-            className="text-sm text-muted-foreground"
-            data-testid="text-teams-pagination-info"
-          >
-            {(() => {
-              const start = (teams.page - 1) * teams.pageSize + 1;
-              const end = Math.min(teams.page * teams.pageSize, teams.total);
-              return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${teams.total.toLocaleString()}`;
-            })()}
+          <div className="flex items-center gap-3">
+            <PageSizeSelect
+              value={pageSize}
+              onChange={(s) => {
+                setPageSize(s);
+                setPage(1);
+              }}
+              testId="select-teams-page-size"
+            />
+            <div
+              className="text-sm text-muted-foreground"
+              data-testid="text-teams-pagination-info"
+            >
+              {(() => {
+                const start = (teams.page - 1) * teams.pageSize + 1;
+                const end = Math.min(teams.page * teams.pageSize, teams.total);
+                return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${teams.total.toLocaleString()}`;
+              })()}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button

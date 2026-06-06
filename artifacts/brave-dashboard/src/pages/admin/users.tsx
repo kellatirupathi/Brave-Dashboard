@@ -70,6 +70,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageSizeSelect } from "@/components/page-size-select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -203,6 +204,7 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
   // Debounce search so we aren't firing a request on every keystroke.
   useEffect(() => {
@@ -218,7 +220,7 @@ export default function AdminUsers() {
     role: roleFilter === "all" ? undefined : roleFilter,
     provisionedVia: sourceFilter === "all" ? undefined : sourceFilter,
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
   });
 
   // Clamp the current page back into range when filters narrow the result set.
@@ -1126,7 +1128,8 @@ export default function AdminUsers() {
                               }
                               data-testid={`button-permissions-${user.id}`}
                             >
-                              <ShieldCheck className="w-4 h-4 mr-2" /> Permissions
+                              <ShieldCheck className="w-4 h-4 mr-2" />{" "}
+                              Permissions
                             </DropdownMenuItem>
                           )}
                           {user.role !== "student" && user.hasPassword && (
@@ -1169,15 +1172,25 @@ export default function AdminUsers() {
 
       {users && users.total > 0 && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div
-            className="text-sm text-muted-foreground"
-            data-testid="text-users-pagination-info"
-          >
-            {(() => {
-              const start = (users.page - 1) * users.pageSize + 1;
-              const end = Math.min(users.page * users.pageSize, users.total);
-              return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${users.total.toLocaleString()}`;
-            })()}
+          <div className="flex items-center gap-3">
+            <PageSizeSelect
+              value={pageSize}
+              onChange={(s) => {
+                setPageSize(s);
+                setPage(1);
+              }}
+              testId="select-users-page-size"
+            />
+            <div
+              className="text-sm text-muted-foreground"
+              data-testid="text-users-pagination-info"
+            >
+              {(() => {
+                const start = (users.page - 1) * users.pageSize + 1;
+                const end = Math.min(users.page * users.pageSize, users.total);
+                return `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${users.total.toLocaleString()}`;
+              })()}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
