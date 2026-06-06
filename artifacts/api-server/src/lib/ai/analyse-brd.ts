@@ -229,6 +229,25 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
     });
     parsed["uniqueness_comparison"] = enrichedComparison;
 
+    // Cross-team uniqueness — cheap DB fingerprint across ALL other teams,
+    // stored next to the (same-team) uniqueness in the same JSON blob.
+    try {
+      parsed["cross_team_uniqueness"] = await computeCrossTeamUniqueness(
+        {
+          id: entry.id,
+          teamId: entry.teamId,
+          amount: entry.amount,
+          paymentDate: entry.paymentDate,
+        },
+        parsed,
+      );
+    } catch (ctErr) {
+      logger.warn(
+        { err: ctErr, entryId },
+        "[brd-ai] cross-team uniqueness check failed (continuing)",
+      );
+    }
+
     // Guarded write: only persist if the entry's submission state hasn't
     // changed since we started. Prevents an older, slower run from clobbering
     // results from a newer re-submission/re-analyse.
@@ -292,6 +311,124 @@ function toScore(v: unknown): number | null {
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
   if (!Number.isFinite(n)) return null;
   return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+type CrossTeamMatch = {
+  entry_id: number;
+  team_id: number;
+  team_name: string;
+  client_name: string | null;
+  status: string;
+  brd_url: string | null;
+  match_flag: "duplicate" | "suspicious";
+  reason: string;
+};
+
+/**
+ * Cheap, token-free "uniqueness across ALL teams" check. Compares this entry's
+ * payment fingerprint — amount + payment date (indexed columns) plus the
+ * AI-extracted reference id / payee from brd_summary — against BRDs from OTHER
+ * teams. No LLM call, so it scales to any number of BRDs. A shared reference/UTR
+ * or payee (on top of the same amount + date) reads as a likely reused payment
+ * proof. Returns a 0–100 score + the matching entries.
+ */
+async function computeCrossTeamUniqueness(
+  entry: { id: number; teamId: number; amount: number; paymentDate: string },
+  parsed: Record<string, unknown>,
+): Promise<{
+  score: number;
+  flag: "unique" | "suspicious" | "duplicate";
+  summary: string;
+  compared_count: number;
+  matches: CrossTeamMatch[];
+}> {
+  const summaryObj =
+    parsed["brd_summary"] && typeof parsed["brd_summary"] === "object"
+      ? (parsed["brd_summary"] as Record<string, unknown>)
+      : {};
+  const norm = (v: unknown): string =>
+    typeof v === "string" ? v.replace(/\s+/g, "").toLowerCase() : "";
+  const curRef = norm(summaryObj["reference_id"]);
+  const curPayee = norm(summaryObj["payee_name"]);
+
+  // Candidate set: same amount AND same payment date, from OTHER teams, with a
+  // BRD attached. Both are indexed columns, so this stays tiny at any scale.
+  const candidates = await db
+    .select({
+      id: revenueEntriesTable.id,
+      teamId: revenueEntriesTable.teamId,
+      teamName: teamsTable.name,
+      clientName: revenueEntriesTable.clientName,
+      status: revenueEntriesTable.status,
+      brdUrl: revenueEntriesTable.brdUrl,
+      detail: revenueEntriesTable.aiAnalysisDetail,
+    })
+    .from(revenueEntriesTable)
+    .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
+    .where(
+      and(
+        ne(revenueEntriesTable.id, entry.id),
+        ne(revenueEntriesTable.teamId, entry.teamId),
+        eq(revenueEntriesTable.amount, entry.amount),
+        eq(revenueEntriesTable.paymentDate, entry.paymentDate),
+        isNotNull(revenueEntriesTable.brdUrl),
+      ),
+    )
+    .limit(50);
+
+  const matches: CrossTeamMatch[] = [];
+  let worst: "unique" | "suspicious" | "duplicate" = "unique";
+  for (const c of candidates) {
+    const cSummary =
+      c.detail && typeof c.detail === "object"
+        ? ((c.detail as Record<string, unknown>)["brd_summary"] as
+            | Record<string, unknown>
+            | undefined)
+        : undefined;
+    const cRef = norm(cSummary?.["reference_id"]);
+    const cPayee = norm(cSummary?.["payee_name"]);
+    let reason: string;
+    let matchFlag: "duplicate" | "suspicious";
+    if (curRef && cRef && curRef === cRef) {
+      reason = "Same reference/UTR + same amount & date";
+      matchFlag = "duplicate";
+      worst = "duplicate";
+    } else if (curPayee && cPayee && curPayee === cPayee) {
+      reason = "Same payee + same amount & date";
+      matchFlag = "duplicate";
+      worst = "duplicate";
+    } else {
+      reason = "Same amount & payment date";
+      matchFlag = "suspicious";
+      if (worst !== "duplicate") worst = "suspicious";
+    }
+    matches.push({
+      entry_id: c.id,
+      team_id: c.teamId,
+      team_name: c.teamName ?? `Team #${c.teamId}`,
+      client_name: c.clientName,
+      status: c.status,
+      brd_url: c.brdUrl,
+      match_flag: matchFlag,
+      reason,
+    });
+  }
+
+  const score = worst === "duplicate" ? 8 : worst === "suspicious" ? 45 : 100;
+  const summary =
+    matches.length === 0
+      ? "No BRD from any other team shares this payment's amount and date — unique across all teams."
+      : worst === "duplicate"
+        ? `Likely cross-team duplicate: ${matches.length} BRD(s) from other teams share this payment's reference/payee, amount and date.`
+        : `${matches.length} BRD(s) from other teams share this payment's amount and date — review for a possibly reused payment proof.`;
+
+  return {
+    score,
+    flag: worst,
+    summary,
+    compared_count: candidates.length,
+    matches,
+  };
 }
 
 /**

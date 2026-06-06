@@ -67,6 +67,33 @@ function enrichComparisonUrls(
   };
 }
 
+/**
+ * Pull a short, human-readable summary out of the stored analysis JSON
+ * (`aiAnalysisDetail.brd_summary`) for the list view's Summary column. Prefers
+ * the model's `summary_text`; otherwise composes one from the key fields.
+ * Returns null when no summary was produced (older analyses, pre-feature).
+ */
+function extractBrdSummaryText(detail: unknown): string | null {
+  if (!detail || typeof detail !== "object") return null;
+  const s = (detail as Record<string, unknown>)["brd_summary"];
+  if (!s || typeof s !== "object") return null;
+  const obj = s as Record<string, unknown>;
+  const txt = obj["summary_text"];
+  if (typeof txt === "string" && txt.trim()) return txt.trim();
+  // Fallback: compose a one-liner from whatever structured fields exist.
+  const parts: string[] = [];
+  const push = (label: string, v: unknown) => {
+    if (typeof v === "string" && v.trim()) parts.push(`${label}: ${v.trim()}`);
+  };
+  push("Business", obj["business_name"]);
+  push("Client", obj["client_name"]);
+  push("Amount", obj["amount"]);
+  push("Paid by", obj["payer_name"]);
+  push("Paid to", obj["payee_name"]);
+  push("Ref", obj["reference_id"]);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 function requireAdmin(
   req: Parameters<Parameters<IRouter["get"]>[1]>[0],
   res: Parameters<Parameters<IRouter["get"]>[1]>[1],
@@ -101,6 +128,7 @@ router.get("/brd-analysis/all", async (req, res): Promise<void> => {
         brdUrl: revenueEntriesTable.brdUrl,
         brdScore: revenueEntriesTable.brdScore,
         uniquenessScore: revenueEntriesTable.uniquenessScore,
+        aiAnalysisDetail: revenueEntriesTable.aiAnalysisDetail,
         aiAnalysedAt: revenueEntriesTable.aiAnalysedAt,
         submittedAt: revenueEntriesTable.submittedAt,
       })
@@ -128,6 +156,7 @@ router.get("/brd-analysis/all", async (req, res): Promise<void> => {
         brdUrl: r.brdUrl,
         brdScore: r.brdScore,
         uniquenessScore: r.uniquenessScore,
+        summary: extractBrdSummaryText(r.aiAnalysisDetail),
         aiAnalysedAt: r.aiAnalysedAt?.toISOString() ?? null,
         submittedAt: r.submittedAt?.toISOString() ?? null,
       })),

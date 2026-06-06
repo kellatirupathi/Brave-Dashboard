@@ -25,6 +25,7 @@ import {
   FileText,
   Bot,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 
@@ -96,8 +97,31 @@ function findingIcon(line: string): string {
   return "• ";
 }
 
+type CrossTeamUniqueness = {
+  score?: number | null;
+  flag?: string | null;
+  summary?: string | null;
+  compared_count?: number | null;
+  matches?: Array<{
+    entry_id?: number | null;
+    team_id?: number | null;
+    team_name?: string | null;
+    client_name?: string | null;
+    status?: string | null;
+    brd_url?: string | null;
+    match_flag?: "duplicate" | "suspicious" | null;
+    reason?: string | null;
+  }> | null;
+};
+
 function AnalysisBody({ detail }: { detail: BrdAiAnalysis }) {
   const pdf = detail.brd_pdf_summary;
+  const crossTeam =
+    (
+      detail as BrdAiAnalysis & {
+        cross_team_uniqueness?: CrossTeamUniqueness | null;
+      }
+    ).cross_team_uniqueness ?? null;
   return (
     <div className="space-y-6">
       <section>
@@ -255,6 +279,118 @@ function AnalysisBody({ detail }: { detail: BrdAiAnalysis }) {
           </div>
         )}
       </section>
+
+      {crossTeam ? (
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <h3 className="font-semibold">Across-Teams Uniqueness</h3>
+            {crossTeam.score != null ? (
+              <Badge variant="outline" className={scoreColor(crossTeam.score)}>
+                {crossTeam.score}/100
+              </Badge>
+            ) : null}
+          </div>
+          {crossTeam.summary ? (
+            <p className="text-sm italic text-muted-foreground mb-3">
+              {crossTeam.summary}
+            </p>
+          ) : null}
+          {(crossTeam.matches ?? []).length === 0 ? (
+            <div className="text-sm text-muted-foreground rounded-md border border-dashed p-3 italic">
+              No BRD from any other team matched this payment — unique across
+              all teams.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr className="text-left">
+                    <th className="p-2 font-medium">Team</th>
+                    <th className="p-2 font-medium">Status</th>
+                    <th className="p-2 font-medium">BRD File</th>
+                    <th className="p-2 font-medium">Match</th>
+                    <th className="p-2 font-medium">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(crossTeam.matches ?? []).map((m, i) => (
+                    <tr
+                      key={i}
+                      className={
+                        "border-t " +
+                        (m.match_flag === "duplicate"
+                          ? "bg-red-50"
+                          : "bg-amber-50")
+                      }
+                    >
+                      <td className="p-2 align-top">
+                        <div className="font-medium">{m.team_name ?? "—"}</div>
+                        {m.client_name ? (
+                          <div className="text-xs text-muted-foreground">
+                            {m.client_name}
+                          </div>
+                        ) : null}
+                        {m.entry_id ? (
+                          <Link
+                            href={`/admin/queue/detailed-analysis?entryId=${m.entry_id}`}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Open analysis →
+                          </Link>
+                        ) : null}
+                      </td>
+                      <td className="p-2 align-top">
+                        {m.status ? (
+                          <Badge
+                            variant="outline"
+                            className={statusBadgeClass(m.status)}
+                          >
+                            {statusLabel(m.status)}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2 align-top">
+                        {m.brd_url ? (
+                          <DocumentLinkButton
+                            url={m.brd_url}
+                            label="BRD"
+                            className="h-7 px-2.5 text-xs"
+                            testId={`crossteam-brd-${m.entry_id ?? i}`}
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2 align-top">
+                        <Badge
+                          variant="outline"
+                          className={
+                            m.match_flag === "duplicate"
+                              ? "bg-red-100 text-red-800 border-red-200"
+                              : "bg-amber-100 text-amber-800 border-amber-200"
+                          }
+                        >
+                          {m.match_flag ?? "match"}
+                        </Badge>
+                      </td>
+                      <td className="p-2 align-top text-muted-foreground">
+                        {m.reason ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -320,6 +456,14 @@ function DetailView({ entryId }: { entryId: number }) {
 
   const { entry, history } = data;
   const detail = entry.aiAnalysisDetail as BrdAiAnalysis | null;
+  const crossTeamScore =
+    (
+      detail as
+        | (BrdAiAnalysis & {
+            cross_team_uniqueness?: { score?: number | null } | null;
+          })
+        | null
+    )?.cross_team_uniqueness?.score ?? null;
 
   return (
     <div className="space-y-6">
@@ -380,6 +524,9 @@ function DetailView({ entryId }: { entryId: number }) {
         <div className="flex flex-wrap items-center gap-4 mb-5">
           <ScoreCircle label="BRD Relevancy" score={entry.brdScore} />
           <ScoreCircle label="Uniqueness" score={entry.uniquenessScore} />
+          {crossTeamScore != null ? (
+            <ScoreCircle label="Across Teams" score={crossTeamScore} />
+          ) : null}
           <div className="text-xs text-muted-foreground italic ml-auto">
             Showing latest analysis snapshot
           </div>
@@ -417,6 +564,36 @@ function DetailView({ entryId }: { entryId: number }) {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+// Compact, expandable cell for the AI-extracted BRD summary. Shows a short
+// preview with a "...more" toggle so long summaries don't bloat the row.
+function SummaryCell({ text }: { text: string | null | undefined }) {
+  const [open, setOpen] = useState(false);
+  if (!text || !text.trim()) {
+    return <span className="text-xs text-muted-foreground italic">—</span>;
+  }
+  const clean = text.trim();
+  const LIMIT = 90;
+  const isLong = clean.length > LIMIT;
+  const shown = open || !isLong ? clean : clean.slice(0, LIMIT).trimEnd();
+  return (
+    <div className="max-w-[340px] text-xs text-muted-foreground">
+      {shown}
+      {isLong ? (
+        <>
+          {open ? " " : "… "}
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="font-medium text-primary hover:underline"
+          >
+            {open ? "less" : "...more"}
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -497,6 +674,7 @@ function ListView() {
                   <th className="p-3 font-medium">Campus</th>
                   <th className="p-3 font-medium">Project</th>
                   <th className="p-3 font-medium">Client</th>
+                  <th className="p-3 font-medium">Summary</th>
                   <th className="p-3 font-medium">Status</th>
                   <th className="p-3 font-medium">BRD File</th>
                   <th className="p-3 font-medium">Relevancy</th>
@@ -525,6 +703,17 @@ function ListView() {
                     <td className="p-3">{it.projectTitle}</td>
                     <td className="p-3 text-muted-foreground">
                       {it.clientName}
+                    </td>
+                    <td className="p-3 align-top">
+                      <SummaryCell
+                        text={
+                          (
+                            it as BrdAnalysisListItem & {
+                              summary?: string | null;
+                            }
+                          ).summary
+                        }
+                      />
                     </td>
                     <td className="p-3">
                       <Badge

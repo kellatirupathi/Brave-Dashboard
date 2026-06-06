@@ -3,7 +3,7 @@
 // Each gated mutation (join-by-code, accept invite, approve join-request,
 // leave, leader-remove) creates a PENDING row in `membership_requests` instead
 // of applying the change immediately. An admin then approves (which applies the
-// real change + sends email + notification) or rejects (notification only).
+// real change) or rejects. Both approve and reject send email + notification.
 //
 // All apply-time invariants (one team per student, team capacity, leader can't
 // leave/be removed) are re-checked here at approval time, not at request time,
@@ -59,7 +59,9 @@ const TYPE_LABELS: Record<MembershipRequestType, string> = {
   leader_remove: "Remove member from team",
 };
 
-export function membershipRequestTypeLabel(type: MembershipRequestType): string {
+export function membershipRequestTypeLabel(
+  type: MembershipRequestType,
+): string {
   return TYPE_LABELS[type] ?? type;
 }
 
@@ -392,7 +394,8 @@ export async function applyMembershipRequest(
     return {
       ok: false,
       status: 409,
-      error: "The team leader cannot leave or be removed. Transfer leadership first.",
+      error:
+        "The team leader cannot leave or be removed. Transfer leadership first.",
     };
   }
   const [membership] = await db
@@ -638,7 +641,10 @@ export async function buildMembershipTimeline(
   };
 }
 
-// Send the rejection notification (no membership change happens).
+// Send the rejection notification + email (no membership change happens).
+// Emails mirror the in-app notification recipients: always the requester, plus
+// the joining student on add-flows when they differ. sendEmail never throws, so
+// a mail failure can't block the reject response.
 export async function notifyMembershipRejected(
   mr: MembershipRequest,
   note: string | null,
@@ -649,9 +655,12 @@ export async function notifyMembershipRejected(
     .where(eq(teamsTable.id, mr.teamId));
   const teamName = team?.name ?? "the team";
   const suffix = note && note.trim() ? ` Note from admin: ${note.trim()}` : "";
+  const noteLine =
+    note && note.trim() ? `\n\nAdmin's note: ${note.trim()}` : "";
   const label = membershipRequestTypeLabel(mr.type).toLowerCase();
+  const appUrl = getAppUrl();
 
-  // Notify whoever initiated the request.
+  // Notify + email whoever initiated the request.
   await createNotification(
     mr.actorUserId,
     "Request not approved",
@@ -659,6 +668,18 @@ export async function notifyMembershipRejected(
     "membership_rejected",
     "/team",
   );
+  const [actor] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, mr.actorUserId));
+  if (actor?.email) {
+    await sendEmail({
+      to: { email: actor.email, name: displayName(actor) },
+      subject: `Your request was not approved — ${teamName}`,
+      text: `Hi ${displayName(actor)},\n\nYour request to ${label} for "${teamName}" was not approved by an admin.${noteLine}\n\nOpen BRAVE: ${appUrl}/team\n\n— BRAVE Dashboard`,
+    });
+  }
+
   // For add-flows the target (the joining student) may differ from the actor.
   if (isAddType(mr.type) && mr.targetUserId !== mr.actorUserId) {
     await createNotification(
@@ -668,5 +689,16 @@ export async function notifyMembershipRejected(
       "membership_rejected",
       "/get-started",
     );
+    const [targetUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, mr.targetUserId));
+    if (targetUser?.email) {
+      await sendEmail({
+        to: { email: targetUser.email, name: displayName(targetUser) },
+        subject: `Your request to join ${teamName} was not approved`,
+        text: `Hi ${displayName(targetUser)},\n\nYour request to join "${teamName}" was not approved by an admin.${noteLine}\n\nFind or start a team: ${appUrl}/get-started\n\n— BRAVE Dashboard`,
+      });
+    }
   }
 }

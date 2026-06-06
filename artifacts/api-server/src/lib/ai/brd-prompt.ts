@@ -8,19 +8,20 @@ You will receive:
    used for uniqueness comparison. Rejected and not-yet-approved BRDs are NEVER
    included here.
 
-The single most important thing in a BRD is the PAYMENT PROOF — the payment
-screenshot, bank statement, UPI/transaction receipt, bank-transfer confirmation,
-or cheque image that shows the money was actually received. BOTH scores below are
-driven PRIMARILY by the payment proof.
+The single most important thing in a BRD is the PAYMENT PROOF (also called the
+TRANSACTION PROOF) — the payment screenshot, bank statement, UPI / transaction
+receipt, bank-transfer confirmation, or cheque image that shows the money was
+actually RECEIVED. BOTH scores below are driven PRIMARILY by this payment /
+transaction proof. An INVOICE or bill is NOT payment proof and is NOT audited.
 
 ---
 
 TASK 1 — BRD RELEVANCY SCORE (0 to 100)
 
 Analyse the current BRD PDF thoroughly. Read all text, tables, and every image or
-screenshot embedded inside the PDF. Images inside the PDF may include payment
-screenshots, UPI transaction proofs, bank statements, bank-transfer receipts,
-cheque images, invoices, or purchase orders.
+screenshot embedded inside the PDF. The image that matters is the PAYMENT /
+TRANSACTION PROOF — a payment screenshot, UPI transaction proof, bank statement,
+bank-transfer receipt, or cheque image. (Invoices / purchase orders are NOT audited.)
 
 THE PAYMENT PROOF IS THE PRIMARY FACTOR for this score. A BRD's whole purpose is to
 prove the money was actually received, so a clear, genuine, verifiable payment proof
@@ -32,7 +33,12 @@ each). They must NEVER pull the score far down on their own:
 1. Business / Team owner details — founder name(s), team name, campus, contact
 2. Business or product description — what is being sold, category, brief pitch
 3. Customer / Client details — client name, contact, location
-4. Transaction / invoice details — invoice number, date, item/service, amount, taxes
+
+DO NOT check for, require, or comment on an INVOICE or any invoice / transaction-detail
+document (invoice number, line items, taxes, purchase order, bill). Invoices are OUTSIDE
+the scope of this audit: their absence must cost ZERO points and must NEVER appear as a
+finding. The only money evidence that matters is the PAYMENT / TRANSACTION PROOF showing
+the funds were actually received.
 
 SCORING RUBRIC (apply strictly — payment proof first):
 - 90–100 = clear, genuine, verifiable payment proof; amount matches the claim; AND
@@ -42,7 +48,7 @@ SCORING RUBRIC (apply strictly — payment proof first):
 - 70–79  = a valid, clear payment proof whose amount matches the claim, but little or
   no other BRD structure (e.g. essentially only a payment screenshot). A bare but
   genuine payment proof still belongs HERE — do NOT score it lower than 70 just
-  because owner / client / invoice / description are missing.
+  because owner / client / description are missing (an invoice is not needed at all).
 - 50–69  = payment proof is present but unclear, partial, low-quality, or the amount
   only roughly matches ("close"); hard to be confident the money was received.
 - 25–49  = payment proof is weak, ambiguous, or you cannot tell that money was
@@ -54,14 +60,30 @@ HARD RULES — these MUST be enforced:
 - The payment proof is the PRIMARY determinant of this score.
 - If a clear, genuine payment proof exists AND its amount matches the claimed
   revenue, the brd_score MUST be at least 70 — even if owner details, client
-  details, invoice, and description are all missing. A bare payment screenshot that
+  details, and description are all missing. A bare payment screenshot that
   is genuine and matches the amount is acceptable and scores 70+.
-- Missing owner details, client details, invoice, or business description each cost
-  at MOST a few points — never a large penalty.
+- Missing owner details, client details, or business description each cost at MOST a
+  few points — never a large penalty. An INVOICE is NOT required: missing it costs ZERO
+  points and must not be mentioned.
 - If there is NO payment proof, the score MUST be low (0–24) no matter how complete
   the rest of the document looks.
 - If the amount in the payment proof does not match the claimed revenue → cap at 30.
 - If the document is blank, corrupted, fake/dummy, or a random unrelated file → 0–15.
+- DIFFERENT PAYER IS OK: a payment may legitimately be SENT by someone other than the
+  named client — the client's company / organisation account, their finance or accounts
+  department, an employee or colleague of the client, a family member, or a payment
+  gateway / aggregator. A payer (sender) name that DIFFERS from the claimed client name
+  is NORMAL and is NOT, by itself, a reason to lower the score or reject. When the amount
+  and date match, treat the proof as valid; only if NOTHING ties the sender to the client
+  (no company name or note), flag ⚠️ for admin review — never ❌ on this basis
+  alone.
+- WRONG DIRECTION / INTERNAL PAYEE IS NOT OK: what must be true is that money was
+  RECEIVED INTO the team's / founder's / business account FROM an outside party. If
+  instead the money was paid TO a team member, transferred BETWEEN two team members, or
+  is a circular / self-payment (the team effectively paying itself), it is NOT valid
+  revenue proof → score LOW (0–24). Cross-check the payer and payee names against the
+  team / owner names listed in the BRD: a TEAM MEMBER as the RECEIVER (payee) is the real
+  red flag — not the sender's name.
 
 POSITIVE signals (increase score):
 - Payment proof is clear and high-resolution, and clearly shows amount, date, and a
@@ -72,12 +94,23 @@ POSITIVE signals (increase score):
 NEGATIVE signals (decrease score):
 - No payment proof, or an unreadable / cropped / suspicious payment proof
 - Payment proof amount differs from the claimed amount
+- The RECEIVER (payee) of the money is a team member, a transfer between two team
+  members, or a circular / self-payment (the team paying itself)
 - Blank template, fake/dummy data, random photos/selfies/logos with no payment proof
+(NOTE: a differing PAYER / sender name is NOT a negative signal by itself — money often
+comes from the client's company, finance team, an employee, family, or a gateway. See
+HARD RULES.)
 
 Provide exactly 4 to 7 short one-line findings. The FIRST finding(s) MUST be about
-the payment proof (is it present, clear, genuine, and does the amount match?). Then
-briefly note which of the other sections (owner, description, client, invoice) are
-present or missing — but make clear these are secondary and lightly weighted.
+the payment proof (is it present, clear, genuine, and does the amount match?). Do NOT
+mark the proof ❌ just because the SENDER's name differs from the claimed client — a
+third-party sender (the client's company, finance team, an employee, family, or a
+payment gateway) is fine; use ✅ when the amount and date match, or ⚠️ if you cannot
+link the sender to the client. Reserve ❌ for a missing / fake proof, or one whose
+RECEIVER is a team member (money paid TO the team instead of RECEIVED FROM the client).
+Then briefly note which of the other sections (owner, description, client) are present
+or missing — but make clear these are secondary and lightly weighted. NEVER mention an
+invoice, transaction-invoice, or purchase order in any finding.
 Each line MUST start with exactly one of these:
 ✅  — present and clear
 ⚠️  — partially present / unclear
@@ -156,6 +189,25 @@ should review.
 
 ---
 
+TASK 3 — BRD SUMMARY (always produce this)
+
+Extract a SHORT, structured summary of THIS BRD so it can be stored once and later
+compared cheaply against other BRDs WITHOUT re-reading the whole PDF. Pull each field
+from the document / payment proof; use an empty string "" for anything genuinely not
+present (never null). Keep every value short.
+- business_name — the student's business / team / brand name
+- client_name — the customer / client the work was done for
+- payer_name — who SENT the money on the payment proof (may differ from the client)
+- payee_name — who RECEIVED the money on the payment proof
+- amount — the amount shown on the payment proof (e.g. "₹10,000")
+- payment_date — the date shown on the payment proof
+- reference_id — UTR / transaction id / reference / cheque number on the proof
+- project — the project / product the revenue is for
+- summary_text — ONE or TWO short sentences a reviewer can skim: the business, the
+  client, what was sold, and the payment proof (amount, date, payer → payee, reference)
+
+---
+
 STRICT RULES:
 - Analyse every page of every PDF provided, including all embedded images
 - Never skip image analysis — the payment proof is the most important evidence for BOTH scores
@@ -195,6 +247,17 @@ RETURN your response ONLY as a valid JSON object in this exact format:
       "reason": "<one short line explaining the payment-proof similarity>"
     }
   ],
+  "brd_summary": {
+    "business_name": "<short or empty>",
+    "client_name": "<short or empty>",
+    "payer_name": "<short or empty>",
+    "payee_name": "<short or empty>",
+    "amount": "<e.g. ₹10,000 or empty>",
+    "payment_date": "<short or empty>",
+    "reference_id": "<UTR / txn id / cheque no or empty>",
+    "project": "<short or empty>",
+    "summary_text": "<one or two short sentences>"
+  },
   "analysed_at": "<ISO 8601 timestamp>"
 }`;
 

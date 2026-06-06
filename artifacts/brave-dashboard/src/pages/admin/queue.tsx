@@ -761,6 +761,16 @@ function AiBrdAuditCard({ item }: { item: QueueItem }) {
 
   const detail = item.aiAnalysisDetail ?? null;
   const analysed = item.aiAnalysedAt != null;
+  // Cross-team uniqueness lives in the analysis JSON (not a column), so read it
+  // defensively — it's absent on analyses run before this feature.
+  const crossTeamScore =
+    (
+      detail as
+        | (BrdAiAnalysis & {
+            cross_team_uniqueness?: { score?: number | null } | null;
+          })
+        | null
+    )?.cross_team_uniqueness?.score ?? null;
 
   const onReanalyse = () => {
     reanalyse.mutate(
@@ -825,6 +835,15 @@ function AiBrdAuditCard({ item }: { item: QueueItem }) {
           >
             Uniqueness: {item.uniquenessScore ?? "?"}/100
           </Badge>
+          {crossTeamScore != null ? (
+            <Badge
+              variant="outline"
+              className={`h-5 ${scoreColor(crossTeamScore)}`}
+              data-testid={`badge-crossteam-score-${item.id}`}
+            >
+              Across teams: {crossTeamScore}/100
+            </Badge>
+          ) : null}
         </>
       )}
 

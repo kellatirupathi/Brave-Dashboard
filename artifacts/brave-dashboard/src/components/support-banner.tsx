@@ -3,7 +3,10 @@ import { useAuth } from "@workspace/replit-auth-web";
 
 const SUPPORT_EMAIL = "brave.niat@nxtwave.in";
 
-function buildSupportMailto(opts: {
+// Build a Gmail web "compose" URL so the button opens Gmail directly (in a new
+// tab) with the recipient, subject, and a pre-filled body. Gmail uses `su` for
+// the subject; `view=cm&fs=1` opens a full-screen compose window.
+function buildSupportGmailUrl(opts: {
   niatId?: string | null;
   name: string;
   email: string;
@@ -24,9 +27,9 @@ function buildSupportMailto(opts: {
   ]
     .filter(Boolean)
     .join("\n");
-  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
-    subject,
-  )}&body=${encodeURIComponent(body)}`;
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+    SUPPORT_EMAIL,
+  )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 export function SupportBanner() {
@@ -36,7 +39,7 @@ export function SupportBanner() {
     `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
     user?.email ||
     "Student";
-  const supportHref = buildSupportMailto({
+  const supportHref = buildSupportGmailUrl({
     niatId: user?.niatId,
     name: fullName,
     email: user?.email ?? "",
@@ -59,6 +62,8 @@ export function SupportBanner() {
             Email us at{" "}
             <a
               href={supportHref}
+              target="_blank"
+              rel="noopener noreferrer"
               className="font-medium text-primary hover:underline"
               data-testid="banner-support-email-link"
             >
@@ -70,6 +75,8 @@ export function SupportBanner() {
       </div>
       <a
         href={supportHref}
+        target="_blank"
+        rel="noopener noreferrer"
         className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background self-stretch sm:self-auto justify-center sm:justify-start whitespace-nowrap"
         data-testid="banner-support-button"
       >
