@@ -88,6 +88,10 @@ const FUNNEL_LABELS: Record<string, { display: string; short: string }> = {
   },
   students_logged_in: { display: "Students logged in", short: "Login" },
   students_joined_teams: { display: "Students in a team", short: "In a team" },
+  students_not_in_team: {
+    display: "Registered but not in a team",
+    short: "Not in a team",
+  },
   students_not_logged_in: {
     display: "Students not logged in",
     short: "Not logged in",
@@ -139,7 +143,14 @@ function FunnelChart({
   showActiveStudents = false,
   extraSideStats = [],
 }: {
-  stages: { key: string; label: string; count: number }[];
+  stages: {
+    key: string;
+    label: string;
+    count: number;
+    // Breakdown/complement layer (e.g. "not in a team") — rendered as a funnel
+    // trapezoid but with no step-% badge and excluded from drop-off analysis.
+    noStepBadge?: boolean;
+  }[];
   loading: boolean;
   engagement?: { dau: number; wau: number; mau: number };
   // Active-user count for the headline card (always programme-wide students).
@@ -209,6 +220,8 @@ function FunnelChart({
   for (let i = 1; i < n; i++) {
     const prev = forward[i - 1];
     const cur = forward[i];
+    // Breakdown layers aren't sequential steps — skip them in drop-off analysis.
+    if (cur.noStepBadge) continue;
     const dropped = Math.max(prev.count - cur.count, 0);
     if (!topDrop || dropped > topDrop.dropped) {
       topDrop = {
@@ -284,8 +297,9 @@ function FunnelChart({
                   : 0;
               return (
                 <div key={s.key} className="flex flex-col items-stretch">
-                  {/* Step-conversion badge ("% continued") on the seam. */}
-                  {i > 0 ? (
+                  {/* Step-conversion badge ("% continued") on the seam.
+                      Skipped for breakdown layers that aren't a real step. */}
+                  {i > 0 && !s.noStepBadge ? (
                     <div className="relative z-10 -my-2 flex justify-center">
                       <span className="inline-flex items-center rounded-full border bg-white px-2.5 py-0.5 text-[11px] font-semibold text-[#c96a50] shadow-sm">
                         {`${keptPct.toFixed(0)}% continued`}
@@ -610,6 +624,14 @@ export default function HeatmapPage() {
         key: "students_logged_in",
         label: "Students logged on the platform at least once",
         count: loggedInEver,
+      },
+      // 4th funnel layer — breakdown/complement of "in a team". No step-%
+      // badge (it isn't a sequential step) and excluded from drop-off analysis.
+      {
+        key: "students_not_in_team",
+        label: "Registered but not in a team",
+        count: Math.max(total - joinedTeams, 0),
+        noStepBadge: true,
       },
       {
         key: "students_not_logged_in",
@@ -951,20 +973,6 @@ export default function HeatmapPage() {
                 }
                 remindingNeverLogged={remindNeverMut.isPending}
                 showActiveStudents={!isTeamsFunnel}
-                extraSideStats={
-                  isTeamsFunnel
-                    ? undefined
-                    : [
-                        {
-                          label: "Registered but not in a team",
-                          count: Math.max(
-                            (analytics?.totals.totalStudents ?? 0) -
-                              (analytics?.totals.studentsJoinedTeams ?? 0),
-                            0,
-                          ),
-                        },
-                      ]
-                }
               />
             </CardContent>
           </Card>
