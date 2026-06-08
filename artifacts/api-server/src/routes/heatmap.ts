@@ -543,6 +543,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
         totals: {
           totalStudents: 0,
           loggedInEver: 0,
+          studentsJoinedTeams: 0,
           uniqueJournalEntries: 0,
         },
         funnel: [
@@ -564,7 +565,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
           { key: "started_project", label: "Projects started", count: 0 },
           { key: "closed_project", label: "Projects complete", count: 0 },
         ],
-        engagement: { dau: 0, wau: 0 },
+        engagement: { dau: 0, wau: 0, mau: 0 },
       });
       return;
     }
@@ -617,11 +618,15 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
   const countersP = db.execute<{
     total_students: string;
     logged_in_ever: string;
+    students_joined_teams: string;
     unique_journals: string;
   }>(sql`
     SELECT
       (SELECT COUNT(*) FROM users u WHERE u.role = 'student' ${campusClause})                                      AS total_students,
       (SELECT COUNT(*) FROM users u WHERE u.role = 'student' AND u.last_seen_at IS NOT NULL ${campusClause})        AS logged_in_ever,
+      (SELECT COUNT(*) FROM users u
+         JOIN team_members tm ON tm.user_id = u.id
+        WHERE u.role = 'student' ${campusClause})                                                                  AS students_joined_teams,
       (SELECT COUNT(*) FROM weekly_journals j
         ${
           campusFilter != null
@@ -704,10 +709,12 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
   const now = new Date();
   const dauCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const wauCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const engagementP = db.execute<{ dau: string; wau: string }>(sql`
+  const mauCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const engagementP = db.execute<{ dau: string; wau: string; mau: string }>(sql`
     SELECT
       COUNT(*) FILTER (WHERE u.last_seen_at >= ${dauCutoff}) AS dau,
-      COUNT(*) FILTER (WHERE u.last_seen_at >= ${wauCutoff}) AS wau
+      COUNT(*) FILTER (WHERE u.last_seen_at >= ${wauCutoff}) AS wau,
+      COUNT(*) FILTER (WHERE u.last_seen_at >= ${mauCutoff}) AS mau
     FROM users u
     WHERE u.role = 'student' ${campusClause}
   `);
@@ -726,6 +733,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
     totals: {
       totalStudents: Number(c?.total_students ?? 0),
       loggedInEver: Number(c?.logged_in_ever ?? 0),
+      studentsJoinedTeams: Number(c?.students_joined_teams ?? 0),
       uniqueJournalEntries: Number(c?.unique_journals ?? 0),
     },
     // Team-level programme funnel. "Registered teams" is the baseline (NOT
@@ -783,6 +791,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
     engagement: {
       dau: Number(e?.dau ?? 0),
       wau: Number(e?.wau ?? 0),
+      mau: Number(e?.mau ?? 0),
     },
   });
 });

@@ -136,10 +136,11 @@ function FunnelChart({
   remindTargetCount = 0,
   onRemindNeverLogged,
   remindingNeverLogged,
+  showActiveStudents = false,
 }: {
   stages: { key: string; label: string; count: number }[];
   loading: boolean;
-  engagement?: { dau: number; wau: number };
+  engagement?: { dau: number; wau: number; mau: number };
   // Active-user count for the headline card (always programme-wide students).
   rangeActiveCount: number;
   // Numerator + caption for the "overall conversion" headline (e.g. teams that
@@ -153,6 +154,9 @@ function FunnelChart({
   remindTargetCount?: number;
   onRemindNeverLogged?: () => void;
   remindingNeverLogged?: boolean;
+  // Show the separate Monthly/Weekly/Daily active-students block (students
+  // funnel only).
+  showActiveStudents?: boolean;
 }) {
   if (loading) {
     return (
@@ -364,6 +368,32 @@ function FunnelChart({
           ) : null}
         </div>
       </div>
+
+      {/* Active-students breakdown — shown separately, students funnel only. */}
+      {showActiveStudents ? (
+        <div className="rounded-xl border bg-card p-4">
+          <div className="mb-3 text-sm font-semibold">Active students</div>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Monthly active", value: engagement?.mau ?? 0 },
+              { label: "Weekly active", value: engagement?.wau ?? 0 },
+              { label: "Daily active", value: engagement?.dau ?? 0 },
+            ].map((m) => (
+              <div
+                key={m.label}
+                className="rounded-lg border bg-background px-4 py-3 text-center"
+              >
+                <div className="text-2xl font-bold tabular-nums">
+                  {m.value.toLocaleString("en-IN")}
+                </div>
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  {m.label} students
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -532,9 +562,10 @@ export default function HeatmapPage() {
   }, [analytics]);
   const studentFunnelStages = useMemo(() => {
     const total = analytics?.totals.totalStudents ?? 0;
-    const loggedIn =
-      (analytics?.funnel ?? []).find((s) => s.key === "students_logged_in")
-        ?.count ?? 0;
+    // "Logged in at least once" = ever logged in (all-time), not the
+    // range-scoped login count.
+    const loggedInEver = analytics?.totals.loggedInEver ?? 0;
+    const joinedTeams = analytics?.totals.studentsJoinedTeams ?? 0;
     return [
       {
         key: "registered_students",
@@ -543,13 +574,18 @@ export default function HeatmapPage() {
       },
       {
         key: "students_logged_in",
-        label: "Students logged in at least once",
-        count: loggedIn,
+        label: "Students logged on the platform at least once",
+        count: loggedInEver,
+      },
+      {
+        key: "students_joined_teams",
+        label: "Students joined the teams",
+        count: joinedTeams,
       },
       {
         key: "students_not_logged_in",
-        label: "Students not logged in at least once",
-        count: Math.max(total - loggedIn, 0),
+        label: "Students not logged in",
+        count: Math.max(total - loggedInEver, 0),
       },
     ];
   }, [analytics]);
@@ -885,6 +921,7 @@ export default function HeatmapPage() {
                   isTeamsFunnel ? undefined : () => setRemindNeverOpen(true)
                 }
                 remindingNeverLogged={remindNeverMut.isPending}
+                showActiveStudents={!isTeamsFunnel}
               />
             </CardContent>
           </Card>

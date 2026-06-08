@@ -303,6 +303,7 @@ export type HeatmapAnalytics = {
   totals: {
     totalStudents: number;
     loggedInEver: number;
+    studentsJoinedTeams: number;
     uniqueJournalEntries: number;
   };
   // Ordered top→bottom nested funnel stages. Each stage's count is a strict
@@ -315,6 +316,7 @@ export type HeatmapAnalytics = {
   engagement: {
     dau: number;
     wau: number;
+    mau: number;
   };
 };
 
