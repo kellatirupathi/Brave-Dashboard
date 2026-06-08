@@ -137,6 +137,7 @@ function FunnelChart({
   onRemindNeverLogged,
   remindingNeverLogged,
   showActiveStudents = false,
+  extraSideStats = [],
 }: {
   stages: { key: string; label: string; count: number }[];
   loading: boolean;
@@ -157,6 +158,9 @@ function FunnelChart({
   // Show the separate Monthly/Weekly/Daily active-students block (students
   // funnel only).
   showActiveStudents?: boolean;
+  // Extra "leftover"/negative side-stats shown as plain count callouts in the
+  // side panel (e.g. students registered but not in a team).
+  extraSideStats?: { label: string; count: number }[];
 }) {
   if (loading) {
     return (
@@ -366,6 +370,21 @@ function FunnelChart({
               ) : null}
             </div>
           ) : null}
+
+          {extraSideStats.map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-xl border bg-card p-4"
+              data-testid={`funnel-side-stat-${stat.label}`}
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {stat.label}
+              </div>
+              <div className="mt-0.5 text-2xl font-bold tabular-nums">
+                {stat.count.toLocaleString("en-IN")}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -562,10 +581,20 @@ export default function HeatmapPage() {
   }, [analytics]);
   const studentFunnelStages = useMemo(() => {
     const total = analytics?.totals.totalStudents ?? 0;
-    // "Logged in at least once" = ever logged in (all-time), not the
-    // range-scoped login count.
-    const loggedInEver = analytics?.totals.loggedInEver ?? 0;
-    const joinedTeams = analytics?.totals.studentsJoinedTeams ?? 0;
+    // Logged-in + joined-teams are scoped to the selected date range (Today /
+    // Last week / All time / Custom) — read from the range-aware `funnel`
+    // payload. Registered stays the all-time baseline (like the Teams funnel);
+    // for "All time" the range counts equal the all-time ever counts.
+    const byKey = new Map<string, number>(
+      (analytics?.funnel ?? []).map(
+        (s: { key: string; count: number }): [string, number] => [
+          s.key,
+          s.count,
+        ],
+      ),
+    );
+    const loggedIn = byKey.get("students_logged_in") ?? 0;
+    const joinedTeams = byKey.get("students_joined_teams") ?? 0;
     return [
       {
         key: "registered_students",
@@ -575,7 +604,7 @@ export default function HeatmapPage() {
       {
         key: "students_logged_in",
         label: "Students logged on the platform at least once",
-        count: loggedInEver,
+        count: loggedIn,
       },
       {
         key: "students_joined_teams",
@@ -585,7 +614,7 @@ export default function HeatmapPage() {
       {
         key: "students_not_logged_in",
         label: "Students not logged in",
-        count: Math.max(total - loggedInEver, 0),
+        count: Math.max(total - loggedIn, 0),
       },
     ];
   }, [analytics]);
@@ -922,6 +951,20 @@ export default function HeatmapPage() {
                 }
                 remindingNeverLogged={remindNeverMut.isPending}
                 showActiveStudents={!isTeamsFunnel}
+                extraSideStats={
+                  isTeamsFunnel
+                    ? undefined
+                    : [
+                        {
+                          label: "Registered but not in a team",
+                          count: Math.max(
+                            (analytics?.totals.totalStudents ?? 0) -
+                              (analytics?.totals.studentsJoinedTeams ?? 0),
+                            0,
+                          ),
+                        },
+                      ]
+                }
               />
             </CardContent>
           </Card>

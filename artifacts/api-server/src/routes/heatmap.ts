@@ -551,6 +551,11 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
           { key: "teams_logged_in", label: "Teams logged in", count: 0 },
           { key: "students_logged_in", label: "Students logged in", count: 0 },
           {
+            key: "students_joined_teams",
+            label: "Students joined teams",
+            count: 0,
+          },
+          {
             key: "never_logged_in_students",
             label: "Never logged-in students",
             count: 0,
@@ -645,6 +650,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
     registered_teams: string;
     teams_logged_in: string;
     students_logged_in: string;
+    students_joined_teams: string;
     never_logged_in_students: string;
     submitted_journal: string;
     visited_client: string;
@@ -693,6 +699,13 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
           AND u.last_seen_at >= ${rangeStart}
           AND u.last_seen_at <= ${rangeEnd}
           ${campusClause})                                                         AS students_logged_in,
+      (SELECT COUNT(DISTINCT u.id)
+         FROM users u
+         JOIN team_members tm ON tm.user_id = u.id
+        WHERE u.role = 'student'
+          AND tm.joined_at >= ${rangeStart}
+          AND tm.joined_at <= ${rangeEnd}
+          ${campusClause})                                                         AS students_joined_teams,
       (SELECT COUNT(*)
          FROM users u
         WHERE u.role = 'student'
@@ -756,6 +769,11 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
         key: "students_logged_in",
         label: "Students logged in",
         count: Number(f?.students_logged_in ?? 0),
+      },
+      {
+        key: "students_joined_teams",
+        label: "Students joined teams",
+        count: Number(f?.students_joined_teams ?? 0),
       },
       {
         key: "never_logged_in_students",
