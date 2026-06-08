@@ -8,7 +8,6 @@ import {
   Search,
   CheckCircle2,
   X,
-  ArrowDown,
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
@@ -88,6 +87,7 @@ const FUNNEL_LABELS: Record<string, { display: string; short: string }> = {
     short: "Registration",
   },
   students_logged_in: { display: "Students logged in", short: "Login" },
+  students_joined_teams: { display: "Students in a team", short: "In a team" },
   students_not_logged_in: {
     display: "Students not logged in",
     short: "Not logged in",
@@ -241,22 +241,27 @@ function FunnelChart({
             {successLabel}
           </div>
         </div>
-        <div className="flex shrink-0 gap-6" data-testid="funnel-active-users">
-          {[
-            { label: "Active", value: rangeActiveCount },
-            { label: "Daily avg", value: engagement?.dau ?? 0 },
-            { label: "Weekly active", value: engagement?.wau ?? 0 },
-          ].map((stat) => (
-            <div key={stat.label}>
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {stat.label}
+        {!showActiveStudents ? (
+          <div
+            className="flex shrink-0 gap-6"
+            data-testid="funnel-active-users"
+          >
+            {[
+              { label: "Active", value: rangeActiveCount },
+              { label: "Daily avg", value: engagement?.dau ?? 0 },
+              { label: "Weekly active", value: engagement?.wau ?? 0 },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {stat.label}
+                </div>
+                <div className="text-lg font-bold tabular-nums">
+                  {stat.value.toLocaleString("en-IN")}
+                </div>
               </div>
-              <div className="text-lg font-bold tabular-nums">
-                {stat.value.toLocaleString("en-IN")}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Funnel + side panel. */}
@@ -273,17 +278,17 @@ function FunnelChart({
               const rBot = wBot / wTop; // bottom edge as a fraction of this layer's width
               const pctOfTotal = base > 0 ? (s.count / base) * 100 : 0;
               const prev = i > 0 ? forward[i - 1] : null;
-              const dropped = prev ? Math.max(prev.count - s.count, 0) : 0;
-              const dropPct =
-                prev && prev.count > 0 ? (dropped / prev.count) * 100 : 0;
+              const keptPct =
+                prev && prev.count > 0
+                  ? Math.min((s.count / prev.count) * 100, 100)
+                  : 0;
               return (
                 <div key={s.key} className="flex flex-col items-stretch">
-                  {/* Drop-off badge sitting on the seam above this layer. */}
+                  {/* Step-conversion badge ("% continued") on the seam. */}
                   {i > 0 ? (
                     <div className="relative z-10 -my-2 flex justify-center">
-                      <span className="inline-flex items-center gap-1 rounded-full border bg-white px-2.5 py-0.5 text-[11px] font-semibold text-[#c96a50] shadow-sm">
-                        <ArrowDown className="h-3 w-3" />
-                        <span>{`-${dropPct.toFixed(0)}% Drop-off`}</span>
+                      <span className="inline-flex items-center rounded-full border bg-white px-2.5 py-0.5 text-[11px] font-semibold text-[#c96a50] shadow-sm">
+                        {`${keptPct.toFixed(0)}% continued`}
                       </span>
                     </div>
                   ) : null}
@@ -317,6 +322,36 @@ function FunnelChart({
               );
             })}
           </div>
+
+          {/* Active-students footer — integrated inside the funnel card
+              (students funnel only). Rolling windows, independent of the range
+              dropdown. */}
+          {showActiveStudents ? (
+            <div className="mt-5 border-t pt-4">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Active students
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Monthly", value: engagement?.mau ?? 0 },
+                  { label: "Weekly", value: engagement?.wau ?? 0 },
+                  { label: "Daily", value: engagement?.dau ?? 0 },
+                ].map((m) => (
+                  <div
+                    key={m.label}
+                    className="rounded-lg border bg-white/60 px-3 py-2 text-center"
+                  >
+                    <div className="text-xl font-bold tabular-nums">
+                      {m.value.toLocaleString("en-IN")}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {m.label} active
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Side panel: top drop-off point + inverse leftover/Remind. */}
@@ -387,32 +422,6 @@ function FunnelChart({
           ))}
         </div>
       </div>
-
-      {/* Active-students breakdown — shown separately, students funnel only. */}
-      {showActiveStudents ? (
-        <div className="rounded-xl border bg-card p-4">
-          <div className="mb-3 text-sm font-semibold">Active students</div>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: "Monthly active", value: engagement?.mau ?? 0 },
-              { label: "Weekly active", value: engagement?.wau ?? 0 },
-              { label: "Daily active", value: engagement?.dau ?? 0 },
-            ].map((m) => (
-              <div
-                key={m.label}
-                className="rounded-lg border bg-background px-4 py-3 text-center"
-              >
-                <div className="text-2xl font-bold tabular-nums">
-                  {m.value.toLocaleString("en-IN")}
-                </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  {m.label} students
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -581,20 +590,11 @@ export default function HeatmapPage() {
   }, [analytics]);
   const studentFunnelStages = useMemo(() => {
     const total = analytics?.totals.totalStudents ?? 0;
-    // Logged-in + joined-teams are scoped to the selected date range (Today /
-    // Last week / All time / Custom) — read from the range-aware `funnel`
-    // payload. Registered stays the all-time baseline (like the Teams funnel);
-    // for "All time" the range counts equal the all-time ever counts.
-    const byKey = new Map<string, number>(
-      (analytics?.funnel ?? []).map(
-        (s: { key: string; count: number }): [string, number] => [
-          s.key,
-          s.count,
-        ],
-      ),
-    );
-    const loggedIn = byKey.get("students_logged_in") ?? 0;
-    const joinedTeams = byKey.get("students_joined_teams") ?? 0;
+    // All-time structural journey so the funnel always descends cleanly:
+    // registered ≥ in a team ≥ logged-in-ever. The date-range dropdown drives
+    // the Teams funnel + the Active-students windows below — not this shape.
+    const loggedInEver = analytics?.totals.loggedInEver ?? 0;
+    const joinedTeams = analytics?.totals.studentsJoinedTeams ?? 0;
     return [
       {
         key: "registered_students",
@@ -602,19 +602,19 @@ export default function HeatmapPage() {
         count: total,
       },
       {
-        key: "students_logged_in",
-        label: "Students logged on the platform at least once",
-        count: loggedIn,
+        key: "students_joined_teams",
+        label: "Students in a team",
+        count: joinedTeams,
       },
       {
-        key: "students_joined_teams",
-        label: "Students joined the teams",
-        count: joinedTeams,
+        key: "students_logged_in",
+        label: "Students logged on the platform at least once",
+        count: loggedInEver,
       },
       {
         key: "students_not_logged_in",
         label: "Students not logged in",
-        count: Math.max(total - loggedIn, 0),
+        count: Math.max(total - loggedInEver, 0),
       },
     ];
   }, [analytics]);
