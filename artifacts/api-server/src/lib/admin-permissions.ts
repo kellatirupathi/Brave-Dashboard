@@ -43,6 +43,7 @@ export const ADMIN_PAGES: readonly AdminPage[] = [
   { href: "/admin/feedback", label: "Feedback" },
   { href: "/admin/audit-log", label: "Audit Log" },
   { href: "/admin/campus-insights", label: "Campus Insights" },
+  { href: "/admin/chatbot-history", label: "Chatbot History" },
   { href: "/admin/config", label: "Config" },
   { href: "/admin/resources", label: "Resources" },
 ] as const;

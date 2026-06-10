@@ -30,6 +30,7 @@ import cronBackupSupabaseRouter from "./cron-backup-supabase";
 import brdAnalysisRouter from "./brd-analysis";
 import accessRequestsRouter from "./access-requests";
 import adminPermissionsRouter from "./admin-permissions";
+import adminChatbotRouter from "./admin-chatbot";
 
 const router: IRouter = Router();
 
@@ -76,5 +77,7 @@ router.use(brdAnalysisRouter);
 router.use(accessRequestsRouter);
 // Super Admin + per-page admin permissions (additive only, isolated)
 router.use(adminPermissionsRouter);
+// Admin Chatbot History viewer (additive only, isolated)
+router.use(adminChatbotRouter);
 
 export default router;

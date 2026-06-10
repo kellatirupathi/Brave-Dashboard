@@ -83,6 +83,7 @@ import StudentResourcesLibrary from "@/pages/student/resources";
 import AdminJournals from "@/pages/admin/journals";
 import AdminHeatmap from "@/pages/admin/heatmap";
 import AdminCampusInsights from "@/pages/admin/campus-insights";
+import AdminChatbotHistory from "@/pages/admin/chatbot-history";
 import AdminNotifications from "@/pages/admin/notifications";
 import CoordinatorJournals from "@/pages/coordinator/journals";
 import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
@@ -474,6 +475,14 @@ function Router() {
       <Route path="/admin/campus-insights">
         <ProtectedRoute
           component={AdminCampusInsights}
+          allowedRoles={["admin"]}
+        />
+      </Route>
+
+      {/* Admin Chatbot History (sidebar-linked). */}
+      <Route path="/admin/chatbot-history">
+        <ProtectedRoute
+          component={AdminChatbotHistory}
           allowedRoles={["admin"]}
         />
       </Route>

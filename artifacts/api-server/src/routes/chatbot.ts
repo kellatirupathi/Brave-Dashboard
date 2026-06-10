@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
-import { db, programmeConfigTable } from "@workspace/db";
+import { db, programmeConfigTable, chatbotHistoryTable } from "@workspace/db";
 // Knowledge base is bundled at build time via esbuild's text loader, so the
 // runtime cwd does not matter and the file cannot silently go missing in dist/.
 import braveKnowledge from "../../../../brave-knowledge.txt";
@@ -203,7 +203,41 @@ const AskBody = z.object({
   // route itself only ever uses the last 10 entries (history.slice(-10)).
   // A too-strict limit here previously 400'd every message past ~10 turns.
   history: z.array(HistoryItem).max(100).optional(),
+  // Optional client-generated id grouping one chat session, so the admin
+  // history view can show each conversation as its own thread.
+  conversationId: z.string().max(120).optional(),
 });
+
+// Best-effort persistence of one chat turn (the user's question + the bot's
+// answer) for the admin "Chatbot History" page. Fire-and-forget: it never
+// blocks or fails the chat response.
+function persistChatTurn(opts: {
+  userId: string | null;
+  conversationId: string | null;
+  question: string;
+  answer: string;
+  log: Request["log"];
+}): void {
+  void db
+    .insert(chatbotHistoryTable)
+    .values([
+      {
+        userId: opts.userId,
+        conversationId: opts.conversationId,
+        role: "user",
+        message: opts.question,
+      },
+      {
+        userId: opts.userId,
+        conversationId: opts.conversationId,
+        role: "assistant",
+        message: opts.answer,
+      },
+    ])
+    .catch((err) =>
+      opts.log.error({ err }, "Failed to persist chatbot history"),
+    );
+}
 
 const chatbotLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -629,6 +663,14 @@ router.post(
       if (out.suggestions.length === 0 && history.length === 0 && !loggedIn) {
         out.suggestions = DEFAULT_SUGGESTIONS_LOGGED_OUT;
       }
+      // Save this Q&A turn for the admin Chatbot History page (best-effort).
+      persistChatTurn({
+        userId: req.user?.id ?? null,
+        conversationId: parsed.data.conversationId ?? null,
+        question: message,
+        answer: out.answer,
+        log: req.log,
+      });
       res.json(out);
     } catch (err) {
       req.log.error({ err }, "Chatbot request errored");

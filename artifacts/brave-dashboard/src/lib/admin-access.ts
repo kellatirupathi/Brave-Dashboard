@@ -43,6 +43,7 @@ export const ADMIN_PAGES: readonly AdminPage[] = [
   { href: "/admin/feedback", label: "Feedback" },
   { href: "/admin/audit-log", label: "Audit Log" },
   { href: "/admin/campus-insights", label: "Campus Insights" },
+  { href: "/admin/chatbot-history", label: "Chatbot History" },
   { href: "/admin/config", label: "Config" },
   { href: "/admin/resources", label: "Resources" },
 ] as const;
@@ -114,9 +115,7 @@ export function isRouteBlocked(
   location: string,
 ): boolean {
   if (!access || access.isSuperAdmin) return false;
-  const sorted = [...ADMIN_PAGES].sort(
-    (a, b) => b.href.length - a.href.length,
-  );
+  const sorted = [...ADMIN_PAGES].sort((a, b) => b.href.length - a.href.length);
   const match = sorted.find(
     (p) => location === p.href || location.startsWith(p.href + "/"),
   );
@@ -147,11 +146,8 @@ export function saveUserPermissions(
   userId: string,
   body: { isSuperAdmin?: boolean; permissions?: AdminPermissions },
 ): Promise<UserAdminPermissions> {
-  return customFetch<UserAdminPermissions>(
-    `/api/admin/permissions/${userId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(body),
-    },
-  );
+  return customFetch<UserAdminPermissions>(`/api/admin/permissions/${userId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
 }

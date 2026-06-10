@@ -345,13 +345,17 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         href: "/admin/campus-insights",
         icon: BarChart3,
       },
+      {
+        name: "Chatbot History",
+        href: "/admin/chatbot-history",
+        icon: MessageSquare,
+      },
       { name: "Config", href: "/admin/config", icon: Settings },
       { name: "Resources", href: "/admin/resources", icon: BookOpen },
     ],
   };
 
-  const rawItems = (navItems[role as keyof typeof navItems] ||
-    []) as NavItem[];
+  const rawItems = (navItems[role as keyof typeof navItems] || []) as NavItem[];
   // For restricted admins, drop hidden leaves and any group left empty.
   // Super admins / default-allow admins keep the full nav (isHidden → false).
   const items: NavItem[] =

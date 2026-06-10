@@ -80,10 +80,11 @@ export const membershipRequestTypeEnum = pgEnum("membership_request_type", [
   "leave",
   "leader_remove",
 ]);
-export const membershipRequestStatusEnum = pgEnum(
-  "membership_request_status",
-  ["pending", "approved", "rejected"],
-);
+export const membershipRequestStatusEnum = pgEnum("membership_request_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
 
 // Campuses
 export const campusesTable = pgTable("campuses", {
@@ -108,6 +109,29 @@ export const insertCampusSchema = createInsertSchema(campusesTable).omit({
 });
 export type InsertCampus = z.infer<typeof insertCampusSchema>;
 export type Campus = typeof campusesTable.$inferSelect;
+
+// Chatbot conversation history — every user message + the assistant's reply,
+// captured best-effort from POST /chatbot/ask. `user_id` is null for logged-out
+// chats. Read by the admin "Chatbot History" page (list per student → detail).
+export const chatbotHistoryTable = pgTable(
+  "chatbot_history",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id"),
+    conversationId: text("conversation_id"),
+    role: text("role").notNull(), // "user" | "assistant"
+    message: text("message").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("chatbot_history_user_idx").on(t.userId),
+    index("chatbot_history_created_idx").on(t.createdAt),
+  ],
+);
+
+export type ChatbotHistoryRow = typeof chatbotHistoryTable.$inferSelect;
 
 // Users
 export const usersTable = pgTable(
