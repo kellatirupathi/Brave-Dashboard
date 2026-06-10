@@ -21,6 +21,26 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { formatINR, formatDateTime } from "@/lib/format";
 import {
   ArrowLeft,
@@ -31,6 +51,8 @@ import {
   Sparkles,
   Users,
   RotateCw,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 
@@ -791,6 +813,30 @@ function ListView() {
   const { data, isLoading, error } = useListBrdAnalyses();
   const items: BrdAnalysisListItem[] = data?.items ?? [];
 
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [campusFilter, setCampusFilter] = useState<string>("all");
+  const [campusOpen, setCampusOpen] = useState(false);
+
+  // Unique campus names present in the data, for the campus filter dropdown.
+  const campusOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const it of items) {
+      if (it.campusName && it.campusName.trim()) set.add(it.campusName);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [items]);
+
+  // Apply the status + campus filters. "Approved" maps to the verified status.
+  const filtered = useMemo(() => {
+    return items.filter((it) => {
+      const statusOk =
+        statusFilter === "all" ? true : it.status === statusFilter;
+      const campusOk =
+        campusFilter === "all" ? true : it.campusName === campusFilter;
+      return statusOk && campusOk;
+    });
+  }, [items, statusFilter, campusFilter]);
+
   const byTeam = useMemo(() => {
     const groups = new Map<
       string,
@@ -801,7 +847,7 @@ function ListView() {
         rows: BrdAnalysisListItem[];
       }
     >();
-    for (const it of items) {
+    for (const it of filtered) {
       const key = `${it.teamId}`;
       const g = groups.get(key);
       if (g) {
@@ -818,7 +864,7 @@ function ListView() {
     return Array.from(groups.values()).sort((a, b) =>
       a.teamName.localeCompare(b.teamName),
     );
-  }, [items]);
+  }, [filtered]);
 
   if (isLoading) {
     return (
@@ -844,14 +890,94 @@ function ListView() {
 
   return (
     <Tabs defaultValue="all">
-      <TabsList>
-        <TabsTrigger value="all" data-testid="tab-all-entries">
-          All Entries
-        </TabsTrigger>
-        <TabsTrigger value="team" data-testid="tab-by-team">
-          By Team
-        </TabsTrigger>
-      </TabsList>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <TabsList>
+          <TabsTrigger value="all" data-testid="tab-all-entries">
+            All Entries
+          </TabsTrigger>
+          <TabsTrigger value="team" data-testid="tab-by-team">
+            By Team
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status filter */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger
+              className="w-[150px]"
+              data-testid="select-status-filter"
+            >
+              <SelectValue placeholder="All status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All status</SelectItem>
+              <SelectItem value="verified">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Campus filter — searchable + scrollable */}
+          <Popover open={campusOpen} onOpenChange={setCampusOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={campusOpen}
+                className="w-[200px] justify-between font-normal"
+                data-testid="select-campus-filter"
+              >
+                <span className="truncate">
+                  {campusFilter === "all" ? "All campuses" : campusFilter}
+                </span>
+                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[240px] p-0" align="end">
+              <Command>
+                <CommandInput placeholder="Search campus…" />
+                <CommandList>
+                  <CommandEmpty>No campus found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="All campuses"
+                      onSelect={() => {
+                        setCampusFilter("all");
+                        setCampusOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={`mr-2 size-4 ${
+                          campusFilter === "all" ? "opacity-100" : "opacity-0"
+                        }`}
+                      />
+                      All campuses
+                    </CommandItem>
+                    {campusOptions.map((campus) => (
+                      <CommandItem
+                        key={campus}
+                        value={campus}
+                        onSelect={() => {
+                          setCampusFilter(campus);
+                          setCampusOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={`mr-2 size-4 ${
+                            campusFilter === campus
+                              ? "opacity-100"
+                              : "opacity-0"
+                          }`}
+                        />
+                        <span className="truncate">{campus}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
 
       <TabsContent value="all" className="mt-4">
         <Card className="p-0 overflow-hidden">
@@ -873,7 +999,17 @@ function ListView() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((it) => (
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={11}
+                      className="p-6 text-center text-sm text-muted-foreground italic"
+                    >
+                      No entries match the selected filters.
+                    </td>
+                  </tr>
+                ) : null}
+                {filtered.map((it) => (
                   <tr
                     key={it.id}
                     className="border-t hover:bg-muted/30"
@@ -953,9 +1089,13 @@ function ListView() {
       </TabsContent>
 
       <TabsContent value="team" className="mt-4 space-y-3">
-        {byTeam.map((g) => (
-          <TeamGroup key={g.teamId} group={g} />
-        ))}
+        {byTeam.length === 0 ? (
+          <Card className="p-6 text-sm text-muted-foreground italic">
+            No entries match the selected filters.
+          </Card>
+        ) : (
+          byTeam.map((g) => <TeamGroup key={g.teamId} group={g} />)
+        )}
       </TabsContent>
     </Tabs>
   );
