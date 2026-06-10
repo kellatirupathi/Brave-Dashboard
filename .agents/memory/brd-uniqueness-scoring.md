@@ -44,6 +44,15 @@ match_flag, reason}]}`. Frontend (detailed-analysis.tsx, queue.tsx) expects exac
 do not change it. Old rows store legacy `uniqueness_comparison` / `cross_team_uniqueness`
 shapes; frontend falls back to legacy sections when `detail.uniqueness` is absent.
 
+**Corpus completeness caveat (important):** uniqueness can only compare against approved
+BRDs that ALREADY have a stored summary. BRDs approved before the AI-summary feature have
+none, so they silently drop out of the comparison. Backfill is via the full reanalyse
+pipeline — `POST /revenue-entries/:id/reanalyse` → `runBrdAnalysisNow` →
+`analyseRevenueEntryBrd` (re-runs relevancy + summary + uniqueness and persists). This is
+surfaced in the admin UI as the per-row **Regenerate** button in the Actions column of the
+detailed-analysis "All Entries" table. New BRDs get a summary automatically on first
+analysis, so only the legacy backlog needs manual regeneration.
+
 **Do not touch** the relevancy score (`brd_score` / Task 1 in brd-prompt.ts) or the
 `brd_summary` extraction (Task 2) when editing uniqueness — they are independent and the
 user explicitly scoped uniqueness only.

@@ -1,10 +1,14 @@
 import {
   useListBrdAnalyses,
   useGetBrdAnalysisHistory,
+  useReanalyseRevenueEntry,
+  getListBrdAnalysesQueryKey,
   type BrdAnalysisListItem,
   type BrdAnalysisHistoryRecord,
   type BrdAiAnalysis,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Link, useSearch } from "wouter";
 import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -26,6 +30,7 @@ import {
   Bot,
   Sparkles,
   Users,
+  RotateCw,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 
@@ -738,6 +743,50 @@ function SummaryCell({ text }: { text: string | null | undefined }) {
   );
 }
 
+// Per-row "Regenerate" button. Re-runs the AI BRD auditor on this entry
+// (extracts a fresh summary + relevancy, then re-checks uniqueness against all
+// approved BRDs) and refreshes the list when done.
+function RegenerateButton({ entryId }: { entryId: number }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { mutate, isPending } = useReanalyseRevenueEntry();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={isPending}
+      data-testid={`button-regenerate-${entryId}`}
+      onClick={() => {
+        mutate(
+          { id: entryId },
+          {
+            onSuccess: () => {
+              toast({
+                title: "Analysis regenerated",
+                description:
+                  "Summary, relevancy and uniqueness have been refreshed.",
+              });
+              queryClient.invalidateQueries({
+                queryKey: getListBrdAnalysesQueryKey(),
+              });
+            },
+            onError: () => {
+              toast({
+                variant: "destructive",
+                title: "Regeneration failed",
+                description: "Could not re-analyse this BRD. Try again.",
+              });
+            },
+          },
+        );
+      }}
+    >
+      <RotateCw className={`size-4 ${isPending ? "animate-spin" : ""}`} />
+      {isPending ? "Regenerating…" : "Regenerate"}
+    </Button>
+  );
+}
+
 function ListView() {
   const { data, isLoading, error } = useListBrdAnalyses();
   const items: BrdAnalysisListItem[] = data?.items ?? [];
@@ -820,6 +869,7 @@ function ListView() {
                   <th className="p-3 font-medium">Relevancy</th>
                   <th className="p-3 font-medium">Uniqueness</th>
                   <th className="p-3 font-medium">Analysed at</th>
+                  <th className="p-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -890,6 +940,9 @@ function ListView() {
                     </td>
                     <td className="p-3 text-muted-foreground whitespace-nowrap">
                       {it.aiAnalysedAt ? formatDateTime(it.aiAnalysedAt) : "—"}
+                    </td>
+                    <td className="p-3 text-right whitespace-nowrap">
+                      <RegenerateButton entryId={it.id} />
                     </td>
                   </tr>
                 ))}
