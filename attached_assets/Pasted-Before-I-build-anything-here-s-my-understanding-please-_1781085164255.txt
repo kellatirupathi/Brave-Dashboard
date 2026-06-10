@@ -1,0 +1,28 @@
+Before I build anything, here's my understanding — please confirm.
+
+What you want
+Collapse the two uniqueness badges into ONE "Uniqueness" score, and make uniqueness cheap by comparing stored summaries instead of re-analysing every BRD's full PDF.
+
+How it differs from what exists today
+Today (two separate things):
+
+Uniqueness: X/100 — the within-team check that re-uploads up to 10 previous team PDFs to Gemini (expensive).
+Across teams: X/100 — the cross-team DB fingerprint I added.
+→ Two badges in the Review Queue.
+What you want instead (one unified thing):
+
+When a BRD is submitted, during the BRD-score (relevancy) analysis, also extract a short context summary from that BRD — client details, project details, payment/proof (screenshot) details (amount, date, reference/UTR, payer→payee, bank), and other key context — and store it in the DB. (We already store a brd_summary; I'd enrich it with this context.)
+Uniqueness = compare the new BRD's stored summary against the stored summaries of ALL approved BRDs (every team — same team + across teams), strictly, to detect duplicates → produces one uniqueness score.
+Do NOT re-upload/re-analyse all the other BRDs' PDFs for uniqueness. Only the current BRD's PDF is read by the AI (to score relevancy + extract its summary); the duplicate check then runs on the cheap stored text summaries. Big token saving.
+Review Queue shows only ONE "Uniqueness" badge (the "Across teams" badge goes away), and the detail page reflects the single combined uniqueness.
+Key decisions I need you to confirm
+Compare against which BRDs? All approved/verified BRDs, across all teams (same team + others). ✅ correct?
+Strict duplicate basis = the payment-proof fingerprint — same amount + date + reference/UTR, or same amount + date + payer/payee → treated as a duplicate (very low score); strong client+project+amount overlap → suspicious; otherwise unique (100). OK?
+Compute method: I recommend a DB pre-filter (find candidate approved BRDs whose summary fingerprint overlaps) → then send only those few candidate summaries (text, not PDFs) to the LLM for a final strict yes/no. That's cheap and strict. Acceptable, or do you want a pure rule-based (no LLM at all) comparison?
+One caveat: comparing summaries catches reused payment details (amount/date/UTR/payee), but not a visually identical screenshot where the numbers were re-typed differently — unless I also store an image hash of the payment proof. Do you want me to add image-hash comparison too, or is fingerprint-on-extracted-details enough?
+So in one line
+Extract+store a rich BRD context summary during the relevancy pass → run one strict, summary-based duplicate check against all approved BRDs (no PDF re-uploads) → show one Uniqueness score.
+
+Did I get it right? Confirm (and answer the 4 points) and I'll implement it end-to-end and give you the file paths
+
+waht is this tell me waht iam expecting tel me only
