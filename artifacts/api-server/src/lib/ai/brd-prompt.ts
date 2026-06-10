@@ -199,3 +199,108 @@ FILE PROVIDED:
 
 Now analyse and return ONLY the JSON object as specified above.`;
 }
+
+/**
+ * A single already-approved BRD's stored payment summary, used as a comparison
+ * candidate for the AI uniqueness check. Only the small extracted text fields
+ * are sent — never the original PDF.
+ */
+export type UniquenessCandidateSummary = {
+  entry_id: number;
+  team_name: string;
+  business_name: string;
+  client_name: string;
+  payer_name: string;
+  payee_name: string;
+  amount: string;
+  payment_date: string;
+  reference_id: string;
+  project: string;
+};
+
+/**
+ * The current BRD's own extracted payment summary, compared against the
+ * approved candidates.
+ */
+export type UniquenessCurrentSummary = {
+  team_name: string;
+  business_name: string;
+  client_name: string;
+  payer_name: string;
+  payee_name: string;
+  amount: string;
+  payment_date: string;
+  reference_id: string;
+  project: string;
+};
+
+/**
+ * Build the TEXT-ONLY prompt for the AI uniqueness comparison. We send the
+ * current BRD's extracted summary plus the extracted summaries of every
+ * approved BRD across all teams — as compact text, NOT as PDFs. Gemini decides
+ * whether the current payment proof duplicates / reuses any approved one.
+ */
+export function buildUniquenessPrompt(
+  current: UniquenessCurrentSummary,
+  candidates: UniquenessCandidateSummary[],
+): string {
+  const candidateLines = candidates
+    .map(
+      (c) =>
+        `- entry_id=${c.entry_id} | team="${c.team_name}" | business="${c.business_name}" | client="${c.client_name}" | payer="${c.payer_name}" | payee="${c.payee_name}" | amount="${c.amount}" | date="${c.payment_date}" | ref="${c.reference_id}" | project="${c.project}"`,
+    )
+    .join("\n");
+
+  return `You are a DUPLICATE-PAYMENT detector for BRAVE, an entrepreneurship programme run by NIAT.
+Student teams submit Business Revenue Documents (BRDs) as proof that a payment was
+RECEIVED. Some students cheat by reusing the SAME payment proof (the same real-world
+transaction) on more than one BRD — within their own team or by copying another team's
+proof. Your single job is to decide whether the CURRENT BRD's payment is the SAME
+real-world payment as any ALREADY-APPROVED BRD listed below.
+
+You are given ONLY the extracted text summaries of each payment proof — never the PDFs.
+Compare the CURRENT summary against EVERY approved summary in the list.
+
+WHAT COUNTS AS A MATCH (most → least certain):
+- DUPLICATE (high certainty): same reference / UTR / transaction id (ignoring spaces &
+  case); OR the same amount AND same date AND the same payer or the same payee; OR an
+  otherwise near-identical payer → payee + amount + date. Two DIFFERENT teams sharing
+  the exact same payment proof is an especially strong duplicate signal.
+- SUSPICIOUS (needs human review): the same amount on the same date, but nothing else
+  ties them together (no shared reference, payer, or payee). Could be a coincidence.
+- UNIQUE: a different amount, or a different date, or no meaningful overlap. Common
+  round amounts (e.g. ₹10,000) on different dates are NOT matches.
+
+IMPORTANT:
+- A differing PAYER alone does not break a match if reference/amount/date line up — money
+  is often sent by the client's company, finance team, family, or a gateway.
+- Be strict but fair: only call something a DUPLICATE when the evidence shows it is the
+  same transaction reused. When unsure between duplicate and unique, prefer SUSPICIOUS.
+- If the approved list is empty, the result is UNIQUE.
+
+SCORING:
+- 0–15  = confirmed duplicate (same payment reused)
+- 35–55 = suspicious (same amount & date, needs review)
+- 90–100 = unique (no real overlap)
+
+CURRENT BRD SUMMARY (the new submission to check):
+team="${current.team_name}" | business="${current.business_name}" | client="${current.client_name}" | payer="${current.payer_name}" | payee="${current.payee_name}" | amount="${current.amount}" | date="${current.payment_date}" | ref="${current.reference_id}" | project="${current.project}"
+
+ALREADY-APPROVED BRD SUMMARIES (${candidates.length} total, across all teams):
+${candidateLines || "(none — there are no approved BRDs to compare against)"}
+
+Return ONLY a valid JSON object in EXACTLY this format (no markdown, no extra text):
+{
+  "uniqueness_score": <number 0 to 100>,
+  "flag": "unique" | "suspicious" | "duplicate",
+  "summary": "<one or two short sentences a reviewer can skim>",
+  "matches": [
+    {
+      "entry_id": <number from the approved list above>,
+      "match_flag": "duplicate" | "suspicious",
+      "reason": "<short reason, e.g. 'same UTR + amount + date'>"
+    }
+  ]
+}
+If nothing matches, return an empty "matches" array and a high uniqueness_score.`;
+}
