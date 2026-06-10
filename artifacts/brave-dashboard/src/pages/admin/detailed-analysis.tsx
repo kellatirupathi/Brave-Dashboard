@@ -114,8 +114,155 @@ type CrossTeamUniqueness = {
   }> | null;
 };
 
+// Unified uniqueness — ONE score comparing this BRD's stored summary against
+// every approved BRD across ALL teams (the submitting team + every other team).
+// Stored under the `uniqueness` key for analyses run from this feature onward.
+// Read defensively: older analyses don't have it, so we fall back to the legacy
+// Team / Across-Teams sections below.
+type UnifiedUniqueness = {
+  score?: number | null;
+  flag?: string | null;
+  summary?: string | null;
+  compared_count?: number | null;
+  matches?: Array<{
+    entry_id?: number | null;
+    team_id?: number | null;
+    team_name?: string | null;
+    client_name?: string | null;
+    status?: string | null;
+    brd_url?: string | null;
+    same_team?: boolean | null;
+    match_flag?: "duplicate" | "suspicious" | null;
+    reason?: string | null;
+  }> | null;
+};
+
+function UniquenessSection({ u }: { u: UnifiedUniqueness }) {
+  const matches = u.matches ?? [];
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles className="w-4 h-4 text-muted-foreground" />
+        <h3 className="font-semibold">Uniqueness</h3>
+        {u.score != null ? (
+          <Badge variant="outline" className={scoreColor(u.score)}>
+            {u.score}/100
+          </Badge>
+        ) : null}
+      </div>
+      {u.summary ? (
+        <p className="text-sm italic text-muted-foreground mb-3">{u.summary}</p>
+      ) : null}
+      {matches.length === 0 ? (
+        <div className="text-sm text-muted-foreground rounded-md border border-dashed p-3 italic">
+          No approved BRD shares this payment&apos;s amount and date — unique
+          across all teams.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr className="text-left">
+                <th className="p-2 font-medium">Team</th>
+                <th className="p-2 font-medium">Status</th>
+                <th className="p-2 font-medium">BRD File</th>
+                <th className="p-2 font-medium">Match</th>
+                <th className="p-2 font-medium">Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matches.map((m, i) => (
+                <tr
+                  key={i}
+                  className={
+                    "border-t " +
+                    (m.match_flag === "duplicate" ? "bg-red-50" : "bg-amber-50")
+                  }
+                >
+                  <td className="p-2 align-top">
+                    <div className="font-medium flex items-center gap-2">
+                      {m.team_name ?? "—"}
+                      {m.same_team ? (
+                        <Badge
+                          variant="outline"
+                          className="bg-muted text-muted-foreground"
+                        >
+                          Same team
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {m.client_name ? (
+                      <div className="text-xs text-muted-foreground">
+                        {m.client_name}
+                      </div>
+                    ) : null}
+                    {m.entry_id ? (
+                      <Link
+                        href={`/admin/queue/detailed-analysis?entryId=${m.entry_id}`}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Open analysis →
+                      </Link>
+                    ) : null}
+                  </td>
+                  <td className="p-2 align-top">
+                    {m.status ? (
+                      <Badge
+                        variant="outline"
+                        className={statusBadgeClass(m.status)}
+                      >
+                        {statusLabel(m.status)}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">
+                        —
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2 align-top">
+                    {m.brd_url ? (
+                      <DocumentLinkButton
+                        url={m.brd_url}
+                        label="BRD"
+                        className="h-7 px-2.5 text-xs"
+                        testId={`uniqueness-brd-${m.entry_id ?? i}`}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">
+                        —
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2 align-top">
+                    <Badge
+                      variant="outline"
+                      className={
+                        m.match_flag === "duplicate"
+                          ? "bg-red-100 text-red-800 border-red-200"
+                          : "bg-amber-100 text-amber-800 border-amber-200"
+                      }
+                    >
+                      {m.match_flag ?? "match"}
+                    </Badge>
+                  </td>
+                  <td className="p-2 align-top text-muted-foreground">
+                    {m.reason ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function AnalysisBody({ detail }: { detail: BrdAiAnalysis }) {
   const pdf = detail.brd_pdf_summary;
+  const unified =
+    (detail as BrdAiAnalysis & { uniqueness?: UnifiedUniqueness | null })
+      .uniqueness ?? null;
   const crossTeam =
     (
       detail as BrdAiAnalysis & {
@@ -149,138 +296,142 @@ function AnalysisBody({ detail }: { detail: BrdAiAnalysis }) {
         </ul>
       </section>
 
-      <section>
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles className="w-4 h-4 text-muted-foreground" />
-          <h3 className="font-semibold">Team Uniqueness</h3>
-        </div>
-        {detail.uniqueness_summary ? (
-          <p className="text-sm italic text-muted-foreground mb-3">
-            {detail.uniqueness_summary}
-          </p>
-        ) : null}
-        {(detail.uniqueness_findings ?? []).length > 0 ? (
-          <ul className="space-y-1 text-sm mb-3">
-            {(detail.uniqueness_findings ?? []).map((f, i) => (
-              <li key={i} className="leading-relaxed">
-                {findingIcon(f)}
-                {f}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+      {unified ? <UniquenessSection u={unified} /> : null}
 
-        {(detail.uniqueness_comparison ?? []).length === 0 ? (
-          <div className="text-sm text-muted-foreground rounded-md border border-dashed p-3 italic">
-            First BRD submission — no previous BRDs to compare.
+      {!unified ? (
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-muted-foreground" />
+            <h3 className="font-semibold">Team Uniqueness</h3>
           </div>
-        ) : (
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr className="text-left">
-                  <th className="p-2 font-medium">Entry</th>
-                  <th className="p-2 font-medium">Status</th>
-                  <th className="p-2 font-medium">BRD File</th>
-                  <th className="p-2 font-medium">Similarity</th>
-                  <th className="p-2 font-medium">Flag</th>
-                  <th className="p-2 font-medium">Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(detail.uniqueness_comparison ?? []).map((c, i) => {
-                  // `compared_status` is attached at read time by the API
-                  // (the compared entry's live verified/rejected status); it
-                  // isn't in the generated type yet, so read it defensively.
-                  const comparedStatus = (
-                    c as { compared_status?: string | null }
-                  ).compared_status;
-                  return (
-                    <tr
-                      key={i}
-                      className={
-                        "border-t " +
-                        (c.flag === "duplicate"
-                          ? "bg-red-50"
-                          : c.flag === "suspicious"
-                            ? "bg-amber-50"
-                            : "")
-                      }
-                    >
-                      <td className="p-2 align-top">
-                        <div>{c.entry_label ?? "—"}</div>
-                        {c.compared_client_name ? (
-                          <div className="text-xs text-muted-foreground">
-                            {c.compared_client_name}
-                          </div>
-                        ) : null}
-                        {c.compared_entry_id ? (
-                          <Link
-                            href={`/admin/queue/detailed-analysis?entryId=${c.compared_entry_id}`}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            Open analysis →
-                          </Link>
-                        ) : null}
-                      </td>
-                      <td className="p-2 align-top">
-                        {comparedStatus ? (
+          {detail.uniqueness_summary ? (
+            <p className="text-sm italic text-muted-foreground mb-3">
+              {detail.uniqueness_summary}
+            </p>
+          ) : null}
+          {(detail.uniqueness_findings ?? []).length > 0 ? (
+            <ul className="space-y-1 text-sm mb-3">
+              {(detail.uniqueness_findings ?? []).map((f, i) => (
+                <li key={i} className="leading-relaxed">
+                  {findingIcon(f)}
+                  {f}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {(detail.uniqueness_comparison ?? []).length === 0 ? (
+            <div className="text-sm text-muted-foreground rounded-md border border-dashed p-3 italic">
+              First BRD submission — no previous BRDs to compare.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr className="text-left">
+                    <th className="p-2 font-medium">Entry</th>
+                    <th className="p-2 font-medium">Status</th>
+                    <th className="p-2 font-medium">BRD File</th>
+                    <th className="p-2 font-medium">Similarity</th>
+                    <th className="p-2 font-medium">Flag</th>
+                    <th className="p-2 font-medium">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(detail.uniqueness_comparison ?? []).map((c, i) => {
+                    // `compared_status` is attached at read time by the API
+                    // (the compared entry's live verified/rejected status); it
+                    // isn't in the generated type yet, so read it defensively.
+                    const comparedStatus = (
+                      c as { compared_status?: string | null }
+                    ).compared_status;
+                    return (
+                      <tr
+                        key={i}
+                        className={
+                          "border-t " +
+                          (c.flag === "duplicate"
+                            ? "bg-red-50"
+                            : c.flag === "suspicious"
+                              ? "bg-amber-50"
+                              : "")
+                        }
+                      >
+                        <td className="p-2 align-top">
+                          <div>{c.entry_label ?? "—"}</div>
+                          {c.compared_client_name ? (
+                            <div className="text-xs text-muted-foreground">
+                              {c.compared_client_name}
+                            </div>
+                          ) : null}
+                          {c.compared_entry_id ? (
+                            <Link
+                              href={`/admin/queue/detailed-analysis?entryId=${c.compared_entry_id}`}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Open analysis →
+                            </Link>
+                          ) : null}
+                        </td>
+                        <td className="p-2 align-top">
+                          {comparedStatus ? (
+                            <Badge
+                              variant="outline"
+                              className={statusBadgeClass(comparedStatus)}
+                            >
+                              {statusLabel(comparedStatus)}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2 align-top">
+                          {c.compared_brd_url ? (
+                            <DocumentLinkButton
+                              url={c.compared_brd_url}
+                              label="BRD"
+                              className="h-7 px-2.5 text-xs"
+                              testId={`compared-brd-${c.compared_entry_id ?? i}`}
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2 align-top whitespace-nowrap">
+                          {c.similarity_percent ?? 0}%
+                        </td>
+                        <td className="p-2 align-top">
                           <Badge
                             variant="outline"
-                            className={statusBadgeClass(comparedStatus)}
+                            className={
+                              c.flag === "duplicate"
+                                ? "bg-red-100 text-red-800 border-red-200"
+                                : c.flag === "suspicious"
+                                  ? "bg-amber-100 text-amber-800 border-amber-200"
+                                  : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            }
                           >
-                            {statusLabel(comparedStatus)}
+                            {c.flag ?? "?"}
                           </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 align-top">
-                        {c.compared_brd_url ? (
-                          <DocumentLinkButton
-                            url={c.compared_brd_url}
-                            label="BRD"
-                            className="h-7 px-2.5 text-xs"
-                            testId={`compared-brd-${c.compared_entry_id ?? i}`}
-                          />
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 align-top whitespace-nowrap">
-                        {c.similarity_percent ?? 0}%
-                      </td>
-                      <td className="p-2 align-top">
-                        <Badge
-                          variant="outline"
-                          className={
-                            c.flag === "duplicate"
-                              ? "bg-red-100 text-red-800 border-red-200"
-                              : c.flag === "suspicious"
-                                ? "bg-amber-100 text-amber-800 border-amber-200"
-                                : "bg-emerald-100 text-emerald-800 border-emerald-200"
-                          }
-                        >
-                          {c.flag ?? "?"}
-                        </Badge>
-                      </td>
-                      <td className="p-2 align-top text-muted-foreground">
-                        {c.reason ?? "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                        </td>
+                        <td className="p-2 align-top text-muted-foreground">
+                          {c.reason ?? "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
 
-      {crossTeam ? (
+      {!unified && crossTeam ? (
         <section>
           <div className="flex items-center gap-2 mb-2">
             <Users className="w-4 h-4 text-muted-foreground" />
@@ -456,14 +607,6 @@ function DetailView({ entryId }: { entryId: number }) {
 
   const { entry, history } = data;
   const detail = entry.aiAnalysisDetail as BrdAiAnalysis | null;
-  const crossTeamScore =
-    (
-      detail as
-        | (BrdAiAnalysis & {
-            cross_team_uniqueness?: { score?: number | null } | null;
-          })
-        | null
-    )?.cross_team_uniqueness?.score ?? null;
 
   return (
     <div className="space-y-6">
@@ -524,9 +667,6 @@ function DetailView({ entryId }: { entryId: number }) {
         <div className="flex flex-wrap items-center gap-4 mb-5">
           <ScoreCircle label="BRD Relevancy" score={entry.brdScore} />
           <ScoreCircle label="Uniqueness" score={entry.uniquenessScore} />
-          {crossTeamScore != null ? (
-            <ScoreCircle label="Across Teams" score={crossTeamScore} />
-          ) : null}
           <div className="text-xs text-muted-foreground italic ml-auto">
             Showing latest analysis snapshot
           </div>

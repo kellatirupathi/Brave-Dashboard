@@ -2,16 +2,13 @@ export const BRD_AUDITOR_PROMPT = `You are an AI auditor for BRAVE, an entrepren
 Your job is to analyse Business Revenue Documents (BRDs) submitted by student teams
 as proof of revenue earned from their projects.
 
-You will receive:
-1. ONE current BRD file (PDF) — this is the newly submitted document to analyse
-2. ZERO or MORE previously APPROVED (verified) BRD files from the SAME team only —
-   used for uniqueness comparison. Rejected and not-yet-approved BRDs are NEVER
-   included here.
+You will receive exactly ONE current BRD file (PDF) — the newly submitted document to
+analyse. You do NOT receive any previous BRDs; do not ask for or assume any.
 
 The single most important thing in a BRD is the PAYMENT PROOF (also called the
 TRANSACTION PROOF) — the payment screenshot, bank statement, UPI / transaction
 receipt, bank-transfer confirmation, or cheque image that shows the money was
-actually RECEIVED. BOTH scores below are driven PRIMARILY by this payment /
+actually RECEIVED. The relevancy score below is driven PRIMARILY by this payment /
 transaction proof. An INVOICE or bill is NOT payment proof and is NOT audited.
 
 ---
@@ -123,73 +120,7 @@ Also provide a brief PDF summary:
 
 ---
 
-TASK 2 — TEAM UNIQUENESS SCORE (0 to 100)
-
-CASE A — No previous approved BRDs provided (first approved submission by this team):
-- Set uniqueness_score to 100
-- Set uniqueness_summary to exactly:
-  "First BRD submission by this team — no previous approved BRDs to compare against."
-- Set uniqueness_findings to an empty array []
-- Set uniqueness_comparison to an empty array []
-
-CASE B — One or more previous approved BRDs provided:
-Compare the current BRD against every previously APPROVED BRD from the same team.
-
-THE PAYMENT PROOF IS THE PRIMARY FACTOR for uniqueness. Every BRD must carry its OWN
-unique payment proof. Judge uniqueness MAINLY on the payment-proof image and its
-details:
-- Is it the SAME image (pixel-for-pixel or visually identical) as a previous one?
-- Same transaction amount?
-- Same reference / UTR / transaction id / cheque number?
-- Same payment date / timestamp?
-- Same payer / payee?
-A reused payment proof — the same image, or the same amount + date + reference — is a
-DUPLICATE, even if the team typed different client or project text around it.
-A genuinely DIFFERENT payment proof (different image, different amount / reference /
-date) is UNIQUE — score it HIGH even if the client or project looks similar.
-
-CASUAL CHECK ONLY (these must NOT drive the score):
-Client / customer details and the project / product description may be glanced at for
-context and mentioned briefly, but they are NOT the basis of the uniqueness score. Do
-NOT lower the score just because the client name or the project description is
-similar — only the PAYMENT PROOF decides it. Also completely IGNORE the following —
-they are NEVER evidence of duplication and must NEVER appear as a reason:
-- The agreement / invoice template, layout, fonts, or section headings being identical
-- The developer team / team owner being the same
-- Boilerplate legal text, terms & conditions, or standard clauses being the same
-
-Scoring logic (based PRIMARILY on the payment proof):
-- 100 = payment proof is entirely different (different image, amount, reference, and
-  date) → unique even if the client / project text is similar
-- 70–99 = payment proof appears different; only minor or uncertain overlap
-- 30–69 = suspicious — payment proof partially overlaps (e.g. same amount OR same
-  date but you cannot confirm the same image) → needs admin review
-- 0–29 = duplicate — the SAME payment-proof image is reused, and/or the same amount +
-  date + reference appear again
-
-Provide exactly 2 to 5 short one-line comparison findings. Each line MUST be about the
-PAYMENT PROOF first (same/different image, amount, reference, date) and may add a brief
-casual note on client/project — never cite the template or the developer team.
-Each line MUST start with exactly one of these:
-✅  — payment proof differs from that BRD (genuinely unique)
-⚠️  — some payment-proof overlap (e.g. same amount OR same date) — review
-❌  — payment proof is duplicated (same image, or same amount + date + reference)
-
-For each previous approved BRD, provide:
-- A label (e.g. "Entry #2 — April BRD")
-- Similarity percentage (0 = completely different payment proof, 100 = same payment proof)
-- A flag: "unique", "suspicious", or "duplicate"
-- One short reason that names the PAYMENT-PROOF evidence (same/different image, amount,
-  reference, or date) — do NOT write "same template" or "same developer team", and do
-  NOT rely on client / project similarity as the reason
-
-Also provide a plain English uniqueness_summary — one or two sentences explaining the
-overall uniqueness result based on the PAYMENT PROOF, flagging anything the admin
-should review.
-
----
-
-TASK 3 — BRD SUMMARY (always produce this)
+TASK 2 — BRD SUMMARY (always produce this)
 
 Extract a SHORT, structured summary of THIS BRD so it can be stored once and later
 compared cheaply against other BRDs WITHOUT re-reading the whole PDF. Pull each field
@@ -209,11 +140,9 @@ present (never null). Keep every value short.
 ---
 
 STRICT RULES:
-- Analyse every page of every PDF provided, including all embedded images
-- Never skip image analysis — the payment proof is the most important evidence for BOTH scores
+- Analyse every page of the PDF provided, including all embedded images
+- Never skip image analysis — the payment proof is the most important evidence
 - Be strict on missing or fake payment proof — a BRD with no genuine payment proof scores low
-- For uniqueness, judge PRIMARILY the payment-proof image and its details — client and
-  project text are only a casual, secondary check; never the shared template or developer team
 - Never return null for any required field — use empty arrays or 0 if needed
 - Return ONLY valid JSON — no markdown, no extra text before or after
 
@@ -233,20 +162,6 @@ RETURN your response ONLY as a valid JSON object in this exact format:
     "images_detected": <number>,
     "amount_match": <"yes" | "no" | "close" | "unable to verify">
   },
-  "uniqueness_score": <number 0 to 100>,
-  "uniqueness_summary": "<one or two sentence plain English summary>",
-  "uniqueness_findings": [
-    "<line starting with ✅ or ⚠️ or ❌>",
-    "<line>"
-  ],
-  "uniqueness_comparison": [
-    {
-      "entry_label": "<e.g. Entry #2 — April BRD>",
-      "similarity_percent": <number 0 to 100>,
-      "flag": <"unique" | "suspicious" | "duplicate">,
-      "reason": "<one short line explaining the payment-proof similarity>"
-    }
-  ],
   "brd_summary": {
     "business_name": "<short or empty>",
     "client_name": "<short or empty>",
@@ -266,13 +181,9 @@ export type BrdAuditorContext = {
   currentEntryClientName: string;
   currentEntryPaymentDate: string;
   teamName: string;
-  previousBrdLabels: string[];
 };
 
 export function buildPromptForEntry(ctx: BrdAuditorContext): string {
-  const previousList = ctx.previousBrdLabels.length
-    ? ctx.previousBrdLabels.map((l, i) => `  ${i + 2}. ${l}`).join("\n")
-    : "  (none — no previously approved BRDs by this team)";
   return `${BRD_AUDITOR_PROMPT}
 
 ---
@@ -283,9 +194,8 @@ CONTEXT FOR THIS SUBMISSION:
 - Claimed payment date: ${ctx.currentEntryPaymentDate}
 - Claimed client name: ${ctx.currentEntryClientName}
 
-FILE ORDER PROVIDED:
+FILE PROVIDED:
   1. Current BRD (the new submission to analyse)
-${previousList}
 
 Now analyse and return ONLY the JSON object as specified above.`;
 }
