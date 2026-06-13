@@ -60,6 +60,9 @@ type NavLeaf = {
   name: string;
   href: string;
   icon: ComponentType<{ className?: string }>;
+  // When true, the link opens in a new browser tab (full page load) instead of
+  // an in-app route — used for the standalone Guidebook page.
+  newTab?: boolean;
 };
 type NavGroup = {
   name: string;
@@ -249,7 +252,12 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     student: hasTeam
       ? [
           { name: "Dashboard", href: "/", icon: LayoutDashboard },
-          { name: "Guidebook", href: "/guidebook", icon: GraduationCap },
+          {
+            name: "Guidebook",
+            href: "/guidebook",
+            icon: GraduationCap,
+            newTab: true,
+          },
           { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Projects", href: "/projects", icon: FolderKanban },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
@@ -268,7 +276,12 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         ]
       : [
           { name: "Get started", href: "/get-started", icon: Users },
-          { name: "Guidebook", href: "/guidebook", icon: GraduationCap },
+          {
+            name: "Guidebook",
+            href: "/guidebook",
+            icon: GraduationCap,
+            newTab: true,
+          },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
           ...(resourcesVisibleForStudent
             ? [
@@ -293,7 +306,12 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         href: "/coordinator/announcements",
         icon: Megaphone,
       },
-      { name: "Guidebook", href: "/guidebook", icon: GraduationCap },
+      {
+        name: "Guidebook",
+        href: "/guidebook",
+        icon: GraduationCap,
+        newTab: true,
+      },
     ],
     admin: [
       { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -356,7 +374,12 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       },
       { name: "Config", href: "/admin/config", icon: Settings },
       { name: "Resources", href: "/admin/resources", icon: BookOpen },
-      { name: "Guidebook", href: "/guidebook", icon: GraduationCap },
+      {
+        name: "Guidebook",
+        href: "/guidebook",
+        icon: GraduationCap,
+        newTab: true,
+      },
     ],
   };
 
@@ -411,6 +434,27 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             // Leaf item — same behavior as before.
             const leaf = item;
             const Icon = leaf.icon;
+
+            // New-tab leaf (e.g. the standalone Guidebook) — full page load in a
+            // separate tab, so it opens outside the dashboard chrome.
+            if (leaf.newTab) {
+              const externalHref =
+                import.meta.env.BASE_URL.replace(/\/+$/, "") + leaf.href;
+              return (
+                <a
+                  key={leaf.name}
+                  href={externalHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onNavigate}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                >
+                  <Icon className="w-4 h-4" />
+                  {leaf.name}
+                </a>
+              );
+            }
+
             const leafItems = items.filter((i): i is NavLeaf => !isGroup(i));
             const isExactOnly = leafItems.some(
               (other) =>

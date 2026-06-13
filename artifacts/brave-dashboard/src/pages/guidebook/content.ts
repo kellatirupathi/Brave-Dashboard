@@ -13,7 +13,8 @@ export type GbBlock =
   | { kind: "tip"; text: string }
   | { kind: "warn"; text: string }
   | { kind: "example"; title: string; text: string }
-  | { kind: "checklist"; items: string[] };
+  | { kind: "checklist"; items: string[] }
+  | { kind: "faq"; items: { q: string; a: string }[] };
 
 export type GbSection = { heading?: string; blocks: GbBlock[] };
 
@@ -86,6 +87,30 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
           {
             kind: "p",
             text: "Each module is short and practical. Read 'Find Your First Client', 'How to Pitch', 'What to Build', and 'How to Price' in order before your first sales walk — then come back to the dashboard modules (BRD, Leaderboard, Teams & Journals) when you're ready to log a deal.",
+          },
+        ],
+      },
+      {
+        heading: "Your first 7 days — a simple plan",
+        blocks: [
+          {
+            kind: "p",
+            text: "Feeling lost on where to begin? Don't overthink it. Here's a week-one plan that has worked for hundreds of students.",
+          },
+          {
+            kind: "steps",
+            items: [
+              "Day 1 — Form or join a team and create it on the dashboard (you get your BRAVE-XXXXX code).",
+              "Day 2 — Make a list of 15 local businesses near you (shops, clinics, tuition centres, salons).",
+              "Day 3–4 — Visit 5–10 of them and just ask what wastes their time the most. Don't sell. Take notes.",
+              "Day 5 — Pick the one problem you heard most often. Sketch a simple AI solution for it.",
+              "Day 6 — Build a tiny working demo (even one feature) using a no-code tool + an AI API.",
+              "Day 7 — Go back to that owner, show the demo, and ask for a small paid pilot. Write your first weekly journal.",
+            ],
+          },
+          {
+            kind: "tip",
+            text: "Done beats perfect. A rough demo that solves one real problem and earns ₹2,000 teaches you more than a month of planning. Start small, get a yes, then grow it.",
           },
         ],
       },
@@ -776,6 +801,232 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
               "The in-app assistant (chat bubble) answers programme questions any time.",
               "The Resources Library (if enabled) has curated tools and tutorials.",
               "Remember: BRAVE runs alongside your classes — plan your week so both move forward.",
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    slug: "mindset-and-habits",
+    title: "Mindset & Habits That Win",
+    icon: "spark",
+    tagline: "The student habits that separate top teams from silent ones.",
+    minutes: 6,
+    sections: [
+      {
+        heading: "You are not doing a project — you are starting a business",
+        blocks: [
+          {
+            kind: "p",
+            text: "The biggest shift in BRAVE is mental. This is not a college assignment you submit and forget. You are finding real customers, solving real problems, and earning real money. Treat every client like your own business depends on it — because after the programme, it's 100% yours.",
+          },
+        ],
+      },
+      {
+        heading: "Talk to people, don't sit and think",
+        blocks: [
+          {
+            kind: "p",
+            text: "The #1 reason students get stuck is they try to think of the 'perfect idea' alone. Ideas don't come from your head — they come from a business owner's problem. Every hour spent talking to shop owners is worth ten hours of brainstorming.",
+          },
+          {
+            kind: "tip",
+            text: "Set a weekly target: talk to at least 5 new businesses every week. Volume beats genius — the more problems you hear, the faster you find a paying one.",
+          },
+        ],
+      },
+      {
+        heading: "Sell first, build second",
+        blocks: [
+          {
+            kind: "p",
+            text: "Don't spend three weeks building something nobody asked for. Get a verbal yes and a small advance FIRST, then build the smallest version that solves the core problem. A paying client keeps you motivated and tells you exactly what to build next.",
+          },
+        ],
+      },
+      {
+        heading: "Rejection is part of the job",
+        blocks: [
+          {
+            kind: "p",
+            text: "Most owners will say no, be busy, or go quiet. That is normal — it is not about you. Every 'no' moves you closer to a 'yes'. The students who win are simply the ones who knocked on more doors and followed up one more time.",
+          },
+          {
+            kind: "warn",
+            text: "The fastest way to fail BRAVE is to go silent. If you hit a wall, write it in your weekly journal and ask your coordinator — don't disappear. Quiet teams get help last; visible teams get help first.",
+          },
+        ],
+      },
+      {
+        heading: "Small, consistent steps",
+        blocks: [
+          {
+            kind: "list",
+            items: [
+              "Do one BRAVE thing every day — a visit, a call, a feature, a follow-up.",
+              "Log your week honestly in the journal, even when the week was slow.",
+              "Celebrate small wins — your first ₹500 is proof the model works.",
+              "Keep your classes moving too — plan your week so both progress.",
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    slug: "student-faq",
+    title: "Student FAQ — Quick Answers",
+    icon: "faq",
+    tagline: "Fast answers to the questions students ask most.",
+    minutes: 8,
+    sections: [
+      {
+        heading: "Getting started",
+        blocks: [
+          {
+            kind: "faq",
+            items: [
+              {
+                q: "I have no idea for a business. Where do I start?",
+                a: "Go to a market near you, walk into 5–10 shops, and ask each owner: 'What is the most time-consuming thing you do every day?' Listen. The repeated answers are your opportunity. The idea comes from their problem, not from your head.",
+              },
+              {
+                q: "Do I need to be a great programmer?",
+                a: "No. BRAVE is about entrepreneurship and using AI as leverage. You can use no-code/low-code tools (Bubble, Glide, Voiceflow, Botpress) plus AI APIs (OpenAI, Gemini, Claude). Technical skills help, but they are not required to start.",
+              },
+              {
+                q: "Do I need to know AI already?",
+                a: "No — you'll learn as you build. The goal is to use AI as a tool to solve a real problem, not to be an expert first.",
+              },
+              {
+                q: "Is BRAVE free?",
+                a: "Yes — completely free for all NIAT students. And NIAT takes no equity, no IP, and no cut of your revenue.",
+              },
+              {
+                q: "What about my classes?",
+                a: "BRAVE runs alongside your classes, not instead of them. Plan your week so both move forward.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Teams",
+        blocks: [
+          {
+            kind: "faq",
+            items: [
+              {
+                q: "What's the ideal team size?",
+                a: "2–4 members works best; up to 5 are allowed; solo is allowed too.",
+              },
+              {
+                q: "Can I be on two teams at once?",
+                a: "No. Each student can be on only one team at a time. You must leave your current team before joining another.",
+              },
+              {
+                q: "Can I team up with students from another campus?",
+                a: "No. Every team member must be from the same NIAT campus — the platform enforces this strictly.",
+              },
+              {
+                q: "Where is my team's invite code?",
+                a: "On the Team page (sidebar → My Team). It looks like BRAVE-XXXXX. Share it with classmates from your campus so they can join.",
+              },
+              {
+                q: "How do I join a team?",
+                a: "Create one (you become leader), browse same-campus teams and 'Request to Join', enter an invite code, or accept an invitation from the bell/notifications.",
+              },
+              {
+                q: "My team leader is inactive — what do I do?",
+                a: "Contact your Campus Coordinator. They can escalate to the admin, who can reassign team leadership.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Revenue, BRD & verification",
+        blocks: [
+          {
+            kind: "faq",
+            items: [
+              {
+                q: "What's the difference between Order Book and Revenue?",
+                a: "Order Book = a deal you've committed but not yet been paid for. Revenue = money you've actually received (with a BRD). Only verified Revenue counts toward the leaderboard.",
+              },
+              {
+                q: "Can I log revenue without a BRD?",
+                a: "No. A BRD (or equivalent proof document with payment evidence) is required for every revenue entry — without it, an admin can't confirm the deal is real.",
+              },
+              {
+                q: "My entry says 'Draft' or 'Submitted' — does it count?",
+                a: "Not yet. Only 'Verified' entries count. Draft = saved but not submitted. Submitted = waiting for admin review. It counts once an admin marks it Verified.",
+              },
+              {
+                q: "My revenue entry was rejected. What now?",
+                a: "Read the rejection reason. The usual fixes: attach payment proof, explain how AI is used more clearly, make the document amount match the dashboard amount, and add a client sign-off. Fix it and resubmit.",
+              },
+              {
+                q: "Can I submit multiple revenue entries?",
+                a: "Yes — submit a separate entry for each payment and each client. Separate entries are easier to verify, and one rejection doesn't affect the others.",
+              },
+              {
+                q: "How long does verification take?",
+                a: "There's no fixed SLA, but admins usually review within a few days. If yours has been pending more than a week, ask your coordinator to follow up.",
+              },
+              {
+                q: "Can I work with a family member's business?",
+                a: "Yes — as long as it's a real commercial deal where they actually pay you for the product. The BRD must reflect a genuine transaction, not a gift.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Leaderboard & Demo Day",
+        blocks: [
+          {
+            kind: "faq",
+            items: [
+              {
+                q: "What is the leaderboard based on?",
+                a: "Only verified revenue — the sum of verified amounts on approved revenue entries. Draft, submitted, and rejected entries don't count.",
+              },
+              {
+                q: "How do I become eligible for Demo Day?",
+                a: "Reach the verified-revenue threshold (default ₹2,00,000), then apply when the admin opens applications. You'll get a notification when they open.",
+              },
+              {
+                q: "What if my team doesn't make Demo Day?",
+                a: "You keep everything — your product, your clients, and every rupee you earned. NIAT takes nothing. The business is yours to continue.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Account & access",
+        blocks: [
+          {
+            kind: "faq",
+            items: [
+              {
+                q: "I get a 'not on roster' message and can't log in.",
+                a: "You need to be on your campus's student roster. Contact your Campus Coordinator and ask them to add you. Once added, try logging in again.",
+              },
+              {
+                q: "Can I use the dashboard on my phone?",
+                a: "Yes. The BRAVE Dashboard is mobile-responsive — open it in your phone's browser and log in normally.",
+              },
+              {
+                q: "How do I stop the 'silent team' reminders?",
+                a: "Write a weekly journal entry. The timer resets when any team member submits a journal — one entry is enough.",
+              },
             ],
           },
         ],

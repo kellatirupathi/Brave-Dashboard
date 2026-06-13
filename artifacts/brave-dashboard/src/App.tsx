@@ -255,6 +255,24 @@ function RootRedirect() {
   );
 }
 
+// Guidebook renders as its OWN full-screen page (its own sidebar + content),
+// deliberately NOT wrapped in <Layout> so it reads as a separate document app.
+// Auth-gated only — no role restriction.
+function GuidebookStandalone() {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <Spinner className="size-10" />
+      </div>
+    );
+  }
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
+  }
+  return <Guidebook />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -512,13 +530,9 @@ function Router() {
         />
       </Route>
 
-      {/* Guidebook — modular field guide, accessible to every role. */}
-      <Route path="/guidebook">
-        <ProtectedRoute
-          component={Guidebook}
-          allowedRoles={["student", "coordinator", "admin"]}
-        />
-      </Route>
+      {/* Guidebook — standalone full-page experience (its own branded sidebar +
+          content, no dashboard chrome). Auth-gated; open to every role. */}
+      <Route path="/guidebook" component={GuidebookStandalone} />
 
       <Route component={NotFound} />
     </Switch>
