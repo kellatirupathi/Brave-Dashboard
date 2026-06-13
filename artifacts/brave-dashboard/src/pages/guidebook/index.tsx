@@ -1,48 +1,27 @@
 import { useMemo, useState, type ComponentType } from "react";
 import {
-  Rocket,
-  Search,
-  Presentation,
-  Target,
-  IndianRupee,
-  ClipboardCheck,
-  Trophy,
-  CalendarCheck,
-  Sparkles,
-  HelpCircle,
   BookOpen,
+  Search,
   Lightbulb,
   AlertTriangle,
   CheckCircle2,
+  Quote,
+  HelpCircle,
   Clock,
   ChevronLeft,
   ChevronRight,
-  Quote,
-  ArrowLeft,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BraveLogo } from "@/components/brave-logo";
 import { GUIDEBOOK_MODULES, type GbBlock, type GbModule } from "./content";
 
-// Map the content's string icon keys to lucide components.
-const ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  rocket: Rocket,
-  search: Search,
-  pitch: Presentation,
-  target: Target,
-  rupee: IndianRupee,
-  brd: ClipboardCheck,
-  trophy: Trophy,
-  track: CalendarCheck,
-  spark: Sparkles,
-  faq: HelpCircle,
-};
+// ── Guidebook has its OWN visual identity (a light, editorial "book" look) ──
+// deliberately different from the dashboard chrome: warm paper background,
+// white surfaces, numbered chapters and coral accents. Colours are hard-coded
+// (not theme tokens) so the book reads the same regardless of app light/dark.
+const CORAL = "#db4750";
+const CORAL_SOFT = "#fdecec";
 
-const DASHBOARD_HREF = import.meta.env.BASE_URL || "/";
-
-// Flatten a block to plain text so the search can match across everything.
+// Flatten a block to plain text so search can match across everything.
 function blockText(b: GbBlock): string {
   switch (b.kind) {
     case "p":
@@ -86,10 +65,10 @@ function Callout({
   return (
     <div
       className={cn(
-        "flex gap-2.5 rounded-lg border p-3",
+        "flex gap-2.5 rounded-lg border p-3.5",
         tone === "tip"
-          ? "border-emerald-500/30 bg-emerald-500/5"
-          : "border-amber-500/30 bg-amber-500/5",
+          ? "border-emerald-200 bg-emerald-50"
+          : "border-amber-200 bg-amber-50",
       )}
     >
       <Icon
@@ -98,7 +77,14 @@ function Callout({
           tone === "tip" ? "text-emerald-600" : "text-amber-600",
         )}
       />
-      <p className="text-sm leading-relaxed text-foreground/80">{text}</p>
+      <p
+        className={cn(
+          "text-[15px] leading-relaxed",
+          tone === "tip" ? "text-emerald-900" : "text-amber-900",
+        )}
+      >
+        {text}
+      </p>
     </div>
   );
 }
@@ -107,34 +93,40 @@ function Block({ block }: { block: GbBlock }) {
   switch (block.kind) {
     case "p":
       return (
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {block.text}
-        </p>
+        <p className="text-[15px] leading-7 text-stone-600">{block.text}</p>
       );
     case "h":
       return (
-        <h4 className="text-sm font-semibold text-foreground">{block.text}</h4>
+        <h4 className="text-[15px] font-semibold text-stone-900">
+          {block.text}
+        </h4>
       );
     case "list":
       return (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {block.items.map((it, i) => (
-            <li key={i} className="flex gap-2.5 text-sm text-muted-foreground">
-              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
-              <span className="leading-relaxed">{it}</span>
+            <li key={i} className="flex gap-3 text-[15px] text-stone-600">
+              <span
+                className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: CORAL }}
+              />
+              <span className="leading-7">{it}</span>
             </li>
           ))}
         </ul>
       );
     case "steps":
       return (
-        <ol className="space-y-2.5">
+        <ol className="space-y-3">
           {block.items.map((it, i) => (
-            <li key={i} className="flex gap-3 text-sm text-muted-foreground">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+            <li key={i} className="flex gap-3.5 text-[15px] text-stone-600">
+              <span
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
+                style={{ backgroundColor: CORAL }}
+              >
                 {i + 1}
               </span>
-              <span className="pt-px leading-relaxed">{it}</span>
+              <span className="pt-0.5 leading-7">{it}</span>
             </li>
           ))}
         </ol>
@@ -145,37 +137,43 @@ function Block({ block }: { block: GbBlock }) {
       return <Callout tone="warn" icon={AlertTriangle} text={block.text} />;
     case "example":
       return (
-        <div className="rounded-lg border bg-muted/40 p-3">
-          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <Quote className="h-3.5 w-3.5 text-primary" />
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-700">
+            <Quote className="h-3.5 w-3.5" style={{ color: CORAL }} />
             {block.title}
           </div>
-          <p className="text-sm italic leading-relaxed text-muted-foreground">
+          <p className="text-[15px] italic leading-7 text-stone-600">
             {block.text}
           </p>
         </div>
       );
     case "checklist":
       return (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {block.items.map((it, i) => (
-            <li key={i} className="flex gap-2.5 text-sm text-muted-foreground">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-              <span className="leading-relaxed">{it}</span>
+            <li key={i} className="flex gap-3 text-[15px] text-stone-600">
+              <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
+              <span className="leading-7">{it}</span>
             </li>
           ))}
         </ul>
       );
     case "faq":
       return (
-        <div className="divide-y rounded-lg border">
+        <div className="space-y-2.5">
           {block.items.map((it, i) => (
-            <div key={i} className="p-3.5">
-              <p className="flex gap-2 text-sm font-semibold text-foreground">
-                <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div
+              key={i}
+              className="rounded-xl border border-stone-200 bg-white p-4"
+            >
+              <p className="flex gap-2 text-[15px] font-semibold text-stone-900">
+                <HelpCircle
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  style={{ color: CORAL }}
+                />
                 {it.q}
               </p>
-              <p className="mt-1.5 pl-6 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-2 pl-6 text-[15px] leading-7 text-stone-600">
                 {it.a}
               </p>
             </div>
@@ -185,60 +183,6 @@ function Block({ block }: { block: GbBlock }) {
     default:
       return null;
   }
-}
-
-// A single module's full content (header + sections), shared by desktop + mobile.
-function ModuleContent({
-  mod,
-  idx,
-  total,
-}: {
-  mod: GbModule;
-  idx: number;
-  total: number;
-}) {
-  const ModIcon = ICONS[mod.icon] ?? BookOpen;
-  return (
-    <article className="rounded-xl border bg-card p-5 sm:p-7">
-      <div className="flex items-start gap-3 border-b pb-4">
-        <div className="rounded-lg bg-primary/10 p-2.5">
-          <ModIcon className="h-5 w-5 text-primary" />
-        </div>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="text-[10px]">
-              Module {idx + 1} of {total}
-            </Badge>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              {mod.minutes} min read
-            </span>
-          </div>
-          <h2 className="mt-1.5 text-xl font-semibold tracking-tight sm:text-2xl">
-            {mod.title}
-          </h2>
-          <p className="text-sm text-muted-foreground">{mod.tagline}</p>
-        </div>
-      </div>
-
-      <div className="space-y-7 pt-5">
-        {mod.sections.map((sec, si) => (
-          <section key={si} className="space-y-3">
-            {sec.heading ? (
-              <h3 className="text-base font-semibold tracking-tight text-foreground">
-                {sec.heading}
-              </h3>
-            ) : null}
-            <div className="space-y-3">
-              {sec.blocks.map((b, bi) => (
-                <Block key={bi} block={b} />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    </article>
-  );
 }
 
 export default function Guidebook() {
@@ -252,8 +196,6 @@ export default function Guidebook() {
     [q],
   );
 
-  // The module to display: the selected one, unless it's filtered out by the
-  // search — then fall back to the first match.
   const selected =
     GUIDEBOOK_MODULES.find((m) => m.slug === active) ?? GUIDEBOOK_MODULES[0];
   const shown = visible.some((m) => m.slug === active)
@@ -267,132 +209,118 @@ export default function Guidebook() {
     setActive(slug);
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
-      document
-        .getElementById("gb-content")
-        ?.scrollTo({ top: 0, behavior: "smooth" });
+      document.getElementById("gb-main")?.scrollTo({ top: 0 });
     }
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* ===================== SIDEBAR ===================== */}
-      <aside className="hidden w-80 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
-        {/* Logo / brand */}
-        <div className="flex items-center gap-2 px-6 pb-3 pt-6">
-          <BraveLogo className="text-2xl" />
-        </div>
-        <div className="flex items-center gap-2 px-6 pb-4">
-          <BookOpen className="h-3.5 w-3.5 text-sidebar-foreground/60" />
-          <span className="text-xs uppercase tracking-widest text-sidebar-foreground/60">
-            Guidebook
-          </span>
-        </div>
-
-        {/* Search */}
-        <div className="px-4 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sidebar-foreground/50" />
+    <div className="min-h-screen bg-[#faf9f7] text-stone-900">
+      {/* ===================== TOP HEADER ===================== */}
+      <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center sm:gap-6">
+          <div className="flex items-center gap-3">
+            <div
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white"
+              style={{ backgroundColor: CORAL }}
+            >
+              <BookOpen className="h-5 w-5" />
+            </div>
+            <div className="leading-tight">
+              <div className="text-[15px] font-extrabold tracking-tight">
+                BRAVE <span style={{ color: CORAL }}>Guidebook</span>
+              </div>
+              <div className="text-[11px] text-stone-400">
+                Field guide for student entrepreneurs
+              </div>
+            </div>
+          </div>
+          <div className="relative sm:ml-auto sm:w-96">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search the guidebook…"
-              className="w-full rounded-md border border-sidebar-border bg-sidebar-accent/40 py-2 pl-9 pr-3 text-sm text-sidebar-foreground placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-2 focus:ring-sidebar-ring"
+              className="w-full rounded-full border border-stone-200 bg-stone-50 py-2.5 pl-10 pr-4 text-sm text-stone-800 placeholder:text-stone-400 focus:border-stone-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#db4750]/20"
               data-testid="guidebook-search"
             />
           </div>
         </div>
+      </header>
 
-        {/* Module nav */}
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
-          {visible.length === 0 ? (
-            <p className="px-3 py-6 text-center text-sm text-sidebar-foreground/60">
-              No modules match “{search}”.
+      <div className="mx-auto flex w-full max-w-6xl">
+        {/* ===================== CHAPTER NAV ===================== */}
+        <aside className="hidden w-72 shrink-0 border-r border-stone-200 md:block">
+          <div className="sticky top-[57px] max-h-[calc(100vh-57px)] overflow-y-auto px-3 py-6">
+            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
+              {q
+                ? `${visible.length} result${visible.length === 1 ? "" : "s"}`
+                : `${total} chapters`}
             </p>
-          ) : (
-            visible.map((m) => {
-              const Icon = ICONS[m.icon] ?? BookOpen;
-              const isActive = m.slug === shown.slug;
-              const n = GUIDEBOOK_MODULES.findIndex((x) => x.slug === m.slug);
-              return (
-                <button
-                  key={m.slug}
-                  type="button"
-                  onClick={() => go(m.slug)}
-                  className={cn(
-                    "flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
-                    isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                      : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
-                      isActive
-                        ? "bg-black/10"
-                        : "bg-sidebar-accent/60 text-sidebar-foreground/70",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium leading-snug">
-                      {m.title}
-                    </span>
-                    <span
+            <nav className="space-y-0.5">
+              {visible.length === 0 ? (
+                <p className="px-3 py-6 text-sm text-stone-400">
+                  No chapters match “{search}”.
+                </p>
+              ) : (
+                visible.map((m) => {
+                  const n = GUIDEBOOK_MODULES.findIndex(
+                    (x) => x.slug === m.slug,
+                  );
+                  const isActive = m.slug === shown.slug;
+                  return (
+                    <button
+                      key={m.slug}
+                      type="button"
+                      onClick={() => go(m.slug)}
                       className={cn(
-                        "mt-0.5 block text-xs",
-                        isActive
-                          ? "text-sidebar-primary-foreground/80"
-                          : "text-sidebar-foreground/50",
+                        "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
+                        isActive ? "" : "hover:bg-stone-100",
                       )}
+                      style={
+                        isActive ? { backgroundColor: CORAL_SOFT } : undefined
+                      }
                     >
-                      Module {n + 1} · {m.minutes} min
-                    </span>
-                  </span>
-                </button>
-              );
-            })
-          )}
-        </nav>
-
-        {/* Back to dashboard */}
-        <div className="border-t border-sidebar-border p-3">
-          <a
-            href={DASHBOARD_HREF}
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </a>
-        </div>
-      </aside>
-
-      {/* ===================== CONTENT ===================== */}
-      <div id="gb-content" className="flex-1 overflow-y-auto">
-        {/* Mobile top bar */}
-        <div className="sticky top-0 z-10 border-b bg-background/95 px-4 py-3 backdrop-blur md:hidden">
-          <div className="flex items-center justify-between gap-2">
-            <BraveLogo className="text-lg" />
-            <a
-              href={DASHBOARD_HREF}
-              className="flex items-center gap-1 text-xs text-muted-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Dashboard
-            </a>
+                      <span
+                        className={cn(
+                          "grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold transition-colors",
+                          isActive
+                            ? "text-white"
+                            : "bg-stone-100 text-stone-500 group-hover:bg-stone-200",
+                        )}
+                        style={
+                          isActive ? { backgroundColor: CORAL } : undefined
+                        }
+                      >
+                        {n + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span
+                          className={cn(
+                            "block truncate text-sm font-medium",
+                            isActive ? "" : "text-stone-700",
+                          )}
+                          style={isActive ? { color: CORAL } : undefined}
+                        >
+                          {m.title}
+                        </span>
+                        <span className="block text-[11px] text-stone-400">
+                          {m.minutes} min read
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </nav>
           </div>
-          <div className="relative mt-2.5">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search the guidebook…"
-              className="w-full rounded-md border bg-muted/40 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-          <div className="-mx-1 mt-2.5 flex gap-2 overflow-x-auto px-1 pb-1">
+        </aside>
+
+        {/* ===================== CONTENT ===================== */}
+        <main id="gb-main" className="min-w-0 flex-1 px-5 py-8 sm:px-10">
+          {/* Mobile chapter switcher */}
+          <div className="-mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1 md:hidden">
             {visible.map((m) => {
-              const Icon = ICONS[m.icon] ?? BookOpen;
+              const n = GUIDEBOOK_MODULES.findIndex((x) => x.slug === m.slug);
               const isActive = m.slug === shown.slug;
               return (
                 <button
@@ -402,75 +330,109 @@ export default function Guidebook() {
                   className={cn(
                     "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium",
                     isActive
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted",
+                      ? "border-transparent text-white"
+                      : "border-stone-200 bg-white text-stone-600",
                   )}
+                  style={isActive ? { backgroundColor: CORAL } : undefined}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  <span className="font-bold">{n + 1}.</span>
                   {m.title}
                 </button>
               );
             })}
           </div>
-        </div>
 
-        <div className="mx-auto max-w-3xl px-5 py-6 sm:px-8 sm:py-8">
-          {/* Page header (desktop) */}
-          <div className="mb-6 hidden items-center gap-3 md:flex">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <BookOpen className="h-5 w-5 text-primary" />
+          <div className="mx-auto max-w-2xl">
+            {/* Chapter hero */}
+            <div className="mb-8">
+              <div className="flex items-center gap-4">
+                <span
+                  className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-2xl font-extrabold"
+                  style={{ backgroundColor: CORAL_SOFT, color: CORAL }}
+                >
+                  {shownIdx + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
+                    <span>
+                      Chapter {shownIdx + 1} of {total}
+                    </span>
+                    <span className="text-stone-300">•</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {shown.minutes} min read
+                    </span>
+                  </div>
+                  <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-stone-900">
+                    {shown.title}
+                  </h1>
+                </div>
+              </div>
+              <p className="mt-3 text-lg text-stone-500">{shown.tagline}</p>
+              <div className="mt-6 h-px bg-stone-200" />
             </div>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                BRAVE Guidebook
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Your field guide to finding clients, pitching, choosing what to
-                build, pricing, and turning real payments into verified revenue.
-              </p>
+
+            {/* Sections */}
+            <div className="space-y-9">
+              {shown.sections.map((sec, si) => (
+                <section key={si} className="space-y-3.5">
+                  {sec.heading ? (
+                    <h2 className="text-lg font-bold tracking-tight text-stone-900">
+                      {sec.heading}
+                    </h2>
+                  ) : null}
+                  <div className="space-y-3.5">
+                    {sec.blocks.map((b, bi) => (
+                      <Block key={bi} block={b} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+
+            {/* Prev / Next */}
+            <div className="mt-10 flex items-stretch justify-between gap-3 border-t border-stone-200 pt-6">
+              {prev ? (
+                <button
+                  type="button"
+                  onClick={() => go(prev.slug)}
+                  className="flex max-w-[48%] items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-3 text-left transition-colors hover:border-stone-300 hover:bg-stone-50"
+                >
+                  <ChevronLeft className="h-4 w-4 shrink-0 text-stone-400" />
+                  <span className="min-w-0">
+                    <span className="block text-[10px] uppercase tracking-wide text-stone-400">
+                      Previous
+                    </span>
+                    <span className="block truncate text-sm font-medium text-stone-700">
+                      {prev.title}
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <span />
+              )}
+              {next ? (
+                <button
+                  type="button"
+                  onClick={() => go(next.slug)}
+                  className="ml-auto flex max-w-[48%] items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-3 text-right transition-colors hover:border-stone-300 hover:bg-stone-50"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-[10px] uppercase tracking-wide text-stone-400">
+                      Next
+                    </span>
+                    <span className="block truncate text-sm font-medium text-stone-700">
+                      {next.title}
+                    </span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-stone-400" />
+                </button>
+              ) : (
+                <span />
+              )}
             </div>
           </div>
-
-          <ModuleContent mod={shown} idx={shownIdx} total={total} />
-
-          {/* Prev / Next */}
-          <div className="mt-6 flex items-center justify-between gap-3">
-            {prev ? (
-              <Button
-                variant="outline"
-                className="h-auto max-w-[48%] gap-1.5 py-2"
-                onClick={() => go(prev.slug)}
-              >
-                <ChevronLeft className="h-4 w-4 shrink-0" />
-                <span className="truncate text-left">
-                  <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Previous
-                  </span>
-                  <span className="block truncate">{prev.title}</span>
-                </span>
-              </Button>
-            ) : (
-              <span />
-            )}
-            {next ? (
-              <Button
-                variant="outline"
-                className="ml-auto h-auto max-w-[48%] gap-1.5 py-2"
-                onClick={() => go(next.slug)}
-              >
-                <span className="truncate text-right">
-                  <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Next
-                  </span>
-                  <span className="block truncate">{next.title}</span>
-                </span>
-                <ChevronRight className="h-4 w-4 shrink-0" />
-              </Button>
-            ) : (
-              <span />
-            )}
-          </div>
-        </div>
+        </main>
       </div>
     </div>
   );
