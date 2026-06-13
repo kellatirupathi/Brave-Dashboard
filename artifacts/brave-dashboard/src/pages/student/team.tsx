@@ -344,12 +344,18 @@ function TeamView({
       { id },
       {
         onSuccess: (res) => {
-          // Approvals are now gated behind admin sign-off; the join request
-          // stays pending until an admin approves the membership request.
-          const message =
-            (res as { message?: string } | undefined)?.message ??
-            "Sent for admin approval. The student joins once approved.";
-          toast({ title: "Awaiting admin approval", description: message });
+          // Approval auto-applies unless gated; the server signals which via
+          // `status` ("applied" = joined now, "pending_approval" = needs admin).
+          const r = res as { status?: string; message?: string } | undefined;
+          const applied = r?.status === "applied";
+          toast({
+            title: applied ? "Member added" : "Awaiting admin approval",
+            description:
+              r?.message ??
+              (applied
+                ? "The student has been added to the team."
+                : "Sent for admin approval. The student joins once approved."),
+          });
           invalidateAll();
         },
         onError: (err: unknown) => {
@@ -384,12 +390,18 @@ function TeamView({
       { id: team.id, data: {} },
       {
         onSuccess: (res) => {
-          // Leaving is now gated behind admin approval: the member stays on the
-          // team until an admin approves, so we do NOT navigate away.
-          const message =
-            (res as { message?: string } | undefined)?.message ??
-            `Your request to leave ${team.name} has been sent for admin approval.`;
-          toast({ title: "Awaiting admin approval", description: message });
+          // Leaving auto-approves unless the team has verified revenue (then it
+          // is gated). The server signals which via `status`.
+          const r = res as { status?: string; message?: string } | undefined;
+          const applied = r?.status === "applied";
+          toast({
+            title: applied ? "You've left the team" : "Awaiting admin approval",
+            description:
+              r?.message ??
+              (applied
+                ? `You've left ${team.name}.`
+                : `Your request to leave ${team.name} has been sent for admin approval.`),
+          });
           setLeaveOpen(false);
           invalidateAll();
         },
@@ -445,12 +457,18 @@ function TeamView({
       { id: team.id, userId: removeTarget.userId },
       {
         onSuccess: (res) => {
-          // Leader-initiated removals are now gated behind admin approval; the
-          // member stays on the team until an admin approves.
-          const message =
-            (res as { message?: string } | undefined)?.message ??
-            `Removal of ${name} has been sent for admin approval.`;
-          toast({ title: "Awaiting admin approval", description: message });
+          // Removal auto-approves unless the team has verified revenue (then it
+          // is gated). The server signals which via `status`.
+          const r = res as { status?: string; message?: string } | undefined;
+          const applied = r?.status === "applied";
+          toast({
+            title: applied ? "Member removed" : "Awaiting admin approval",
+            description:
+              r?.message ??
+              (applied
+                ? `${name} has been removed from the team.`
+                : `Removal of ${name} has been sent for admin approval.`),
+          });
           setRemoveTarget(null);
           invalidateAll();
         },

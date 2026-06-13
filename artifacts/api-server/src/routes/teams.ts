@@ -509,11 +509,9 @@ router.post("/teams", async (req, res): Promise<void> => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg === "user_unique_violation") {
-      res
-        .status(409)
-        .json({
-          error: "That email or NIAT ID is already in use by another account.",
-        });
+      res.status(409).json({
+        error: "That email or NIAT ID is already in use by another account.",
+      });
       return;
     }
     res
@@ -934,12 +932,10 @@ router.patch("/teams/:id", async (req, res): Promise<void> => {
   const isStaff = req.user.role === "admin" || req.user.role === "coordinator";
   const isLeader = existingTeam.leaderId === req.user.id;
   if (!isStaff && !isLeader) {
-    res
-      .status(403)
-      .json({
-        error:
-          "Only the team leader, a coordinator, or an admin can edit this team.",
-      });
+    res.status(403).json({
+      error:
+        "Only the team leader, a coordinator, or an admin can edit this team.",
+    });
     return;
   }
 
@@ -1099,11 +1095,9 @@ router.delete("/teams/:id", async (req, res): Promise<void> => {
 
   if (teamName === null) {
     if (blockedReason === "forbidden") {
-      res
-        .status(403)
-        .json({
-          error: "Only the team leader or an admin can delete this team.",
-        });
+      res.status(403).json({
+        error: "Only the team leader or an admin can delete this team.",
+      });
       return;
     }
     if (blockedReason === "has_revenue") {
@@ -1224,11 +1218,9 @@ router.post("/teams/:id/request-changes", async (req, res): Promise<void> => {
 
 router.post("/teams/:id/members", async (req, res): Promise<void> => {
   if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res
-      .status(403)
-      .json({
-        error: "Admin only — students must use the team invitation flow.",
-      });
+    res.status(403).json({
+      error: "Admin only — students must use the team invitation flow.",
+    });
     return;
   }
   const params = AddTeamMemberParams.safeParse(req.params);
@@ -1292,20 +1284,16 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
   }
   // A leader cannot remove themselves through this endpoint
   if (isLeader && !isAdmin && params.data.userId === req.user.id) {
-    res
-      .status(400)
-      .json({
-        error: "You cannot remove yourself. Transfer leadership first.",
-      });
+    res.status(400).json({
+      error: "You cannot remove yourself. Transfer leadership first.",
+    });
     return;
   }
   // Prevent removing the team leader
   if (team.leaderId === params.data.userId) {
-    res
-      .status(400)
-      .json({
-        error: "Cannot remove the team leader. Transfer leadership first.",
-      });
+    res.status(400).json({
+      error: "Cannot remove the team leader. Transfer leadership first.",
+    });
     return;
   }
   // Confirm the target is actually a member of this team
@@ -1334,16 +1322,28 @@ router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
       });
       return;
     }
-    const request = await createMembershipRequest({
+    const result = await createMembershipRequest({
       type: "leader_remove",
       teamId: team.id,
       targetUserId: params.data.userId,
       actorUserId: req.user.id,
       campusId: team.campusId,
     });
+    if (result.kind === "error") {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    if (result.kind === "applied") {
+      res.status(200).json({
+        status: "applied",
+        requestId: result.request.id,
+        message: "The member has been removed from the team.",
+      });
+      return;
+    }
     res.status(202).json({
       status: "pending_approval",
-      requestId: request.id,
+      requestId: result.request.id,
       message:
         "Removal request sent for admin approval. The member stays until approved.",
     });
@@ -1410,11 +1410,9 @@ router.post(
       return;
     }
     if (team.leaderId !== req.user.id) {
-      res
-        .status(403)
-        .json({
-          error: "Only the current team leader can transfer leadership.",
-        });
+      res.status(403).json({
+        error: "Only the current team leader can transfer leadership.",
+      });
       return;
     }
     if (parsed.data.newLeaderId === team.leaderId) {
@@ -1433,11 +1431,9 @@ router.post(
         ),
       );
     if (!target) {
-      res
-        .status(400)
-        .json({
-          error: "The new leader must be a current member of this team.",
-        });
+      res.status(400).json({
+        error: "The new leader must be a current member of this team.",
+      });
       return;
     }
     const previousLeaderId = team.leaderId;
@@ -1881,11 +1877,9 @@ router.post("/invitations/:id/cancel", async (req, res): Promise<void> => {
     return;
   }
   if (!(await ensureTeamMember(inv.teamId, req.user.id))) {
-    res
-      .status(403)
-      .json({
-        error: "Only members of the sending team can cancel this invitation",
-      });
+    res.status(403).json({
+      error: "Only members of the sending team can cancel this invitation",
+    });
     return;
   }
   // Idempotent: already-cancelled is treated as success.
@@ -1916,11 +1910,9 @@ router.post("/invitations/:id/cancel", async (req, res): Promise<void> => {
       res.json({ success: true });
       return;
     }
-    res
-      .status(409)
-      .json({
-        error: `Invitation is no longer pending (status: ${latest?.status ?? "unknown"})`,
-      });
+    res.status(409).json({
+      error: `Invitation is no longer pending (status: ${latest?.status ?? "unknown"})`,
+    });
     return;
   }
   res.json({ success: true });
@@ -2133,11 +2125,9 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     return { kind: "ok" as const };
   });
   if (approveResult.kind === "full") {
-    res
-      .status(400)
-      .json({
-        error: teamFullMessage(approveResult.count, approveResult.limit),
-      });
+    res.status(400).json({
+      error: teamFullMessage(approveResult.count, approveResult.limit),
+    });
     return;
   }
   if (approveResult.kind === "duplicate") {
@@ -2338,11 +2328,9 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     return;
   }
   if (team.leaderId === req.user.id) {
-    res
-      .status(400)
-      .json({
-        error: "Team leaders cannot leave the team. Transfer leadership first.",
-      });
+    res.status(400).json({
+      error: "Team leaders cannot leave the team. Transfer leadership first.",
+    });
     return;
   }
   if (!(await ensureTeamMember(params.data.id, req.user.id))) {

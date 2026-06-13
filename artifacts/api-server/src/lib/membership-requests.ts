@@ -8,7 +8,7 @@
 // All apply-time invariants (one team per student, team capacity, leader can't
 // leave/be removed) are re-checked here at approval time, not at request time,
 // because the world may have moved on between request and decision.
-import { and, eq, ne, desc, inArray } from "drizzle-orm";
+import { and, eq, ne, desc, inArray, sql } from "drizzle-orm";
 import {
   db,
   membershipRequestsTable,
@@ -17,6 +17,7 @@ import {
   teamInvitationsTable,
   teamJoinRequestsTable,
   teamLeaveRequestsTable,
+  revenueEntriesTable,
   usersTable,
   campusesTable,
   type MembershipRequest,
@@ -112,9 +113,87 @@ export type CreateMembershipRequestInput = {
   reason?: string | null;
 };
 
+// Result of creating a membership change. `applied` = auto-approved and the
+// change is already done; `pending` = gated, awaiting admin approval; `error` =
+// an invariant failed while auto-applying (surfaced to the caller).
+export type CreateMembershipResult =
+  | { kind: "pending"; request: MembershipRequest }
+  | { kind: "applied"; request: MembershipRequest }
+  | { kind: "error"; status: number; error: string };
+
+const AUTO_APPROVE_NOTE = "Auto-approved — no admin approval required.";
+
+function isRemovalType(type: MembershipRequestType): boolean {
+  return type === "leave" || type === "leader_remove";
+}
+
+// True when a team has at least one verified ("approved") revenue entry.
+export async function teamHasVerifiedRevenue(teamId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(revenueEntriesTable)
+    .where(
+      and(
+        eq(revenueEntriesTable.teamId, teamId),
+        eq(revenueEntriesTable.status, "verified"),
+      ),
+    );
+  return Number(row?.n ?? 0) > 0;
+}
+
+// Membership changes auto-approve EXCEPT a leave / leader_remove on a team that
+// already has verified revenue — those still require admin approval. (Once a
+// team has earned real revenue, members can't leave or be removed without
+// oversight.) Everything else — every join, and leave/remove on teams with no
+// verified revenue — is applied immediately.
+export async function shouldGateMembershipChange(
+  type: MembershipRequestType,
+  teamId: number,
+): Promise<boolean> {
+  if (!isRemovalType(type)) return false;
+  return teamHasVerifiedRevenue(teamId);
+}
+
+// Apply an un-gated request and stamp it approved (no admin). Shared by the
+// creation path and the one-time startup sweep. Returns the apply result; the
+// caller decides what to do with the row on failure.
+async function applyAndMarkAutoApproved(
+  row: MembershipRequest,
+): Promise<ApplyResult> {
+  const result = await applyMembershipRequest(row, row.actorUserId);
+  if (!result.ok) return result;
+  await db
+    .update(membershipRequestsTable)
+    .set({
+      status: "approved",
+      decidedById: null,
+      decidedAt: new Date(),
+      decisionNote: AUTO_APPROVE_NOTE,
+    })
+    .where(eq(membershipRequestsTable.id, row.id));
+  try {
+    await logAudit(
+      row.actorUserId,
+      "membership_request_auto_approved",
+      "team",
+      row.teamId,
+      JSON.stringify({
+        requestId: row.id,
+        type: row.type,
+        targetUserId: row.targetUserId,
+      }),
+    );
+  } catch {
+    // best-effort audit
+  }
+  return { ok: true };
+}
+
 export async function createMembershipRequest(
   input: CreateMembershipRequestInput,
-): Promise<MembershipRequest> {
+): Promise<CreateMembershipResult> {
+  const gated = await shouldGateMembershipChange(input.type, input.teamId);
+
   const [row] = await db
     .insert(membershipRequestsTable)
     .values({
@@ -130,8 +209,27 @@ export async function createMembershipRequest(
     })
     .returning();
 
-  // Tell every admin a request is waiting. Best-effort: failure to notify must
-  // not fail the student's request.
+  // Not gated → auto-approve: apply the change immediately. If an invariant now
+  // fails (team full, already on a team, …) the change can't happen, so remove
+  // the row and surface the error — exactly like a direct action failing, with
+  // no stray pending row left behind.
+  if (!gated) {
+    const result = await applyAndMarkAutoApproved(row);
+    if (!result.ok) {
+      await db
+        .delete(membershipRequestsTable)
+        .where(eq(membershipRequestsTable.id, row.id));
+      return { kind: "error", status: result.status, error: result.error };
+    }
+    const [updated] = await db
+      .select()
+      .from(membershipRequestsTable)
+      .where(eq(membershipRequestsTable.id, row.id));
+    return { kind: "applied", request: updated ?? row };
+  }
+
+  // Gated → leave pending and tell every admin a request is waiting.
+  // Best-effort: failure to notify must not fail the student's request.
   try {
     const admins = await db
       .select({ id: usersTable.id })
@@ -154,8 +252,51 @@ export async function createMembershipRequest(
     // ignore notification failures
   }
 
-  return row;
+  return { kind: "pending", request: row };
 }
+
+// One-time startup sweep: auto-approve every currently-pending request that
+// would NOT be gated under the current rule (all joins; leave/remove only when
+// the team has no verified revenue). Verified-revenue leave/remove stay pending
+// for an admin. Requests that can no longer be applied (e.g. the student has
+// since joined elsewhere) are left pending for an admin to resolve.
+export async function sweepAutoApprovePendingRequests(): Promise<{
+  applied: number;
+  skipped: number;
+  failed: number;
+  total: number;
+}> {
+  const pendings = await db
+    .select()
+    .from(membershipRequestsTable)
+    .where(eq(membershipRequestsTable.status, "pending"));
+  let applied = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const row of pendings) {
+    if (await shouldGateMembershipChange(row.type, row.teamId)) {
+      skipped += 1;
+      continue;
+    }
+    const result = await applyAndMarkAutoApproved(row);
+    if (result.ok) applied += 1;
+    else failed += 1;
+  }
+  return { applied, skipped, failed, total: pendings.length };
+}
+
+// At-a-glance team activity shown on the Team Requests cards so an admin can
+// judge a membership change in context. Optional/additive — populated only by
+// the admin list endpoint; other shape callers leave it undefined.
+export type MembershipTeamStats = {
+  // Total verified ("approved") revenue for the team, in rupees.
+  verifiedRevenue: number;
+  // Total number of projects the team has created.
+  projectCount: number;
+  // Revenue entries that have been verified (approved) / rejected by review.
+  approvedRevenueCount: number;
+  rejectedRevenueCount: number;
+};
 
 export type ShapedMembershipRequest = {
   id: number;
@@ -177,6 +318,8 @@ export type ShapedMembershipRequest = {
   decidedByName: string | null;
   decidedAt: string | null;
   createdAt: string | null;
+  // Optional team activity snapshot (admin Team Requests page only).
+  teamStats?: MembershipTeamStats | null;
 };
 
 export async function shapeMembershipRequest(

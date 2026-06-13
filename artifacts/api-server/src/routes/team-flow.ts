@@ -177,7 +177,6 @@ async function shapeLeaveRequest(
   };
 }
 
-
 async function isTeamMember(userId: string, teamId: number) {
   const [m] = await db
     .select()
@@ -392,16 +391,28 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
     res.status(400).json({ error: teamFullMessage(count, limit) });
     return;
   }
-  const request = await createMembershipRequest({
+  const result = await createMembershipRequest({
     type: "join_by_code",
     teamId: team.id,
     targetUserId: req.user.id,
     actorUserId: req.user.id,
     campusId: team.campusId,
   });
+  if (result.kind === "error") {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+  if (result.kind === "applied") {
+    res.status(200).json({
+      status: "applied",
+      requestId: result.request.id,
+      message: `You've joined "${team.name}".`,
+    });
+    return;
+  }
   res.status(202).json({
     status: "pending_approval",
-    requestId: request.id,
+    requestId: result.request.id,
     message: `Your request to join "${team.name}" has been sent for admin approval.`,
   });
 });
@@ -664,7 +675,7 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
     res.status(400).json({ error: teamFullMessage(count, limit) });
     return;
   }
-  const request = await createMembershipRequest({
+  const result = await createMembershipRequest({
     type: "invite_accept",
     teamId: team.id,
     targetUserId: req.user.id,
@@ -672,9 +683,21 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
     campusId: team.campusId,
     sourceInvitationId: inv.id,
   });
+  if (result.kind === "error") {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+  if (result.kind === "applied") {
+    res.status(200).json({
+      status: "applied",
+      requestId: result.request.id,
+      message: `You've joined "${team.name}".`,
+    });
+    return;
+  }
   res.status(202).json({
     status: "pending_approval",
-    requestId: request.id,
+    requestId: result.request.id,
     message: `Your request to join "${team.name}" has been sent for admin approval.`,
   });
 });
@@ -893,7 +916,7 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     res.status(400).json({ error: teamFullMessage(count, limit) });
     return;
   }
-  const request = await createMembershipRequest({
+  const result = await createMembershipRequest({
     type: "join_request_approve",
     teamId: team.id,
     targetUserId: jr.requesterId,
@@ -901,9 +924,21 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
     campusId: team.campusId,
     sourceJoinRequestId: jr.id,
   });
+  if (result.kind === "error") {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+  if (result.kind === "applied") {
+    res.status(200).json({
+      status: "applied",
+      requestId: result.request.id,
+      message: "The student has been added to the team.",
+    });
+    return;
+  }
   res.status(202).json({
     status: "pending_approval",
-    requestId: request.id,
+    requestId: result.request.id,
     message: "Approval sent for admin review. The student joins once approved.",
   });
 });
@@ -1018,7 +1053,7 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     });
     return;
   }
-  const request = await createMembershipRequest({
+  const result = await createMembershipRequest({
     type: "leave",
     teamId: team.id,
     targetUserId: req.user.id,
@@ -1026,9 +1061,21 @@ router.post("/teams/:id/leave-requests", async (req, res): Promise<void> => {
     campusId: team.campusId,
     reason: parsed.data.reason ?? null,
   });
+  if (result.kind === "error") {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+  if (result.kind === "applied") {
+    res.status(200).json({
+      status: "applied",
+      requestId: result.request.id,
+      message: `You've left "${team.name}".`,
+    });
+    return;
+  }
   res.status(202).json({
     status: "pending_approval",
-    requestId: request.id,
+    requestId: result.request.id,
     message: `Your request to leave "${team.name}" has been sent for admin approval.`,
   });
 });

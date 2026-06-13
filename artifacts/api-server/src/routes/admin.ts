@@ -34,6 +34,7 @@ import {
   applyMembershipRequest,
   notifyMembershipRejected,
   buildMembershipTimeline,
+  type MembershipTeamStats,
 } from "../lib/membership-requests";
 import { membershipRequestsTable } from "@workspace/db";
 import { invalidateChatbotProviderCache } from "./chatbot";
@@ -2313,6 +2314,61 @@ router.post("/admin/test-email", async (req, res): Promise<void> => {
 
 // ---------- Membership requests (admin approval gate) ----------
 
+// Compute an at-a-glance activity snapshot for a set of teams in two batched
+// queries (no N+1), used to enrich the Team Requests cards. Returns a map keyed
+// by teamId; teams with no activity get an all-zero entry.
+async function computeMembershipTeamStats(
+  teamIds: number[],
+): Promise<Map<number, MembershipTeamStats>> {
+  const map = new Map<number, MembershipTeamStats>();
+  const unique = Array.from(new Set(teamIds));
+  if (unique.length === 0) return map;
+  for (const id of unique) {
+    map.set(id, {
+      verifiedRevenue: 0,
+      projectCount: 0,
+      approvedRevenueCount: 0,
+      rejectedRevenueCount: 0,
+    });
+  }
+
+  // Revenue: verified amount + approved/rejected entry counts, per team.
+  const rev = await db
+    .select({
+      teamId: revenueEntriesTable.teamId,
+      verifiedRevenue: sql<number>`coalesce(sum(case when ${revenueEntriesTable.status} = 'verified' then coalesce(${revenueEntriesTable.verifiedAmount}, ${revenueEntriesTable.amount}) else 0 end), 0)`,
+      approved: sql<number>`count(*) filter (where ${revenueEntriesTable.status} = 'verified')`,
+      rejected: sql<number>`count(*) filter (where ${revenueEntriesTable.status} = 'rejected')`,
+    })
+    .from(revenueEntriesTable)
+    .where(inArray(revenueEntriesTable.teamId, unique))
+    .groupBy(revenueEntriesTable.teamId);
+  for (const r of rev) {
+    const s = map.get(r.teamId);
+    if (s) {
+      s.verifiedRevenue = Number(r.verifiedRevenue ?? 0);
+      s.approvedRevenueCount = Number(r.approved ?? 0);
+      s.rejectedRevenueCount = Number(r.rejected ?? 0);
+    }
+  }
+
+  // Projects: total count per team.
+  const proj = await db
+    .select({
+      teamId: projectsTable.teamId,
+      count: sql<number>`count(*)`,
+    })
+    .from(projectsTable)
+    .where(inArray(projectsTable.teamId, unique))
+    .groupBy(projectsTable.teamId);
+  for (const p of proj) {
+    const s = map.get(p.teamId);
+    if (s) s.projectCount = Number(p.count ?? 0);
+  }
+
+  return map;
+}
+
 // List membership requests, filtered by status. Defaults to pending. Used by the
 // admin "Team Requests" page (Pending + History tabs).
 router.get("/admin/membership-requests", async (req, res): Promise<void> => {
@@ -2353,7 +2409,15 @@ router.get("/admin/membership-requests", async (req, res): Promise<void> => {
         ? desc(membershipRequestsTable.createdAt)
         : desc(membershipRequestsTable.decidedAt),
     );
-  res.json(await Promise.all(rows.map(shapeMembershipRequest)));
+  const shaped = await Promise.all(rows.map(shapeMembershipRequest));
+  // Enrich each card with its team's activity snapshot (batched — no N+1).
+  const statsByTeam = await computeMembershipTeamStats(
+    shaped.map((s) => s.teamId),
+  );
+  for (const s of shaped) {
+    s.teamStats = statsByTeam.get(s.teamId) ?? null;
+  }
+  res.json(shaped);
 });
 
 // Per-student membership life-cycle timeline (admin popover on Team Requests).

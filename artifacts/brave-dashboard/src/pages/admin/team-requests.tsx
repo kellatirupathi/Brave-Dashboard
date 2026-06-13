@@ -7,7 +7,7 @@ import {
   type MembershipRequest,
 } from "@/lib/membership-api";
 import { normalizeError } from "@/lib/api-error";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatINR } from "@/lib/format";
 import { MembershipHistoryPopover } from "@/components/membership-history-popover";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,8 @@ import {
   ArrowRight,
   LogOut,
   ListChecks,
+  Wallet,
+  FolderKanban,
 } from "lucide-react";
 
 const PENDING_KEY = ["admin", "membership-requests", "pending"] as const;
@@ -98,6 +100,48 @@ function RequestSummary({ mr }: { mr: MembershipRequest }) {
           {mr.reason}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// Middle-of-card snapshot of the team this request concerns: its name, whether
+// it has any verified ("approved") revenue, total projects, and how many
+// revenue entries have been approved vs rejected. Renders nothing when the
+// backend hasn't provided stats (keeps the card layout unchanged).
+function TeamStatsBlock({ mr }: { mr: MembershipRequest }) {
+  const stats = mr.teamStats;
+  if (!stats) return null;
+  return (
+    <div className="flex flex-col gap-1 rounded-md border bg-muted/30 px-3 py-2 text-xs md:min-w-[210px]">
+      <div className="font-medium text-foreground">{mr.teamName}</div>
+      <div className="flex items-center gap-1.5">
+        <Wallet className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="text-muted-foreground">Verified revenue:</span>
+        {stats.verifiedRevenue > 0 ? (
+          <span className="font-semibold text-emerald-600">
+            {formatINR(stats.verifiedRevenue)}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">None</span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+        <span className="flex items-center gap-1 text-muted-foreground">
+          <FolderKanban className="h-3.5 w-3.5 shrink-0" />
+          Projects:{" "}
+          <span className="font-semibold text-foreground">
+            {stats.projectCount}
+          </span>
+        </span>
+        <span className="text-emerald-700">
+          Approved:{" "}
+          <span className="font-semibold">{stats.approvedRevenueCount}</span>
+        </span>
+        <span className="text-destructive">
+          Rejected:{" "}
+          <span className="font-semibold">{stats.rejectedRevenueCount}</span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -368,6 +412,7 @@ export default function AdminTeamRequests() {
                         </div>
                       </div>
                     </div>
+                    <TeamStatsBlock mr={mr} />
                     <div className="flex shrink-0 items-center gap-2">
                       <MembershipHistoryPopover
                         userId={mr.targetUserId}
@@ -422,8 +467,11 @@ export default function AdminTeamRequests() {
             <div className="space-y-3">
               {history.map((mr) => (
                 <Card key={mr.id} className="space-y-2 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <RequestSummary mr={mr} />
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="flex-1">
+                      <RequestSummary mr={mr} />
+                    </div>
+                    <TeamStatsBlock mr={mr} />
                     <div className="flex shrink-0 items-center gap-2">
                       <MembershipHistoryPopover
                         userId={mr.targetUserId}

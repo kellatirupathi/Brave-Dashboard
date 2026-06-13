@@ -12,6 +12,15 @@ export type MembershipRequestType =
 
 export type MembershipRequestStatus = "pending" | "approved" | "rejected";
 
+// At-a-glance team activity snapshot shown on each request card. Optional —
+// only the admin list endpoint populates it.
+export type MembershipTeamStats = {
+  verifiedRevenue: number;
+  projectCount: number;
+  approvedRevenueCount: number;
+  rejectedRevenueCount: number;
+};
+
 export type MembershipRequest = {
   id: number;
   type: MembershipRequestType;
@@ -32,6 +41,7 @@ export type MembershipRequest = {
   decidedByName: string | null;
   decidedAt: string | null;
   createdAt: string | null;
+  teamStats?: MembershipTeamStats | null;
 };
 
 // Student/leader: pending requests where the caller is the actor or target.

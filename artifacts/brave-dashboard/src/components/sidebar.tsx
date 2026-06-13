@@ -31,6 +31,7 @@ import {
   Bell,
   UserCheck,
   UserPlus,
+  GraduationCap,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
@@ -248,6 +249,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     student: hasTeam
       ? [
           { name: "Dashboard", href: "/", icon: LayoutDashboard },
+          { name: "Guidebook", href: "/guidebook", icon: GraduationCap },
           { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Projects", href: "/projects", icon: FolderKanban },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
@@ -266,6 +268,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         ]
       : [
           { name: "Get started", href: "/get-started", icon: Users },
+          { name: "Guidebook", href: "/guidebook", icon: GraduationCap },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
           ...(resourcesVisibleForStudent
             ? [
@@ -290,6 +293,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         href: "/coordinator/announcements",
         icon: Megaphone,
       },
+      { name: "Guidebook", href: "/guidebook", icon: GraduationCap },
     ],
     admin: [
       { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -352,6 +356,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       },
       { name: "Config", href: "/admin/config", icon: Settings },
       { name: "Resources", href: "/admin/resources", icon: BookOpen },
+      { name: "Guidebook", href: "/guidebook", icon: GraduationCap },
     ],
   };
 

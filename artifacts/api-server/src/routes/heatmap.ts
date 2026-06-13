@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, asc, isNull, sql } from "drizzle-orm";
+import { eq, and, gte, asc, isNull, inArray, sql } from "drizzle-orm";
 import {
   db,
   teamsTable,
@@ -14,6 +14,11 @@ import {
 import { z } from "zod/v4";
 import { getReminderSettings } from "./programme-weeks";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
+import {
+  renderJournalStatusReminderEmail,
+  journalStatusNotificationCopy,
+  type TeamReminderStatus,
+} from "../lib/email/templates/journal-status-reminder";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -21,6 +26,40 @@ const router: IRouter = Router();
 function daysBetween(a: Date, b: Date): number {
   return Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
 }
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// Derive a team's reminder status from its all-time journal history, using the
+// SAME thresholds as the heatmap grid (GET /heatmap): never submitted → never
+// logged; last journal > 14d → silent; > 7d → inconsistent; otherwise active.
+function teamReminderStatus(
+  totalJournals: number,
+  lastJournal: Date | null,
+  now: Date,
+): TeamReminderStatus {
+  if (totalJournals === 0 || !lastJournal) return "never_logged";
+  const days = daysBetween(lastJournal, now);
+  if (days > 14) return "silent";
+  if (days > 7) return "inconsistent";
+  return "active";
+}
+
+// Gap between individual reminder emails in the background blast. Emails are
+// sent ONE AT A TIME (never thousands at once) so we never exceed the SES send
+// rate or hammer the provider on a large cohort.
+const EMAIL_THROTTLE_MS = 150;
+
+// Guards against two overlapping bulk sends. The email blast runs in the
+// background for minutes on a large cohort; a second click while it's running
+// would otherwise double-send. Held until the background email loop finishes.
+let bulkReminderInFlight = false;
 
 // Strip any timestamp suffix that might leak into config-stored dates.
 function dateOnly(s: string | null | undefined): string {
@@ -304,81 +343,240 @@ router.post("/heatmap/remind-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  const { notificationsEnabled } = await getReminderSettings();
-  if (!notificationsEnabled) {
+  // Refuse to start a second blast while one is still emailing in the
+  // background (a large cohort takes minutes) — prevents double-sends.
+  if (bulkReminderInFlight) {
     res.status(409).json({
       error:
-        "In-app notifications are disabled by admin in /admin/config. Enable the toggle to send reminders.",
+        "A bulk reminder is already being sent. Please wait for it to finish before sending another.",
     });
     return;
   }
 
-  // Resolve coordinator's campus once so we can scope their bulk send.
-  let coordinatorCampusId: number | null = null;
-  if (req.user.role === "coordinator") {
-    const [me] = await db
-      .select({ campusId: usersTable.campusId })
-      .from(usersTable)
-      .where(eq(usersTable.id, req.user.id))
-      .limit(1);
-    if (!me?.campusId) {
-      res.status(403).json({ error: "Coordinator has no campus" });
+  // Status-based reminders use BOTH channels: an in-app notification and an
+  // email, each matched to the team's status. Require at least one channel on.
+  const { notificationsEnabled, emailsEnabled } = await getReminderSettings();
+  if (!notificationsEnabled && !emailsEnabled) {
+    res.status(409).json({
+      error:
+        "Both in-app notifications and emails are disabled by admin in /admin/config. Enable at least one to send reminders.",
+    });
+    return;
+  }
+
+  bulkReminderInFlight = true;
+  let backgroundOwnsRelease = false;
+  try {
+    // Resolve coordinator's campus once so we can scope their bulk send.
+    let coordinatorCampusId: number | null = null;
+    if (req.user.role === "coordinator") {
+      const [me] = await db
+        .select({ campusId: usersTable.campusId })
+        .from(usersTable)
+        .where(eq(usersTable.id, req.user.id))
+        .limit(1);
+      if (!me?.campusId) {
+        res.status(403).json({ error: "Coordinator has no campus" });
+        return;
+      }
+      coordinatorCampusId = me.campusId;
+    }
+
+    // Fetch all teams in the request, plus their campus + name.
+    const teams = await db
+      .select({
+        id: teamsTable.id,
+        campusId: teamsTable.campusId,
+        name: teamsTable.name,
+      })
+      .from(teamsTable);
+    const requested = new Set(parsed.data.teamIds);
+    const allowed = teams.filter((t) => {
+      if (!requested.has(t.id)) return false;
+      if (coordinatorCampusId != null && t.campusId !== coordinatorCampusId) {
+        return false;
+      }
+      return true;
+    });
+    const allowedIds = allowed.map((t) => t.id);
+    const nameByTeam = new Map(allowed.map((t) => [t.id, t.name]));
+
+    if (allowedIds.length === 0) {
+      res.json({
+        ok: true,
+        sentToTeams: 0,
+        sentToUsers: 0,
+        skippedTeams: parsed.data.teamIds.length,
+      });
       return;
     }
-    coordinatorCampusId = me.campusId;
-  }
 
-  // Fetch all teams in the request, plus their campus + name.
-  const teams = await db
-    .select({
-      id: teamsTable.id,
-      campusId: teamsTable.campusId,
-      name: teamsTable.name,
-    })
-    .from(teamsTable);
-  const requested = new Set(parsed.data.teamIds);
-  const allowed = teams.filter((t) => {
-    if (!requested.has(t.id)) return false;
-    if (coordinatorCampusId != null && t.campusId !== coordinatorCampusId) {
-      return false;
+    // Compute each team's status from its all-time journal history (same
+    // thresholds as the heatmap grid), in one grouped query — no N+1.
+    const now = new Date();
+    const agg = await db
+      .select({
+        teamId: weeklyJournalsTable.teamId,
+        total: sql<number>`count(*)`,
+        last: sql<string | null>`max(${weeklyJournalsTable.submittedAt})`,
+      })
+      .from(weeklyJournalsTable)
+      .where(inArray(weeklyJournalsTable.teamId, allowedIds))
+      .groupBy(weeklyJournalsTable.teamId);
+    const statusByTeam = new Map<number, TeamReminderStatus>();
+    const aggByTeam = new Map<number, { total: number; last: Date | null }>();
+    for (const a of agg) {
+      aggByTeam.set(a.teamId, {
+        total: Number(a.total ?? 0),
+        last: a.last ? new Date(a.last) : null,
+      });
     }
-    return true;
-  });
+    for (const t of allowed) {
+      const ag = aggByTeam.get(t.id) ?? { total: 0, last: null };
+      statusByTeam.set(t.id, teamReminderStatus(ag.total, ag.last, now));
+    }
 
-  let sentToTeams = 0;
-  let sentToUsers = 0;
-  for (const team of allowed) {
-    const members = await db
-      .select({ userId: teamMembersTable.userId })
+    // All members of the allowed teams, with the data needed for both channels.
+    const memberRows = await db
+      .select({
+        teamId: teamMembersTable.teamId,
+        userId: teamMembersTable.userId,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+      })
       .from(teamMembersTable)
-      .where(eq(teamMembersTable.teamId, team.id));
-    if (members.length === 0) continue;
+      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+      .where(inArray(teamMembersTable.teamId, allowedIds));
 
-    for (const m of members) {
-      await db.insert(notificationsTable).values({
-        userId: m.userId,
-        title: "Update needed",
-        body: `Your coordinator has flagged ${team.name} as needing an update. Please submit your weekly journal.`,
-        type: "reminder",
-        link: "/journal",
-      });
-      await db.insert(reminderLogTable).values({
-        teamId: team.id,
-        userId: m.userId,
-        reminderType: "silence_7d",
-        channel: "notification",
-      });
-      sentToUsers += 1;
+    // Build the in-app notification rows + the per-member email jobs, each
+    // carrying its team's status so the right template is used.
+    type EmailJob = {
+      email: string;
+      firstName: string | null;
+      teamId: number;
+      userId: string;
+      teamName: string;
+      status: TeamReminderStatus;
+    };
+    const notifRows: Array<typeof notificationsTable.$inferInsert> = [];
+    const logRows: Array<typeof reminderLogTable.$inferInsert> = [];
+    const emailJobs: EmailJob[] = [];
+    const teamsWithMembers = new Set<number>();
+
+    for (const m of memberRows) {
+      teamsWithMembers.add(m.teamId);
+      const status = statusByTeam.get(m.teamId) ?? "never_logged";
+      const teamName = nameByTeam.get(m.teamId) ?? `Team #${m.teamId}`;
+      if (notificationsEnabled) {
+        const copy = journalStatusNotificationCopy(status, teamName);
+        notifRows.push({
+          userId: m.userId,
+          title: copy.title,
+          body: copy.body,
+          type: "reminder",
+          link: "/journal",
+        });
+        logRows.push({
+          teamId: m.teamId,
+          userId: m.userId,
+          reminderType: "journal_due",
+          channel: "notification",
+        });
+      }
+      // Skip synthetic placeholder addresses (sso_*@forms.local) — they would
+      // bounce at SES and hurt sender reputation. These users still get the
+      // in-app notification above.
+      if (
+        emailsEnabled &&
+        m.email &&
+        m.email.includes("@") &&
+        !m.email.toLowerCase().endsWith("@forms.local")
+      ) {
+        emailJobs.push({
+          email: m.email,
+          firstName: m.firstName,
+          teamId: m.teamId,
+          userId: m.userId,
+          teamName,
+          status,
+        });
+      }
     }
-    sentToTeams += 1;
-  }
 
-  res.json({
-    ok: true,
-    sentToTeams,
-    sentToUsers,
-    skippedTeams: parsed.data.teamIds.length - sentToTeams,
-  });
+    // In-app notifications + their audit rows — chunked batch inserts so a
+    // few thousand rows don't blow the parameter limit or run row-by-row.
+    for (const c of chunk(notifRows, 500)) {
+      await db.insert(notificationsTable).values(c);
+    }
+    for (const c of chunk(logRows, 500)) {
+      await db.insert(reminderLogTable).values(c);
+    }
+
+    const sentToTeams = teamsWithMembers.size;
+    const sentToUsers = memberRows.length;
+    res.json({
+      ok: true,
+      sentToTeams,
+      sentToUsers,
+      skippedTeams: parsed.data.teamIds.length - sentToTeams,
+    });
+
+    // Emails go out ONE AT A TIME in the background (never all at once), each
+    // recipient addressed individually, with a small gap between sends so we
+    // stay under the provider's rate limit on a large cohort. The in-flight
+    // guard is held until this loop finishes.
+    if (emailsEnabled && emailJobs.length > 0) {
+      backgroundOwnsRelease = true;
+      const appUrl = getAppUrl();
+      void (async () => {
+        let emailed = 0;
+        for (const job of emailJobs) {
+          const tmpl = renderJournalStatusReminderEmail({
+            status: job.status,
+            recipientName: job.firstName,
+            teamName: job.teamName,
+            appUrl,
+          });
+          const ok = await sendEmail({
+            to: { email: job.email, name: job.firstName || undefined },
+            subject: tmpl.subject,
+            text: tmpl.text,
+          });
+          if (ok) {
+            emailed += 1;
+            try {
+              await db.insert(reminderLogTable).values({
+                teamId: job.teamId,
+                userId: job.userId,
+                reminderType: "journal_due",
+                channel: "email",
+              });
+            } catch {
+              // best-effort audit row; never block the blast
+            }
+          }
+          await sleep(EMAIL_THROTTLE_MS);
+        }
+        logger.info(
+          { queued: emailJobs.length, emailed },
+          "[heatmap] status-based reminder email blast complete",
+        );
+      })()
+        .catch((err) =>
+          logger.error({ err }, "[heatmap] status reminder email blast failed"),
+        )
+        .finally(() => {
+          bulkReminderInFlight = false;
+        });
+    }
+  } catch (err) {
+    logger.error({ err }, "[heatmap] remind-bulk failed");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to send reminders" });
+    }
+  } finally {
+    if (!backgroundOwnsRelease) bulkReminderInFlight = false;
+  }
 });
 
 const RemindNeverLoggedBody = z.object({

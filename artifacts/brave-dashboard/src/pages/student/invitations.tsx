@@ -25,47 +25,79 @@ export default function Invitations() {
   const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
 
-  if (isLoading) return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>;
+  if (isLoading)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
 
   const pending = invitations?.filter((i) => i.status === "pending") ?? [];
   const past = invitations?.filter((i) => i.status !== "pending") ?? [];
 
   const onAccept = (inv: TeamInvitation) => {
-    accept.mutate({ id: inv.id }, {
-      onSuccess: (res) => {
-        // Joins are now gated behind admin approval; the invitation stays
-        // pending until an admin approves the membership request.
-        const message =
-          (res as { message?: string } | undefined)?.message ??
-          `Your request to join ${inv.teamName} has been sent for admin approval.`;
-        toast({ title: "Awaiting admin approval", description: message });
-        queryClient.invalidateQueries({ queryKey: getListMyInvitationsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+    accept.mutate(
+      { id: inv.id },
+      {
+        onSuccess: (res) => {
+          // Accepting auto-approves unless gated; the server signals which via
+          // `status` ("applied" = joined now, "pending_approval" = needs admin).
+          const r = res as { status?: string; message?: string } | undefined;
+          const applied = r?.status === "applied";
+          toast({
+            title: applied ? "Joined team" : "Awaiting admin approval",
+            description:
+              r?.message ??
+              (applied
+                ? `You've joined ${inv.teamName}.`
+                : `Your request to join ${inv.teamName} has been sent for admin approval.`),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getListMyInvitationsQueryKey(),
+          });
+          queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+        },
+        onError: (err: unknown) => {
+          const e = err as { data?: { error?: string }; message?: string };
+          toast({
+            title: "Could not accept",
+            description: e?.data?.error ?? e?.message ?? "Try again.",
+            variant: "destructive",
+          });
+        },
       },
-      onError: (err: unknown) => {
-        const e = err as { data?: { error?: string }; message?: string };
-        toast({ title: "Could not accept", description: e?.data?.error ?? e?.message ?? "Try again.", variant: "destructive" });
-      },
-    });
+    );
   };
 
   const onDecline = (inv: TeamInvitation) => {
-    decline.mutate({ id: inv.id }, {
-      onSuccess: () => {
-        toast({ title: "Invitation declined" });
-        queryClient.invalidateQueries({ queryKey: getListMyInvitationsQueryKey() });
+    decline.mutate(
+      { id: inv.id },
+      {
+        onSuccess: () => {
+          toast({ title: "Invitation declined" });
+          queryClient.invalidateQueries({
+            queryKey: getListMyInvitationsQueryKey(),
+          });
+        },
+        onError: (err: unknown) => {
+          toast({
+            title: "Could not decline",
+            description: (err as { message?: string })?.message ?? "Try again.",
+            variant: "destructive",
+          });
+        },
       },
-      onError: (err: unknown) => {
-        toast({ title: "Could not decline", description: (err as { message?: string })?.message ?? "Try again.", variant: "destructive" });
-      },
-    });
+    );
   };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Team invitations</h1>
-        <p className="text-muted-foreground mt-1">Accept an invitation to join a team. Accepting one cancels any other pending invitations.</p>
+        <p className="text-muted-foreground mt-1">
+          Accept an invitation to join a team. Accepting one cancels any other
+          pending invitations.
+        </p>
       </div>
 
       <section>
@@ -82,16 +114,31 @@ export default function Invitations() {
                 <CardContent className="p-4 flex items-center gap-4">
                   <Avatar>
                     <AvatarImage src={inv.teamPhotoUrl ?? undefined} />
-                    <AvatarFallback>{inv.teamName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback>
+                      {inv.teamName.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <p className="font-semibold">{inv.teamName}</p>
-                    <p className="text-sm text-muted-foreground">Invited by {inv.inviterName} • {formatDate(inv.createdAt)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Invited by {inv.inviterName} • {formatDate(inv.createdAt)}
+                    </p>
                   </div>
-                  <Button size="sm" onClick={() => onAccept(inv)} disabled={accept.isPending} data-testid={`button-accept-${inv.id}`}>
+                  <Button
+                    size="sm"
+                    onClick={() => onAccept(inv)}
+                    disabled={accept.isPending}
+                    data-testid={`button-accept-${inv.id}`}
+                  >
                     <Check className="w-4 h-4 mr-1" /> Accept
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => onDecline(inv)} disabled={decline.isPending} data-testid={`button-decline-${inv.id}`}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onDecline(inv)}
+                    disabled={decline.isPending}
+                    data-testid={`button-decline-${inv.id}`}
+                  >
                     <X className="w-4 h-4 mr-1" /> Decline
                   </Button>
                 </CardContent>
@@ -110,13 +157,19 @@ export default function Invitations() {
                 <CardContent className="p-3 flex items-center gap-3">
                   <Avatar className="w-8 h-8">
                     <AvatarImage src={inv.teamPhotoUrl ?? undefined} />
-                    <AvatarFallback>{inv.teamName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback>
+                      {inv.teamName.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <p className="text-sm font-medium">{inv.teamName}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(inv.createdAt)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(inv.createdAt)}
+                    </p>
                   </div>
-                  <Badge variant="outline" className="capitalize">{inv.status}</Badge>
+                  <Badge variant="outline" className="capitalize">
+                    {inv.status}
+                  </Badge>
                 </CardContent>
               </Card>
             ))}

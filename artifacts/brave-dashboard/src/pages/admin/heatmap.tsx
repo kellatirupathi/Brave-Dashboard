@@ -8,6 +8,7 @@ import {
   Search,
   CheckCircle2,
   X,
+  Download,
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
@@ -498,7 +499,9 @@ export default function HeatmapPage() {
   const setActiveTab = (v: string) => setLocation(`${location}?tab=${v}`);
 
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "silent" | "never">("all");
+  const [filter, setFilter] = useState<
+    "all" | "silent" | "never" | "inconsistent" | "active"
+  >("all");
   const [weeksBack, setWeeksBack] = useState(8);
   const [selectedCampusId, setSelectedCampusId] = useState<string>("all");
   const [selectedWeek, setSelectedWeek] = useState<string>("all"); // value = week startDate or "all"
@@ -789,6 +792,9 @@ export default function HeatmapPage() {
         // Status filter
         if (filter === "silent" && t.status !== "silent") return false;
         if (filter === "never" && t.status !== "never_logged") return false;
+        if (filter === "inconsistent" && t.status !== "inconsistent")
+          return false;
+        if (filter === "active" && t.status !== "active") return false;
         // Week-specific filter — keep only teams that did NOT submit this week.
         if (selectedWeek !== "all") {
           const weekRow = t.weeks.find((w) => w.weekStartDate === selectedWeek);
@@ -843,6 +849,53 @@ export default function HeatmapPage() {
     setFilter("all");
     setSelectedCampusId("all");
     setSelectedWeek("all");
+  };
+
+  // Export the CURRENT (filtered) team list as a CSV — respects the active
+  // status pill (All / Silent / Inconsistent / Never logged / Active) plus the
+  // campus, week and search filters. Built client-side from the loaded rows.
+  const STATUS_LABELS: Record<HeatmapTeamRow["status"], string> = {
+    active: "Active",
+    inconsistent: "Inconsistent",
+    silent: "Silent",
+    never_logged: "Never logged",
+  };
+  const exportCsv = () => {
+    if (filteredTeams.length === 0) return;
+    const weeks = data?.weeks ?? [];
+    const esc = (v: string | number) => {
+      const s = String(v ?? "");
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = [
+      "Team",
+      "Campus",
+      "Status",
+      "Total Journals",
+      "Days Since Last Journal",
+      ...weeks.map((w, i) => `Week ${i + 1} (${w})`),
+    ];
+    const rows = filteredTeams.map((t) => [
+      t.teamName,
+      t.campusName ?? "",
+      STATUS_LABELS[t.status] ?? t.status,
+      t.totalJournals,
+      t.daysSinceLastJournal ?? "",
+      ...weeks.map((w) =>
+        t.weeks.find((x) => x.weekStartDate === w)?.hasJournal ? "Yes" : "No",
+      ),
+    ]);
+    const csv = [header, ...rows].map((r) => r.map(esc).join(",")).join("\r\n");
+    const stamp = new Date().toISOString().slice(0, 10);
+    const blob = new Blob(["﻿" + csv], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `journal-coverage-${filter}-${stamp}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -989,9 +1042,7 @@ export default function HeatmapPage() {
                     size="sm"
                     variant="default"
                     disabled={
-                      !anyFilterActive ||
-                      filteredTeams.length === 0 ||
-                      bulkRemindMut.isPending
+                      filteredTeams.length === 0 || bulkRemindMut.isPending
                     }
                     onClick={() => setBulkDialogOpen(true)}
                     data-testid="bulk-remind-button"
@@ -1000,9 +1051,6 @@ export default function HeatmapPage() {
                     Send reminder to {filteredTeams.length} team
                     {filteredTeams.length === 1 ? "" : "s"}
                   </Button>
-                  <CardTitle className="hidden lg:block ml-2">
-                    Per-team weekly journal coverage
-                  </CardTitle>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Campus dropdown — admin only */}
@@ -1065,6 +1113,18 @@ export default function HeatmapPage() {
                     ))}
                   </div>
 
+                  {/* Export the current (filtered) team list as CSV */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={exportCsv}
+                    disabled={filteredTeams.length === 0}
+                    data-testid="heatmap-export-button"
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    Export
+                  </Button>
+
                   {/* Clear filters */}
                   {anyFilterActive && (
                     <button
@@ -1098,6 +1158,8 @@ export default function HeatmapPage() {
                       { v: "all", label: "All" },
                       { v: "silent", label: "Silent" },
                       { v: "never", label: "Never logged" },
+                      { v: "inconsistent", label: "Inconsistent" },
+                      { v: "active", label: "Active" },
                     ] as const
                   ).map((b) => (
                     <button
@@ -1130,7 +1192,7 @@ export default function HeatmapPage() {
                   No teams match the current filters.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overflow-y-hidden">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
@@ -1279,9 +1341,12 @@ export default function HeatmapPage() {
               {filteredTeams.length === 1 ? "" : "s"}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Each team in the current filtered view will get an in-app
-              notification asking them to submit their weekly journal. This
-              action is logged.
+              Each team in the current filtered view will get a reminder matched
+              to its status — Active teams get an appreciation note, while
+              Inconsistent, Silent and Never-logged teams get a nudge to submit
+              their weekly journal. Every member receives both an email and an
+              in-app notification; emails are sent one at a time in the
+              background. This action is logged.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

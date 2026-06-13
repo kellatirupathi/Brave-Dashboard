@@ -90,6 +90,7 @@ import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
 
 // Shared
 import Profile from "@/pages/profile";
+import Guidebook from "@/pages/guidebook";
 
 // Components
 import { Layout } from "@/components/layout";
@@ -507,6 +508,14 @@ function Router() {
       <Route path="/profile">
         <ProtectedRoute
           component={Profile}
+          allowedRoles={["student", "coordinator", "admin"]}
+        />
+      </Route>
+
+      {/* Guidebook — modular field guide, accessible to every role. */}
+      <Route path="/guidebook">
+        <ProtectedRoute
+          component={Guidebook}
           allowedRoles={["student", "coordinator", "admin"]}
         />
       </Route>

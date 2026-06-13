@@ -6,6 +6,7 @@ import { bootstrapCanonicalCampuses } from "./bootstrap-campuses";
 import { bootstrapAdmins } from "./bootstrap-admins";
 import { bootstrapSuperAdmins } from "./bootstrap-superadmins";
 import { catchUpPendingBrdAnalyses } from "./lib/ai/analyse-brd";
+import { sweepAutoApprovePendingRequests } from "./lib/membership-requests";
 
 async function reportUsersWithoutCampus(): Promise<void> {
   try {
@@ -138,6 +139,22 @@ async function runBootstrap(): Promise<void> {
     await catchUpPendingBrdAnalyses();
   } catch (err) {
     logger.error({ err }, "catchUpPendingBrdAnalyses failed");
+  }
+  // One-shot sweep: auto-approve any already-pending membership requests that
+  // are no longer gated under the current rule (only verified-revenue
+  // leave/remove still need admin approval). Self-limiting — once applied they
+  // are no longer pending, so subsequent boots find fewer. Applies real
+  // membership changes; failures are left pending for an admin.
+  try {
+    const r = await sweepAutoApprovePendingRequests();
+    if (r.total > 0) {
+      logger.info(
+        r,
+        "[membership-sweep] auto-approved non-gated pending requests on startup",
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, "sweepAutoApprovePendingRequests failed");
   }
 }
 

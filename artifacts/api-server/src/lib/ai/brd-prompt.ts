@@ -132,7 +132,12 @@ present (never null). Keep every value short.
 - payee_name — who RECEIVED the money on the payment proof
 - amount — the amount shown on the payment proof (e.g. "₹10,000")
 - payment_date — the date shown on the payment proof
-- reference_id — UTR / transaction id / reference / cheque number on the proof
+- reference_id — the UNIQUE identifier of THIS payment, whatever the payment mode. For
+  UPI / bank transfer use the UTR / transaction id / reference number; for a CHEQUE use
+  the cheque number (and note the bank if visible); for card / POS use the transaction or
+  approval id; for a printed receipt use the receipt number. Always capture the strongest
+  unique identifier shown on the proof. Use "" ONLY if the proof truly has no such
+  identifier (e.g. a plain cash note with no number).
 - project — the project / product the revenue is for
 - summary_text — ONE or TWO short sentences a reviewer can skim: the business, the
   client, what was sold, and the payment proof (amount, date, payer → payee, reference)
@@ -169,7 +174,7 @@ RETURN your response ONLY as a valid JSON object in this exact format:
     "payee_name": "<short or empty>",
     "amount": "<e.g. ₹10,000 or empty>",
     "payment_date": "<short or empty>",
-    "reference_id": "<UTR / txn id / cheque no or empty>",
+    "reference_id": "<UTR / txn id / cheque no / receipt no, or empty>",
     "project": "<short or empty>",
     "summary_text": "<one or two short sentences>"
   },
@@ -261,27 +266,25 @@ real-world payment as any ALREADY-APPROVED BRD listed below.
 You are given ONLY the extracted text summaries of each payment proof — never the PDFs.
 Compare the CURRENT summary against EVERY approved summary in the list.
 
-WHAT COUNTS AS A MATCH (most → least certain):
-- DUPLICATE (high certainty): same reference / UTR / transaction id (ignoring spaces &
-  case); OR the same amount AND same date AND the same payer or the same payee; OR an
-  otherwise near-identical payer → payee + amount + date. Two DIFFERENT teams sharing
-  the exact same payment proof is an especially strong duplicate signal.
-- SUSPICIOUS (needs human review): the same amount on the same date, but nothing else
-  ties them together (no shared reference, payer, or payee). Could be a coincidence.
-- UNIQUE: a different amount, or a different date, or no meaningful overlap. Common
-  round amounts (e.g. ₹10,000) on different dates are NOT matches.
+THE ONLY SIGNAL THAT COUNTS — the PAYMENT REFERENCE (the "ref" field):
+This reference is whatever UNIQUELY identifies the transaction, regardless of payment
+mode — a UTR / transaction id for UPI or bank transfer, the CHEQUE NUMBER for a cheque,
+or a receipt / approval number. Treat any of these the same way.
+- DUPLICATE: the current BRD's payment reference is the SAME as an approved BRD's payment
+  reference (ignore spaces and letter case). A shared reference means it is literally the
+  same payment reused — that is the ONLY thing that makes a duplicate.
+- UNIQUE: everything else. The SAME AMOUNT and/or the SAME DATE is NOT a match — with
+  thousands of students, identical round amounts on the same day are normal
+  coincidences. A matching PAYER or PAYEE, without a matching reference, is also NOT a
+  duplicate on its own. Ignore amount, date, payer and payee for this decision.
+- If the current BRD has NO reference at all (e.g. a cash note with no number), or no
+  approved BRD shares the same reference, the result is UNIQUE.
 
-IMPORTANT:
-- A differing PAYER alone does not break a match if reference/amount/date line up — money
-  is often sent by the client's company, finance team, family, or a gateway.
-- Be strict but fair: only call something a DUPLICATE when the evidence shows it is the
-  same transaction reused. When unsure between duplicate and unique, prefer SUSPICIOUS.
-- If the approved list is empty, the result is UNIQUE.
+There is NO "suspicious" verdict — every BRD is either "duplicate" or "unique".
 
 SCORING:
-- 0–15  = confirmed duplicate (same payment reused)
-- 35–55 = suspicious (same amount & date, needs review)
-- 90–100 = unique (no real overlap)
+- 0–15  = duplicate (same reference / UTR reused)
+- 90–100 = unique (no shared reference / UTR)
 
 CURRENT BRD SUMMARY (the new submission to check):
 team="${current.team_name}" | business="${current.business_name}" | client="${current.client_name}" | payer="${current.payer_name}" | payee="${current.payee_name}" | amount="${current.amount}" | date="${current.payment_date}" | ref="${current.reference_id}" | project="${current.project}"
@@ -292,15 +295,15 @@ ${candidateLines || "(none — there are no approved BRDs to compare against)"}
 Return ONLY a valid JSON object in EXACTLY this format (no markdown, no extra text):
 {
   "uniqueness_score": <number 0 to 100>,
-  "flag": "unique" | "suspicious" | "duplicate",
+  "flag": "unique" | "duplicate",
   "summary": "<one or two short sentences a reviewer can skim>",
   "matches": [
     {
       "entry_id": <number from the approved list above>,
-      "match_flag": "duplicate" | "suspicious",
-      "reason": "<short reason, e.g. 'same UTR + amount + date'>"
+      "match_flag": "duplicate",
+      "reason": "<short reason, e.g. 'same UTR 1234XXXX'>"
     }
   ]
 }
-If nothing matches, return an empty "matches" array and a high uniqueness_score.`;
+If nothing matches, return an empty "matches" array, "flag": "unique", and a high uniqueness_score.`;
 }

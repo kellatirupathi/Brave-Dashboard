@@ -243,13 +243,13 @@ type UniquenessMatch = {
   status: string;
   brd_url: string | null;
   same_team: boolean;
-  match_flag: "duplicate" | "suspicious";
+  match_flag: "duplicate";
   reason: string;
 };
 
 type UniquenessResult = {
   score: number;
-  flag: "unique" | "suspicious" | "duplicate";
+  flag: "unique" | "duplicate";
   summary: string;
   compared_count: number;
   matches: UniquenessMatch[];
@@ -399,18 +399,13 @@ async function computeUniqueness(
   }
 
   const mergedMatches = new Map<number, UniquenessMatch>();
-  let worst: "unique" | "suspicious" | "duplicate" = "unique";
+  let isDuplicate = false;
   let anyAiSucceeded = false;
 
   for (const batch of batches) {
     let batchResult: UniquenessResult;
     try {
-      batchResult = await runAiUniquenessBatch(
-        apiKey,
-        current,
-        batch,
-        entry,
-      );
+      batchResult = await runAiUniquenessBatch(apiKey, current, batch, entry);
       anyAiSucceeded = true;
     } catch (err) {
       logger.warn(
@@ -419,44 +414,31 @@ async function computeUniqueness(
       );
       batchResult = ruleBasedUniqueness(entry, curSummary, batch);
     }
-    worst = worseFlag(worst, batchResult.flag);
+    if (batchResult.flag === "duplicate") isDuplicate = true;
     for (const m of batchResult.matches) {
       if (!mergedMatches.has(m.entry_id)) mergedMatches.set(m.entry_id, m);
     }
   }
 
-  // Derive the final score deterministically from the worst flag across all
-  // batches so the score and flag can never contradict each other.
-  const score = worst === "duplicate" ? 8 : worst === "suspicious" ? 45 : 100;
+  // Two outcomes only — duplicate (same reference reused) or unique. Amount,
+  // date, payer and payee never flag on their own. Score is derived from the flag
+  // so the two can never contradict each other.
+  const flag: "unique" | "duplicate" = isDuplicate ? "duplicate" : "unique";
+  const score = isDuplicate ? 8 : 100;
   const matches = [...mergedMatches.values()];
-  const summary = anyAiSucceeded
-    ? worst === "duplicate"
-      ? `AI flagged this BRD as a likely duplicate — ${matches.length} approved BRD(s) match across all teams.`
-      : worst === "suspicious"
-        ? `AI flagged this BRD as suspicious — ${matches.length} approved BRD(s) share this payment; review for a reused proof.`
-        : "AI found no approved BRD matching this payment — unique across all teams."
-    : worst === "duplicate"
-      ? `Likely duplicate: ${matches.length} approved BRD(s) share this payment's reference/payer/payee, amount and date.`
-      : worst === "suspicious"
-        ? `${matches.length} approved BRD(s) share this payment's amount and date — review for a possibly reused payment proof.`
-        : "No approved BRD shares this payment's amount and date — unique across all teams.";
+  const summary = isDuplicate
+    ? `Likely duplicate — ${matches.length} approved BRD(s) reuse this payment's reference.`
+    : anyAiSucceeded
+      ? "AI found no approved BRD reusing this payment's reference — unique across all teams."
+      : "No approved BRD reuses this payment's reference — unique across all teams.";
 
   return {
     score,
-    flag: worst,
+    flag,
     summary,
     compared_count: candidates.length,
     matches,
   };
-}
-
-/** Rank flags so we can keep the worst one seen across batches. */
-function worseFlag(
-  a: "unique" | "suspicious" | "duplicate",
-  b: "unique" | "suspicious" | "duplicate",
-): "unique" | "suspicious" | "duplicate" {
-  const rank = { unique: 0, suspicious: 1, duplicate: 2 } as const;
-  return rank[b] > rank[a] ? b : a;
 }
 
 /**
@@ -511,22 +493,19 @@ async function runAiUniquenessBatch(
     unknown
   >;
 
+  // Two outcomes only — duplicate or unique. Any non-"duplicate" flag is unique.
   const flagRaw = asString(aiRaw["flag"]).toLowerCase();
-  const flag: "unique" | "suspicious" | "duplicate" =
-    flagRaw === "duplicate"
-      ? "duplicate"
-      : flagRaw === "suspicious"
-        ? "suspicious"
-        : "unique";
+  const flag: "unique" | "duplicate" =
+    flagRaw === "duplicate" ? "duplicate" : "unique";
 
-  let score = toScore(aiRaw["uniqueness_score"]);
-  if (score == null) {
-    score = flag === "duplicate" ? 8 : flag === "suspicious" ? 45 : 100;
-  }
+  // Score is derived from the flag so it can't contradict the verdict.
+  const score = flag === "duplicate" ? 8 : 100;
 
-  const aiMatches = Array.isArray(aiRaw["matches"])
-    ? (aiRaw["matches"] as Array<Record<string, unknown>>)
-    : [];
+  // Only a duplicate carries matches; a unique result has none.
+  const aiMatches =
+    flag === "duplicate" && Array.isArray(aiRaw["matches"])
+      ? (aiRaw["matches"] as Array<Record<string, unknown>>)
+      : [];
   const matches: UniquenessMatch[] = [];
   for (const m of aiMatches) {
     const id =
@@ -536,7 +515,6 @@ async function runAiUniquenessBatch(
     if (!Number.isFinite(id)) continue;
     const row = byId.get(id);
     if (!row) continue;
-    const mf = asString(m["match_flag"]).toLowerCase();
     matches.push({
       entry_id: row.id,
       team_id: row.teamId,
@@ -545,8 +523,8 @@ async function runAiUniquenessBatch(
       status: row.status,
       brd_url: row.brdUrl,
       same_team: row.teamId === entry.teamId,
-      match_flag: mf === "duplicate" ? "duplicate" : "suspicious",
-      reason: asString(m["reason"]) || "Flagged by AI comparison",
+      match_flag: "duplicate",
+      reason: asString(m["reason"]) || "Same reference",
     });
   }
 
@@ -561,80 +539,47 @@ async function runAiUniquenessBatch(
 
 /**
  * Deterministic fallback used only when the AI uniqueness call fails. Flags an
- * approved BRD as a duplicate when it shares the same amount + date AND a
- * reference/payer/payee with the current BRD; same amount + date alone is
- * suspicious.
+ * approved BRD as a duplicate ONLY when it shares the same reference / UTR /
+ * transaction id with the current BRD. Amount, date, payer and payee are
+ * ignored — there is no "suspicious" tier, only duplicate or unique.
  */
 function ruleBasedUniqueness(
   entry: { id: number; teamId: number },
   curSummary: Record<string, unknown>,
   candidates: CandidateRow[],
 ): UniquenessResult {
+  // Deterministic fallback. A BRD is a duplicate ONLY when it shares the same
+  // reference / UTR / transaction id with an approved BRD — amount, date, payer
+  // and payee are deliberately ignored (too common across thousands of students
+  // to be meaningful). With no reference on the current BRD there is nothing
+  // definitive to match on, so it is unique.
   const curRef = normText(curSummary["reference_id"]);
-  const curPayer = normText(curSummary["payer_name"]);
-  const curPayee = normText(curSummary["payee_name"]);
-  const curAmount = normText(curSummary["amount"]);
-  const curDate = normText(curSummary["payment_date"]);
-
   const matches: UniquenessMatch[] = [];
-  let worst: "unique" | "suspicious" | "duplicate" = "unique";
-  for (const c of candidates) {
-    const s = summaryFieldsOf(c.detail);
-    const cAmount = normText(s["amount"]);
-    const cDate = normText(s["payment_date"]);
-    const cRef = normText(s["reference_id"]);
-    const cPayer = normText(s["payer_name"]);
-    const cPayee = normText(s["payee_name"]);
-
-    const refMatch = !!curRef && curRef === cRef;
-    const sameAmountDate =
-      !!curAmount && curAmount === cAmount && !!curDate && curDate === cDate;
-    if (!refMatch && !sameAmountDate) continue;
-
-    let reason: string;
-    let matchFlag: "duplicate" | "suspicious";
-    if (refMatch) {
-      reason = "Same reference/UTR";
-      matchFlag = "duplicate";
-      worst = "duplicate";
-    } else if (curPayer && curPayer === cPayer) {
-      reason = "Same payer + same amount & date";
-      matchFlag = "duplicate";
-      worst = "duplicate";
-    } else if (curPayee && curPayee === cPayee) {
-      reason = "Same payee + same amount & date";
-      matchFlag = "duplicate";
-      worst = "duplicate";
-    } else {
-      reason = "Same amount & payment date";
-      matchFlag = "suspicious";
-      if (worst !== "duplicate") worst = "suspicious";
+  if (curRef) {
+    for (const c of candidates) {
+      const cRef = normText(summaryFieldsOf(c.detail)["reference_id"]);
+      if (!cRef || cRef !== curRef) continue;
+      matches.push({
+        entry_id: c.id,
+        team_id: c.teamId,
+        team_name: c.teamName ?? `Team #${c.teamId}`,
+        client_name: c.clientName,
+        status: c.status,
+        brd_url: c.brdUrl,
+        same_team: c.teamId === entry.teamId,
+        match_flag: "duplicate",
+        reason: "Same reference",
+      });
     }
-    matches.push({
-      entry_id: c.id,
-      team_id: c.teamId,
-      team_name: c.teamName ?? `Team #${c.teamId}`,
-      client_name: c.clientName,
-      status: c.status,
-      brd_url: c.brdUrl,
-      same_team: c.teamId === entry.teamId,
-      match_flag: matchFlag,
-      reason,
-    });
   }
 
-  const score = worst === "duplicate" ? 8 : worst === "suspicious" ? 45 : 100;
-  const summary =
-    matches.length === 0
-      ? "No approved BRD shares this payment's amount and date — unique across all teams."
-      : worst === "duplicate"
-        ? `Likely duplicate: ${matches.length} approved BRD(s) share this payment's reference/payer/payee, amount and date.`
-        : `${matches.length} approved BRD(s) share this payment's amount and date — review for a possibly reused payment proof.`;
-
+  const isDuplicate = matches.length > 0;
   return {
-    score,
-    flag: worst,
-    summary,
+    score: isDuplicate ? 8 : 100,
+    flag: isDuplicate ? "duplicate" : "unique",
+    summary: isDuplicate
+      ? `Likely duplicate: ${matches.length} approved BRD(s) share this payment's reference.`
+      : "No approved BRD shares this payment's reference — unique across all teams.",
     compared_count: candidates.length,
     matches,
   };
