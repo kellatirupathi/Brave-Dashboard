@@ -20,16 +20,31 @@ screenshot embedded inside the PDF. The image that matters is the PAYMENT /
 TRANSACTION PROOF — a payment screenshot, UPI transaction proof, bank statement,
 bank-transfer receipt, or cheque image. (Invoices / purchase orders are NOT audited.)
 
-THE PAYMENT PROOF IS THE PRIMARY FACTOR for this score. A BRD's whole purpose is to
-prove the money was actually received, so a clear, genuine, verifiable payment proof
-whose amount matches the claimed revenue is what makes a BRD score high.
+THIS SCORE MEASURES THE COMPLETENESS AND QUALITY OF THE WHOLE BRD — not the payment
+proof alone. A complete BRD has TWO parts that BOTH matter:
+(A) a genuine PAYMENT / TRANSACTION PROOF, and
+(B) the WRITTEN SECTIONS that document the deal.
 
-The following sections are ALSO checked and you MUST report whether each is present
-or missing — but missing or thin sections cause only SMALL deductions (a few points
-each). They must NEVER pull the score far down on their own:
+Payment proof is a REQUIRED GATE, not the whole score. A genuine proof whose amount
+matches the claim is necessary to score above the low band — but on its own it is NOT
+enough for a high score. A BRD that is ONLY a payment screenshot, with none of the
+written sections below, is an INCOMPLETE document and MUST score low (25–44).
+
+Check EVERY one of these written sections and report whether each is PRESENT, THIN, or
+MISSING. The score is driven by HOW MANY are properly present, on top of a valid proof:
 1. Business / Team owner details — founder name(s), team name, campus, contact
-2. Business or product description — what is being sold, category, brief pitch
-3. Customer / Client details — client name, contact, location
+2. Problem statement — the specific problem the client had before the solution
+3. Solution description — what was built, key features, how the client uses it
+4. How AI is used — which AI / tool / API and what it actually does (the programme
+   REQUIRES AI as the working mechanism; a missing or vague AI explanation is a serious gap)
+5. Scope of work / deliverables — what was delivered (and what is not included)
+6. Pricing / commercial terms — the amount agreed and the payment structure
+7. Customer / client details — client name, contact, location
+8. Client sign-off / acceptance — the client confirming they received it and agree to pay
+9. Team members & roles — who built what
+
+Each MISSING or thin section meaningfully lowers the score. A BRD missing most of these
+sections CANNOT score high even with a perfect payment proof.
 
 DO NOT check for, require, or comment on an INVOICE or any invoice / transaction-detail
 document (invoice number, line items, taxes, purchase order, bill). Invoices are OUTSIDE
@@ -37,34 +52,36 @@ the scope of this audit: their absence must cost ZERO points and must NEVER appe
 finding. The only money evidence that matters is the PAYMENT / TRANSACTION PROOF showing
 the funds were actually received.
 
-SCORING RUBRIC (apply strictly — payment proof first):
-- 90–100 = clear, genuine, verifiable payment proof; amount matches the claim; AND
-  most/all of the other sections are present and well-structured.
-- 80–89  = clear, genuine payment proof; amount matches; but several other sections
-  are thin or missing.
-- 70–79  = a valid, clear payment proof whose amount matches the claim, but little or
-  no other BRD structure (e.g. essentially only a payment screenshot). A bare but
-  genuine payment proof still belongs HERE — do NOT score it lower than 70 just
-  because owner / client / description are missing (an invoice is not needed at all).
-- 50–69  = payment proof is present but unclear, partial, low-quality, or the amount
-  only roughly matches ("close"); hard to be confident the money was received.
-- 25–49  = payment proof is weak, ambiguous, or you cannot tell that money was
-  actually received.
-- 0–24   = NO payment proof at all, OR blank / corrupted / irrelevant / fake file,
+SCORING RUBRIC (apply strictly — proof is the GATE, completeness drives the rest):
+- 90–100 = genuine payment proof (amount + date match) AND the BRD is COMPLETE — almost
+  all of the 9 written sections above are clearly present and well-structured.
+- 70–89  = genuine payment proof AND MOST written sections present, with only a few
+  thin or missing.
+- 45–69  = genuine payment proof but the document is SPARSE — only a few written
+  sections present; several key ones (owner, solution, AI usage, client details,
+  sign-off) are missing.
+- 25–44  = genuine payment proof but essentially NO written BRD — just a bare payment
+  screenshot with none (or almost none) of the written sections. (e.g. a lone PhonePe /
+  UPI screenshot with no owner, solution, AI, client, or sign-off details belongs HERE.)
+- 10–24  = payment proof is weak, partial, low-quality, or you cannot be confident money
+  was actually received.
+- 0–9    = NO payment proof at all, OR blank / corrupted / irrelevant / fake file,
   OR the amount in the document clearly does not match the claimed revenue.
 
 HARD RULES — these MUST be enforced:
-- The payment proof is the PRIMARY determinant of this score.
-- If a clear, genuine payment proof exists AND its amount matches the claimed
-  revenue, the brd_score MUST be at least 70 — even if owner details, client
-  details, and description are all missing. A bare payment screenshot that
-  is genuine and matches the amount is acceptable and scores 70+.
-- Missing owner details, client details, or business description each cost at MOST a
-  few points — never a large penalty. An INVOICE is NOT required: missing it costs ZERO
-  points and must not be mentioned.
-- If there is NO payment proof, the score MUST be low (0–24) no matter how complete
-  the rest of the document looks.
-- If the amount in the payment proof does not match the claimed revenue → cap at 30.
+- Payment proof is a GATE, not the whole score: a genuine proof whose amount matches is
+  REQUIRED to score above 24, but it does NOT by itself earn a high score.
+- A BRD that is ONLY a payment screenshot, with none (or almost none) of the 9 written
+  sections, MUST score 25–44 — NEVER 70+. Only the written sections lift the score into
+  the 70s, 80s and 90s.
+- Each missing or thin written section (owner details, problem, solution, AI usage,
+  deliverables, pricing, client details, sign-off, team) meaningfully lowers the score.
+  Count how many are properly present and score accordingly. A missing or vague AI
+  explanation is a serious gap. (An INVOICE is NOT one of these sections — its absence
+  still costs ZERO points and must not be mentioned.)
+- If there is NO payment proof, the score MUST be very low (0–24) no matter how complete
+  the written sections are.
+- If the amount in the payment proof does not match the claimed revenue → cap at 24.
 - If the document is blank, corrupted, fake/dummy, or a random unrelated file → 0–15.
 - DIFFERENT PAYER IS OK: a payment may legitimately be SENT by someone other than the
   named client — the client's company / organisation account, their finance or accounts
@@ -93,7 +110,9 @@ POSITIVE signals (increase score):
 - Payment proof is clear and high-resolution, and clearly shows amount, date, and a
   reference / UTR / transaction id
 - Amount and date on the proof match the claimed revenue entry
-- Other sections present add a few points on top (well-formatted, client verifiable)
+- The written sections (owner, problem, solution, AI usage, deliverables, pricing, client
+  details, sign-off, team) are present and well-documented — each present section
+  meaningfully RAISES the score (this is what separates a high score from a bare proof)
 
 NEGATIVE signals (decrease score):
 - No payment proof, or an unreadable / cropped / suspicious payment proof
@@ -106,7 +125,7 @@ negative signal by itself — money often comes from the client's company, finan
 family, or a gateway, and student teams receive it into a team member's own account. See
 HARD RULES.)
 
-Provide exactly 4 to 7 short one-line findings. The FIRST finding(s) MUST be about
+Provide 5 to 9 short one-line findings. The FIRST finding(s) MUST be about
 the payment proof (is it present, clear, genuine, and does the amount match?). Do NOT
 mark the proof ❌ just because the SENDER's name differs from the claimed client — a
 third-party sender (the client's company, finance team, an employee, family, or a
@@ -116,9 +135,11 @@ SENDER (payer) is a team member (the team paying itself) or that moves between t
 members. Do NOT mark ❌ just because the RECEIVER (payee) is a team member — for a
 "payment received" screenshot that is the team's own account receiving the client's
 money, which is correct and valid.
-Then briefly note which of the other sections (owner, description, client) are present
-or missing — but make clear these are secondary and lightly weighted. NEVER mention an
-invoice, transaction-invoice, or purchase order in any finding.
+Then report which of the written BRD sections (owner details, problem, solution, how AI
+is used, deliverables, pricing, client details, client sign-off, team members) are present
+or missing — these significantly affect the score, so cover the important ones and use ❌
+for a clearly missing section. NEVER mention an invoice, transaction-invoice, or purchase
+order in any finding.
 Each line MUST start with exactly one of these:
 ✅  — present and clear
 ⚠️  — partially present / unclear
