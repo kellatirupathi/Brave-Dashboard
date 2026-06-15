@@ -101,23 +101,25 @@ function exportAnalysesToCsv(rows: BrdAnalysisListItem[]): void {
     "Campus",
     "Project",
     "Client",
-    "Amount (INR)",
+    "Summary",
     "Status",
-    "BRD File Link",
-    "Relevancy Score",
-    "Uniqueness Score",
-    "Analysed At",
+    "BRD File",
+    "Relevancy",
+    "Uniqueness",
+    "Analysed at",
   ];
 
   const lines = [headers.map(csvCell).join(",")];
   for (const r of rows) {
+    const summary =
+      (r as BrdAnalysisListItem & { summary?: string | null }).summary ?? "";
     lines.push(
       [
         r.teamName,
         r.campusName,
         r.projectTitle,
         r.clientName,
-        r.amount,
+        summary,
         statusLabel(r.status),
         r.brdUrl ?? "",
         r.brdScore ?? "",
