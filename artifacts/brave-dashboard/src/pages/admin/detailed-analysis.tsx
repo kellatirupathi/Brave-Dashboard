@@ -53,6 +53,7 @@ import {
   RotateCw,
   Check,
   ChevronsUpDown,
+  Download,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 
@@ -76,6 +77,71 @@ function statusLabel(status: string): string {
     default:
       return status;
   }
+}
+
+function csvCell(value: unknown): string {
+  if (value == null) return "";
+  let s = String(value);
+  // Neutralize spreadsheet formula injection: if the value (ignoring leading
+  // whitespace) starts with a formula trigger char, prefix it with a single
+  // quote so Excel/Sheets treat it as text rather than a formula.
+  if (/^[\s]*[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
+  // Quote when the value contains a comma, quote, or newline; escape inner quotes.
+  if (/[",\n\r]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function exportAnalysesToCsv(rows: BrdAnalysisListItem[]): void {
+  const headers = [
+    "Team",
+    "Campus",
+    "Project",
+    "Client",
+    "Amount (INR)",
+    "Status",
+    "BRD File Link",
+    "Relevancy Score",
+    "Uniqueness Score",
+    "Analysed At",
+  ];
+
+  const lines = [headers.map(csvCell).join(",")];
+  for (const r of rows) {
+    lines.push(
+      [
+        r.teamName,
+        r.campusName,
+        r.projectTitle,
+        r.clientName,
+        r.amount,
+        statusLabel(r.status),
+        r.brdUrl ?? "",
+        r.brdScore ?? "",
+        r.uniquenessScore ?? "",
+        r.aiAnalysedAt ? formatDateTime(r.aiAnalysedAt) : "",
+      ]
+        .map(csvCell)
+        .join(","),
+    );
+  }
+
+  // Prepend a BOM so Excel reads UTF-8 correctly.
+  const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `brd-analysis-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function statusBadgeClass(status: string): string {
@@ -901,6 +967,16 @@ function ListView() {
         </TabsList>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Export entire dataset to CSV */}
+          <Button
+            variant="outline"
+            onClick={() => exportAnalysesToCsv(items)}
+            data-testid="button-export-csv"
+          >
+            <Download className="mr-2 size-4" />
+            Export CSV
+          </Button>
+
           {/* Status filter */}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger
