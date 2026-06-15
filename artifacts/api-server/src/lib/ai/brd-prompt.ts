@@ -74,13 +74,20 @@ HARD RULES — these MUST be enforced:
   and date match, treat the proof as valid; only if NOTHING ties the sender to the client
   (no company name or note), flag ⚠️ for admin review — never ❌ on this basis
   alone.
-- WRONG DIRECTION / INTERNAL PAYEE IS NOT OK: what must be true is that money was
-  RECEIVED INTO the team's / founder's / business account FROM an outside party. If
-  instead the money was paid TO a team member, transferred BETWEEN two team members, or
-  is a circular / self-payment (the team effectively paying itself), it is NOT valid
-  revenue proof → score LOW (0–24). Cross-check the payer and payee names against the
-  team / owner names listed in the BRD: a TEAM MEMBER as the RECEIVER (payee) is the real
-  red flag — not the sender's name.
+- THE RECEIVER (PAYEE) BEING A TEAM MEMBER IS NORMAL AND VALID — DO NOT FLAG IT. Student
+  teams have no registered company bank account, so they receive client payments INTO a
+  team member's / founder's OWN personal account. A "payment received" screenshot (the
+  receiver's side, e.g. "Payment received from <client> ₹X") whose RECEIVER (payee) is a
+  team member is the EXPECTED, correct case. NEVER lower the score or mark ❌ just because
+  the payee name matches a team / owner name — money received into a team member's account
+  FROM an outside party (the client, their company, family, or a gateway) is exactly what
+  valid revenue looks like.
+- THE REAL RED FLAG IS AN INTERNAL SENDER (the team paying itself). What must NOT be true
+  is that the money was SENT BY the team. Cross-check ONLY the PAYER (sender) name against
+  the team / owner names: if the PAYER (sender) is a team member, OR the money moves
+  BETWEEN two team members (both payer and payee are team members), OR it is a circular /
+  self-payment, it is NOT valid revenue proof → score LOW (0–24). The receiver being a
+  team member is fine; only an internal SENDER is the problem.
 
 POSITIVE signals (increase score):
 - Payment proof is clear and high-resolution, and clearly shows amount, date, and a
@@ -91,11 +98,12 @@ POSITIVE signals (increase score):
 NEGATIVE signals (decrease score):
 - No payment proof, or an unreadable / cropped / suspicious payment proof
 - Payment proof amount differs from the claimed amount
-- The RECEIVER (payee) of the money is a team member, a transfer between two team
-  members, or a circular / self-payment (the team paying itself)
+- The SENDER (payer) of the money is a team member, OR the money moves between two team
+  members, OR it is a circular / self-payment (the team paying itself)
 - Blank template, fake/dummy data, random photos/selfies/logos with no payment proof
-(NOTE: a differing PAYER / sender name is NOT a negative signal by itself — money often
-comes from the client's company, finance team, an employee, family, or a gateway. See
+(NOTE: neither a differing PAYER name NOR the RECEIVER (payee) being a team member is a
+negative signal by itself — money often comes from the client's company, finance team,
+family, or a gateway, and student teams receive it into a team member's own account. See
 HARD RULES.)
 
 Provide exactly 4 to 7 short one-line findings. The FIRST finding(s) MUST be about
@@ -104,7 +112,10 @@ mark the proof ❌ just because the SENDER's name differs from the claimed clien
 third-party sender (the client's company, finance team, an employee, family, or a
 payment gateway) is fine; use ✅ when the amount and date match, or ⚠️ if you cannot
 link the sender to the client. Reserve ❌ for a missing / fake proof, or one whose
-RECEIVER is a team member (money paid TO the team instead of RECEIVED FROM the client).
+SENDER (payer) is a team member (the team paying itself) or that moves between two team
+members. Do NOT mark ❌ just because the RECEIVER (payee) is a team member — for a
+"payment received" screenshot that is the team's own account receiving the client's
+money, which is correct and valid.
 Then briefly note which of the other sections (owner, description, client) are present
 or missing — but make clear these are secondary and lightly weighted. NEVER mention an
 invoice, transaction-invoice, or purchase order in any finding.
