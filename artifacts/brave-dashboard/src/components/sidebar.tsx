@@ -252,12 +252,6 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     student: hasTeam
       ? [
           { name: "Dashboard", href: "/", icon: LayoutDashboard },
-          {
-            name: "Guidebook",
-            href: "/guidebook",
-            icon: GraduationCap,
-            newTab: true,
-          },
           { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Projects", href: "/projects", icon: FolderKanban },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
@@ -273,15 +267,16 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 },
               ]
             : []),
-        ]
-      : [
-          { name: "Get started", href: "/get-started", icon: Users },
+          // Guidebook sits at the bottom, just after Resources. Opens in a new tab.
           {
             name: "Guidebook",
             href: "/guidebook",
             icon: GraduationCap,
             newTab: true,
           },
+        ]
+      : [
+          { name: "Get started", href: "/get-started", icon: Users },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
           ...(resourcesVisibleForStudent
             ? [
@@ -292,6 +287,13 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 },
               ]
             : []),
+          // Guidebook sits at the bottom, just after Resources. Opens in a new tab.
+          {
+            name: "Guidebook",
+            href: "/guidebook",
+            icon: GraduationCap,
+            newTab: true,
+          },
         ],
     coordinator: [
       { name: "Dashboard", href: "/coordinator", icon: LayoutDashboard },
