@@ -106,11 +106,15 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       COALESCE(rev_stats.total_revenue, 0) AS total_revenue
     FROM campuses c
     LEFT JOIN (
-      SELECT campus_id,
-             COUNT(*)                                  AS total_teams,
-             COUNT(*) FILTER (WHERE status = 'active') AS active_teams
-      FROM teams
-      GROUP BY campus_id
+      SELECT t.campus_id,
+             COUNT(*) AS total_teams,
+             COUNT(*) FILTER (WHERE
+               EXISTS (SELECT 1 FROM weekly_journals wj WHERE wj.team_id = t.id)
+               OR EXISTS (SELECT 1 FROM revenue_entries re WHERE re.team_id = t.id AND re.status = 'verified')
+               OR EXISTS (SELECT 1 FROM projects p WHERE p.team_id = t.id)
+             ) AS active_teams
+      FROM teams t
+      GROUP BY t.campus_id
     ) team_stats ON team_stats.campus_id = c.id
     LEFT JOIN (
       SELECT t.campus_id, SUM(r.verified_amount) AS total_revenue
@@ -276,11 +280,15 @@ router.get("/admin/campus-leaderboard", async (req, res): Promise<void> => {
       COALESCE(rev_stats.total_revenue, 0) AS total_revenue
     FROM campuses c
     LEFT JOIN (
-      SELECT campus_id,
-             COUNT(*)                                  AS total_teams,
-             COUNT(*) FILTER (WHERE status = 'active') AS active_teams
-      FROM teams
-      GROUP BY campus_id
+      SELECT t.campus_id,
+             COUNT(*) AS total_teams,
+             COUNT(*) FILTER (WHERE
+               EXISTS (SELECT 1 FROM weekly_journals wj WHERE wj.team_id = t.id)
+               OR EXISTS (SELECT 1 FROM revenue_entries re WHERE re.team_id = t.id AND re.status = 'verified')
+               OR EXISTS (SELECT 1 FROM projects p WHERE p.team_id = t.id)
+             ) AS active_teams
+      FROM teams t
+      GROUP BY t.campus_id
     ) team_stats ON team_stats.campus_id = c.id
     LEFT JOIN (
       SELECT t.campus_id, SUM(r.verified_amount) AS total_revenue

@@ -67,7 +67,14 @@ router.get("/campuses", async (req, res): Promise<void> => {
       const [teamStats] = await db
         .select({
           totalTeams: sql<number>`count(*)`,
-          activeTeams: sql<number>`count(*) filter (where status = 'active')`,
+          // "Active" = the team has actually done something: at least one
+          // submitted journal, one verified revenue entry, or one project.
+          // (Team.status is always 'active' on creation, so it is meaningless.)
+          activeTeams: sql<number>`count(*) filter (where
+            exists (select 1 from weekly_journals wj where wj.team_id = ${teamsTable.id})
+            or exists (select 1 from revenue_entries re where re.team_id = ${teamsTable.id} and re.status = 'verified')
+            or exists (select 1 from projects p where p.team_id = ${teamsTable.id})
+          )`,
         })
         .from(teamsTable)
         .where(eq(teamsTable.campusId, campus.id));
@@ -118,15 +125,13 @@ router.post("/campuses", async (req, res): Promise<void> => {
     campus.id,
     campus.name,
   );
-  res
-    .status(201)
-    .json({
-      ...campus,
-      coordinatorName: null,
-      totalTeams: 0,
-      activeTeams: 0,
-      totalRevenue: 0,
-    });
+  res.status(201).json({
+    ...campus,
+    coordinatorName: null,
+    totalTeams: 0,
+    activeTeams: 0,
+    totalRevenue: 0,
+  });
 });
 
 router.get("/campuses/:id", async (req, res): Promise<void> => {
@@ -150,7 +155,14 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
   const [teamStats] = await db
     .select({
       totalTeams: sql<number>`count(*)`,
-      activeTeams: sql<number>`count(*) filter (where status = 'active')`,
+      // "Active" = the team has actually done something: at least one submitted
+      // journal, one verified revenue entry, or one project. (Team.status is
+      // always 'active' on creation, so it is meaningless.)
+      activeTeams: sql<number>`count(*) filter (where
+        exists (select 1 from weekly_journals wj where wj.team_id = ${teamsTable.id})
+        or exists (select 1 from revenue_entries re where re.team_id = ${teamsTable.id} and re.status = 'verified')
+        or exists (select 1 from projects p where p.team_id = ${teamsTable.id})
+      )`,
     })
     .from(teamsTable)
     .where(eq(teamsTable.campusId, campus.id));
