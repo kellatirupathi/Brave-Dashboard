@@ -470,8 +470,15 @@ export default function AdminDashboard() {
         {/* Row 2 — Top Campuses + Action Center (UNCHANGED) */}
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle>Top Campuses</CardTitle>
+              <Link
+                href="/admin/campus-leaderboard"
+                className="text-sm font-medium text-primary hover:underline"
+                data-testid="link-campus-leaderboard"
+              >
+                View all →
+              </Link>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -769,7 +776,6 @@ export default function AdminDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </>
   );
 }

@@ -148,37 +148,69 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   `);
 
   const [countersR, demoEligibleR, topCampusesR, recentActivityR] =
-    await Promise.all([countersP, demoEligibleP, topCampusesP, recentActivityP]);
+    await Promise.all([
+      countersP,
+      demoEligibleP,
+      topCampusesP,
+      recentActivityP,
+    ]);
 
-  const counters = (countersR as unknown as { rows: typeof countersR extends { rows: infer R } ? R : never }).rows[0];
-  const demoEligibleRows = (demoEligibleR as unknown as { rows: { count: string }[] }).rows;
-  const topCampusesRows = (topCampusesR as unknown as { rows: Array<{
-    id: number; name: string; city: string; state: string;
-    coordinator_id: string | null; created_at: string; updated_at: string;
-    total_teams: string; active_teams: string; total_revenue: string;
-  }> }).rows;
-  const recentActivityRows = (recentActivityR as unknown as { rows: Array<{
-    id: number; actor_id: string; action: string; target_type: string;
-    target_id: number | null; details: string | null; created_at: string;
-    actor_first_name: string | null; actor_last_name: string | null;
-    actor_exists: boolean;
-  }> }).rows;
+  const counters = (
+    countersR as unknown as {
+      rows: typeof countersR extends { rows: infer R } ? R : never;
+    }
+  ).rows[0];
+  const demoEligibleRows = (
+    demoEligibleR as unknown as { rows: { count: string }[] }
+  ).rows;
+  const topCampusesRows = (
+    topCampusesR as unknown as {
+      rows: Array<{
+        id: number;
+        name: string;
+        city: string;
+        state: string;
+        coordinator_id: string | null;
+        created_at: string;
+        updated_at: string;
+        total_teams: string;
+        active_teams: string;
+        total_revenue: string;
+      }>;
+    }
+  ).rows;
+  const recentActivityRows = (
+    recentActivityR as unknown as {
+      rows: Array<{
+        id: number;
+        actor_id: string;
+        action: string;
+        target_type: string;
+        target_id: number | null;
+        details: string | null;
+        created_at: string;
+        actor_first_name: string | null;
+        actor_last_name: string | null;
+        actor_exists: boolean;
+      }>;
+    }
+  ).rows;
 
   res.json({
-    totalVerifiedRevenue:         Number(counters.total_revenue ?? 0),
-    totalOrderBook:               Number(counters.total_ob ?? 0),
-    activeTeams:                  Number(counters.active_teams ?? 0),
-    pendingTeams:                 Number(counters.pending_teams ?? 0),
-    pendingTeamsOldestAt:         toIso(counters.pending_teams_oldest),
-    demoEligibleTeams:            Number(demoEligibleRows[0]?.count ?? 0),
-    pendingReviewCount:           Number(counters.pending_review ?? 0),
-    overdueReviewCount:           Number(counters.overdue_review ?? 0),
-    pendingReviewOldestAt:        toIso(counters.pending_review_oldest),
-    pendingDemoDayCount:          Number(counters.pending_demo_day ?? 0),
-    pendingDemoDayOldestAt:       toIso(counters.pending_demo_day_oldest),
-    pendingAccessRequestCount:    Number(counters.pending_access_req ?? 0),
+    totalVerifiedRevenue: Number(counters.total_revenue ?? 0),
+    totalOrderBook: Number(counters.total_ob ?? 0),
+    activeTeams: Number(counters.active_teams ?? 0),
+    pendingTeams: Number(counters.pending_teams ?? 0),
+    pendingTeamsOldestAt: toIso(counters.pending_teams_oldest),
+    demoEligibleTeams: Number(demoEligibleRows[0]?.count ?? 0),
+    pendingReviewCount: Number(counters.pending_review ?? 0),
+    overdueReviewCount: Number(counters.overdue_review ?? 0),
+    pendingReviewOldestAt: toIso(counters.pending_review_oldest),
+    pendingDemoDayCount: Number(counters.pending_demo_day ?? 0),
+    pendingDemoDayOldestAt: toIso(counters.pending_demo_day_oldest),
+    pendingAccessRequestCount: Number(counters.pending_access_req ?? 0),
     pendingAccessRequestOldestAt: toIso(counters.pending_access_req_oldest),
-    totalCampuses:                Number(counters.total_campuses ?? 0),
+    totalCampuses: Number(counters.total_campuses ?? 0),
     topCampuses: topCampusesRows.map((c) => ({
       id: Number(c.id),
       name: c.name,
@@ -207,6 +239,83 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       actorName: r.actor_exists
         ? `${r.actor_first_name} ${r.actor_last_name}`
         : "System",
+    })),
+  });
+});
+
+// =============================================================================
+// GET /admin/campus-leaderboard  (admin only)
+//
+// The dashboard's "Top Campuses" card shows only the top 5. This returns the
+// FULL ranked list of every campus by verified revenue (same aggregation, no
+// LIMIT) for the dedicated Campus Leaderboard page.
+// =============================================================================
+router.get("/admin/campus-leaderboard", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  if (req.user.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  const rowsR = await db.execute<{
+    id: number;
+    name: string;
+    city: string;
+    state: string;
+    total_teams: string;
+    active_teams: string;
+    total_revenue: string;
+  }>(sql`
+    SELECT
+      c.id, c.name, c.city, c.state,
+      COALESCE(team_stats.total_teams,  0) AS total_teams,
+      COALESCE(team_stats.active_teams, 0) AS active_teams,
+      COALESCE(rev_stats.total_revenue, 0) AS total_revenue
+    FROM campuses c
+    LEFT JOIN (
+      SELECT campus_id,
+             COUNT(*)                                  AS total_teams,
+             COUNT(*) FILTER (WHERE status = 'active') AS active_teams
+      FROM teams
+      GROUP BY campus_id
+    ) team_stats ON team_stats.campus_id = c.id
+    LEFT JOIN (
+      SELECT t.campus_id, SUM(r.verified_amount) AS total_revenue
+      FROM revenue_entries r
+      JOIN teams t ON t.id = r.team_id
+      WHERE r.status = 'verified'
+      GROUP BY t.campus_id
+    ) rev_stats ON rev_stats.campus_id = c.id
+    ORDER BY total_revenue DESC NULLS LAST, c.id ASC
+  `);
+
+  const rows = (
+    rowsR as unknown as {
+      rows: Array<{
+        id: number;
+        name: string;
+        city: string;
+        state: string;
+        total_teams: string;
+        active_teams: string;
+        total_revenue: string;
+      }>;
+    }
+  ).rows;
+
+  res.json({
+    campuses: rows.map((c, i) => ({
+      rank: i + 1,
+      id: Number(c.id),
+      name: c.name,
+      city: c.city,
+      state: c.state,
+      totalTeams: Number(c.total_teams ?? 0),
+      activeTeams: Number(c.active_teams ?? 0),
+      totalRevenue: Number(c.total_revenue ?? 0),
     })),
   });
 });
@@ -279,15 +388,29 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
     WHERE tm.user_id = ${userId}
     LIMIT 1
   `);
-  const teamCtx = (teamCtxResult as unknown as { rows: Array<{
-    team_id: number; team_name: string; tagline: string | null;
-    team_status: string; photo_url: string | null;
-    invite_code: string | null; rejection_reason: string | null;
-    coordinator_comment: string | null; is_featured: boolean;
-    is_hidden: boolean; campus_id: number; leader_id: string | null;
-    created_at: string; updated_at: string; campus_name: string | null;
-    threshold: number; member_count: string;
-  }> }).rows[0];
+  const teamCtx = (
+    teamCtxResult as unknown as {
+      rows: Array<{
+        team_id: number;
+        team_name: string;
+        tagline: string | null;
+        team_status: string;
+        photo_url: string | null;
+        invite_code: string | null;
+        rejection_reason: string | null;
+        coordinator_comment: string | null;
+        is_featured: boolean;
+        is_hidden: boolean;
+        campus_id: number;
+        leader_id: string | null;
+        created_at: string;
+        updated_at: string;
+        campus_name: string | null;
+        threshold: number;
+        member_count: string;
+      }>;
+    }
+  ).rows[0];
 
   if (!teamCtx) {
     res.json({
@@ -365,9 +488,16 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
   `);
 
   const milestonesP = db.execute<{
-    id: number; team_id: number; type: string; title: string;
-    description: string | null; date: string; image_url: string | null;
-    link_url: string | null; is_pinned: boolean; created_at: string;
+    id: number;
+    team_id: number;
+    type: string;
+    title: string;
+    description: string | null;
+    date: string;
+    image_url: string | null;
+    link_url: string | null;
+    is_pinned: boolean;
+    created_at: string;
   }>(sql`
     SELECT id, team_id, type, title, description, date, image_url, link_url,
            is_pinned, created_at
@@ -378,10 +508,16 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
   `);
 
   const announcementsP = db.execute<{
-    id: number; author_id: string; target: string;
-    campus_id: number | null; team_id: number | null;
-    title: string; body: string; created_at: string;
-    author_first_name: string | null; author_last_name: string | null;
+    id: number;
+    author_id: string;
+    target: string;
+    campus_id: number | null;
+    team_id: number | null;
+    title: string;
+    body: string;
+    created_at: string;
+    author_first_name: string | null;
+    author_last_name: string | null;
     author_exists: boolean;
   }>(sql`
     SELECT a.id, a.author_id, a.target, a.campus_id, a.team_id,
@@ -405,26 +541,59 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
     announcementsP,
   ]);
 
-  const stats = (statsR as unknown as { rows: Array<{
-    revenue: string; orderbook: string; active_projects: string; pending_subs: string;
-  }> }).rows[0];
-  const ranksRow = (ranksR as unknown as { rows: Array<{
-    national_rank: string; campus_rank: string;
-  }> }).rows[0];
+  const stats = (
+    statsR as unknown as {
+      rows: Array<{
+        revenue: string;
+        orderbook: string;
+        active_projects: string;
+        pending_subs: string;
+      }>;
+    }
+  ).rows[0];
+  const ranksRow = (
+    ranksR as unknown as {
+      rows: Array<{
+        national_rank: string;
+        campus_rank: string;
+      }>;
+    }
+  ).rows[0];
   const nationalRank = ranksRow ? Number(ranksRow.national_rank) : null;
-  const campusRank   = ranksRow ? Number(ranksRow.campus_rank)   : null;
-  const milestoneRows = (milestonesR as unknown as { rows: Array<{
-    id: number; team_id: number; type: string; title: string;
-    description: string | null; date: string; image_url: string | null;
-    link_url: string | null; is_pinned: boolean; created_at: string;
-  }> }).rows;
-  const announcementRows = (announcementsR as unknown as { rows: Array<{
-    id: number; author_id: string; target: string;
-    campus_id: number | null; team_id: number | null;
-    title: string; body: string; created_at: string;
-    author_first_name: string | null; author_last_name: string | null;
-    author_exists: boolean;
-  }> }).rows;
+  const campusRank = ranksRow ? Number(ranksRow.campus_rank) : null;
+  const milestoneRows = (
+    milestonesR as unknown as {
+      rows: Array<{
+        id: number;
+        team_id: number;
+        type: string;
+        title: string;
+        description: string | null;
+        date: string;
+        image_url: string | null;
+        link_url: string | null;
+        is_pinned: boolean;
+        created_at: string;
+      }>;
+    }
+  ).rows;
+  const announcementRows = (
+    announcementsR as unknown as {
+      rows: Array<{
+        id: number;
+        author_id: string;
+        target: string;
+        campus_id: number | null;
+        team_id: number | null;
+        title: string;
+        body: string;
+        created_at: string;
+        author_first_name: string | null;
+        author_last_name: string | null;
+        author_exists: boolean;
+      }>;
+    }
+  ).rows;
 
   const totalRevenue = Number(stats?.revenue ?? 0);
   const totalOrderBook = Number(stats?.orderbook ?? 0);

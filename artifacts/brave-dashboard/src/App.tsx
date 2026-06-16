@@ -65,6 +65,7 @@ import AdminUserNew from "@/pages/admin/user-new";
 import AdminUserPermissions from "@/pages/admin/user-permissions";
 import AdminCampuses from "@/pages/admin/campuses";
 import AdminCampusDetail from "@/pages/admin/campus-detail";
+import AdminCampusLeaderboard from "@/pages/admin/campus-leaderboard";
 import AdminConfig from "@/pages/admin/config";
 import AdminRoster from "@/pages/admin/roster";
 import AdminAuditLog from "@/pages/admin/audit-log";
@@ -444,6 +445,12 @@ function Router() {
       </Route>
       <Route path="/admin/users">
         <ProtectedRoute component={AdminUsers} allowedRoles={["admin"]} />
+      </Route>
+      <Route path="/admin/campus-leaderboard">
+        <ProtectedRoute
+          component={AdminCampusLeaderboard}
+          allowedRoles={["admin"]}
+        />
       </Route>
       <Route path="/admin/campuses">
         <ProtectedRoute component={AdminCampuses} allowedRoles={["admin"]} />
