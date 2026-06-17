@@ -96,6 +96,26 @@ export function canAccess(
   return perm.view && perm.delete;
 }
 
+// Convenience hook for admin pages: resolves the caller's edit/delete rights
+// for a given page in one line. Default-allow + fail-open (returns true while
+// access is loading or unset) so existing/super admins are never blocked and a
+// transient error can never hide an action it shouldn't.
+//
+// Usage:  const { canEdit, canDelete } = useAdminPageAccess("/admin/campuses");
+//         {canEdit && <EditButton/>}   {canDelete && <DeleteButton/>}
+export function useAdminPageAccess(pageKey: string): {
+  canView: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+} {
+  const { data: access } = useMyAdminAccess(true);
+  return {
+    canView: canAccess(access, pageKey, "view"),
+    canEdit: canAccess(access, pageKey, "edit"),
+    canDelete: canAccess(access, pageKey, "delete"),
+  };
+}
+
 // A page is "hidden" from the sidebar when explicitly hidden OR view is off.
 export function isHidden(
   access: MyAdminAccess | undefined | null,

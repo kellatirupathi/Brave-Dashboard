@@ -7,6 +7,7 @@ import {
   getGetAdminReviewQueueQueryKey,
 } from "@workspace/api-client-react";
 import { formatINR, formatDateTime } from "@/lib/format";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -268,6 +269,9 @@ function QueueRow({
   item: QueueItem;
   status: "submitted" | "verified" | "rejected";
 }) {
+  // Review-queue verify/reject/unverify are "edit" actions — hidden for an
+  // admin without edit on /admin/queue (default-allow for everyone else).
+  const { canEdit } = useAdminPageAccess("/admin/queue");
   return (
     <Card
       className={`group relative transition-shadow hover:shadow-md hover:border-primary/40 ${
@@ -395,13 +399,14 @@ function QueueRow({
             />
           </div>
 
-          {status === "submitted" ? (
-            <PendingActions item={item} />
-          ) : status === "rejected" ? (
-            <ReopenAction item={item} />
-          ) : (
-            <UnverifyAction item={item} />
-          )}
+          {canEdit &&
+            (status === "submitted" ? (
+              <PendingActions item={item} />
+            ) : status === "rejected" ? (
+              <ReopenAction item={item} />
+            ) : (
+              <UnverifyAction item={item} />
+            ))}
         </div>
       </div>
     </Card>

@@ -43,6 +43,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Building2, Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +69,7 @@ export default function AdminCampuses() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { canEdit, canDelete } = useAdminPageAccess("/admin/campuses");
 
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState("");
@@ -207,54 +209,56 @@ export default function AdminCampuses() {
           <h1 className="text-3xl font-bold tracking-tight">Campuses</h1>
           <p className="text-muted-foreground">Manage participating campuses</p>
         </div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" /> Add Campus
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>New Campus</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Campus Name</label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {canEdit && (
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" /> Add Campus
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New Campus</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">City</label>
+                  <label className="text-sm font-medium">Campus Name</label>
                   <Input
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">State</label>
-                  <Input
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">City</label>
+                    <Input
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">State</label>
+                    <Input
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={createCampus.isPending}>
-                  {createCampus.isPending && (
-                    <Spinner className="w-4 h-4 mr-2" />
-                  )}{" "}
-                  Create
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="flex justify-end pt-4">
+                  <Button type="submit" disabled={createCampus.isPending}>
+                    {createCampus.isPending && (
+                      <Spinner className="w-4 h-4 mr-2" />
+                    )}{" "}
+                    Create
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <Card>
@@ -407,35 +411,39 @@ export default function AdminCampuses() {
                             className="inline-flex gap-1"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              onClick={() =>
-                                startEdit({
-                                  id: c.id,
-                                  city: c.city,
-                                  state: c.state,
-                                  coordinatorId: c.coordinatorId ?? null,
-                                })
-                              }
-                              data-testid={`button-edit-campus-${c.id}`}
-                              aria-label="Edit campus"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() =>
-                                setDeleteTarget({ id: c.id, name: c.name })
-                              }
-                              data-testid={`button-delete-campus-${c.id}`}
-                              aria-label="Delete campus"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {canEdit && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() =>
+                                  startEdit({
+                                    id: c.id,
+                                    city: c.city,
+                                    state: c.state,
+                                    coordinatorId: c.coordinatorId ?? null,
+                                  })
+                                }
+                                data-testid={`button-edit-campus-${c.id}`}
+                                aria-label="Edit campus"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() =>
+                                  setDeleteTarget({ id: c.id, name: c.name })
+                                }
+                                data-testid={`button-delete-campus-${c.id}`}
+                                aria-label="Delete campus"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         )}
                       </TableCell>
