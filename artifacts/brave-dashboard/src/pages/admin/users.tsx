@@ -79,7 +79,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/lib/api-error";
 import { useLocation } from "wouter";
-import { useMyAdminAccess } from "@/lib/admin-access";
+import { useMyAdminAccess, canAccess } from "@/lib/admin-access";
 import * as XLSX from "xlsx";
 
 const createUserSchema = z.object({
@@ -254,6 +254,12 @@ export default function AdminUsers() {
   // "Permissions" row action. This page is admin-only, so always enabled.
   const { data: myAccess } = useMyAdminAccess(true);
   const callerIsSuperAdmin = !!myAccess?.isSuperAdmin;
+  // Per-page permission gating (default-allow): hide create/edit/delete actions
+  // when a restricted admin lacks the right on the Users page. Super admins and
+  // admins with no custom permissions keep full access, so existing behaviour
+  // is unchanged.
+  const canEditUsers = canAccess(myAccess, "/admin/users", "edit");
+  const canDeleteUsers = canAccess(myAccess, "/admin/users", "delete");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -712,21 +718,23 @@ export default function AdminUsers() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  if (!importCsv.isPending) onPickCsv();
-                }}
-                disabled={importCsv.isPending}
-                data-testid="menu-item-import-csv"
-              >
-                {importCsv.isPending ? (
-                  <Spinner className="w-4 h-4 mr-2" />
-                ) : (
-                  <Upload className="w-4 h-4 mr-2" />
-                )}
-                Import CSV
-              </DropdownMenuItem>
+              {canEditUsers && (
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    if (!importCsv.isPending) onPickCsv();
+                  }}
+                  disabled={importCsv.isPending}
+                  data-testid="menu-item-import-csv"
+                >
+                  {importCsv.isPending ? (
+                    <Spinner className="w-4 h-4 mr-2" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-2" />
+                  )}
+                  Import CSV
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onSelect={(e) => {
                   e.preventDefault();
@@ -741,12 +749,14 @@ export default function AdminUsers() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            data-testid="button-add-user"
-            onClick={() => setLocation("/admin/users/new")}
-          >
-            <Plus className="w-4 h-4 mr-2" /> Add User
-          </Button>
+          {canEditUsers && (
+            <Button
+              data-testid="button-add-user"
+              onClick={() => setLocation("/admin/users/new")}
+            >
+              <Plus className="w-4 h-4 mr-2" /> Add User
+            </Button>
+          )}
           {/* Legacy create dialog kept dormant (never opened) — the Add User
               button now navigates to the standalone /admin/users/new page. */}
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -1163,12 +1173,14 @@ export default function AdminUsers() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => openEdit(user)}
-                            data-testid={`button-edit-${user.id}`}
-                          >
-                            <Pencil className="w-4 h-4 mr-2" /> Edit
-                          </DropdownMenuItem>
+                          {canEditUsers && (
+                            <DropdownMenuItem
+                              onClick={() => openEdit(user)}
+                              data-testid={`button-edit-${user.id}`}
+                            >
+                              <Pencil className="w-4 h-4 mr-2" /> Edit
+                            </DropdownMenuItem>
+                          )}
                           {callerIsSuperAdmin && user.role === "admin" && (
                             <DropdownMenuItem
                               onClick={() =>
@@ -1182,22 +1194,26 @@ export default function AdminUsers() {
                               Permissions
                             </DropdownMenuItem>
                           )}
-                          {user.role !== "student" && user.hasPassword && (
+                          {user.role !== "student" &&
+                            user.hasPassword &&
+                            canEditUsers && (
+                              <DropdownMenuItem
+                                onClick={() => setChangePasswordTarget(user)}
+                                data-testid={`button-change-password-${user.id}`}
+                              >
+                                <KeyRound className="w-4 h-4 mr-2" /> Change
+                                password
+                              </DropdownMenuItem>
+                            )}
+                          {canDeleteUsers && (
                             <DropdownMenuItem
-                              onClick={() => setChangePasswordTarget(user)}
-                              data-testid={`button-change-password-${user.id}`}
+                              onClick={() => setDeleteTarget(user)}
+                              className="text-destructive focus:text-destructive"
+                              data-testid={`button-delete-${user.id}`}
                             >
-                              <KeyRound className="w-4 h-4 mr-2" /> Change
-                              password
+                              <Trash2 className="w-4 h-4 mr-2" /> Delete
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem
-                            onClick={() => setDeleteTarget(user)}
-                            className="text-destructive focus:text-destructive"
-                            data-testid={`button-delete-${user.id}`}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" /> Delete
-                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
