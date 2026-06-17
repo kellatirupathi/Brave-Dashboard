@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useGetAuditLog } from "@workspace/api-client-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -10,8 +12,30 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ClipboardList, User, Search, CalendarIcon, X } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  ClipboardList,
+  User,
+  Search,
+  CalendarIcon,
+  X,
+  BarChart3,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getPageViewSummary,
+  type PageViewSummaryRow,
+} from "@/lib/page-views-api";
+
+const AUDIT_PATH = "/admin/audit-log";
+const PAGES_PATH = "/admin/audit-log/pages";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -27,6 +51,56 @@ function formatDateLabel(d: Date | undefined): string {
 }
 
 export default function AdminAuditLog() {
+  const [location, setLocation] = useLocation();
+  // The active tab is driven by the URL path so each tab has its own
+  // shareable / back-button-able address, while staying on the same page.
+  const tab: "audit" | "pages" = location.endsWith("/pages")
+    ? "pages"
+    : "audit";
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto w-full">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">System Audit Log</h1>
+        <p className="text-muted-foreground mt-1">
+          Immutable record of critical system actions
+        </p>
+      </div>
+
+      {/* Tab bar — switches the URL path, renders in the same page */}
+      <div className="flex gap-1 border-b">
+        {(
+          [
+            { v: "audit", label: "Activity Trail", path: AUDIT_PATH },
+            { v: "pages", label: "Pages Log", path: PAGES_PATH },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.v}
+            type="button"
+            onClick={() => setLocation(t.path)}
+            className={cn(
+              "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+              tab === t.v
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+            data-testid={`audit-tab-${t.v}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "audit" ? <ActivityTrailTab /> : <PagesLogTab />}
+    </div>
+  );
+}
+
+// ============================================================
+// Tab 1 — Activity Trail (the original audit log)
+// ============================================================
+function ActivityTrailTab() {
   const { data: logs, isLoading } = useGetAuditLog({ limit: 100 });
   const [query, setQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -61,99 +135,78 @@ export default function AdminAuditLog() {
     setSelectedDate(undefined);
   };
 
-  if (isLoading)
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    );
-
   return (
-    <div className="space-y-6 max-w-6xl mx-auto w-full">
-      {/* Header row — title (left) + search (middle) + date filter (right) */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            System Audit Log
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Immutable record of critical system actions
-          </p>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:justify-end">
+        <div className="relative flex-1 sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search actor, action, target, or details"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-9"
+            data-testid="audit-search"
+          />
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-          <div className="relative flex-1 sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search actor, action, target, or details"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-9"
-              data-testid="audit-search"
-            />
-          </div>
-          <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "justify-start gap-2 sm:w-56",
-                  !selectedDate && "text-muted-foreground",
-                )}
-                data-testid="audit-date-filter"
-              >
-                <CalendarIcon className="h-4 w-4" />
-                {formatDateLabel(selectedDate)}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              // Fixed width that fits the 7-day calendar grid + dropdown
-              // captions comfortably. Smaller than this and the day cells
-              // wrap; larger and there's awkward blank space.
-              className="w-[340px] p-3"
-              align="end"
-              onCloseAutoFocus={(e) => e.preventDefault()}
-            >
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(d) => {
-                  setSelectedDate(d);
-                  if (d) setDatePopoverOpen(false);
-                }}
-                captionLayout="dropdown"
-                className="w-full"
-                initialFocus
-              />
-              {selectedDate && (
-                <div className="border-t p-2 flex justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedDate(undefined);
-                      setDatePopoverOpen(false);
-                    }}
-                    data-testid="audit-date-clear"
-                  >
-                    <X className="w-3.5 h-3.5 mr-1" />
-                    Clear date
-                  </Button>
-                </div>
+        <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "justify-start gap-2 sm:w-56",
+                !selectedDate && "text-muted-foreground",
               )}
-            </PopoverContent>
-          </Popover>
-          {anyFilter && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline px-2 py-1 inline-flex items-center gap-1 self-center"
-              data-testid="audit-clear-filters"
+              data-testid="audit-date-filter"
             >
-              <X className="w-3.5 h-3.5" />
-              Clear filters
-            </button>
-          )}
-        </div>
+              <CalendarIcon className="h-4 w-4" />
+              {formatDateLabel(selectedDate)}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-[340px] p-3"
+            align="end"
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(d) => {
+                setSelectedDate(d);
+                if (d) setDatePopoverOpen(false);
+              }}
+              captionLayout="dropdown"
+              className="w-full"
+              initialFocus
+            />
+            {selectedDate && (
+              <div className="border-t p-2 flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedDate(undefined);
+                    setDatePopoverOpen(false);
+                  }}
+                  data-testid="audit-date-clear"
+                >
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Clear date
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+        {anyFilter && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline px-2 py-1 inline-flex items-center gap-1 self-center"
+            data-testid="audit-clear-filters"
+          >
+            <X className="w-3.5 h-3.5" />
+            Clear filters
+          </button>
+        )}
       </div>
 
       <Card className="overflow-hidden">
@@ -169,49 +222,167 @@ export default function AdminAuditLog() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y">
-            {filtered.map((log) => (
-              <div
-                key={log.id}
-                className="p-4 sm:p-5 flex gap-3 sm:gap-4 hover:bg-muted/10 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                  <User className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-4">
-                    <p className="text-sm leading-relaxed break-words">
-                      <span className="font-semibold text-foreground">
-                        {log.actorName}
-                      </span>{" "}
-                      <span className="text-muted-foreground">
-                        {log.action.replace(/_/g, " ")}
-                      </span>{" "}
-                      <span className="font-medium text-foreground">
-                        {log.targetType}
-                      </span>
-                      {log.targetId ? ` #${log.targetId}` : ""}
-                    </p>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                      {new Date(log.createdAt).toLocaleString("en-IN")}
-                    </span>
+          {isLoading ? (
+            <div className="flex h-64 items-center justify-center">
+              <Spinner size="lg" />
+            </div>
+          ) : (
+            <div className="divide-y">
+              {filtered.map((log) => (
+                <div
+                  key={log.id}
+                  className="p-4 sm:p-5 flex gap-3 sm:gap-4 hover:bg-muted/10 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                    <User className="w-5 h-5 text-muted-foreground" />
                   </div>
-                  {log.details && (
-                    <div className="mt-2 text-xs bg-muted/40 p-3 rounded-md text-muted-foreground font-mono whitespace-pre-wrap break-all max-h-60 overflow-auto">
-                      {log.details}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-4">
+                      <p className="text-sm leading-relaxed break-words">
+                        <span className="font-semibold text-foreground">
+                          {log.actorName}
+                        </span>{" "}
+                        <span className="text-muted-foreground">
+                          {log.action.replace(/_/g, " ")}
+                        </span>{" "}
+                        <span className="font-medium text-foreground">
+                          {log.targetType}
+                        </span>
+                        {log.targetId ? ` #${log.targetId}` : ""}
+                      </p>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                        {new Date(log.createdAt).toLocaleString("en-IN")}
+                      </span>
                     </div>
-                  )}
+                    {log.details && (
+                      <div className="mt-2 text-xs bg-muted/40 p-3 rounded-md text-muted-foreground font-mono whitespace-pre-wrap break-all max-h-60 overflow-auto">
+                        {log.details}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {filtered.length === 0 && (
-              <div className="p-8 text-center text-muted-foreground">
-                {anyFilter
-                  ? "No entries match the current filters."
-                  : "No activity logged yet."}
-              </div>
-            )}
-          </div>
+              ))}
+              {filtered.length === 0 && (
+                <div className="p-8 text-center text-muted-foreground">
+                  {anyFilter
+                    ? "No entries match the current filters."
+                    : "No activity logged yet."}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// Tab 2 — Pages Log (most-visited pages)
+// ============================================================
+function PagesLogTab() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-page-views-summary"],
+    queryFn: getPageViewSummary,
+  });
+  const [query, setQuery] = useState("");
+
+  const rows = useMemo<PageViewSummaryRow[]>(() => {
+    const all = data ?? [];
+    const q = query.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((r) => r.path.toLowerCase().includes(q));
+  }, [data, query]);
+
+  const maxCount = rows[0]?.count ?? 1;
+  const totalViews = (data ?? []).reduce((s, r) => s + r.count, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <div className="relative flex-1 sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search a page path"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-9"
+            data-testid="pages-log-search"
+          />
+        </div>
+      </div>
+
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b bg-muted/20">
+          <CardTitle className="text-lg flex items-center justify-between gap-2">
+            <span className="flex items-center">
+              <BarChart3 className="w-5 h-5 mr-2 text-primary" /> Most-visited
+              pages
+            </span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {rows.length} pages · {totalViews.toLocaleString()} total views
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex h-64 items-center justify-center">
+              <Spinner size="lg" />
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              {query.trim()
+                ? "No pages match your search."
+                : "No page views recorded yet."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12 text-center">#</TableHead>
+                    <TableHead>Page</TableHead>
+                    <TableHead className="text-right">Visits</TableHead>
+                    <TableHead className="text-right">Unique users</TableHead>
+                    <TableHead className="text-right">Last visited</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r, i) => (
+                    <TableRow key={r.path} data-testid={`pages-log-row-${i}`}>
+                      <TableCell className="text-center text-muted-foreground tabular-nums">
+                        {i + 1}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-mono text-[13px] text-foreground">
+                          {r.path}
+                        </div>
+                        <div className="mt-1 h-1.5 w-full max-w-[260px] overflow-hidden rounded bg-muted">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${Math.max(2, (r.count / maxCount) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {r.count.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {r.uniqueVisitors.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                        {r.lastVisitedAt
+                          ? new Date(r.lastVisitedAt).toLocaleString("en-IN")
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

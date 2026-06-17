@@ -1,13 +1,15 @@
 <svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
-  <rect width="180" height="180" rx="20" fill="#5D1414"/>
+  <!-- BRAVE brand mark (2026): white tile, Brave-Red "B" + Ember-Amber square dot.
+       Matches the in-app BraveLogo wordmark (red #C0392B, amber #EF9F27). -->
+  <rect x="2" y="2" width="176" height="176" rx="34" fill="#FFFFFF" stroke="#EAE5E1" stroke-width="2"/>
   <text
-    x="35"
-    y="142"
+    x="42"
+    y="141"
     font-family="'Supreme', 'Plus Jakarta Sans', system-ui, sans-serif"
     font-weight="800"
     font-size="140"
-    letter-spacing="-3"
-    fill="#FFFFFF"
+    letter-spacing="-4"
+    fill="#C0392B"
   >B</text>
-  <rect x="135" y="120" width="24" height="24" fill="#EF9F27"/>
+  <rect x="133" y="118" width="26" height="26" rx="2" fill="#EF9F27"/>
 </svg>

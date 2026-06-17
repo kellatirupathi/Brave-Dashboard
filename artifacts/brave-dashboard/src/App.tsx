@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   Switch,
   Route,
@@ -5,6 +6,7 @@ import {
   useLocation,
   Redirect,
 } from "wouter";
+import { recordPageView } from "@/lib/page-views-api";
 import {
   QueryClient,
   QueryClientProvider,
@@ -274,275 +276,313 @@ function GuidebookStandalone() {
   return <Guidebook />;
 }
 
+// Records a page view whenever the route changes (for logged-in users only).
+// Best-effort + de-duped on consecutive identical paths; never blocks nav.
+function PageViewTracker() {
+  const [location] = useLocation();
+  const { isAuthenticated } = useAuth();
+  const lastRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (lastRef.current === location) return;
+    lastRef.current = location;
+    void recordPageView(location);
+  }, [location, isAuthenticated]);
+  return null;
+}
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/admin/login" component={AdminLogin} />
-      <Route path="/not-on-roster" component={NotOnRoster} />
-      {import.meta.env.DEV && <Route path="/dev/login" component={DevLogin} />}
+    <>
+      <PageViewTracker />
+      <Switch>
+        <Route path="/login" component={Login} />
+        <Route path="/admin/login" component={AdminLogin} />
+        <Route path="/not-on-roster" component={NotOnRoster} />
+        {import.meta.env.DEV && (
+          <Route path="/dev/login" component={DevLogin} />
+        )}
 
-      {/* Root - role-based redirect */}
-      <Route path="/" component={RootRedirect} />
+        {/* Root - role-based redirect */}
+        <Route path="/" component={RootRedirect} />
 
-      {/* Student Routes */}
-      <Route path="/projects">
-        <ProtectedRoute component={ProjectsList} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/projects/:id">
-        <ProtectedRoute component={ProjectDetail} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/leaderboard">
-        <ProtectedRoute component={Leaderboard} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/team">
-        <ProtectedRoute component={TeamProfile} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/get-started">
-        <ProtectedRoute component={GetStarted} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/invitations">
-        <ProtectedRoute component={Invitations} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/join">
-        <ProtectedRoute component={JoinByCode} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/browse-teams">
-        <ProtectedRoute component={BrowseTeams} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/demo-day">
-        <ProtectedRoute component={DemoDay} allowedRoles={["student"]} />
-      </Route>
-      <Route path="/notifications">
-        <ProtectedRoute component={Notifications} allowedRoles={["student"]} />
-      </Route>
+        {/* Student Routes */}
+        <Route path="/projects">
+          <ProtectedRoute component={ProjectsList} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/projects/:id">
+          <ProtectedRoute
+            component={ProjectDetail}
+            allowedRoles={["student"]}
+          />
+        </Route>
+        <Route path="/leaderboard">
+          <ProtectedRoute component={Leaderboard} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/team">
+          <ProtectedRoute component={TeamProfile} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/get-started">
+          <ProtectedRoute component={GetStarted} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/invitations">
+          <ProtectedRoute component={Invitations} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/join">
+          <ProtectedRoute component={JoinByCode} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/browse-teams">
+          <ProtectedRoute component={BrowseTeams} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/demo-day">
+          <ProtectedRoute component={DemoDay} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/notifications">
+          <ProtectedRoute
+            component={Notifications}
+            allowedRoles={["student"]}
+          />
+        </Route>
 
-      {/* Progress enforcement (student) */}
-      <Route path="/journal">
-        <ProtectedRoute component={StudentJournal} allowedRoles={["student"]} />
-      </Route>
+        {/* Progress enforcement (student) */}
+        <Route path="/journal">
+          <ProtectedRoute
+            component={StudentJournal}
+            allowedRoles={["student"]}
+          />
+        </Route>
 
-      {/* Resources library (read-only for students). Hidden behind the
+        {/* Resources library (read-only for students). Hidden behind the
           admin Resources-visibility toggle — when OFF, students hitting
           this URL are redirected to /. */}
-      <Route path="/resources-library">
-        <ProtectedRoute
-          component={StudentResourcesLibraryGuarded}
-          allowedRoles={["student"]}
-        />
-      </Route>
+        <Route path="/resources-library">
+          <ProtectedRoute
+            component={StudentResourcesLibraryGuarded}
+            allowedRoles={["student"]}
+          />
+        </Route>
 
-      {/* Coordinator Routes */}
-      <Route path="/coordinator">
-        <ProtectedRoute
-          component={CoordinatorDashboard}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
-      <Route path="/coordinator/queue">
-        <ProtectedRoute
-          component={CoordinatorQueue}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
-      <Route path="/coordinator/teams">
-        <ProtectedRoute
-          component={CoordinatorTeams}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
-      <Route path="/coordinator/projects">
-        <ProtectedRoute
-          component={CoordinatorProjects}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
-      <Route path="/coordinator/projects/:id">
-        <ProtectedRoute
-          component={AdminProjectDetail}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
-      <Route path="/coordinator/leaderboard">
-        <ProtectedRoute
-          component={CoordinatorLeaderboard}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
-      <Route path="/coordinator/announcements">
-        <ProtectedRoute
-          component={CoordinatorAnnouncements}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
-      <Route path="/coordinator/journals">
-        <ProtectedRoute
-          component={CoordinatorJournals}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
-      <Route path="/coordinator/heatmap">
-        <ProtectedRoute
-          component={CoordinatorHeatmap}
-          allowedRoles={["coordinator"]}
-        />
-      </Route>
+        {/* Coordinator Routes */}
+        <Route path="/coordinator">
+          <ProtectedRoute
+            component={CoordinatorDashboard}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
+        <Route path="/coordinator/queue">
+          <ProtectedRoute
+            component={CoordinatorQueue}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
+        <Route path="/coordinator/teams">
+          <ProtectedRoute
+            component={CoordinatorTeams}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
+        <Route path="/coordinator/projects">
+          <ProtectedRoute
+            component={CoordinatorProjects}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
+        <Route path="/coordinator/projects/:id">
+          <ProtectedRoute
+            component={AdminProjectDetail}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
+        <Route path="/coordinator/leaderboard">
+          <ProtectedRoute
+            component={CoordinatorLeaderboard}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
+        <Route path="/coordinator/announcements">
+          <ProtectedRoute
+            component={CoordinatorAnnouncements}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
+        <Route path="/coordinator/journals">
+          <ProtectedRoute
+            component={CoordinatorJournals}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
+        <Route path="/coordinator/heatmap">
+          <ProtectedRoute
+            component={CoordinatorHeatmap}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
 
-      {/* Admin Routes */}
-      <Route path="/admin">
-        <ProtectedRoute component={AdminDashboard} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/queue/detailed-analysis">
-        <ProtectedRoute
-          component={AdminDetailedAnalysis}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      <Route path="/admin/queue">
-        <ProtectedRoute component={AdminQueue} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/team-requests">
-        <ProtectedRoute
-          component={AdminTeamRequests}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      <Route path="/admin/teams">
-        <ProtectedRoute component={AdminTeams} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/teams/:id">
-        <ProtectedRoute component={AdminTeamDetail} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/teams/:id">
-        <ProtectedRoute
-          component={AdminTeamDetail}
-          allowedRoles={["student", "coordinator", "admin"]}
-        />
-      </Route>
-      <Route path="/admin/projects">
-        <ProtectedRoute component={AdminProjects} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/projects/:id">
-        <ProtectedRoute
-          component={AdminProjectDetail}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      <Route path="/admin/leaderboard">
-        <ProtectedRoute component={AdminLeaderboard} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/demo-day">
-        <ProtectedRoute component={AdminDemoDay} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/users/new">
-        <ProtectedRoute component={AdminUserNew} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/users/:id/permissions">
-        <ProtectedRoute
-          component={AdminUserPermissions}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      <Route path="/admin/users">
-        <ProtectedRoute component={AdminUsers} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/campus-leaderboard">
-        <ProtectedRoute
-          component={AdminCampusLeaderboard}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      <Route path="/admin/campuses">
-        <ProtectedRoute component={AdminCampuses} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/campuses/:id">
-        <ProtectedRoute
-          component={AdminCampusDetail}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      <Route path="/admin/config">
-        <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/roster">
-        <ProtectedRoute component={AdminRoster} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/new-users-requests/:id">
-        <ProtectedRoute
-          component={AdminNewUserDetail}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      <Route path="/admin/new-users-requests">
-        <ProtectedRoute
-          component={AdminNewUsersRequests}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      <Route path="/admin/audit-log">
-        <ProtectedRoute component={AdminAuditLog} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/announcements">
-        <ProtectedRoute
-          component={AdminAnnouncements}
-          allowedRoles={["admin"]}
-        />
-      </Route>
-      {/* Hidden route — not linked from the admin sidebar; reachable only via direct URL. */}
-      <Route path="/admin/feedback">
-        <ProtectedRoute component={AdminFeedback} allowedRoles={["admin"]} />
-      </Route>
-      {/* Resources management (admin CRUD) */}
-      <Route path="/admin/resources">
-        <ProtectedRoute component={AdminResources} allowedRoles={["admin"]} />
-      </Route>
+        {/* Admin Routes */}
+        <Route path="/admin">
+          <ProtectedRoute component={AdminDashboard} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/queue/detailed-analysis">
+          <ProtectedRoute
+            component={AdminDetailedAnalysis}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/queue">
+          <ProtectedRoute component={AdminQueue} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/team-requests">
+          <ProtectedRoute
+            component={AdminTeamRequests}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/teams">
+          <ProtectedRoute component={AdminTeams} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/teams/:id">
+          <ProtectedRoute
+            component={AdminTeamDetail}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/teams/:id">
+          <ProtectedRoute
+            component={AdminTeamDetail}
+            allowedRoles={["student", "coordinator", "admin"]}
+          />
+        </Route>
+        <Route path="/admin/projects">
+          <ProtectedRoute component={AdminProjects} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/projects/:id">
+          <ProtectedRoute
+            component={AdminProjectDetail}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/leaderboard">
+          <ProtectedRoute
+            component={AdminLeaderboard}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/demo-day">
+          <ProtectedRoute component={AdminDemoDay} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/users/new">
+          <ProtectedRoute component={AdminUserNew} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/users/:id/permissions">
+          <ProtectedRoute
+            component={AdminUserPermissions}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/users">
+          <ProtectedRoute component={AdminUsers} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/campus-leaderboard">
+          <ProtectedRoute
+            component={AdminCampusLeaderboard}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/campuses">
+          <ProtectedRoute component={AdminCampuses} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/campuses/:id">
+          <ProtectedRoute
+            component={AdminCampusDetail}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/config">
+          <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/roster">
+          <ProtectedRoute component={AdminRoster} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/new-users-requests/:id">
+          <ProtectedRoute
+            component={AdminNewUserDetail}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/new-users-requests">
+          <ProtectedRoute
+            component={AdminNewUsersRequests}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/audit-log">
+          <ProtectedRoute component={AdminAuditLog} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/audit-log/pages">
+          <ProtectedRoute component={AdminAuditLog} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/announcements">
+          <ProtectedRoute
+            component={AdminAnnouncements}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        {/* Hidden route — not linked from the admin sidebar; reachable only via direct URL. */}
+        <Route path="/admin/feedback">
+          <ProtectedRoute component={AdminFeedback} allowedRoles={["admin"]} />
+        </Route>
+        {/* Resources management (admin CRUD) */}
+        <Route path="/admin/resources">
+          <ProtectedRoute component={AdminResources} allowedRoles={["admin"]} />
+        </Route>
 
-      {/* Admin Campus Insights (now sidebar-linked). */}
-      <Route path="/admin/campus-insights">
-        <ProtectedRoute
-          component={AdminCampusInsights}
-          allowedRoles={["admin"]}
-        />
-      </Route>
+        {/* Admin Campus Insights (now sidebar-linked). */}
+        <Route path="/admin/campus-insights">
+          <ProtectedRoute
+            component={AdminCampusInsights}
+            allowedRoles={["admin"]}
+          />
+        </Route>
 
-      {/* Admin Chatbot History (sidebar-linked). */}
-      <Route path="/admin/chatbot-history">
-        <ProtectedRoute
-          component={AdminChatbotHistory}
-          allowedRoles={["admin"]}
-        />
-      </Route>
+        {/* Admin Chatbot History (sidebar-linked). */}
+        <Route path="/admin/chatbot-history">
+          <ProtectedRoute
+            component={AdminChatbotHistory}
+            allowedRoles={["admin"]}
+          />
+        </Route>
 
-      {/* Admin Notifications — overdue review-queue email subscribers. */}
-      <Route path="/admin/notifications">
-        <ProtectedRoute
-          component={AdminNotifications}
-          allowedRoles={["admin"]}
-        />
-      </Route>
+        {/* Admin Notifications — overdue review-queue email subscribers. */}
+        <Route path="/admin/notifications">
+          <ProtectedRoute
+            component={AdminNotifications}
+            allowedRoles={["admin"]}
+          />
+        </Route>
 
-      {/* Progress enforcement (admin) */}
-      <Route path="/admin/journals">
-        <ProtectedRoute component={AdminJournals} allowedRoles={["admin"]} />
-      </Route>
-      <Route path="/admin/heatmap">
-        <ProtectedRoute component={AdminHeatmap} allowedRoles={["admin"]} />
-      </Route>
+        {/* Progress enforcement (admin) */}
+        <Route path="/admin/journals">
+          <ProtectedRoute component={AdminJournals} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/heatmap">
+          <ProtectedRoute component={AdminHeatmap} allowedRoles={["admin"]} />
+        </Route>
 
-      {/* Shared */}
-      <Route path="/profile">
-        <ProtectedRoute
-          component={Profile}
-          allowedRoles={["student", "coordinator", "admin"]}
-        />
-      </Route>
+        {/* Shared */}
+        <Route path="/profile">
+          <ProtectedRoute
+            component={Profile}
+            allowedRoles={["student", "coordinator", "admin"]}
+          />
+        </Route>
 
-      {/* Guidebook — standalone full-page experience (its own branded sidebar +
+        {/* Guidebook — standalone full-page experience (its own branded sidebar +
           content, no dashboard chrome). Auth-gated; open to every role. */}
-      <Route path="/guidebook" component={GuidebookStandalone} />
+        <Route path="/guidebook" component={GuidebookStandalone} />
 
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 

@@ -12,8 +12,10 @@ export type GbBlock =
   | { kind: "steps"; items: string[] }
   | { kind: "tip"; text: string }
   | { kind: "warn"; text: string }
+  | { kind: "danger"; text: string }
   | { kind: "example"; title: string; text: string }
   | { kind: "checklist"; items: string[] }
+  | { kind: "table"; columns: string[]; rows: string[][] }
   | { kind: "faq"; items: { q: string; a: string }[] };
 
 export type GbSection = { heading?: string; blocks: GbBlock[] };
@@ -248,6 +250,105 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
 
   // ---------------------------------------------------------------------------
   {
+    slug: "field-visits-safety",
+    title: "Field Visits & Safety",
+    icon: "shield",
+    tagline:
+      "Show up prepared, behave professionally, and stay safe — every visit.",
+    minutes: 6,
+    sections: [
+      {
+        heading: "Before you go",
+        blocks: [
+          {
+            kind: "p",
+            text: "A field visit is your first real impression. Ten minutes of preparation is the difference between a real conversation and a polite brush-off.",
+          },
+          {
+            kind: "checklist",
+            items: [
+              "Tell your Campus Coordinator before any off-campus visit. All-girls teams must get explicit confirmation first.",
+              "Research the business for ~10 minutes — what they do, their size, and their likely pain points.",
+              "Dress neatly and professionally; it earns credibility before you say a word.",
+              "Carry a notepad or phone for notes, and a one-page solution summary if you have one.",
+              "Visit in daytime hours (8:00 AM – 7:00 PM) and avoid the owner's peak rush (lunch at restaurants, morning OPD at clinics).",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "During the visit",
+        blocks: [
+          {
+            kind: "steps",
+            items: [
+              "Introduce yourself honestly — a NIAT student building a real AI solution. Never claim to be a professional agency.",
+              "Listen before pitching. A solution offered before you understand the problem is just a product looking for a buyer.",
+              "Don't commit scope, price, or timeline on the spot. Say 'I'll confirm with my team and follow up within 24 hours.'",
+              "Take notes: client name, business name, the problem, and specific requirements — these become your BRD. Don't rely on memory.",
+              "Before leaving, agree a specific next step — a date, a call, or a return demo. 'I'll be in touch' is not a next step.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Safety rules — for every team",
+        blocks: [
+          {
+            kind: "danger",
+            text: "Never visit a client alone. Solo field visits are not permitted under any circumstances — always go in pairs or groups.",
+          },
+          {
+            kind: "list",
+            items: [
+              "Meet only in public, professional settings — the business premises, a café, or a co-working space. Never a private residence or an isolated location.",
+              "Share your live location with a teammate or family member before you leave. Check in when you arrive and when you leave.",
+              "All-girls teams travel together, in daytime, using public or shared transport where possible.",
+              "Any safety concern — however small — is an immediate escalation to your Campus Coordinator. Do not wait for the next check-in.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "After the visit",
+        blocks: [
+          {
+            kind: "table",
+            columns: ["Action", "What to do", "By when"],
+            rows: [
+              [
+                "Log the visit",
+                "Record business, owner, problem, outcome, and next step in your journal",
+                "Same day",
+              ],
+              [
+                "Follow up",
+                "Send a short WhatsApp confirming what was discussed and the next step",
+                "Within 2 hours",
+              ],
+              [
+                "Start the BRD",
+                "Open a BRD entry from your visit notes — don't wait for a second meeting",
+                "Same day",
+              ],
+              [
+                "Brief your team",
+                "Make sure every member knows the client's status and requirements",
+                "Within 24 hours",
+              ],
+            ],
+          },
+          {
+            kind: "tip",
+            text: "The 2-hour follow-up message is where trust is built — it shows you're serious and creates a written record you can point back to.",
+          },
+        ],
+      },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
     slug: "pitch",
     title: "How to Pitch",
     icon: "pitch",
@@ -336,6 +437,99 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
 
   // ---------------------------------------------------------------------------
   {
+    slug: "handle-rejection",
+    title: "Handle Rejection Like a Pro",
+    icon: "rejection",
+    tagline: "Most owners say no first — recovering fast is the real skill.",
+    minutes: 6,
+    sections: [
+      {
+        heading: "Rejection is the job, not the exception",
+        blocks: [
+          {
+            kind: "p",
+            text: "Every student faces rejection — it is a structural part of selling, not a sign you're doing badly. The question is never whether you'll be rejected, but how fast you recover and adapt.",
+          },
+          { kind: "h", text: "What rejection usually looks like" },
+          {
+            kind: "list",
+            items: [
+              "A flat 'no' the moment you walk in.",
+              "'We already have a system' from tech-forward shops or clinics.",
+              "A long, friendly chat that quietly goes nowhere.",
+              "Interest, then non-payment and silence (ghosting).",
+              "Requirement changes that make the original deal unviable.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "The 4-step response protocol",
+        blocks: [
+          {
+            kind: "steps",
+            items: [
+              "Acknowledge without arguing: 'Thank you for your time — I understand' is always the right first line.",
+              "Ask one non-pushy question: 'Is there any part of this that could be useful to you in a different form?' — it surfaces the real objection.",
+              "Leave the door open: leave your contact and a one-line reminder of the value. Many who say no today convert in 2–4 weeks.",
+              "Log and move: note the business, the objection, and the date in your journal — then go to the next prospect immediately.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Match the pattern, then adapt",
+        blocks: [
+          {
+            kind: "p",
+            text: "Most rejections fall into a handful of patterns. Spot which one you're hearing and respond with the matching move.",
+          },
+          {
+            kind: "table",
+            columns: [
+              "If you keep hearing…",
+              "The likely cause",
+              "Adapt by doing this",
+            ],
+            rows: [
+              [
+                "'Too complex, we don't need this'",
+                "Over-engineered for their maturity",
+                "Strip back to the simplest version; show one immediate win",
+              ],
+              [
+                "'We already have something'",
+                "You're not differentiating",
+                "Ask what they use, find the gap, position around that gap",
+              ],
+              [
+                "'We'll think about it' (again)",
+                "No urgency or deadline",
+                "Offer a time-bound paid pilot; agree a specific follow-up date",
+              ],
+              [
+                "No reply after first interest",
+                "Wrong channel or low priority",
+                "Switch channels — a brief in-person visit or a call",
+              ],
+              [
+                "Goes silent after the advance",
+                "Delivery slow or you went quiet",
+                "Reconnect now; show partial progress even if incomplete",
+              ],
+            ],
+          },
+          {
+            kind: "tip",
+            text: "Three follow-up attempts across two channels before you mark a lead as lost. Most 'no replies' are just busy people, not rejections.",
+          },
+        ],
+      },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
     slug: "what-to-build",
     title: "What Solutions & Businesses to Target",
     icon: "target",
@@ -405,6 +599,40 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
               "Salon / parlour → AI booking bot with automatic reminders",
               "CA / accounting office → AI document and data-entry automation",
             ],
+          },
+        ],
+      },
+      {
+        heading: "Handle scope changes without losing money",
+        blocks: [
+          {
+            kind: "p",
+            text: "Clients will ask for changes mid-build. Sort each request into one of three buckets so 'small favours' don't quietly eat your time.",
+          },
+          {
+            kind: "table",
+            columns: ["Change", "What it is", "What to do"],
+            rows: [
+              [
+                "Minor",
+                "Wording, colour, layout, small text edits",
+                "Just do it — no discussion needed",
+              ],
+              [
+                "Moderate",
+                "A new page, extra feature, or integration",
+                "Do it if it's under ~2 hours; otherwise scope it as paid future work",
+              ],
+              [
+                "Major",
+                "A different solution or full redesign",
+                "Stop and discuss openly; re-quote, and loop in your coordinator if needed",
+              ],
+            ],
+          },
+          {
+            kind: "warn",
+            text: "Never go silent during a build. Send every active client a short progress update at least once every 3 days — silence is the number-one reason deals collapse after the pitch.",
           },
         ],
       },
@@ -879,6 +1107,129 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
 
   // ---------------------------------------------------------------------------
   {
+    slug: "conduct-integrity",
+    title: "Conduct, Integrity & Getting Help",
+    icon: "conduct",
+    tagline: "Play it straight, stay safe, and know exactly who to ask.",
+    minutes: 6,
+    sections: [
+      {
+        heading: "The five principles behind every rule",
+        blocks: [
+          {
+            kind: "list",
+            items: [
+              "Revenue is the truth — interest, demos, and advances are signals; only verified revenue received in full is real.",
+              "Execution over theory — a simple solution that ships and gets paid beats a sophisticated one that never launches.",
+              "Real clients only — genuine SMB owners, not friends, family simulations, or NIAT staff posing as clients.",
+              "Honesty in all documentation — real names, real amounts, real dates, every time.",
+              "Ownership stays with you — NIAT takes no equity, no IP, and no cut, during or after the programme.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Zero tolerance for fakery",
+        blocks: [
+          {
+            kind: "danger",
+            text: "Fake entries, inflated amounts, wrong dates, or fabricated client names lead to immediate rejection and possible disqualification. There are no exceptions — honesty is the one line you never cross.",
+          },
+        ],
+      },
+      {
+        heading: "How to conduct yourself",
+        blocks: [
+          { kind: "h", text: "With clients" },
+          {
+            kind: "list",
+            items: [
+              "Always represent yourself truthfully as a student — never overstate your background or capabilities.",
+              "Never promise what your team can't deliver, and if you'll miss a deadline, tell the client before it passes, not after.",
+              "Treat every client as a professional engagement, regardless of business size.",
+            ],
+          },
+          { kind: "h", text: "Within your team" },
+          {
+            kind: "list",
+            items: [
+              "Raise blockers and progress inside the team before escalating outside.",
+              "Give each client and deliverable a clear owner — ambiguity kills execution.",
+              "Respond to coordinator messages within 24 hours and check portal announcements every couple of days.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Consequences of violations",
+        blocks: [
+          {
+            kind: "table",
+            columns: ["Violation", "Consequence"],
+            rows: [
+              [
+                "Fake or inflated revenue entry",
+                "Entry rejected; team flagged; repeat = disqualification",
+              ],
+              [
+                "Misrepresenting client status",
+                "Entry rejected; journal reviewed; coordinator informed",
+              ],
+              [
+                "Sharing portal credentials",
+                "Account suspended pending review",
+              ],
+              [
+                "Misconduct toward a client or teammate",
+                "Escalated to Programme Admin; possible removal",
+              ],
+              [
+                "Safety protocol not followed",
+                "Escalated immediately to Coordinator and Admin",
+              ],
+            ],
+          },
+        ],
+      },
+      {
+        heading: "When you're stuck: who to ask",
+        blocks: [
+          {
+            kind: "p",
+            text: "Use the right level. Don't skip levels unless it's urgent or involves safety or integrity.",
+          },
+          {
+            kind: "table",
+            columns: ["Level", "Who", "Use it for"],
+            rows: [
+              [
+                "L1",
+                "Team Leader",
+                "Internal disputes, task ownership, minor client disagreements (resolve in ~48h)",
+              ],
+              [
+                "L2",
+                "Campus Coordinator",
+                "Client blockers stuck 7+ days, safety concerns, suspected fake entries, portal access",
+              ],
+              [
+                "L3",
+                "Programme Admin",
+                "Revenue disputes, disqualification or Demo Day eligibility queries, cross-campus issues",
+              ],
+            ],
+          },
+          {
+            kind: "danger",
+            text: "Anything involving personal safety — yours or a client's — is an immediate L2 escalation, any time of day. Contact your Campus Coordinator directly; don't wait.",
+          },
+        ],
+      },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
     slug: "student-faq",
     title: "Student FAQ — Quick Answers",
     icon: "faq",
@@ -1028,6 +1379,154 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
                 a: "Write a weekly journal entry. The timer resets when any team member submits a journal — one entry is enough.",
               },
             ],
+          },
+        ],
+      },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  {
+    slug: "quick-reference-glossary",
+    title: "Quick Reference & Glossary",
+    icon: "reference",
+    tagline: "The cheat sheet — do's, don'ts, deadlines, and key terms.",
+    minutes: 5,
+    sections: [
+      {
+        heading: "Do / Don't at a glance",
+        blocks: [
+          {
+            kind: "table",
+            columns: ["Do", "Don't"],
+            rows: [
+              [
+                "Approach real businesses with real problems",
+                "Pitch friends or family as token clients",
+              ],
+              [
+                "Get an advance as proof of commitment",
+                "Treat verbal interest as confirmed revenue",
+              ],
+              [
+                "Start with the simplest solution that works",
+                "Over-engineer before the client approves the basics",
+              ],
+              [
+                "Update every active client at least every 3 days",
+                "Go silent during a build",
+              ],
+              [
+                "Submit revenue entries the moment you're paid",
+                "Batch all entries at the end of the cycle",
+              ],
+              [
+                "Log every blocker in your weekly journal",
+                "Skip a journal week, even a slow one",
+              ],
+              ["Escalate blockers early", "Try to solve everything alone"],
+              ["Fix and resubmit rejected entries", "Abandon a rejected entry"],
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Key deadlines & standards",
+        blocks: [
+          {
+            kind: "table",
+            columns: ["Activity", "Standard"],
+            rows: [
+              [
+                "Revenue entry",
+                "Submit immediately on receiving payment — don't hold it",
+              ],
+              [
+                "Weekly journal",
+                "On time, every week — missed journals are flagged",
+              ],
+              [
+                "Client communication",
+                "A status update to every active client at least every 3 days",
+              ],
+              [
+                "Re-engaging a quiet client",
+                "Within 48 hours; 3 attempts across 2 channels before marking lost",
+              ],
+              [
+                "Coordinator response to escalation",
+                "Acknowledged within 24 hours",
+              ],
+              [
+                "Keep client records",
+                "Retain all communication for 30 days post-programme",
+              ],
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Glossary",
+        blocks: [
+          {
+            kind: "table",
+            columns: ["Term", "What it means"],
+            rows: [
+              [
+                "Advance payment",
+                "An upfront partial payment — the standard proof of client commitment",
+              ],
+              [
+                "BRD",
+                "Business Requirements Document — the evidence file for a deal (problem, solution, AI, proof)",
+              ],
+              [
+                "Order Book",
+                "A confirmed deal that hasn't been paid yet — does NOT count on the leaderboard",
+              ],
+              [
+                "Revenue",
+                "Money actually received with proof — only verified revenue counts",
+              ],
+              [
+                "Verified Revenue",
+                "A revenue entry approved by an admin — the only figure that ranks you",
+              ],
+              [
+                "SMB",
+                "Small and Medium Business — the target client for every BRAVE engagement",
+              ],
+              [
+                "Demo Day",
+                "The showcase where top teams pitch to investors and the NIAT community",
+              ],
+              [
+                "GRIT Finale",
+                "The national BRAVE finale, open to top Demo Day teams",
+              ],
+              [
+                "Warm network",
+                "Contacts who already know you — the fastest source of a first client",
+              ],
+            ],
+          },
+        ],
+      },
+      {
+        heading: "What the top teams earn",
+        blocks: [
+          {
+            kind: "list",
+            items: [
+              "A GRIT Finale ticket — access to the national programme finale.",
+              "A direct investor pitch opportunity.",
+              "A Demo Day presentation slot in front of the wider NIAT and external community.",
+              "Full ownership — NIAT takes no equity, IP, or cut, including after the programme.",
+            ],
+          },
+          {
+            kind: "tip",
+            text: "Reaching the top isn't luck — it's submitting verified revenue early and consistently. Teams that log deals the day they're paid rank highest.",
           },
         ],
       },

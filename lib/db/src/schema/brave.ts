@@ -133,6 +133,31 @@ export const chatbotHistoryTable = pgTable(
 
 export type ChatbotHistoryRow = typeof chatbotHistoryTable.$inferSelect;
 
+// Page-view tracking — records which user opened which page (route) for the
+// admin "Pages Log" tab. Best-effort, fire-and-forget inserts on navigation.
+// `path` is the normalized route (dynamic ids collapsed to :id) so the
+// most-visited aggregation is meaningful; `rawPath` keeps the exact URL.
+export const pageViewsTable = pgTable(
+  "page_views",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id"), // nullable, no FK (mirrors chatbot_history)
+    role: text("role"), // 'student' | 'coordinator' | 'admin' | null
+    path: text("path").notNull(), // normalized route, e.g. /admin/teams/:id
+    rawPath: text("raw_path").notNull(), // exact path visited
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("page_views_path_idx").on(t.path),
+    index("page_views_user_idx").on(t.userId),
+    index("page_views_created_idx").on(t.createdAt),
+  ],
+);
+
+export type PageViewRow = typeof pageViewsTable.$inferSelect;
+
 // Users
 export const usersTable = pgTable(
   "users",
@@ -164,6 +189,11 @@ export const usersTable = pgTable(
       withTimezone: true,
     }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    // Login tracking (additive). lastLoginAt is set + loginCount incremented
+    // each time a new session is created (any login method). Distinct from
+    // lastSeenAt, which tracks last activity on any request.
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    loginCount: integer("login_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -833,11 +863,26 @@ export const weeklyJournalsTable = pgTable(
     submittedAt: timestamp("submitted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // --- AI journal analysis (additive, all nullable; populated by the
+    // Gemini journal auditor — see lib/ai/analyse-journal.ts). Old rows stay
+    // null until analysed; nothing else reads these so legacy flows are safe.
+    aiAnalysis: jsonb("ai_analysis"), // structured extraction blob
+    aiAnalysedAt: timestamp("ai_analysed_at", { withTimezone: true }),
+    // Denormalized blocker triage state (AI-seeded, admin-overridable).
+    blockerPriority: text("blocker_priority"), // 'high' | 'medium' | 'low' | 'none'
+    blockerPriorityManual: boolean("blocker_priority_manual")
+      .notNull()
+      .default(false), // true once an admin overrides the AI priority
+    blockerStatus: text("blocker_status").notNull().default("open"), // 'open' | 'assigned' | 'resolved'
+    blockerNote: text("blocker_note"),
+    blockerUpdatedBy: text("blocker_updated_by"),
+    blockerUpdatedAt: timestamp("blocker_updated_at", { withTimezone: true }),
   },
   (t) => [
     unique("weekly_journals_team_week_unique").on(t.teamId, t.weekStartDate),
     index("weekly_journals_team_idx").on(t.teamId),
     index("weekly_journals_week_idx").on(t.weekStartDate),
+    index("weekly_journals_blocker_priority_idx").on(t.blockerPriority),
   ],
 );
 

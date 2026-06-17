@@ -115,6 +115,9 @@ type AnyUser = {
   // Surfaced by the API list when the row has a password_hash set.
   // Used to decide whether to show the "Change password" row action.
   hasPassword?: boolean;
+  // Login tracking (surfaced by the API list).
+  lastLoginAt?: string | null;
+  loginCount?: number;
 };
 
 type RoleFilter = "all" | "admin" | "coordinator" | "student";
@@ -1042,6 +1045,8 @@ export default function AdminUsers() {
                   <TableHead>Campus ID</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Last login</TableHead>
+                  <TableHead className="text-center">Logins</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1116,6 +1121,20 @@ export default function AdminUsers() {
                         </span>
                       )}
                     </TableCell>
+                    <TableCell
+                      className="text-sm text-muted-foreground whitespace-nowrap"
+                      data-testid={`last-login-${user.id}`}
+                    >
+                      {user.lastLoginAt
+                        ? new Date(user.lastLoginAt).toLocaleString("en-IN")
+                        : "Never"}
+                    </TableCell>
+                    <TableCell
+                      className="text-center text-sm tabular-nums"
+                      data-testid={`login-count-${user.id}`}
+                    >
+                      {user.loginCount ?? 0}
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1173,7 +1192,7 @@ export default function AdminUsers() {
                 {allUsers.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={12}
                       className="h-24 text-center text-muted-foreground"
                     >
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />

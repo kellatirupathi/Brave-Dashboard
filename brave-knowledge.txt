@@ -463,13 +463,17 @@ Step 2: It shows:
   - Recent milestones your team has hit.
   - Latest announcements.
   - A shortcut to write your weekly journal.
-  - Demo Day eligibility status (badge appears when threshold is met).
+  - A Demo Day progress badge that appears when you reach the ₹2,00,000
+    marker. (Note: this marker is a target — actual Demo Day selection is the
+    top 10 teams by verified revenue. See section 38.)
 
 
 # 14. HOW TO APPLY FOR DEMO DAY
 
-Step 1: Ensure your team's verified revenue is at or above the Demo Day
-  threshold (₹2,00,000 by default).
+Step 1: Climb the leaderboard with verified revenue. Demo Day is rank-based —
+  the top 10 teams by verified revenue are eligible to pitch (the top 3 earn
+  GRIT passes). ₹2,00,000 is a strong target the dashboard highlights, but it
+  is your RANK that decides the slot, not a fixed amount.
 Step 2: Wait for the admin to open Demo Day applications. You will
   receive a notification when applications open.
 Step 3: Go to the "Demo Day" page from the sidebar.
@@ -650,9 +654,11 @@ teams pitch their businesses. It is like a mini investor showcase.
 Top-performing teams present to a panel and compete for recognition.
 
 Q: How do I become eligible for Demo Day?
-A: Your team's verified revenue must reach or exceed the Demo Day
-threshold (default ₹2,00,000). Once eligible, you can apply when
-applications open.
+A: Demo Day eligibility is leaderboard-based: the top 10 teams by verified
+revenue are eligible to pitch, and the top 3 earn GRIT passes. ₹2,00,000 is
+a strong target shown on your dashboard, but it is your RANK that decides the
+slot, not a fixed amount. Keep adding verified revenue to climb. (See section
+38 for the full selection details.)
 
 Q: What if my team doesn't make it to Demo Day?
 A: You still keep everything — your product, your clients, your revenue.
@@ -671,9 +677,10 @@ in Programme Config. You will receive a notification when it opens.
 Check the Demo Day page for the current status.
 
 Q: Can I apply if my verified revenue is below ₹2,00,000?
-A: By default, only teams that have reached the threshold are eligible.
-The admin sets the threshold and can adjust it. If you are not sure,
-check the progress bar on your Team Dashboard.
+A: Demo Day is rank-based — the top 10 teams by verified revenue are
+eligible. ₹2,00,000 is a strong target, but what matters is finishing in the
+top 10. Focus on adding verified revenue and climbing the leaderboard; check
+your rank on the Leaderboard page and your progress on the Team Dashboard.
 
 
 # 22. ACCOUNT, LOGIN, AND ACCESS FAQ
@@ -1068,7 +1075,11 @@ When a question is out of scope, reply with EXACTLY this format
    BRAVE I can help you with?"
 
 In-scope questions you SHOULD answer (just so the boundary is clear):
-- Anything covered in sections 1–34 of this knowledge base
+- Anything covered in ANY section of this knowledge base. This explicitly
+  includes the GRIT Finale (section 39), Demo Day selection/levels (section
+  38), pricing your solution (section 44), AI tools/credits (section 41), and
+  changing/leaving/removing team members (section 43). GRIT is now IN scope —
+  answer it from sections 38–39; do NOT refuse GRIT questions.
 - "What is BRAVE?" / "What is your name?" → "I'm the BRAVE programme
   assistant. I help students with questions about the 3-month BRAVE
   entrepreneurship programme."
@@ -1145,9 +1156,11 @@ URL: https://dashboard.brave.niatindia.com/admin/demo-day
 
 ## Programme Config
 URL: https://dashboard.brave.niatindia.com/admin/config
-- Demo Day threshold: set the verified revenue amount required for
-  eligibility (default ₹2,00,000). Changing this takes effect
-  immediately — teams above the new threshold become eligible.
+- Demo Day threshold: set the verified revenue amount shown as the
+  eligibility marker (default ₹2,00,000). Changing this takes effect
+  immediately. Note: the programme's actual Demo Day selection is the top 10
+  teams by verified revenue (rank-based), with the top 3 earning GRIT passes;
+  the threshold acts as a baseline/target marker, not the sole gate.
 - Demo Day Applications Open: toggle to open/close the application
   window for eligible teams.
 - Demo Day application deadline: set the cutoff date.
@@ -1361,3 +1374,265 @@ How much time is left:
   the current active week number against the total weeks.
 - If you are unsure, ask your Campus Coordinator for an update on
   remaining time.
+
+
+# 38. DEMO DAY — SELECTION, LEVELS, AND WHAT TO EXPECT
+
+This expands on section 21. Demo Day is the showcase near the end of the
+programme where the best BRAVE teams pitch to seasoned investors.
+
+## How teams are selected (leaderboard-based)
+Demo Day eligibility is decided by the LEADERBOARD, not by hitting one fixed
+amount. Teams are ranked by their verified revenue (highest first), and:
+- The TOP 10 teams on the leaderboard (by highest verified revenue) are
+  eligible to pitch at Demo Day.
+- The TOP 3 teams earn GRIT Finale passes (see section 39).
+
+Important: simply reaching ₹2,00,000 does NOT by itself guarantee a Demo Day
+slot — what matters is your RANK relative to other teams. ₹2,00,000 is a
+strong target the dashboard shows as a progress marker, but the actual Demo
+Day teams are the top 10 by verified revenue, and the top 3 of those get GRIT
+passes. So keep climbing the leaderboard by adding more verified revenue.
+
+So the funnel is: climb the leaderboard with verified revenue → top 10 teams
+pitch at Demo Day in front of investors → top 3 teams earn GRIT Finale passes.
+
+## Date and format
+- Demo Day does NOT have a fixed date. NxtWave announces the exact date
+  (and whether it is online or offline) as the programme approaches its end
+  (the programme runs until 15th July).
+- Watch the Notifications page and announcements for the official date,
+  format, and application window.
+
+## What to present at Demo Day
+Be ready to explain:
+- Your business and the real problem you solved.
+- The AI solution you built and how the AI actually works.
+- Your traction — verified revenue, number of clients, results delivered.
+- Your pricing rationale — WHY you charged the client what you did, based on
+  the value you delivered.
+- Your growth plan — how you will scale revenue and the solution.
+
+## Demo Day — FAQ
+
+Q: How many teams get shortlisted / pitch on Demo Day?
+A: The top 10 teams pitch on Demo Day. Of those, the top 3 advance to the
+GRIT Finale.
+
+Q: What happens to teams that are NOT shortlisted?
+A: You still keep everything — your product, your clients, and every rupee
+you earned. NIAT takes no equity, IP, or cut. You can keep building your
+business after the programme.
+
+Q: Can I reapply for Demo Day if I'm not selected?
+A: Demo Day slots go to the top 10 teams on the leaderboard, so the best way
+to improve your chances is to add more verified revenue and climb the
+rankings. Watch announcements for the application window — NxtWave
+communicates the application and any repeat windows. For specifics, check the
+Demo Day page and your coordinator.
+
+Q: I crossed ₹2,00,000 — am I guaranteed a Demo Day slot?
+A: No. Reaching ₹2,00,000 is a great milestone, but Demo Day is rank-based:
+the top 10 teams by verified revenue are eligible, and the top 3 get GRIT
+passes. If many teams are above ₹2,00,000, only the highest 10 are selected.
+Keep adding verified revenue to hold or improve your rank.
+
+Q: Do I need to explain how much I spent building the site / itemise my
+costs to the judges?
+A: No. You do not need to justify your build costs or list your expenses.
+Be ready to explain your PRICING — why you charged the client that amount
+based on the value delivered — but not a breakdown of what you spent.
+
+Q: What kind of questions do the judges / investors ask?
+A: Expect questions about: the problem you solve, how your AI works, who
+your clients are, how you got paid, your pricing and the value you deliver,
+and how you would grow the business. Know your numbers and your client
+story well.
+
+Q: Is Demo Day online or offline?
+A: The format is announced by NxtWave closer to the event. Check
+announcements and the Notifications page for the official details.
+
+
+# 39. GRIT FINALE
+
+GRIT stands for Global Readiness Immersion Trips. It is the national finale
+that only the very top BRAVE teams qualify for.
+
+## How a team reaches GRIT
+- Climb the leaderboard by adding verified revenue.
+- Finish in the top 10 teams (by verified revenue) → eligible to pitch at
+  Demo Day.
+- Finish in the top 3 teams → your team earns a GRIT Finale pass.
+
+GRIT passes are rank-based — they go to the top 3 teams, not to everyone who
+crosses a fixed revenue amount.
+
+## Journal requirement (important)
+All teams must submit their weekly journals for every week to remain
+eligible for the GRIT Finale ticket. Missing journals can cost you the
+ticket — so keep your weekly journals up to date.
+
+## GRIT — FAQ
+
+Q: What is GRIT?
+A: GRIT (Global Readiness Immersion Trips) is the finale for the top BRAVE
+teams. The top 3 teams from Demo Day qualify for it.
+
+Q: If I clear Level 1 (cross ₹2,00,000), am I selected for GRIT?
+A: Not automatically. GRIT passes are rank-based: they go to the top 3 teams
+on the leaderboard (by verified revenue). Crossing ₹2,00,000 is a strong
+milestone, but you need to be in the top 3 to get a GRIT pass.
+
+Q: Will I get a GRIT pass after crossing ₹2,00,000?
+A: No, not by the amount alone. The GRIT Finale passes go to the top 3 teams
+by verified revenue, and your team must also have submitted all weekly
+journals to keep the GRIT Finale ticket. Keep climbing the leaderboard.
+
+Q: Can I apply for GRIT directly from the BRAVE Dashboard?
+A: There is no separate GRIT application on the dashboard. GRIT qualification
+flows from Demo Day (top 3 teams). NxtWave announces the GRIT Finale details
+and next steps to the qualifying teams.
+
+Q: What benefits do I get after crossing ₹2,00,000?
+A: It's a strong milestone that pushes you up the leaderboard. Demo Day
+pitching (in front of seasoned investors) is for the top 10 teams by verified
+revenue, and the top 3 of those advance to the GRIT Finale — so keep climbing
+to lock in a slot.
+
+
+# 40. WHAT IS NIAT?
+
+NIAT stands for "NxtWave of Innovation in Advanced Technologies." It is the
+institute, powered by NxtWave, that runs the BRAVE programme. BRAVE is open
+only to NIAT students on the approved campus roster.
+
+Important for answering: the official full form is exactly "NxtWave of
+Innovation in Advanced Technologies." Always use this exact expansion — do
+NOT invent or paraphrase alternatives (e.g., "National Institute of ...");
+incorrect guesses have caused confusion in the past.
+
+
+# 41. AI CREDITS AND TOOLS
+
+Q: Does NxtWave / NIAT give free AI credits?
+A: No. No separate AI credits or free credits are provided. You are expected
+to use your own AI tools and credits to build your solution.
+
+Q: Which AI tools can I use?
+A: Any AI tool of your choice — ChatGPT, Claude, Gemini, or any other.
+
+Q: Which code editor / IDE should I use?
+A: Whatever you are comfortable with — VS Code, Cursor, or any other coding
+environment. You can also build with no-code / low-code platforms (Bubble,
+Glide, Voiceflow, Botpress) alongside AI APIs.
+
+
+# 42. GUIDANCE AND SUPPORT
+
+- The NxtWave team can guide you wherever you are stuck in the programme.
+- If you are stuck at any step — finding a client, building the solution, or
+  anything else — reach out to your Campus Coordinator or the NIAT team.
+- Specific technical doubts are also resolved by the team.
+- The team supports you, but the building and execution is done by you. BRAVE
+  is about learning by doing.
+
+
+# 43. CHANGING, LEAVING, OR REMOVING TEAM MEMBERS
+
+## How to change your team
+To change teams, you must first fully leave your current team, then join a
+new one.
+
+Step 1 — Leave your current team:
+  → Go to the Team page → Members section → click "Leave Team."
+  → If you are a regular member, your team leader must approve the request.
+  → If you are the team leader, transfer leadership to another member before
+    you can leave.
+
+Step 2 — Join a new team (from the Get Started page), using any one of:
+  → Enter a BRAVE invite code.
+  → Browse same-campus teams and request to join.
+  → Accept a pending invitation.
+  → Create a brand new team.
+
+Important:
+- You must fully leave your current team before joining another.
+- You can only join a team from your own NIAT campus.
+- Revenue from your old team does NOT transfer to the new team.
+- If your team leader is not responding, contact your Campus Coordinator or
+  NIAT Admin.
+
+## How do I remove a team member?
+Membership changes (including removing a member) go through an approval flow
+on the platform rather than an instant action. The team leader manages
+members from the Team page; if you need a member removed and cannot do it
+yourself, contact your Campus Coordinator or NIAT Admin to make the change.
+
+## How do I delete / dissolve a team?
+There is no self-serve "delete team" button for students. To dissolve a team,
+members leave it; if a team genuinely needs to be removed, contact your
+Campus Coordinator or NIAT Admin.
+
+## Can I rejoin a team after leaving?
+Yes. Once you have fully left a team, you can join another team or create a
+new one. Remember that revenue does not carry over between teams.
+
+
+# 44. HOW TO PRICE YOUR SOLUTION
+
+Q: How do I decide what to charge a client?
+A: Price on the VALUE you create, not on how hard it was to build. If your
+solution saves or earns the client (for example) ₹20,000 of time or money a
+month, a ₹3,000–₹5,000/month price is an easy yes for them. The bigger their
+pain, the more you can charge.
+
+Q: What are the ways to charge?
+A: Three common models:
+- One-time payment — a single fee to build and deliver (e.g., ₹15,000).
+- Monthly subscription — a recurring fee for the running service (e.g.,
+  ₹3,000/month). This is usually the best model — it pays every month and
+  grows as you add clients.
+- Milestone-based — split the fee (e.g., 50% on delivery, 50% after one
+  month of use).
+
+Q: Can you give an example of charging a client?
+A: For example: "₹20,000 setup + ₹4,000/month maintenance" for an AI voice
+agent, or a flat "₹15,000" for a WhatsApp automation. Anchor the price on the
+value (time saved, customers gained), state it plainly, and offer a small
+paid pilot if the owner hesitates.
+
+Q: How do I get paid and prove it?
+A: Accept UPI, bank transfer, cheque, or cash. Always capture payment proof
+(a screenshot showing amount, date, payer, and transaction ID). The amount
+you receive must match the amount in your BRD and the dashboard entry.
+
+
+# 45. AFTER YOU BUILD — NEXT STEPS AND TROUBLESHOOTING
+
+Q: I finished a project / got paid — what do I do next?
+A: 1) Log the revenue: create a Revenue entry with your BRD + payment proof
+and submit it for verification. 2) Resell: offer the same solution to similar
+businesses — each new client's payment is a separate revenue entry, so your
+revenue compounds while your build stays the same. 3) Keep the client on a
+monthly plan where possible. 4) Record it in your weekly journal.
+
+Q: The dashboard shows "no projects" — what do I do?
+A: You probably haven't created a project yet. Go to Projects → "New Project"
+and add the project name, client name, and description. If you did create one
+but don't see it: make sure you are on a team, refresh or log out and back in,
+and confirm you're viewing the correct team. If it still doesn't appear,
+contact your Campus Coordinator.
+
+
+# 46. REAL EXAMPLES OF WHAT STUDENTS BUILD
+
+- Retail outlet — customers never return after the first order → a student
+  builds a WhatsApp-based CRM tool to bring them back.
+- Clinic — misses ~30% of incoming voice calls → a student builds an AI voice
+  agent that answers calls and books appointments.
+- Restaurant — orders pile up during the rush → a student builds a simple
+  order-tracking system.
+
+The pattern: find a real, repetitive business problem, then use AI to ship a
+working solution in days, not months. If it delivers value, you get paid.

@@ -67,13 +67,12 @@ router.get("/campuses", async (req, res): Promise<void> => {
       const [teamStats] = await db
         .select({
           totalTeams: sql<number>`count(*)`,
-          // "Active" = the team has actually done something: at least one
-          // submitted journal, one verified revenue entry, or one project.
-          // (Team.status is always 'active' on creation, so it is meaningless.)
+          // "Active" = the team has real traction: at least one submitted
+          // journal AND at least one verified revenue entry. (Team.status is
+          // always 'active' on creation, so it is meaningless.)
           activeTeams: sql<number>`count(*) filter (where
             exists (select 1 from weekly_journals wj where wj.team_id = ${teamsTable.id})
-            or exists (select 1 from revenue_entries re where re.team_id = ${teamsTable.id} and re.status = 'verified')
-            or exists (select 1 from projects p where p.team_id = ${teamsTable.id})
+            and exists (select 1 from revenue_entries re where re.team_id = ${teamsTable.id} and re.status = 'verified')
           )`,
         })
         .from(teamsTable)
@@ -155,13 +154,12 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
   const [teamStats] = await db
     .select({
       totalTeams: sql<number>`count(*)`,
-      // "Active" = the team has actually done something: at least one submitted
-      // journal, one verified revenue entry, or one project. (Team.status is
-      // always 'active' on creation, so it is meaningless.)
+      // "Active" = the team has real traction: at least one submitted journal
+      // AND at least one verified revenue entry. (Team.status is always
+      // 'active' on creation, so it is meaningless.)
       activeTeams: sql<number>`count(*) filter (where
         exists (select 1 from weekly_journals wj where wj.team_id = ${teamsTable.id})
-        or exists (select 1 from revenue_entries re where re.team_id = ${teamsTable.id} and re.status = 'verified')
-        or exists (select 1 from projects p where p.team_id = ${teamsTable.id})
+        and exists (select 1 from revenue_entries re where re.team_id = ${teamsTable.id} and re.status = 'verified')
       )`,
     })
     .from(teamsTable)

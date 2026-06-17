@@ -31,6 +31,7 @@ import brdAnalysisRouter from "./brd-analysis";
 import accessRequestsRouter from "./access-requests";
 import adminPermissionsRouter from "./admin-permissions";
 import adminChatbotRouter from "./admin-chatbot";
+import pageViewsRouter from "./page-views";
 
 const router: IRouter = Router();
 
@@ -79,5 +80,7 @@ router.use(accessRequestsRouter);
 router.use(adminPermissionsRouter);
 // Admin Chatbot History viewer (additive only, isolated)
 router.use(adminChatbotRouter);
+// Page-view tracking + admin Pages Log (additive only, isolated)
+router.use(pageViewsRouter);
 
 export default router;

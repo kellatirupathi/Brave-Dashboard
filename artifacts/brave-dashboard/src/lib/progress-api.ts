@@ -4,6 +4,28 @@
 import { customFetch } from "@workspace/api-client-react";
 
 // ---------- Module 2: Weekly Journals ----------
+
+// Blocker priority assigned by the AI auditor (or manually overridden by an
+// admin). "none" = no real blocker on this journal.
+export type BlockerPriority = "high" | "medium" | "low" | "none";
+export type BlockerStatus = "open" | "assigned" | "resolved";
+
+// Structured extraction produced by the Gemini journal auditor. Read
+// defensively — null until a journal has been analysed.
+export type JournalAiAnalysis = {
+  what_we_did: { summary: string; bullets: string[]; categories: string[] };
+  blockers: {
+    summary: string;
+    priority: BlockerPriority;
+    priority_reason: string;
+    needs_admin: boolean;
+    items: string[];
+  };
+  next_week: { summary: string; bullets: string[] };
+  primary_category: string;
+  overall_summary: string;
+};
+
 export type WeeklyJournal = {
   id: number;
   teamId: number;
@@ -18,6 +40,14 @@ export type WeeklyJournal = {
   projectsClosed: number;
   submittedBy: string;
   submittedAt: string;
+  // AI analysis (additive — null/absent until analysed).
+  aiAnalysis?: JournalAiAnalysis | null;
+  aiAnalysedAt?: string | null;
+  blockerPriority?: BlockerPriority | null;
+  blockerPriorityManual?: boolean;
+  blockerStatus?: BlockerStatus;
+  blockerNote?: string | null;
+  blockerUpdatedAt?: string | null;
 };
 
 export type JournalStatus = {

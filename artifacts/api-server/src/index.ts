@@ -6,6 +6,7 @@ import { bootstrapCanonicalCampuses } from "./bootstrap-campuses";
 import { bootstrapAdmins } from "./bootstrap-admins";
 import { bootstrapSuperAdmins } from "./bootstrap-superadmins";
 import { catchUpPendingBrdAnalyses } from "./lib/ai/analyse-brd";
+import { catchUpPendingJournalAnalyses } from "./lib/ai/journal-scheduler";
 import { sweepAutoApprovePendingRequests } from "./lib/membership-requests";
 
 async function reportUsersWithoutCampus(): Promise<void> {
@@ -139,6 +140,14 @@ async function runBootstrap(): Promise<void> {
     await catchUpPendingBrdAnalyses();
   } catch (err) {
     logger.error({ err }, "catchUpPendingBrdAnalyses failed");
+  }
+  // One-shot sweep: analyse any weekly journals not yet processed by the AI
+  // auditor (submitted while no Gemini key was set, or a setTimeout lost across
+  // a redeploy). Throttled inside the helper; runs once at boot.
+  try {
+    await catchUpPendingJournalAnalyses();
+  } catch (err) {
+    logger.error({ err }, "catchUpPendingJournalAnalyses failed");
   }
   // One-shot sweep: auto-approve any already-pending membership requests that
   // are no longer gated under the current rule (only verified-revenue

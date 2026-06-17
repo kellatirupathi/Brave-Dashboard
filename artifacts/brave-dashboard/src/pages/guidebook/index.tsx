@@ -1,15 +1,28 @@
-import { useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   BookOpen,
   Search,
   Lightbulb,
   AlertTriangle,
+  ShieldAlert,
   CheckCircle2,
   Quote,
   HelpCircle,
   Clock,
   ChevronLeft,
   ChevronRight,
+  Rocket,
+  Megaphone,
+  Target,
+  IndianRupee,
+  FileText,
+  Trophy,
+  Activity,
+  Sparkles,
+  ShieldCheck,
+  HeartHandshake,
+  Scale,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GUIDEBOOK_MODULES, type GbBlock, type GbModule } from "./content";
@@ -21,6 +34,54 @@ import { GUIDEBOOK_MODULES, type GbBlock, type GbModule } from "./content";
 const CORAL = "#db4750";
 const CORAL_SOFT = "#fdecec";
 
+// Chapter icon keys (set in content.ts) → lucide icons. Keeps content.ts free
+// of React imports. Unknown keys fall back to the book icon.
+const ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  rocket: Rocket,
+  search: Search,
+  pitch: Megaphone,
+  target: Target,
+  rupee: IndianRupee,
+  brd: FileText,
+  trophy: Trophy,
+  track: Activity,
+  spark: Sparkles,
+  faq: HelpCircle,
+  shield: ShieldCheck,
+  rejection: HeartHandshake,
+  conduct: Scale,
+  reference: BookMarked,
+};
+const iconFor = (key: string): ComponentType<{ className?: string }> =>
+  ICONS[key] ?? BookOpen;
+
+// Chapter groups for the navigation — gives the guide a clear learning arc
+// instead of one long flat list. Slugs not listed here fall under "More".
+const GROUPS: { label: string; slugs: string[] }[] = [
+  { label: "Get started", slugs: ["start-here"] },
+  {
+    label: "Win your first client",
+    slugs: [
+      "find-first-client",
+      "field-visits-safety",
+      "pitch",
+      "handle-rejection",
+    ],
+  },
+  {
+    label: "Build, price & prove",
+    slugs: ["what-to-build", "pricing", "brd-and-revenue"],
+  },
+  {
+    label: "Grow & stay on track",
+    slugs: ["leaderboard-demo-day", "teams-and-journals", "mindset-and-habits"],
+  },
+  {
+    label: "Conduct & reference",
+    slugs: ["conduct-integrity", "student-faq", "quick-reference-glossary"],
+  },
+];
+
 // Flatten a block to plain text so search can match across everything.
 function blockText(b: GbBlock): string {
   switch (b.kind) {
@@ -28,6 +89,7 @@ function blockText(b: GbBlock): string {
     case "h":
     case "tip":
     case "warn":
+    case "danger":
       return b.text;
     case "list":
     case "steps":
@@ -35,6 +97,8 @@ function blockText(b: GbBlock): string {
       return b.items.join(" ");
     case "example":
       return `${b.title} ${b.text}`;
+    case "table":
+      return `${b.columns.join(" ")} ${b.rows.map((r) => r.join(" ")).join(" ")}`;
     case "faq":
       return b.items.map((i) => `${i.q} ${i.a}`).join(" ");
     default:
@@ -58,33 +122,31 @@ function Callout({
   icon: Icon,
   text,
 }: {
-  tone: "tip" | "warn";
+  tone: "tip" | "warn" | "danger";
   icon: ComponentType<{ className?: string }>;
   text: string;
 }) {
+  const styles = {
+    tip: {
+      box: "border-emerald-200 bg-emerald-50",
+      icon: "text-emerald-600",
+      text: "text-emerald-900",
+    },
+    warn: {
+      box: "border-amber-200 bg-amber-50",
+      icon: "text-amber-600",
+      text: "text-amber-900",
+    },
+    danger: {
+      box: "border-red-200 bg-red-50",
+      icon: "text-red-600",
+      text: "text-red-900",
+    },
+  }[tone];
   return (
-    <div
-      className={cn(
-        "flex gap-2.5 rounded-lg border p-3.5",
-        tone === "tip"
-          ? "border-emerald-200 bg-emerald-50"
-          : "border-amber-200 bg-amber-50",
-      )}
-    >
-      <Icon
-        className={cn(
-          "mt-0.5 h-4 w-4 shrink-0",
-          tone === "tip" ? "text-emerald-600" : "text-amber-600",
-        )}
-      />
-      <p
-        className={cn(
-          "text-[15px] leading-relaxed",
-          tone === "tip" ? "text-emerald-900" : "text-amber-900",
-        )}
-      >
-        {text}
-      </p>
+    <div className={cn("flex gap-2.5 rounded-lg border p-3.5", styles.box)}>
+      <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", styles.icon)} />
+      <p className={cn("text-[15px] leading-relaxed", styles.text)}>{text}</p>
     </div>
   );
 }
@@ -135,6 +197,8 @@ function Block({ block }: { block: GbBlock }) {
       return <Callout tone="tip" icon={Lightbulb} text={block.text} />;
     case "warn":
       return <Callout tone="warn" icon={AlertTriangle} text={block.text} />;
+    case "danger":
+      return <Callout tone="danger" icon={ShieldAlert} text={block.text} />;
     case "example":
       return (
         <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
@@ -157,6 +221,46 @@ function Block({ block }: { block: GbBlock }) {
             </li>
           ))}
         </ul>
+      );
+    case "table":
+      return (
+        <div className="overflow-x-auto rounded-xl border border-stone-200">
+          <table className="w-full border-collapse text-[14px]">
+            <thead>
+              <tr style={{ backgroundColor: CORAL_SOFT }}>
+                {block.columns.map((c, i) => (
+                  <th
+                    key={i}
+                    className="border-b border-stone-200 px-3.5 py-2.5 text-left text-[13px] font-bold"
+                    style={{ color: CORAL }}
+                  >
+                    {c}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((r, ri) => (
+                <tr
+                  key={ri}
+                  className="align-top odd:bg-white even:bg-stone-50/60"
+                >
+                  {r.map((cell, ci) => (
+                    <td
+                      key={ci}
+                      className={cn(
+                        "border-b border-stone-100 px-3.5 py-2.5 leading-6 text-stone-600",
+                        ci === 0 && "font-medium text-stone-800",
+                      )}
+                    >
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     case "faq":
       return (
@@ -188,8 +292,14 @@ function Block({ block }: { block: GbBlock }) {
 export default function Guidebook() {
   const [active, setActive] = useState(GUIDEBOOK_MODULES[0].slug);
   const [search, setSearch] = useState("");
+  const [progress, setProgress] = useState(0);
   const total = GUIDEBOOK_MODULES.length;
   const q = search.trim().toLowerCase();
+
+  const totalMinutes = useMemo(
+    () => GUIDEBOOK_MODULES.reduce((sum, m) => sum + m.minutes, 0),
+    [],
+  );
 
   const visible = useMemo(
     () => GUIDEBOOK_MODULES.filter((m) => moduleMatches(m, q)),
@@ -204,6 +314,29 @@ export default function Guidebook() {
   const shownIdx = GUIDEBOOK_MODULES.findIndex((m) => m.slug === shown.slug);
   const prev = shownIdx > 0 ? GUIDEBOOK_MODULES[shownIdx - 1] : null;
   const next = shownIdx < total - 1 ? GUIDEBOOK_MODULES[shownIdx + 1] : null;
+  const HeroIcon = iconFor(shown.icon);
+
+  // Reading-progress bar — tracks how far down the current chapter you've read.
+  useEffect(() => {
+    const onScroll = () => {
+      const el = document.documentElement;
+      const max = el.scrollHeight - el.clientHeight;
+      setProgress(max > 0 ? Math.min(100, (el.scrollTop / max) * 100) : 0);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [shown.slug]);
+
+  // Build grouped nav from the visible modules (search-aware).
+  const visibleSlugs = new Set(visible.map((m) => m.slug));
+  const groupedNav = GROUPS.map((g) => ({
+    label: g.label,
+    modules: g.slugs
+      .filter((s) => visibleSlugs.has(s))
+      .map((s) => GUIDEBOOK_MODULES.find((m) => m.slug === s)!)
+      .filter(Boolean),
+  })).filter((g) => g.modules.length > 0);
 
   const go = (slug: string) => {
     setActive(slug);
@@ -212,6 +345,8 @@ export default function Guidebook() {
       document.getElementById("gb-main")?.scrollTo({ top: 0 });
     }
   };
+
+  const tocSections = shown.sections.filter((s) => s.heading);
 
   return (
     <div className="min-h-screen bg-[#faf9f7] text-stone-900">
@@ -245,73 +380,94 @@ export default function Guidebook() {
             />
           </div>
         </div>
+        {/* Reading progress */}
+        <div className="h-0.5 w-full bg-stone-100">
+          <div
+            className="h-full transition-[width] duration-150 ease-out"
+            style={{ width: `${progress}%`, backgroundColor: CORAL }}
+          />
+        </div>
       </header>
 
       <div className="mx-auto flex w-full max-w-6xl">
         {/* ===================== CHAPTER NAV ===================== */}
         <aside className="hidden w-72 shrink-0 border-r border-stone-200 md:block">
           <div className="sticky top-[57px] max-h-[calc(100vh-57px)] overflow-y-auto px-3 py-6">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
+            <p className="px-3 pb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
               {q
                 ? `${visible.length} result${visible.length === 1 ? "" : "s"}`
-                : `${total} chapters`}
+                : `${total} chapters · ~${totalMinutes} min`}
             </p>
-            <nav className="space-y-0.5">
-              {visible.length === 0 ? (
-                <p className="px-3 py-6 text-sm text-stone-400">
-                  No chapters match “{search}”.
-                </p>
-              ) : (
-                visible.map((m) => {
-                  const n = GUIDEBOOK_MODULES.findIndex(
-                    (x) => x.slug === m.slug,
-                  );
-                  const isActive = m.slug === shown.slug;
-                  return (
-                    <button
-                      key={m.slug}
-                      type="button"
-                      onClick={() => go(m.slug)}
-                      className={cn(
-                        "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
-                        isActive ? "" : "hover:bg-stone-100",
-                      )}
-                      style={
-                        isActive ? { backgroundColor: CORAL_SOFT } : undefined
-                      }
-                    >
-                      <span
-                        className={cn(
-                          "grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold transition-colors",
-                          isActive
-                            ? "text-white"
-                            : "bg-stone-100 text-stone-500 group-hover:bg-stone-200",
-                        )}
-                        style={
-                          isActive ? { backgroundColor: CORAL } : undefined
-                        }
-                      >
-                        {n + 1}
-                      </span>
-                      <span className="min-w-0">
-                        <span
-                          className={cn(
-                            "block truncate text-sm font-medium",
-                            isActive ? "" : "text-stone-700",
-                          )}
-                          style={isActive ? { color: CORAL } : undefined}
-                        >
-                          {m.title}
-                        </span>
-                        <span className="block text-[11px] text-stone-400">
-                          {m.minutes} min read
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </nav>
+            {groupedNav.length === 0 ? (
+              <p className="px-3 py-6 text-sm text-stone-400">
+                No chapters match “{search}”.
+              </p>
+            ) : (
+              <nav className="space-y-5">
+                {groupedNav.map((group) => (
+                  <div key={group.label}>
+                    <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-stone-400/80">
+                      {group.label}
+                    </p>
+                    <div className="space-y-0.5">
+                      {group.modules.map((m) => {
+                        const n = GUIDEBOOK_MODULES.findIndex(
+                          (x) => x.slug === m.slug,
+                        );
+                        const isActive = m.slug === shown.slug;
+                        const Icon = iconFor(m.icon);
+                        return (
+                          <button
+                            key={m.slug}
+                            type="button"
+                            onClick={() => go(m.slug)}
+                            className={cn(
+                              "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
+                              isActive ? "" : "hover:bg-stone-100",
+                            )}
+                            style={
+                              isActive
+                                ? { backgroundColor: CORAL_SOFT }
+                                : undefined
+                            }
+                          >
+                            <span
+                              className={cn(
+                                "grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors",
+                                isActive
+                                  ? "text-white"
+                                  : "bg-stone-100 text-stone-500 group-hover:bg-stone-200",
+                              )}
+                              style={
+                                isActive
+                                  ? { backgroundColor: CORAL }
+                                  : undefined
+                              }
+                            >
+                              <Icon className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span
+                                className={cn(
+                                  "block truncate text-sm font-medium",
+                                  isActive ? "" : "text-stone-700",
+                                )}
+                                style={isActive ? { color: CORAL } : undefined}
+                              >
+                                {m.title}
+                              </span>
+                              <span className="block text-[11px] text-stone-400">
+                                Ch. {n + 1} · {m.minutes} min
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+            )}
           </div>
         </aside>
 
@@ -322,6 +478,7 @@ export default function Guidebook() {
             {visible.map((m) => {
               const n = GUIDEBOOK_MODULES.findIndex((x) => x.slug === m.slug);
               const isActive = m.slug === shown.slug;
+              const Icon = iconFor(m.icon);
               return (
                 <button
                   key={m.slug}
@@ -335,7 +492,7 @@ export default function Guidebook() {
                   )}
                   style={isActive ? { backgroundColor: CORAL } : undefined}
                 >
-                  <span className="font-bold">{n + 1}.</span>
+                  <Icon className="h-3.5 w-3.5" />
                   {m.title}
                 </button>
               );
@@ -347,10 +504,10 @@ export default function Guidebook() {
             <div className="mb-8">
               <div className="flex items-center gap-4">
                 <span
-                  className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-2xl font-extrabold"
+                  className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl"
                   style={{ backgroundColor: CORAL_SOFT, color: CORAL }}
                 >
-                  {shownIdx + 1}
+                  <HeroIcon className="h-7 w-7" />
                 </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
@@ -372,10 +529,44 @@ export default function Guidebook() {
               <div className="mt-6 h-px bg-stone-200" />
             </div>
 
+            {/* In this chapter (jump links) */}
+            {tocSections.length > 1 && (
+              <div className="mb-8 rounded-xl border border-stone-200 bg-white p-4">
+                <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
+                  In this chapter
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {shown.sections.map((sec, si) =>
+                    sec.heading ? (
+                      <button
+                        key={si}
+                        type="button"
+                        onClick={() =>
+                          document
+                            .getElementById(`gb-sec-${si}`)
+                            ?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            })
+                        }
+                        className="rounded-full border border-stone-200 px-3 py-1 text-xs text-stone-600 transition-colors hover:border-stone-300 hover:bg-stone-50"
+                      >
+                        {sec.heading}
+                      </button>
+                    ) : null,
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Sections */}
             <div className="space-y-9">
               {shown.sections.map((sec, si) => (
-                <section key={si} className="space-y-3.5">
+                <section
+                  key={si}
+                  id={`gb-sec-${si}`}
+                  className="scroll-mt-24 space-y-3.5"
+                >
                   {sec.heading ? (
                     <h2 className="text-lg font-bold tracking-tight text-stone-900">
                       {sec.heading}

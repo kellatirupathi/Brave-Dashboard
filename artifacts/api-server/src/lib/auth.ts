@@ -1,7 +1,7 @@
 import * as client from "openid-client";
 import crypto from "crypto";
 import { type Request, type Response } from "express";
-import { db, sessionsTable, teamsTable } from "@workspace/db";
+import { db, sessionsTable, teamsTable, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import type { AuthUser } from "@workspace/api-zod";
 
@@ -35,6 +35,22 @@ export async function createSession(data: SessionData): Promise<string> {
     sess: data as unknown as Record<string, unknown>,
     expire: new Date(Date.now() + SESSION_TTL),
   });
+  // Bump login tracking for the user. A new session = a login (any method:
+  // Forms SSO, password, dev, OIDC). Best-effort — never blocks the login.
+  const userId = data.user?.id;
+  if (userId) {
+    try {
+      await db
+        .update(usersTable)
+        .set({
+          lastLoginAt: new Date(),
+          loginCount: sql`${usersTable.loginCount} + 1`,
+        })
+        .where(eq(usersTable.id, userId));
+    } catch {
+      // ignore — login tracking must never break authentication
+    }
+  }
   return sid;
 }
 
@@ -78,10 +94,7 @@ export async function deleteSessionsForUser(userId: string): Promise<void> {
     .where(sql`(${sessionsTable.sess}->'user'->>'id') = ${userId}`);
 }
 
-export async function clearSession(
-  res: Response,
-  sid?: string,
-): Promise<void> {
+export async function clearSession(res: Response, sid?: string): Promise<void> {
   if (sid) await deleteSession(sid);
   res.clearCookie(SESSION_COOKIE, { path: "/" });
 }
