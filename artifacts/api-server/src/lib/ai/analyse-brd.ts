@@ -3,6 +3,7 @@ import {
   revenueEntriesTable,
   teamsTable,
   brdAnalysisHistoryTable,
+  programmeConfigTable,
 } from "@workspace/db";
 import { and, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { logger } from "../logger";
@@ -130,11 +131,24 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
       `brave-current-entry-${entry.id}.pdf`,
     );
 
+    // Programme start date drives the "payment must be on/after programme start"
+    // rule. Read from programme_config (singleton); fall back to 2026-04-15 if
+    // unset or malformed so the rule still applies for the current cohort.
+    const [cfg] = await db
+      .select({ startDate: programmeConfigTable.startDate })
+      .from(programmeConfigTable)
+      .limit(1);
+    const programmeStartDate =
+      cfg?.startDate && /^\d{4}-\d{2}-\d{2}$/.test(cfg.startDate)
+        ? cfg.startDate
+        : "2026-04-15";
+
     const prompt = buildPromptForEntry({
       currentEntryClaimedAmount: entry.amount,
       currentEntryClientName: entry.clientName,
       currentEntryPaymentDate: entry.paymentDate,
       teamName,
+      programmeStartDate,
     });
 
     const raw = await generateBrdAnalysis(apiKey, [currentUpload], prompt);

@@ -82,6 +82,16 @@ HARD RULES — these MUST be enforced:
 - If there is NO payment proof, the score MUST be very low (0–24) no matter how complete
   the written sections are.
 - If the amount in the payment proof does not match the claimed revenue → cap at 24.
+- PAYMENT DATE MUST BE ON OR AFTER THE PROGRAMME START DATE. The programme start
+  date is given in the CONTEXT below ("Programme start date"). Read the DATE shown
+  on the payment / transaction proof (e.g. "03:09 PM, 01 Feb 2026" → 1 Feb 2026).
+  If that date is clearly readable AND is BEFORE the programme start date, the money
+  was received before the programme began — this is NOT valid programme revenue (it
+  is typically an old, pre-programme, or reused screenshot). In that case mark the
+  proof ❌, treat the entry as a REJECTION, and cap the score in the 0–24 band.
+  IMPORTANT: if the proof shows NO readable date, do NOT apply this rule and do NOT
+  lower the score for it — judge the proof on the other rules only. Only a date that
+  is clearly readable AND clearly before the programme start triggers this rejection.
 - If the document is blank, corrupted, fake/dummy, or a random unrelated file → 0–15.
 - DIFFERENT PAYER IS OK: a payment may legitimately be SENT by someone other than the
   named client — the client's company / organisation account, their finance or accounts
@@ -117,6 +127,8 @@ POSITIVE signals (increase score):
 NEGATIVE signals (decrease score):
 - No payment proof, or an unreadable / cropped / suspicious payment proof
 - Payment proof amount differs from the claimed amount
+- The payment / transaction DATE on the proof is BEFORE the programme start date (a
+  pre-programme or reused old payment) — invalid; cap the score at 24
 - The SENDER (payer) of the money is a team member, OR the money moves between two team
   members, OR it is a circular / self-payment (the team paying itself)
 - Blank template, fake/dummy data, random photos/selfies/logos with no payment proof
@@ -126,7 +138,9 @@ family, or a gateway, and student teams receive it into a team member's own acco
 HARD RULES.)
 
 Provide 5 to 9 short one-line findings. The FIRST finding(s) MUST be about
-the payment proof (is it present, clear, genuine, and does the amount match?). Do NOT
+the payment proof (is it present, clear, genuine, does the amount match, and is the
+payment date ON OR AFTER the programme start date? — a clearly-readable date before the
+programme start is ❌, a pre-programme/reused payment). Do NOT
 mark the proof ❌ just because the SENDER's name differs from the claimed client — a
 third-party sender (the client's company, finance team, an employee, family, or a
 payment gateway) is fine; use ✅ when the amount and date match, or ⚠️ if you cannot
@@ -218,6 +232,9 @@ export type BrdAuditorContext = {
   currentEntryClientName: string;
   currentEntryPaymentDate: string;
   teamName: string;
+  // Programme start date (YYYY-MM-DD). Payment proofs dated BEFORE this are
+  // pre-programme / reused and must be rejected (score 0–24).
+  programmeStartDate: string;
 };
 
 export function buildPromptForEntry(ctx: BrdAuditorContext): string {
@@ -227,6 +244,7 @@ export function buildPromptForEntry(ctx: BrdAuditorContext): string {
 
 CONTEXT FOR THIS SUBMISSION:
 - Team: ${ctx.teamName}
+- Programme start date (payments dated BEFORE this are INVALID — reject, score 0–24): ${ctx.programmeStartDate}
 - Claimed revenue amount: ₹${ctx.currentEntryClaimedAmount.toLocaleString("en-IN")}
 - Claimed payment date: ${ctx.currentEntryPaymentDate}
 - Claimed client name: ${ctx.currentEntryClientName}

@@ -396,7 +396,7 @@ export default function Guidebook() {
             <p className="px-3 pb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
               {q
                 ? `${visible.length} result${visible.length === 1 ? "" : "s"}`
-                : `${total} chapters · ~${totalMinutes} min`}
+                : `~${totalMinutes} min read`}
             </p>
             {groupedNav.length === 0 ? (
               <p className="px-3 py-6 text-sm text-stone-400">
@@ -411,9 +411,6 @@ export default function Guidebook() {
                     </p>
                     <div className="space-y-0.5">
                       {group.modules.map((m) => {
-                        const n = GUIDEBOOK_MODULES.findIndex(
-                          (x) => x.slug === m.slug,
-                        );
                         const isActive = m.slug === shown.slug;
                         const Icon = iconFor(m.icon);
                         return (
@@ -457,7 +454,7 @@ export default function Guidebook() {
                                 {m.title}
                               </span>
                               <span className="block text-[11px] text-stone-400">
-                                Ch. {n + 1} · {m.minutes} min
+                                {m.minutes} min read
                               </span>
                             </span>
                           </button>
@@ -476,7 +473,6 @@ export default function Guidebook() {
           {/* Mobile chapter switcher */}
           <div className="-mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1 md:hidden">
             {visible.map((m) => {
-              const n = GUIDEBOOK_MODULES.findIndex((x) => x.slug === m.slug);
               const isActive = m.slug === shown.slug;
               const Icon = iconFor(m.icon);
               return (
@@ -511,10 +507,6 @@ export default function Guidebook() {
                 </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">
-                    <span>
-                      Chapter {shownIdx + 1} of {total}
-                    </span>
-                    <span className="text-stone-300">•</span>
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       {shown.minutes} min read

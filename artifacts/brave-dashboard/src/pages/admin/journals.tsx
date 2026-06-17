@@ -208,6 +208,7 @@ export default function AdminJournals({ scope = "admin" }: Props) {
     done: number;
     total: number;
   } | null>(null);
+  const [confirmAnalyseAll, setConfirmAnalyseAll] = useState(false);
 
   const selectedCampusName =
     campusFilter === ALL
@@ -497,7 +498,7 @@ export default function AdminJournals({ scope = "admin" }: Props) {
           </p>
         </div>
         <Button
-          onClick={analyseAll}
+          onClick={() => setConfirmAnalyseAll(true)}
           disabled={analyseProgress?.running}
           className="gap-2"
           data-testid="journals-analyse-all"
@@ -531,19 +532,22 @@ export default function AdminJournals({ scope = "admin" }: Props) {
       )}
 
       {/* Filters + tabs */}
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by team, campus, member name, or content"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-9"
-              data-testid="journals-search"
-            />
-          </div>
-          <div className="flex gap-1">
+      <div className="flex flex-col gap-3">
+        {/* Search — full width */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by team, campus, member name, or content"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-9"
+            data-testid="journals-search"
+          />
+        </div>
+
+        {/* Tabs (left) + week/campus filters (right) — one row */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-1">
             {(
               [
                 { v: "overview", label: "Overview" },
@@ -567,101 +571,103 @@ export default function AdminJournals({ scope = "admin" }: Props) {
               </button>
             ))}
           </div>
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Select value={weekFilter} onValueChange={setWeekFilter}>
-            <SelectTrigger
-              className="sm:w-72"
-              data-testid="journals-week-filter"
-            >
-              <SelectValue placeholder="All weeks" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All weeks</SelectItem>
-              {weekOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  Week {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {scope === "admin" && (
-            <Popover
-              open={campusPopoverOpen}
-              onOpenChange={setCampusPopoverOpen}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={campusPopoverOpen}
-                  className="sm:w-64 justify-between font-normal"
-                  data-testid="journals-campus-filter"
-                >
-                  <span className="truncate">{selectedCampusName}</span>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-[--radix-popover-trigger-width] p-0"
-                align="start"
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Select value={weekFilter} onValueChange={setWeekFilter}>
+              <SelectTrigger
+                className="sm:w-72"
+                data-testid="journals-week-filter"
               >
-                <Command>
-                  <CommandInput
-                    placeholder="Search campuses…"
-                    data-testid="journals-campus-search"
-                  />
-                  <CommandList className="max-h-72">
-                    <CommandEmpty>No campus found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="All campuses"
-                        onSelect={() => {
-                          setCampusFilter(ALL);
-                          setCampusPopoverOpen(false);
-                        }}
-                        data-testid="journals-campus-option-all"
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            campusFilter === ALL ? "opacity-100" : "opacity-0",
-                          )}
-                        />
-                        All campuses
-                      </CommandItem>
-                      {(campuses ?? []).map((c) => {
-                        const value = String(c.id);
-                        return (
-                          <CommandItem
-                            key={c.id}
-                            value={c.name}
-                            onSelect={() => {
-                              setCampusFilter(value);
-                              setCampusPopoverOpen(false);
-                            }}
-                            data-testid={`journals-campus-option-${c.id}`}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                campusFilter === value
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            />
-                            {c.name}
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          )}
+                <SelectValue placeholder="All weeks" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All weeks</SelectItem>
+                {weekOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    Week {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {scope === "admin" && (
+              <Popover
+                open={campusPopoverOpen}
+                onOpenChange={setCampusPopoverOpen}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={campusPopoverOpen}
+                    className="sm:w-64 justify-between font-normal"
+                    data-testid="journals-campus-filter"
+                  >
+                    <span className="truncate">{selectedCampusName}</span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[--radix-popover-trigger-width] p-0"
+                  align="start"
+                >
+                  <Command>
+                    <CommandInput
+                      placeholder="Search campuses…"
+                      data-testid="journals-campus-search"
+                    />
+                    <CommandList className="max-h-72">
+                      <CommandEmpty>No campus found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="All campuses"
+                          onSelect={() => {
+                            setCampusFilter(ALL);
+                            setCampusPopoverOpen(false);
+                          }}
+                          data-testid="journals-campus-option-all"
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              campusFilter === ALL
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                          All campuses
+                        </CommandItem>
+                        {(campuses ?? []).map((c) => {
+                          const value = String(c.id);
+                          return (
+                            <CommandItem
+                              key={c.id}
+                              value={c.name}
+                              onSelect={() => {
+                                setCampusFilter(value);
+                                setCampusPopoverOpen(false);
+                              }}
+                              data-testid={`journals-campus-option-${c.id}`}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  campusFilter === value
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                              {c.name}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
         </div>
       </div>
 
@@ -878,6 +884,31 @@ export default function AdminJournals({ scope = "admin" }: Props) {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmAnalyseAll} onOpenChange={setConfirmAnalyseAll}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Analyse all journals?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This runs the AI auditor on every journal that hasn't been
+              analysed yet, one by one. It can take a while and uses AI credits.
+              You can keep using the page while it runs.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmAnalyseAll(false);
+                void analyseAll();
+              }}
+              data-testid="confirm-analyse-all"
+            >
+              Yes, analyse all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <JournalEditDialog
         open={editing !== null}

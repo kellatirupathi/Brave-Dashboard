@@ -118,6 +118,9 @@ type AnyUser = {
   // Login tracking (surfaced by the API list).
   lastLoginAt?: string | null;
   loginCount?: number;
+  // Last activity on any authenticated request (bumped on every request). A
+  // non-null value = the user has logged in / used the platform at least once.
+  lastSeenAt?: string | null;
 };
 
 type RoleFilter = "all" | "admin" | "coordinator" | "student";
@@ -565,6 +568,8 @@ export default function AdminUsers() {
         Campus: u.campusName ?? "",
         Source: SOURCE_LABEL[u.provisionedVia] ?? u.provisionedVia,
         Active: u.isActive ? "Yes" : "No",
+        // Raw value so a non-empty "Last Seen" cell == logged in at least once.
+        "Last Seen": u.lastSeenAt ?? "",
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -1046,6 +1051,7 @@ export default function AdminUsers() {
                   <TableHead>Source</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last login</TableHead>
+                  <TableHead>Last seen</TableHead>
                   <TableHead className="text-center">Logins</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -1130,6 +1136,14 @@ export default function AdminUsers() {
                         : "Never"}
                     </TableCell>
                     <TableCell
+                      className="text-sm text-muted-foreground whitespace-nowrap"
+                      data-testid={`last-seen-${user.id}`}
+                    >
+                      {user.lastSeenAt
+                        ? new Date(user.lastSeenAt).toLocaleString("en-IN")
+                        : "Never"}
+                    </TableCell>
+                    <TableCell
                       className="text-center text-sm tabular-nums"
                       data-testid={`login-count-${user.id}`}
                     >
@@ -1192,7 +1206,7 @@ export default function AdminUsers() {
                 {allUsers.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={12}
+                      colSpan={13}
                       className="h-24 text-center text-muted-foreground"
                     >
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
