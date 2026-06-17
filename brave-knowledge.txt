@@ -63,6 +63,15 @@ Membership requests:
 - Accepting one pending invite/request automatically cancels the others
   for that student.
 
+Admin approval for some membership changes:
+- Joining a team (by invite code, accepting an invitation, or a leader
+  approving a join request) takes effect IMMEDIATELY — no admin approval.
+- Leaving a team, or a leader removing a member, also takes effect
+  immediately UNLESS the team has already earned VERIFIED revenue. Once a
+  team has verified revenue, a leave or remove must be approved by an admin
+  first (it shows as "pending admin approval" until then). This protects a
+  revenue-earning team from members quietly leaving without oversight.
+
 If a student is not yet on a team, the Get Started page is the hub: it
 shows pending invitations, the Create Team option, the same-campus team
 list, and the Join-by-code option.
@@ -637,6 +646,27 @@ Q: Can I invite students from other campuses?
 A: No. Teams must be from a single NIAT campus. The platform will not
 allow cross-campus invitations.
 
+Q: Where do I see an invitation a team sent ME, and how do I accept it?
+A: An INVITATION is when a team invites you to join. Open the Get Started
+page → "Pending Invitations" and click "Accept" (you can also reach it from
+the bell / Notifications). YOU (the invited student) accept the invitation —
+it does NOT need the team leader's approval.
+
+Q: I'm a team leader — where do I see and approve JOIN REQUESTS to my team?
+A: A JOIN REQUEST is when a student asks to join YOUR team (via invite code or
+"Request to Join"). Open your Team page → the "Join Requests" / "Pending
+Requests" section and click Approve or Decline. The TEAM LEADER handles join
+requests (a member accepting an invite is different — see below).
+
+Q: What's the difference between an invitation and a join request?
+A: It's the direction:
+- Invitation = the TEAM invites YOU → you accept it on the Get Started page
+  (Pending Invitations). No leader approval needed.
+- Join request = YOU ask to join a team → the team LEADER approves it on the
+  Team page (Join Requests).
+In both cases, accepting one pending invite/request automatically cancels your
+other pending ones, and the bell (Notifications) shows an alert for either.
+
 Q: Someone sent me a join request but I don't see it — where is it?
 A: Go to your Team page → scroll down to the "Join Requests" or
 "Pending Requests" section. You should see it there. Also check your
@@ -690,9 +720,18 @@ A: Go to https://dashboard.brave.niatindia.com/login and click the
 Login button. Use your NIAT email to authenticate.
 
 Q: I can't log in / I get a "not on roster" message — what do I do?
-A: You need to be on the student roster for your campus. Contact your
-Campus Coordinator and ask them to get you added to the roster. Once
-added, try logging in again.
+A: You need to be on the student roster for your campus. If you're not on
+it, the dashboard shows a "Request access" form — fill in your name, email,
+NIAT ID, and campus and submit it. An admin reviews access requests and, if
+approved, you're added and emailed a welcome (if rejected, you're emailed the
+reason). You can also contact your Campus Coordinator to be added to the
+roster directly. After you're added/approved, sign in again.
+
+Q: I submitted a request to access the dashboard — what happens next?
+A: Your request goes to the NIAT admins for review. While it's pending you'll
+see a "request received / pending" screen. When an admin approves it you get a
+welcome email and can sign in; if it's rejected you get an email explaining
+why. If it's taking long, contact your Campus Coordinator.
 
 Q: I forgot my Replit password — how do I recover it?
 A: Use the "Forgot Password" option on the Replit login page. This is
@@ -928,6 +967,13 @@ Admin-only pages:
   https://dashboard.brave.niatindia.com/admin/audit-log
   https://dashboard.brave.niatindia.com/admin/announcements
   https://dashboard.brave.niatindia.com/admin/resources
+  https://dashboard.brave.niatindia.com/admin/journals  (weekly journals + AI)
+  https://dashboard.brave.niatindia.com/admin/heatmap  (funnel + engagement)
+  https://dashboard.brave.niatindia.com/admin/team-requests  (membership approvals)
+  https://dashboard.brave.niatindia.com/admin/new-users-requests  (access requests)
+  https://dashboard.brave.niatindia.com/admin/chatbot-history
+  https://dashboard.brave.niatindia.com/admin/campus-insights
+  https://dashboard.brave.niatindia.com/admin/queue/detailed-analysis  (AI BRD scores)
 
 
 # 26. MILESTONES
@@ -1265,6 +1311,98 @@ A: Go to https://dashboard.brave.niatindia.com/admin/teams → filter or
 sort by last journal date. Or check Campus Insights at
 https://dashboard.brave.niatindia.com/admin/campus-insights for a
 heatmap view of team activity.
+
+
+## Weekly Journals (Admin & Coordinator)
+URL: https://dashboard.brave.niatindia.com/admin/journals
+- AI-structured view of every team's weekly journals. Three tabs:
+  - Overview (default) — analytics: totals (clients visited, conversations,
+    projects started/closed), a category breakdown of what teams are doing,
+    and a blocker-triage summary (how many High / Medium / Low blockers are
+    open).
+  - All Journals — a team-by-team table; click a team to drill into its
+    week-by-week journals, each AI-formatted into "What we did", "Blockers",
+    and "Next week", with category tags.
+  - Teams missing journals — coverage gaps (who hasn't submitted).
+- AI analysis (Gemini): each journal is auto-analysed shortly after it is
+  submitted. The AI writes a clean summary, tags categories, and assigns a
+  blocker PRIORITY (High / Medium / Low / None) so staff can triage.
+- Blocker triage: an admin can override the AI priority, set a blocker's
+  status (Open / Assigned / Resolved), and add a note.
+- "Analyse all" runs the AI across all not-yet-analysed journals; each journal
+  also has its own "Analyse / Re-analyse" button.
+- Coordinators see the same view, scoped to their own campus.
+
+## Programme Funnel & Engagement (Admin Heatmap)
+URL: https://dashboard.brave.niatindia.com/admin/heatmap
+- A "Funnel" view (toggle between Teams and Students) showing the conversion
+  journey — for students: total registered → in a team → logged in — with each
+  stage's count, % of the top stage, and step-to-step drop-off, plus the
+  biggest single drop-off point.
+- Active-user stats: Daily / Weekly / Monthly active (based on last activity).
+- A per-team coverage heatmap of journal activity, with "Remind" buttons to
+  nudge silent teams or students who have never logged in.
+
+## Team Requests — Membership Approvals (Admin)
+URL: https://dashboard.brave.niatindia.com/admin/team-requests
+- Most team membership changes apply instantly. The EXCEPTION lands here:
+  when a member tries to LEAVE, or a leader tries to REMOVE a member, on a team
+  that ALREADY has verified revenue — that needs admin approval.
+- Admin can Approve (the change is applied and the student is notified/emailed)
+  or Reject (with an optional note shown to the requester).
+- Joins (invite code, accepting an invitation, approving a join request) and
+  leave/remove on teams with NO verified revenue are NOT gated — they happen
+  immediately and never appear here.
+
+## New User Access Requests (Admin)
+URL: https://dashboard.brave.niatindia.com/admin/new-users-requests
+- When someone who is not on the roster tries to use the dashboard, they can
+  submit an access request (name, email, NIAT ID, campus). Those requests
+  appear here.
+- Admin reviews each one and Approves (the student is added/whitelisted and
+  emailed a welcome) or Rejects (the student is emailed the decision). Click a
+  request to see full details.
+
+## Chatbot History (Admin)
+URL: https://dashboard.brave.niatindia.com/admin/chatbot-history
+- A log of student conversations with the in-app assistant. The list shows one
+  row per student (name, NIAT ID, campus, question count, last chatted); click
+  a student to read the full conversation thread.
+- Useful for spotting what students are confused about and where this knowledge
+  base needs improving.
+
+## AI BRD Auditor — Detailed Analysis (Admin)
+URL: https://dashboard.brave.niatindia.com/admin/queue/detailed-analysis
+- When a revenue entry with a BRD is submitted, an AI auditor (Gemini)
+  automatically scores it to help the admin review faster:
+  - Relevancy / BRD score (0–100) — how complete and genuine the BRD is, driven
+    mainly by clear payment proof whose amount and date match the claim, plus
+    the written BRD sections.
+  - Uniqueness score (0–100) — whether the payment proof's reference/UTR
+    duplicates any already-approved BRD across all teams.
+- The scores are ADVISORY — the admin still verifies or rejects manually on the
+  Review Queue. A "Re-analyse" action re-runs the AI.
+- A payment dated BEFORE the programme start date is treated as invalid
+  (pre-programme / reused) and scored in the rejection band.
+
+## Super Admin & Per-Page Permissions (Admin)
+- A "super admin" is an admin with full, unrestricted access who can also
+  control what OTHER admins can see and do.
+- From the Users page, a super admin opens an admin's "Permissions"
+  (https://dashboard.brave.niatindia.com/admin/users/<id>/permissions) and sets
+  per-page access — view / edit / delete / hidden — for each admin page.
+- Default is FULL access: an admin with no custom permissions set sees
+  everything (existing admins are unaffected). Only a super admin can change
+  another admin's permissions, and a super admin cannot remove their own
+  super-admin status.
+
+## Login & Activity Tracking (Admin)
+- The Users page shows each user's "Last login" and total login count (counted
+  from when this was enabled), plus "Last seen" (last activity on any request —
+  a non-empty value means the user has used the platform at least once).
+- The Audit Log has a second tab, "Pages Log"
+  (https://dashboard.brave.niatindia.com/admin/audit-log/pages), listing the
+  most-visited pages with visit counts and unique-user counts.
 
 
 # 37. COORDINATOR GUIDE — PAGES AND FEATURES
