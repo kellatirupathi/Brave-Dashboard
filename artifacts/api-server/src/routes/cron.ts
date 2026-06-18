@@ -175,14 +175,17 @@ async function pingTeam(
       continue;
     }
 
+    // Curiosity-led tone — frame the journal as a story still waiting to be
+    // told, rather than a missed task. Day 5 is a gentle nudge; Day 7 adds
+    // urgency (the window is closing) while staying warm.
     const title =
       level === "5d"
-        ? `Week ${week.weekNumber} journal pending — 5 days in`
-        : `Action needed: Week ${week.weekNumber} journal still missing`;
+        ? `Week ${week.weekNumber}'s story is still untold ✨`
+        : `Week ${week.weekNumber} is about to close — your story's still missing`;
     const body =
       level === "5d"
-        ? `Team ${team.teamName} hasn't submitted the Week ${week.weekNumber} journal yet. Please add this week's update before the week closes.`
-        : `Team ${team.teamName} has not submitted the Week ${week.weekNumber} journal. Your coordinator has been notified — please submit immediately.`;
+        ? `Team ${team.teamName}, what happened this week? Your Week ${week.weekNumber} story is still untold — share it before the week wraps.`
+        : `Team ${team.teamName}, what did Week ${week.weekNumber} hold for you? Your story's still untold and the window closes soon — your coordinator is keen to hear it too. Take a moment to share this week's update.`;
 
     if (channels.notificationsEnabled) {
       await db.insert(notificationsTable).values({
