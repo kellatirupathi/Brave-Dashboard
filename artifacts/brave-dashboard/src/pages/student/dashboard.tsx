@@ -13,17 +13,13 @@ import {
   Briefcase,
   CheckCircle,
   AlertCircle,
-  Bell,
   BookOpenCheck,
   Flame,
   ChevronRight,
-  Users,
-  FolderKanban,
   Target,
   TrendingUp,
   Star,
   Wallet,
-  Medal,
   ArrowUpRight,
 } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
@@ -80,12 +76,7 @@ function GoalRing({
   const offset = circumference * (1 - pct);
   return (
     <div className="relative grid place-items-center">
-      <svg
-        width="132"
-        height="132"
-        viewBox="0 0 132 132"
-        className="-rotate-90"
-      >
+      <svg width="132" height="132" viewBox="0 0 132 132" className="-rotate-90">
         <circle
           cx="66"
           cy="66"
@@ -421,9 +412,7 @@ export default function TeamDashboard() {
                           <span
                             className={cn(
                               "h-2 w-2 rounded-full",
-                              reached
-                                ? "bg-emerald-500"
-                                : "bg-muted-foreground/30",
+                              reached ? "bg-emerald-500" : "bg-muted-foreground/30",
                             )}
                           />
                           <span
@@ -474,169 +463,8 @@ export default function TeamDashboard() {
               </div>
             </section>
 
-            {/* SECTION 4 — PROJECTS & EXECUTION */}
-            <section className={cn(PANEL, "overflow-hidden")}>
-              <div className="flex items-center justify-between p-5 pb-3">
-                <SectionLabel>Projects &amp; execution</SectionLabel>
-                <Link
-                  href="/projects"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Open projects
-                </Link>
-              </div>
-              <ul className="divide-y border-t">
-                {(
-                  [
-                    {
-                      icon: FolderKanban,
-                      label: "Active projects",
-                      desc: "Projects currently running",
-                      value: activeProjects,
-                      tone: "muted" as Tone,
-                      href: "/projects",
-                    },
-                    {
-                      icon: AlertCircle,
-                      label: "Pending reviews",
-                      desc: "Submissions awaiting admin verification",
-                      value: pending,
-                      tone: (pending > 0 ? "warn" : "good") as Tone,
-                      href: "/projects",
-                    },
-                    {
-                      icon: Users,
-                      label: "Team",
-                      desc: summary.team?.campusName
-                        ? `${summary.team.name || "Your team"} · ${summary.team.campusName}`
-                        : "Manage members & invite code",
-                      value: null,
-                      tone: "muted" as Tone,
-                      href: "/team",
-                    },
-                  ] as const
-                ).map((row) => {
-                  const Icon = row.icon;
-                  return (
-                    <li key={row.label}>
-                      <Link
-                        href={row.href}
-                        className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                        data-testid={`exec-${row.label.toLowerCase().replace(/\s+/g, "-")}`}
-                      >
-                        <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium">{row.label}</div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {row.desc}
-                          </div>
-                        </div>
-                        {row.value !== null && (
-                          <Badge className={TONE_BADGE[row.tone]}>
-                            {row.value}
-                          </Badge>
-                        )}
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-
-            {/* SECTION 5 — LEADERBOARD & RANKINGS */}
-            <section className={cn(PANEL, "p-5")}>
-              <div className="flex items-center justify-between">
-                <SectionLabel>Leaderboard &amp; rankings</SectionLabel>
-                <Link
-                  href="/leaderboard"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  View leaderboard
-                </Link>
-              </div>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <Link
-                  href="/leaderboard"
-                  className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/40"
-                  data-testid="rank-national"
-                >
-                  <span className="grid h-11 w-11 place-items-center rounded-lg bg-amber-50 text-amber-600">
-                    <Trophy className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <div className="text-2xl font-bold tabular-nums">
-                      #{summary.nationalRank || "—"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      National rank · all campuses
-                    </div>
-                  </div>
-                </Link>
-                <Link
-                  href="/leaderboard"
-                  className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/40"
-                  data-testid="rank-campus"
-                >
-                  <span className="grid h-11 w-11 place-items-center rounded-lg bg-violet-50 text-violet-600">
-                    <Medal className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <div className="text-2xl font-bold tabular-nums">
-                      #{summary.campusRank || "—"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Campus rank · {summary.team?.campusName || "your campus"}
-                    </div>
-                  </div>
-                </Link>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                {summary.demoEligible
-                  ? "You've crossed the Demo Day goal — keep logging verified revenue to climb higher."
-                  : `Log more verified revenue to climb the rankings — you're ${progressPercent.toFixed(0)}% toward the Demo Day goal.`}
-              </p>
-            </section>
-
-            {/* SECTION 6 — ANNOUNCEMENTS */}
-            <section className={cn(PANEL, "p-5")}>
-              <div className="flex items-center justify-between">
-                <SectionLabel>Announcements &amp; updates</SectionLabel>
-                <Link
-                  href="/notifications"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  View all
-                </Link>
-              </div>
-              {summary.announcements.length > 0 ? (
-                <ul className="mt-3 divide-y">
-                  {summary.announcements.slice(0, 5).map((announcement) => (
-                    <li key={announcement.id}>
-                      <Link
-                        href="/notifications"
-                        className="flex gap-3 py-3 -mx-2 px-2 rounded-md hover:bg-muted/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        data-testid={`link-announcement-${announcement.id}`}
-                      >
-                        <Bell className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-semibold">
-                            {announcement.title}
-                          </h4>
-                          <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">
-                            {announcement.body}
-                          </p>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="py-10 text-center text-sm text-muted-foreground">
-                  No recent announcements
-                </div>
-              )}
-            </section>
+            {/* Support banner — kept within the left column only */}
+            <SupportBanner />
           </div>
 
           {/* ---------- RIGHT: streak & rewards rail (Duolingo-style) ---------- */}
@@ -731,13 +559,9 @@ export default function TeamDashboard() {
             <section className={cn(PANEL, "p-5")}>
               <div className="flex items-center justify-between">
                 <SectionLabel>
-                  {weekNumber != null
-                    ? `Week ${weekNumber} goal`
-                    : "This week's goal"}
+                  {weekNumber != null ? `Week ${weekNumber} goal` : "This week's goal"}
                 </SectionLabel>
-                <Badge className={TONE_BADGE[journalTone]}>
-                  {journalLabel}
-                </Badge>
+                <Badge className={TONE_BADGE[journalTone]}>{journalLabel}</Badge>
               </div>
               <div className="mt-4 flex justify-center">
                 <GoalRing value={submittedThisWeek ? 100 : 0} max={100}>
@@ -767,16 +591,12 @@ export default function TeamDashboard() {
                 )}
                 data-testid="rail-journal-cta"
               >
-                {submittedThisWeek
-                  ? "View / edit journal"
-                  : "Submit & earn 100 pts"}
+                {submittedThisWeek ? "View / edit journal" : "Submit & earn 100 pts"}
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </section>
           </aside>
         </div>
-
-        <SupportBanner />
       </div>
     </>
   );
