@@ -26,11 +26,19 @@ import {
 } from "@workspace/api-client-react";
 import type { TeamDetail } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PendingMembershipBanner } from "@/components/pending-membership-banner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
+import { Progress } from "@/components/ui/progress";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   CalendarDays,
   Flag,
@@ -48,6 +56,15 @@ import {
   Mail,
   ShieldCheck,
   Inbox,
+  FolderKanban,
+  Activity,
+  CheckCircle2,
+  ChevronRight,
+  Trophy,
+  BookOpen,
+  TrendingUp,
+  Target,
+  Rocket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,10 +72,8 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -76,10 +91,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatINR } from "@/lib/format";
 import { InlineEditField } from "@/components/inline-edit-field";
 import { invalidateMembershipQueries } from "@/lib/queries";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export default function TeamProfile() {
   const { user } = useAuth();
@@ -132,49 +148,103 @@ function nameInitials(name?: string | null, email?: string | null) {
   return (email ?? "?").substring(0, 2).toUpperCase();
 }
 
-// Small label/value tile used in the stats strip below the hero.
-function StatTile({
-  label,
-  value,
-  icon: Icon,
-  accent,
+// Human-friendly "how long this team has existed" label for the health strip.
+function teamAgeLabel(createdAt?: string | null) {
+  if (!createdAt) return "—";
+  const start = new Date(createdAt).getTime();
+  if (Number.isNaN(start)) return "—";
+  const days = Math.max(0, Math.floor((Date.now() - start) / 86400000));
+  if (days < 1) return "Today";
+  if (days < 7) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 8) return `${weeks}w`;
+  const months = Math.floor(days / 30);
+  return `${months}mo`;
+}
+
+// Flat, bordered surface — the building block of the workspace (no floating
+// drop-shadow "cards", just clean panels like Linear / Notion.)
+function Panel({
+  className,
+  children,
+  id,
 }: {
-  label: string;
-  value: number | string;
-  icon: React.ComponentType<{ className?: string }>;
-  accent: string;
+  className?: string;
+  children: React.ReactNode;
+  id?: string;
 }) {
   return (
-    <Card className="rounded-2xl p-4 transition-shadow hover:shadow-md">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-        <div
-          className={`flex h-7 w-7 items-center justify-center rounded-lg ${accent}`}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </div>
-      </div>
-      <div className="truncate text-2xl font-bold tracking-tight">{value}</div>
-    </Card>
+    <section id={id} className={cn("rounded-xl border bg-card", className)}>
+      {children}
+    </section>
   );
 }
 
-// Consistent section-header chip so every card reads at the same altitude.
-function SectionIcon({
+// Consistent L2 section heading used across every panel.
+function SectionHeading({
   icon: Icon,
-  className,
+  title,
+  count,
+  caption,
+  right,
 }: {
   icon: React.ComponentType<{ className?: string }>;
-  className: string;
+  title: string;
+  count?: number | string;
+  caption?: string;
+  right?: React.ReactNode;
 }) {
   return (
-    <span
-      className={`flex h-7 w-7 items-center justify-center rounded-lg ${className}`}
-    >
-      <Icon className="h-4 w-4" />
-    </span>
+    <div className="flex items-start justify-between gap-3 border-b px-4 py-3 sm:px-5">
+      <div className="flex min-w-0 items-center gap-2">
+        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <h2 className="truncate text-sm font-semibold tracking-tight text-foreground">
+          {title}
+        </h2>
+        {count != null && (
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            {count}
+          </span>
+        )}
+        {caption && (
+          <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+            · {caption}
+          </span>
+        )}
+      </div>
+      {right && <div className="shrink-0">{right}</div>}
+    </div>
+  );
+}
+
+// Compact stat block for the health strip — dense, no icons, no shadow.
+function MetricBlock({
+  label,
+  value,
+  sub,
+  children,
+}: {
+  label: string;
+  value?: React.ReactNode;
+  sub?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border bg-card px-4 py-3">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      {children ?? (
+        <div className="mt-1 truncate text-xl font-semibold tracking-tight text-foreground">
+          {value}
+        </div>
+      )}
+      {sub && (
+        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          {sub}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -542,39 +612,131 @@ function TeamView({
     );
   };
 
+  // ---- Derived workspace data (all from already-loaded `team` + milestones) ----
+  const projects = team.projects ?? [];
+  const activeProjects = projects.filter((p) => p.status === "active");
+  const milestoneCount = milestones?.length ?? 0;
+  const clientsEngaged = projects.reduce(
+    (sum, p) => sum + (p.clientCount ?? 0),
+    0,
+  );
+  const demoThreshold = programmeConfig?.demoEligibilityThreshold ?? 200000;
+  const progressPct =
+    demoThreshold > 0
+      ? Math.min(100, Math.round((team.totalRevenue / demoThreshold) * 100))
+      : 0;
+  const seatsOpen = Math.max(0, teamMemberLimit - memberCount);
+
+  // Unified activity feed — team registration + project creation + milestones,
+  // newest first. Pure presentation derived from existing data (no new fetches).
+  type FeedEvent = {
+    id: string;
+    kind: "team" | "project" | "milestone";
+    date: string;
+    title: string;
+    desc?: string | null;
+  };
+  const feed: FeedEvent[] = [
+    {
+      id: "team-created",
+      kind: "team",
+      date: team.createdAt,
+      title: "Team registered",
+      desc: `${team.name} is active at ${team.campusName}.`,
+    },
+    ...projects.map((p) => ({
+      id: `project-${p.id}`,
+      kind: "project" as const,
+      date: p.createdAt,
+      title: "Project created",
+      desc: p.title,
+    })),
+    ...(milestones ?? []).map((m) => ({
+      id: `milestone-${m.id}`,
+      kind: "milestone" as const,
+      date: m.date,
+      title: m.title,
+      desc: m.description,
+    })),
+  ]
+    .filter((e) => !!e.date)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const feedShown = feed.slice(0, 8);
+  const feedHidden = feed.length - feedShown.length;
+
+  const feedIcon = (kind: FeedEvent["kind"]) => {
+    if (kind === "team") return Rocket;
+    if (kind === "project") return FolderKanban;
+    return Flag;
+  };
+
+  const scrollToDirectory = () => {
+    document
+      .getElementById("team-directory")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-12">
+    <div className="mx-auto max-w-7xl space-y-5 pb-12">
       <PendingMembershipBanner />
 
-      {/* ===================== HERO ===================== */}
-      <Card className="relative overflow-hidden rounded-2xl border-0 shadow-sm">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent" />
-        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
-        <div className="relative p-6 md:p-8">
-          <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
-            <div className="shrink-0">
-              {team.photoUrl ? (
-                <img
-                  src={team.photoUrl}
-                  alt={team.name}
-                  className="h-28 w-28 rounded-2xl object-cover shadow-lg ring-4 ring-background"
-                />
-              ) : (
-                <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/30 to-primary/5 text-4xl font-extrabold text-primary shadow-lg ring-4 ring-background">
-                  {team.name.substring(0, 2).toUpperCase()}
+      {/* ============================================================= */}
+      {/* SECTION 1 — TEAM COMMAND CENTER                               */}
+      {/* ============================================================= */}
+      <Panel className="px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          {/* Identity */}
+          <div className="flex min-w-0 items-center gap-4">
+            {team.photoUrl ? (
+              <img
+                src={team.photoUrl}
+                alt={team.name}
+                className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-border"
+              />
+            ) : (
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-xl font-bold text-primary ring-1 ring-primary/15">
+                {team.name.substring(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight text-foreground">
+                  <InlineEditField
+                    value={team.name}
+                    editable={isLeader}
+                    required
+                    maxLength={80}
+                    ariaLabel="Team name"
+                    testId="text-team-name"
+                    className="text-2xl font-semibold tracking-tight"
+                    onSave={(next) => saveTeamField("name", next)}
+                  />
+                </h1>
+              </div>
+              {(isLeader || team.tagline) && (
+                <div className="mt-0.5 text-sm text-muted-foreground">
+                  <InlineEditField
+                    value={team.tagline ?? ""}
+                    editable={isLeader}
+                    placeholder="Add a tagline…"
+                    maxLength={120}
+                    ariaLabel="Team tagline"
+                    testId="text-team-tagline"
+                    className="text-sm text-muted-foreground"
+                    onSave={(next) => saveTeamField("tagline", next)}
+                  />
                 </div>
               )}
-            </div>
-
-            <div className="min-w-0 flex-1 text-center md:text-left">
-              <div className="mb-2 flex flex-wrap items-center justify-center gap-2 md:justify-start">
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 <Badge
                   variant={team.status === "active" ? "default" : "outline"}
                   className="gap-1 capitalize"
                 >
                   <ShieldCheck className="h-3 w-3" /> {team.status}
                 </Badge>
-                <Badge variant="secondary">{team.campusName}</Badge>
+                <Badge variant="secondary" className="gap-1">
+                  {team.campusName}
+                </Badge>
                 {isLeader ? (
                   <Badge className="gap-1 border border-amber-500/30 bg-amber-500/15 text-amber-700 hover:bg-amber-500/15">
                     <Crown className="h-3 w-3" /> Leader
@@ -588,418 +750,128 @@ function TeamView({
                     Member
                   </Badge>
                 )}
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <CalendarDays className="h-3 w-3" />
+                  Since {team.createdAt ? formatDate(team.createdAt) : "—"}
+                </span>
               </div>
-              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-                <InlineEditField
-                  value={team.name}
-                  editable={isLeader}
-                  required
-                  maxLength={80}
-                  ariaLabel="Team name"
-                  testId="text-team-name"
-                  className="text-3xl font-bold tracking-tight md:text-4xl"
-                  onSave={(next) => saveTeamField("name", next)}
-                />
-              </h1>
-              {isLeader || team.tagline ? (
-                <p className="mt-1.5 text-base text-muted-foreground md:text-lg">
-                  <InlineEditField
-                    value={team.tagline ?? ""}
-                    editable={isLeader}
-                    placeholder="Add a tagline…"
-                    maxLength={120}
-                    ariaLabel="Team tagline"
-                    testId="text-team-tagline"
-                    className="text-base text-muted-foreground md:text-lg"
-                    onSave={(next) => saveTeamField("tagline", next)}
-                  />
-                </p>
-              ) : null}
             </div>
+          </div>
 
-            <div className="flex flex-col items-center gap-3 md:items-end">
+          {/* Presence + primary action */}
+          <div className="flex items-center justify-between gap-4 lg:justify-end">
+            <div className="flex items-center gap-3">
               <div className="flex -space-x-2">
-                {team.members.slice(0, 5).map((m) => (
-                  <Avatar
-                    key={m.userId}
-                    className="h-9 w-9 ring-2 ring-background"
-                  >
-                    <AvatarImage src={m.profileImage ?? undefined} />
-                    <AvatarFallback className="text-xs">
-                      {memberInitials(m.firstName, m.lastName, m.email)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                {team.members.length > 5 && (
+                {team.members.slice(0, 6).map((m) => {
+                  const nm = `${m.firstName} ${m.lastName}`.trim() || m.email;
+                  return (
+                    <span key={m.userId} title={nm}>
+                      <Avatar className="h-9 w-9 ring-2 ring-background">
+                        <AvatarImage src={m.profileImage ?? undefined} />
+                        <AvatarFallback className="text-xs">
+                          {memberInitials(m.firstName, m.lastName, m.email)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </span>
+                  );
+                })}
+                {team.members.length > 6 && (
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-xs font-medium ring-2 ring-background">
-                    +{team.members.length - 5}
+                    +{team.members.length - 6}
                   </div>
                 )}
               </div>
-              {isTeamFull ? (
-                <div
-                  className="flex items-center gap-1.5 rounded-full border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground"
-                  data-testid="text-team-full"
-                >
-                  <Users className="h-3.5 w-3.5" />
-                  Team is full ({memberCount}/{teamMemberLimit})
+              <div className="text-xs text-muted-foreground">
+                <div className="font-medium text-foreground">
+                  {memberCount}/{teamMemberLimit}
                 </div>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={() => setInviteOpen(true)}
-                  data-testid="button-hero-invite"
-                  className="gap-2"
-                >
-                  <UserPlus className="h-4 w-4" /> Invite member
-                </Button>
-              )}
+                <div>members</div>
+              </div>
             </div>
+
+            {isTeamFull ? (
+              <div
+                className="inline-flex items-center gap-1.5 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                data-testid="text-team-full"
+              >
+                <Users className="h-3.5 w-3.5" />
+                Team is full ({memberCount}/{teamMemberLimit})
+              </div>
+            ) : (
+              <Button
+                onClick={() => setInviteOpen(true)}
+                data-testid="button-hero-invite"
+                className="gap-2"
+              >
+                <UserPlus className="h-4 w-4" /> Invite member
+              </Button>
+            )}
           </div>
         </div>
-      </Card>
+      </Panel>
 
-      {/* ===================== STAT TILES ===================== */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile
+      {/* ============================================================= */}
+      {/* SECTION 2 — TEAM HEALTH OVERVIEW                              */}
+      {/* ============================================================= */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <MetricBlock
           label="Members"
           value={`${memberCount}/${teamMemberLimit}`}
-          icon={Users}
-          accent="bg-primary/10 text-primary"
+          sub={
+            isTeamFull
+              ? "Team full"
+              : `${seatsOpen} seat${seatsOpen === 1 ? "" : "s"} open`
+          }
         />
-        <StatTile
-          label="Milestones"
-          value={milestones?.length ?? 0}
-          icon={Flag}
-          accent="bg-violet-500/10 text-violet-600"
+        <MetricBlock
+          label="Active projects"
+          value={activeProjects.length}
+          sub={`${projects.length} total`}
         />
-        <StatTile
-          label="Member since"
-          value={team.createdAt ? formatDate(team.createdAt) : "—"}
-          icon={CalendarDays}
-          accent="bg-emerald-500/10 text-emerald-600"
+        <MetricBlock label="Milestones" value={milestoneCount} sub="achieved" />
+        <MetricBlock
+          label="Team age"
+          value={teamAgeLabel(team.createdAt)}
+          sub={
+            team.createdAt ? `since ${formatDate(team.createdAt)}` : undefined
+          }
         />
-        <StatTile
-          label="Your role"
-          value={isLeader ? "Leader" : "Member"}
-          icon={isLeader ? Crown : ShieldCheck}
-          accent="bg-amber-500/10 text-amber-600"
-        />
+        <MetricBlock label="Demo Day progress">
+          <div className="mt-1.5 flex items-center gap-2">
+            <span className="text-xl font-semibold tracking-tight text-foreground">
+              {progressPct}%
+            </span>
+          </div>
+          <Progress value={progressPct} className="mt-2 h-1.5" />
+          <div className="mt-1 truncate text-xs text-muted-foreground">
+            {formatINR(team.totalRevenue)} / {formatINR(demoThreshold)}
+          </div>
+        </MetricBlock>
       </div>
 
-      {/* ===================== MAIN GRID ===================== */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* LEFT COLUMN */}
-        <div className="space-y-6 lg:col-span-1">
-          {/* Invite code */}
-          <Card className="rounded-2xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <SectionIcon
-                  icon={KeyRound}
-                  className="bg-primary/10 text-primary"
-                />
-                Invite code
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-xl border-2 border-dashed bg-muted/40 px-3 py-4 text-center">
-                <p
-                  className="break-all font-mono text-2xl font-bold uppercase tracking-[0.25em] text-primary"
-                  data-testid="input-invite-code"
-                >
-                  {team.inviteCode}
-                </p>
-              </div>
-              <Button
-                onClick={copyInviteCode}
-                variant="outline"
-                className="w-full gap-2"
-                data-testid="button-copy-code"
-              >
-                <Copy className="h-4 w-4" /> Copy code
-              </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                Share with classmates so they can join your team.
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Team members */}
-          <Card className="rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <SectionIcon
-                  icon={Users}
-                  className="bg-primary/10 text-primary"
-                />
-                Team Members
-                <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  ({team.members.length})
-                </span>
-              </CardTitle>
-              <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    data-testid="button-open-invite"
-                  >
-                    <UserPlus className="h-4 w-4" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Invite a teammate</DialogTitle>
-                    <DialogDescription>
-                      Search students at {team.campusName} who aren't on a team
-                      yet.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <Input
-                      placeholder="Search by name, email, NIAT ID or student ID…"
-                      value={searchQ}
-                      onChange={(e) => setSearchQ(e.target.value)}
-                      data-testid="input-search-students"
-                      autoFocus
-                    />
-                    <div className="max-h-72 space-y-1 overflow-y-auto">
-                      {searchQ.trim().length < 2 ? (
-                        <p className="p-2 text-sm text-muted-foreground">
-                          Type at least 2 characters to search.
-                        </p>
-                      ) : students.length === 0 ? (
-                        <p className="p-2 text-sm text-muted-foreground">
-                          No matching students.
-                        </p>
-                      ) : (
-                        students.map((s) => {
-                          const alreadyInvited =
-                            !!s.id &&
-                            pendingInvitations.some(
-                              (i) => i.inviteeId === s.id,
-                            );
-                          const rowKey = s.id ?? `roster-${s.rosterId}`;
-                          return (
-                            <div
-                              key={rowKey}
-                              className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/50"
-                              data-testid={`student-${rowKey}`}
-                            >
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage
-                                  src={s.profileImage ?? undefined}
-                                />
-                                <AvatarFallback>
-                                  {memberInitials(
-                                    s.firstName,
-                                    s.lastName,
-                                    s.email,
-                                  )}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium">
-                                  {s.firstName} {s.lastName}
-                                </p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {s.niatId ?? s.email}
-                                </p>
-                              </div>
-                              {alreadyInvited ? (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-[10px]"
-                                >
-                                  Invited
-                                </Badge>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    handleInvite(
-                                      { inviteeId: s.id, rosterId: s.rosterId },
-                                      `${s.firstName} ${s.lastName}`,
-                                    )
-                                  }
-                                  disabled={sendInvite.isPending}
-                                  data-testid={`button-invite-${rowKey}`}
-                                >
-                                  Invite
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                {team.members.map((member) => {
-                  const memberName =
-                    `${member.firstName} ${member.lastName}`.trim() ||
-                    member.email;
-                  const showLeaderMenu = isLeader && !member.isLeader;
-                  return (
-                    <div
-                      key={member.userId}
-                      className="-mx-2 flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-muted/50"
-                      data-testid={`member-${member.userId}`}
-                    >
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={member.profileImage || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {memberInitials(
-                            member.firstName,
-                            member.lastName,
-                            member.email,
-                          )}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 overflow-hidden">
-                        <p className="truncate text-sm font-medium">
-                          {memberName}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {member.niatId ?? member.email}
-                        </p>
-                      </div>
-                      {member.isLeader && (
-                        <Badge className="h-5 gap-1 border border-amber-500/30 bg-amber-500/15 px-1.5 text-[10px] text-amber-700 hover:bg-amber-500/15">
-                          <Crown className="h-3 w-3" /> Leader
-                        </Badge>
-                      )}
-                      {showLeaderMenu && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              data-testid={`button-member-menu-${member.userId}`}
-                              aria-label={`Manage ${memberName}`}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                setTransferTarget({
-                                  userId: member.userId,
-                                  name: memberName,
-                                })
-                              }
-                              data-testid={`menu-make-leader-${member.userId}`}
-                            >
-                              <Crown className="mr-2 h-4 w-4" /> Make leader
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                setRemoveTarget({
-                                  userId: member.userId,
-                                  name: memberName,
-                                })
-                              }
-                              className="text-destructive focus:text-destructive"
-                              data-testid={`menu-remove-${member.userId}`}
-                            >
-                              <UserMinus className="mr-2 h-4 w-4" /> Remove from
-                              team
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {!isLeader && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-4 w-full gap-2"
-                  data-testid="button-open-leave"
-                  onClick={() => setLeaveOpen(true)}
-                >
-                  <LogOut className="h-4 w-4" /> Leave team
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Danger zone */}
-          {isLeader && (
-            <Card className="rounded-2xl border-destructive/30 bg-destructive/[0.02]">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base text-destructive">
-                  <SectionIcon
-                    icon={Trash2}
-                    className="bg-destructive/10 text-destructive"
-                  />
-                  Danger zone
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  Deleting the team removes all members, drafts, and the invite
-                  code. You can only delete a team that has no submitted or
-                  verified revenue or order book entries.
-                </p>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="w-full gap-2"
-                  onClick={() => setDeleteTeamOpen(true)}
-                  data-testid="button-open-delete-team"
-                >
-                  <Trash2 className="h-4 w-4" /> Delete team
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* RIGHT COLUMN */}
-        <div className="space-y-6 lg:col-span-2">
-          {/* Requests summary strip — only shown when something needs action. */}
-          {totalRequests > 0 && (
-            <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
-              <Inbox className="h-4 w-4 text-primary" />
-              <span className="font-medium text-foreground">
-                {totalRequests} {totalRequests === 1 ? "request" : "requests"}{" "}
-                need your attention
-              </span>
-            </div>
-          )}
-
-          {pendingInvitations.length > 0 && (
-            <Card className="rounded-2xl" data-testid="card-sent-invitations">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <SectionIcon
-                    icon={Mail}
-                    className="bg-violet-500/10 text-violet-600"
-                  />
-                  Pending invitations sent
-                  <span className="ml-1 text-xs font-normal text-muted-foreground">
-                    ({pendingInvitations.length})
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+      {/* ============================================================= */}
+      {/* ACTION REQUIRED — membership inbox (only when needed)         */}
+      {/* ============================================================= */}
+      {totalRequests > 0 && (
+        <Panel data-testid="panel-action-required">
+          <SectionHeading
+            icon={Inbox}
+            title="Action required"
+            count={totalRequests}
+            caption="Membership requests waiting on your team"
+          />
+          <div className="space-y-5 p-4 sm:p-5">
+            {pendingInvitations.length > 0 && (
+              <div data-testid="card-sent-invitations">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Mail className="h-3.5 w-3.5" /> Invitations sent (
+                  {pendingInvitations.length})
+                </div>
                 <div className="space-y-2">
                   {pendingInvitations.map((inv) => (
                     <div
                       key={inv.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-primary/30"
+                      className="flex items-center justify-between gap-3 rounded-lg border bg-background p-3 transition-colors hover:border-primary/30"
                       data-testid={`sent-invite-${inv.id}`}
                     >
                       <div className="min-w-0">
@@ -1034,30 +906,20 @@ function TeamView({
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
 
-          {pendingJoins.length > 0 && (
-            <Card className="rounded-2xl" data-testid="card-join-requests">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <SectionIcon
-                    icon={UserPlus}
-                    className="bg-emerald-500/10 text-emerald-600"
-                  />
-                  Join requests
-                  <span className="ml-1 text-xs font-normal text-muted-foreground">
-                    ({pendingJoins.length})
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+            {pendingJoins.length > 0 && (
+              <div data-testid="card-join-requests">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <UserPlus className="h-3.5 w-3.5" /> Join requests (
+                  {pendingJoins.length})
+                </div>
+                <div className="space-y-2">
                   {pendingJoins.map((jr) => (
                     <div
                       key={jr.id}
-                      className="flex items-start gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-emerald-500/30"
+                      className="flex items-start gap-3 rounded-lg border bg-background p-3 transition-colors hover:border-emerald-500/30"
                       data-testid={`join-request-${jr.id}`}
                     >
                       <Avatar>
@@ -1102,30 +964,20 @@ function TeamView({
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
 
-          {isLeader && pendingLeaves.length > 0 && (
-            <Card className="rounded-2xl" data-testid="card-leave-requests">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <SectionIcon
-                    icon={LogOut}
-                    className="bg-orange-500/10 text-orange-600"
-                  />
-                  Leave requests
-                  <span className="ml-1 text-xs font-normal text-muted-foreground">
-                    ({pendingLeaves.length})
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+            {isLeader && pendingLeaves.length > 0 && (
+              <div data-testid="card-leave-requests">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <LogOut className="h-3.5 w-3.5" /> Leave requests (
+                  {pendingLeaves.length})
+                </div>
+                <div className="space-y-2">
                   {pendingLeaves.map((lr) => (
                     <div
                       key={lr.id}
-                      className="flex items-start gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-orange-500/30"
+                      className="flex items-start gap-3 rounded-lg border bg-background p-3 transition-colors hover:border-orange-500/30"
                       data-testid={`leave-request-${lr.id}`}
                     >
                       <Avatar>
@@ -1170,69 +1022,697 @@ function TeamView({
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Milestone timeline */}
-          <Card className="rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <SectionIcon
-                    icon={Flag}
-                    className="bg-primary/10 text-primary"
-                  />
-                  Milestone Timeline
-                </CardTitle>
-                <p className="ml-9 mt-1 text-xs text-muted-foreground">
-                  Track your team's journey
-                </p>
               </div>
-            </CardHeader>
-            <CardContent>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      {/* ============================================================= */}
+      {/* SECTION 3 — MAIN COLLABORATION WORKSPACE (70 / 30)            */}
+      {/* ============================================================= */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-10">
+        {/* LEFT — Team Activity Hub */}
+        <div className="space-y-5 lg:col-span-7">
+          {/* Team Timeline (activity feed) */}
+          <Panel>
+            <SectionHeading
+              icon={Activity}
+              title="Team activity"
+              caption="Recent updates across your workspace"
+            />
+            <div className="p-4 sm:p-5">
+              {feedShown.length === 0 ? (
+                <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+                  No activity yet.
+                </div>
+              ) : (
+                <ol className="relative space-y-4 pl-1">
+                  {feedShown.map((e, idx) => {
+                    const Icon = feedIcon(e.kind);
+                    const last = idx === feedShown.length - 1;
+                    return (
+                      <li key={e.id} className="relative flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground">
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          {!last && (
+                            <span className="mt-1 w-px flex-1 bg-border" />
+                          )}
+                        </div>
+                        <div className="min-w-0 pb-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                            <p className="text-sm font-medium text-foreground">
+                              {e.title}
+                            </p>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(e.date)}
+                            </span>
+                          </div>
+                          {e.desc && (
+                            <p className="truncate text-sm text-muted-foreground">
+                              {e.desc}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+              {feedHidden > 0 && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  + {feedHidden} earlier event{feedHidden === 1 ? "" : "s"}
+                </p>
+              )}
+            </div>
+          </Panel>
+
+          {/* Milestone Journey (vertical roadmap) */}
+          <Panel>
+            <SectionHeading
+              icon={Flag}
+              title="Milestone journey"
+              count={milestoneCount}
+              caption="Track your team's progress"
+            />
+            <div className="p-4 sm:p-5">
               {milestonesLoading ? (
                 <div className="flex justify-center py-8">
                   <Spinner />
                 </div>
               ) : !milestones || milestones.length === 0 ? (
-                <div className="rounded-xl border-2 border-dashed py-12 text-center text-muted-foreground">
+                <div className="rounded-lg border border-dashed py-12 text-center text-muted-foreground">
                   <Flag className="mx-auto mb-3 h-8 w-8 opacity-50" />
-                  <p>No milestones yet.</p>
+                  <p className="text-sm">No milestones yet.</p>
                 </div>
               ) : (
-                <div className="relative ml-3 space-y-6 border-l-2 border-muted pb-2">
-                  {milestones.map((m) => (
-                    <div key={m.id} className="relative pl-6">
-                      <div className="absolute -left-[7.5px] top-2 h-3 w-3 rounded-full bg-primary ring-4 ring-background" />
-                      <div className="rounded-xl border bg-muted/30 p-4 transition-colors hover:border-primary/40">
-                        <div className="mb-1.5 flex items-center justify-between gap-3">
-                          <h4 className="font-bold text-foreground">
-                            {m.title}
-                          </h4>
-                          <div className="flex shrink-0 items-center text-xs text-muted-foreground">
-                            <CalendarDays className="mr-1 h-3 w-3" />{" "}
-                            {formatDate(m.date)}
-                          </div>
+                <ol className="relative space-y-5">
+                  {milestones.map((m, idx) => {
+                    const last = idx === milestones.length - 1;
+                    return (
+                      <li key={m.id} className="relative flex gap-4">
+                        <div className="flex flex-col items-center">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <CheckCircle2 className="h-4 w-4" />
+                          </span>
+                          {!last && (
+                            <span className="mt-1 w-px flex-1 bg-primary/30" />
+                          )}
                         </div>
-                        {m.description && (
-                          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                            {m.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                        <div className="min-w-0 flex-1 pb-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h4 className="text-sm font-semibold text-foreground">
+                              {m.title}
+                            </h4>
+                            <span className="inline-flex items-center text-xs text-muted-foreground">
+                              <CalendarDays className="mr-1 h-3 w-3" />
+                              {formatDate(m.date)}
+                            </span>
+                          </div>
+                          {m.description && (
+                            <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted-foreground">
+                              {m.description}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </Panel>
+        </div>
+
+        {/* RIGHT — Team Control Panel */}
+        <div className="space-y-5 lg:col-span-3">
+          {/* Invite Workspace */}
+          <Panel>
+            <SectionHeading icon={KeyRound} title="Invite workspace" />
+            <div className="space-y-3 p-4 sm:p-5">
+              <div className="rounded-lg border-2 border-dashed bg-muted/30 px-3 py-3 text-center">
+                <p
+                  className="break-all font-mono text-lg font-bold uppercase tracking-[0.2em] text-primary"
+                  data-testid="input-invite-code"
+                >
+                  {team.inviteCode}
+                </p>
+              </div>
+              <Button
+                onClick={copyInviteCode}
+                variant="outline"
+                className="w-full gap-2"
+                data-testid="button-copy-code"
+              >
+                <Copy className="h-4 w-4" /> Copy code
+              </Button>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Share this code with classmates at {team.campusName} so they can
+                request to join your team.
+              </p>
+            </div>
+          </Panel>
+
+          {/* Quick Actions */}
+          <Panel>
+            <SectionHeading icon={Target} title="Quick actions" />
+            <div className="space-y-1.5 p-3 sm:p-4">
+              {isTeamFull ? (
+                <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                  <Users className="h-4 w-4" /> Team is full ({memberCount}/
+                  {teamMemberLimit})
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => setInviteOpen(true)}
+                  data-testid="button-open-invite"
+                >
+                  <span className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-primary" /> Invite members
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={scrollToDirectory}
+                className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+              >
+                <span className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" /> Manage
+                  team
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <Link
+                href="/projects"
+                className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+              >
+                <span className="flex items-center gap-2">
+                  <FolderKanban className="h-4 w-4 text-muted-foreground" />{" "}
+                  View projects
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
+              <Link
+                href="/leaderboard"
+                className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+              >
+                <span className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-muted-foreground" />{" "}
+                  Leaderboard
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
+              <Link
+                href="/resources-library"
+                className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
+              >
+                <span className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-muted-foreground" /> Team
+                  resources
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
+            </div>
+          </Panel>
+
+          {/* Team Insights */}
+          <Panel>
+            <SectionHeading icon={TrendingUp} title="Team insights" />
+            <div className="space-y-4 p-4 sm:p-5">
+              <div>
+                <div className="mb-1.5 flex items-center justify-between text-xs">
+                  <span className="font-medium text-muted-foreground">
+                    Demo Day eligibility
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {progressPct}%
+                  </span>
+                </div>
+                <Progress value={progressPct} className="h-2" />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatINR(team.totalRevenue)} of {formatINR(demoThreshold)}{" "}
+                  verified revenue
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border bg-background px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    National rank
+                  </div>
+                  <div className="mt-0.5 text-base font-semibold text-foreground">
+                    {team.nationalRank != null ? `#${team.nationalRank}` : "—"}
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-background px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Clients
+                  </div>
+                  <div className="mt-0.5 text-base font-semibold text-foreground">
+                    {clientsEngaged}
+                  </div>
+                </div>
+              </div>
+
+              {/* Upcoming actions — subtle, derived nudges */}
+              <div>
+                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Upcoming actions
+                </div>
+                <ul className="space-y-1.5 text-sm">
+                  {!isTeamFull && (
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      Invite {seatsOpen} more member{seatsOpen === 1 ? "" : "s"}
+                    </li>
+                  )}
+                  {projects.length === 0 && (
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      Create your first project
+                    </li>
+                  )}
+                  {team.totalRevenue < demoThreshold && (
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      {formatINR(demoThreshold - team.totalRevenue)} more to
+                      reach Demo Day
+                    </li>
+                  )}
+                  {milestoneCount === 0 && (
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      Earn your first milestone
+                    </li>
+                  )}
+                  {isTeamFull &&
+                    projects.length > 0 &&
+                    team.totalRevenue >= demoThreshold &&
+                    milestoneCount > 0 && (
+                      <li className="flex items-center gap-2 text-emerald-600">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Your team is on track — keep it up!
+                      </li>
+                    )}
+                </ul>
+              </div>
+
+              {/* Membership controls — leave / delete preserved here */}
+              <div className="border-t pt-3">
+                {!isLeader && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    data-testid="button-open-leave"
+                    onClick={() => setLeaveOpen(true)}
+                  >
+                    <LogOut className="h-4 w-4" /> Leave team
+                  </Button>
+                )}
+                {isLeader && (
+                  <div className="space-y-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setDeleteTeamOpen(true)}
+                      data-testid="button-open-delete-team"
+                    >
+                      <Trash2 className="h-4 w-4" /> Delete team
+                    </Button>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      Deletes all members, drafts and the invite code. Only
+                      possible with no submitted or verified entries.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Panel>
         </div>
       </div>
+
+      {/* ============================================================= */}
+      {/* SECTION 4 — TEAM DIRECTORY                                    */}
+      {/* ============================================================= */}
+      <Panel id="team-directory">
+        <SectionHeading
+          icon={Users}
+          title="Team directory"
+          count={team.members.length}
+          right={
+            !isTeamFull ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => setInviteOpen(true)}
+              >
+                <UserPlus className="h-4 w-4" /> Invite
+              </Button>
+            ) : undefined
+          }
+        />
+        <div className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Member</TableHead>
+                <TableHead className="hidden sm:table-cell">
+                  Student ID
+                </TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead className="hidden md:table-cell">Status</TableHead>
+                <TableHead className="w-10 text-right" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {team.members.map((member) => {
+                const memberName =
+                  `${member.firstName} ${member.lastName}`.trim() ||
+                  member.email;
+                const showLeaderMenu = isLeader && !member.isLeader;
+                return (
+                  <TableRow
+                    key={member.userId}
+                    data-testid={`member-${member.userId}`}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={member.profileImage || undefined} />
+                          <AvatarFallback className="text-xs">
+                            {memberInitials(
+                              member.firstName,
+                              member.lastName,
+                              member.email,
+                            )}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {memberName}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground sm:hidden">
+                            {member.niatId ?? member.email}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden font-mono text-xs text-muted-foreground sm:table-cell">
+                      {member.niatId ?? member.email}
+                    </TableCell>
+                    <TableCell>
+                      {member.isLeader ? (
+                        <Badge className="h-5 gap-1 border border-amber-500/30 bg-amber-500/15 px-1.5 text-[10px] text-amber-700 hover:bg-amber-500/15">
+                          <Crown className="h-3 w-3" /> Leader
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          Member
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Active
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {showLeaderMenu && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              data-testid={`button-member-menu-${member.userId}`}
+                              aria-label={`Manage ${memberName}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                setTransferTarget({
+                                  userId: member.userId,
+                                  name: memberName,
+                                })
+                              }
+                              data-testid={`menu-make-leader-${member.userId}`}
+                            >
+                              <Crown className="mr-2 h-4 w-4" /> Make leader
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                setRemoveTarget({
+                                  userId: member.userId,
+                                  name: memberName,
+                                })
+                              }
+                              className="text-destructive focus:text-destructive"
+                              data-testid={`menu-remove-${member.userId}`}
+                            >
+                              <UserMinus className="mr-2 h-4 w-4" /> Remove from
+                              team
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </Panel>
+
+      {/* ============================================================= */}
+      {/* SECTION 5 — TEAM EXECUTION AREA                               */}
+      {/* ============================================================= */}
+      <Panel>
+        <SectionHeading
+          icon={FolderKanban}
+          title="Projects & execution"
+          count={projects.length}
+          caption="Active work and verified deliverables"
+          right={
+            <Link href="/projects">
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5">
+                Open projects <ChevronRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          }
+        />
+        <div className="overflow-hidden">
+          {projects.length === 0 ? (
+            <div className="px-5 py-12 text-center">
+              <FolderKanban className="mx-auto mb-3 h-8 w-8 text-muted-foreground opacity-50" />
+              <p className="text-sm text-muted-foreground">No projects yet.</p>
+              <Link href="/projects">
+                <Button variant="outline" size="sm" className="mt-3 gap-2">
+                  <FolderKanban className="h-4 w-4" /> Go to projects
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Project</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="hidden sm:table-cell text-right">
+                    Clients
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell text-right">
+                    Order book
+                  </TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead className="hidden lg:table-cell text-right">
+                    Created
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {projects.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      <Link
+                        href={`/projects/${p.id}`}
+                        className="block min-w-0"
+                      >
+                        <p className="truncate text-sm font-medium text-foreground hover:text-primary hover:underline">
+                          {p.title}
+                        </p>
+                        {p.description && (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {p.description}
+                          </p>
+                        )}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={p.status === "active" ? "default" : "outline"}
+                        className="capitalize"
+                      >
+                        {p.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-right text-sm text-muted-foreground">
+                      {p.clientCount}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-right text-sm text-muted-foreground">
+                      {formatINR(p.verifiedOrderBook)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-medium text-foreground">
+                      {formatINR(p.verifiedRevenue)}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-right text-xs text-muted-foreground">
+                      {formatDate(p.createdAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </Panel>
+
+      {/* ============================================================= */}
+      {/* SECTION 6 — TEAM INSIGHTS (achievements & growth)            */}
+      {/* ============================================================= */}
+      <Panel>
+        <SectionHeading
+          icon={Trophy}
+          title="Achievements & growth"
+          caption="Your team's progress at a glance"
+        />
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-b-xl bg-border sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            { label: "Milestones earned", value: String(milestoneCount) },
+            { label: "Active projects", value: String(activeProjects.length) },
+            { label: "Clients engaged", value: String(clientsEngaged) },
+            {
+              label: "Verified revenue",
+              value: formatINR(team.totalRevenue),
+            },
+            {
+              label: "Order book",
+              value: formatINR(team.totalOrderBook),
+            },
+            {
+              label: "National rank",
+              value: team.nationalRank != null ? `#${team.nationalRank}` : "—",
+            },
+          ].map((s) => (
+            <div key={s.label} className="bg-card px-4 py-4">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {s.label}
+              </div>
+              <div className="mt-1 truncate text-lg font-semibold tracking-tight text-foreground">
+                {s.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
 
       <Link href="/browse-teams" className="hidden">
         browse
       </Link>
+
+      {/* ============================================================= */}
+      {/* INVITE DIALOG (controlled — triggered from multiple buttons)  */}
+      {/* ============================================================= */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite a teammate</DialogTitle>
+            <DialogDescription>
+              Search students at {team.campusName} who aren't on a team yet.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Search by name, email, NIAT ID or student ID…"
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              data-testid="input-search-students"
+              autoFocus
+            />
+            <div className="max-h-72 space-y-1 overflow-y-auto">
+              {searchQ.trim().length < 2 ? (
+                <p className="p-2 text-sm text-muted-foreground">
+                  Type at least 2 characters to search.
+                </p>
+              ) : students.length === 0 ? (
+                <p className="p-2 text-sm text-muted-foreground">
+                  No matching students.
+                </p>
+              ) : (
+                students.map((s) => {
+                  const alreadyInvited =
+                    !!s.id &&
+                    pendingInvitations.some((i) => i.inviteeId === s.id);
+                  const rowKey = s.id ?? `roster-${s.rosterId}`;
+                  return (
+                    <div
+                      key={rowKey}
+                      className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/50"
+                      data-testid={`student-${rowKey}`}
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={s.profileImage ?? undefined} />
+                        <AvatarFallback>
+                          {memberInitials(s.firstName, s.lastName, s.email)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {s.firstName} {s.lastName}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {s.niatId ?? s.email}
+                        </p>
+                      </div>
+                      {alreadyInvited ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Invited
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            handleInvite(
+                              { inviteeId: s.id, rosterId: s.rosterId },
+                              `${s.firstName} ${s.lastName}`,
+                            )
+                          }
+                          disabled={sendInvite.isPending}
+                          data-testid={`button-invite-${rowKey}`}
+                        >
+                          Invite
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* DIALOGS */}
       <AlertDialog
