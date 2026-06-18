@@ -27,171 +27,6 @@ const DEFAULT_SUGGESTIONS_LOGGED_OUT = [
 
 const KNOWLEDGE_FULL = braveKnowledge.trim();
 
-// Pre-split into named sections so we can inject only relevant ones.
-// Each element is { heading: string (lowercased), body: string }.
-const KNOWLEDGE_SECTIONS: { heading: string; body: string }[] = (() => {
-  const chunks = KNOWLEDGE_FULL.split(/\n(?=# \d+\.)/);
-  return chunks.map((chunk) => {
-    const firstLine = chunk.split("\n")[0] ?? "";
-    return { heading: firstLine.toLowerCase(), body: chunk.trim() };
-  });
-})();
-
-// Always-included sections (rules, scope, out-of-scope, account details).
-const ALWAYS_SECTIONS = new Set([
-  "# 34.", // account-specific
-  "# 35.", // out-of-scope
-]);
-
-// Keyword → section number mapping for fast lookup.
-const SECTION_KEYWORDS: [string[], string][] = [
-  [["what is brave", "about brave", "programme", "niat"], "# 1."],
-  [["role", "coordinator", "admin", "student"], "# 2."],
-  [
-    [
-      "team",
-      "join",
-      "invite",
-      "member",
-      "create team",
-      "leave",
-      "code",
-      "brave-",
-    ],
-    "# 3.",
-  ],
-  [["project", "order book", "revenue", "ai in the build"], "# 4."],
-  [
-    ["brd", "business requirement", "document", "payment proof", "client sign"],
-    "# 5.",
-  ],
-  [["submit revenue", "how to submit", "revenue entry"], "# 6."],
-  [["order book entry", "submit order"], "# 7."],
-  [
-    [
-      "journal",
-      "weekly journal",
-      "write journal",
-      "journal entry",
-      "find journal",
-    ],
-    "# 8.",
-  ],
-  [["create team", "how to create"], "# 9."],
-  [["join team", "how to join", "invite code"], "# 10."],
-  [["invite teammate", "send invitation"], "# 11."],
-  [["leaderboard", "rank", "ranking"], "# 12."],
-  [["dashboard", "team dashboard", "home page"], "# 13."],
-  [["demo day", "apply for demo", "pitch"], "# 14."],
-  [["notification", "bell icon", "alert"], "# 15."],
-  [["resource", "library", "reading list"], "# 16."],
-  [["profile", "edit profile", "avatar"], "# 17."],
-  [["journal faq", "journal question", "silent team"], "# 18."],
-  [
-    ["revenue faq", "order book faq", "rejected entry", "verification"],
-    "# 19.",
-  ],
-  [["team faq", "team question", "team size", "max member"], "# 20."],
-  [["demo day faq", "eligible", "threshold"], "# 21."],
-  [["login", "log in", "access", "roster", "password", "phone"], "# 22."],
-  [["create project", "manage project", "new project"], "# 23."],
-  [
-    [
-      "fee",
-      "cost",
-      "equity",
-      "ip",
-      "classes",
-      "programmer",
-      "client",
-      "business",
-    ],
-    "# 24.",
-  ],
-  [["page", "url", "where", "find", "navigate", "go to"], "# 25."],
-  [
-    [
-      "review queue",
-      "verify revenue",
-      "verify entry",
-      "reject entry",
-      "admin queue",
-    ],
-    "# 36.",
-  ],
-  [
-    [
-      "admin config",
-      "programme config",
-      "demo day threshold",
-      "freeze leaderboard",
-      "ses",
-      "test email",
-      "chatbot provider",
-      "roster upload",
-      "audit log",
-      "admin users",
-      "admin teams",
-      "campus insights",
-      "admin page",
-      "admin dashboard",
-    ],
-    "# 36.",
-  ],
-  [
-    [
-      "coordinator dashboard",
-      "coordinator teams",
-      "coordinator leaderboard",
-      "coordinator announcements",
-      "coordinator journals",
-      "coordinator heatmap",
-      "coordinator page",
-      "heatmap",
-      "remind button",
-    ],
-    "# 37.",
-  ],
-  [["milestone"], "# 26."],
-  [["announcement"], "# 27."],
-  [["leaderboard", "rank", "verified revenue"], "# 28."],
-  [["rupee", "lakh", "currency", "₹"], "# 29."],
-  [["file", "upload", "pdf", "size", "25 mb"], "# 30."],
-  [["silent", "nudge", "reminder", "day 5", "day 7"], "# 31."],
-  [["login", "auth", "replit", "session"], "# 32."],
-  [["resource", "library"], "# 33."],
-];
-
-// Returns a trimmed knowledge string containing only sections relevant to
-// the user's message + always-included sections. Falls back to the full KB
-// if no keywords match (conservative — never leave the model context-free).
-function selectRelevantKnowledge(message: string): string {
-  const lower = message.toLowerCase();
-  const matched = new Set<string>();
-
-  for (const [keywords, sectionPrefix] of SECTION_KEYWORDS) {
-    if (keywords.some((kw) => lower.includes(kw))) {
-      matched.add(sectionPrefix);
-    }
-  }
-
-  // If nothing matched, return the full KB so the model still has context.
-  if (matched.size === 0) return KNOWLEDGE_FULL;
-
-  const selected = KNOWLEDGE_SECTIONS.filter(
-    (s) =>
-      [...matched].some((prefix) => s.heading.includes(prefix.toLowerCase())) ||
-      [...ALWAYS_SECTIONS].some((prefix) =>
-        s.heading.includes(prefix.toLowerCase()),
-      ),
-  );
-
-  // Safety fallback: if the filter somehow returns nothing, use full KB.
-  if (selected.length === 0) return KNOWLEDGE_FULL;
-
-  return selected.map((s) => s.body).join("\n\n");
-}
-
 const HistoryItem = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1).max(4000),
@@ -572,8 +407,11 @@ router.post(
 
     const loggedIn = req.isAuthenticated();
     const role = (req.user?.role ?? null) as UserRole;
-    const relevantKnowledge = selectRelevantKnowledge(message);
-    const systemPrompt = buildSystemPrompt(relevantKnowledge, loggedIn, role);
+    // Always send the entire knowledge base so the model has full context for
+    // every question (max accuracy). The KB is ~20K tokens, which fits well
+    // within the model's context window. Trade-off: slightly slower + a bit
+    // more cost per call than keyword-based section selection.
+    const systemPrompt = buildSystemPrompt(KNOWLEDGE_FULL, loggedIn, role);
 
     const messages: ChatMsg[] = [
       { role: "system", content: systemPrompt },
