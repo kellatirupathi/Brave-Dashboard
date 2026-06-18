@@ -67,12 +67,12 @@ router.get("/campuses", async (req, res): Promise<void> => {
       const [teamStats] = await db
         .select({
           totalTeams: sql<number>`count(*)`,
-          // "Active" = the team has shown any activity: at least one submitted
-          // journal OR at least one project. (Team.status is always 'active' on
-          // creation, so it is meaningless.)
+          // "Active" = the team has both: at least one submitted weekly
+          // journal AND at least one project. (Team.status is always 'active'
+          // on creation, so it is meaningless.)
           activeTeams: sql<number>`count(*) filter (where
             exists (select 1 from weekly_journals wj where wj.team_id = ${teamsTable.id})
-            or exists (select 1 from projects p where p.team_id = ${teamsTable.id})
+            and exists (select 1 from projects p where p.team_id = ${teamsTable.id})
           )`,
         })
         .from(teamsTable)
@@ -154,12 +154,12 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
   const [teamStats] = await db
     .select({
       totalTeams: sql<number>`count(*)`,
-      // "Active" = the team has shown any activity: at least one submitted
-      // journal OR at least one project. (Team.status is always 'active' on
-      // creation, so it is meaningless.)
+      // "Active" = the team has both: at least one submitted weekly journal
+      // AND at least one project. (Team.status is always 'active' on creation,
+      // so it is meaningless.)
       activeTeams: sql<number>`count(*) filter (where
         exists (select 1 from weekly_journals wj where wj.team_id = ${teamsTable.id})
-        or exists (select 1 from projects p where p.team_id = ${teamsTable.id})
+        and exists (select 1 from projects p where p.team_id = ${teamsTable.id})
       )`,
     })
     .from(teamsTable)
