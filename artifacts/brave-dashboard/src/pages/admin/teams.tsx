@@ -49,6 +49,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { AddTeamDialog } from "./components/AddTeamDialog";
 import { ImportTeamsDialog } from "./components/ImportTeamsDialog";
 import { Badge } from "@/components/ui/badge";
@@ -176,6 +177,9 @@ export default function AdminTeams() {
   const searchString = useSearch();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  // Per-page permission gating (Super Admin permissions). Default-allow for
+  // legacy/super admins; restricted admins lose the matching buttons.
+  const { canEdit, canDelete } = useAdminPageAccess("/admin/teams");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const initialStatus = (() => {
@@ -384,14 +388,18 @@ export default function AdminTeams() {
                 className="w-64"
                 data-testid="menu-teams-more-actions"
               >
-                <DropdownMenuItem
-                  onClick={() => setImportOpen(true)}
-                  data-testid="menu-item-import-csv"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import CSV
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {canEdit && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => setImportOpen(true)}
+                      data-testid="menu-item-import-csv"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Import CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   onClick={() => void downloadExport("csv")}
                   disabled={exporting !== null}
@@ -417,7 +425,7 @@ export default function AdminTeams() {
           )}
 
           {/* 5. Add Team (admin only) */}
-          {isAdmin && (
+          {isAdmin && canEdit && (
             <Button
               onClick={() => setAddOpen(true)}
               data-testid="button-open-add-team"
@@ -510,7 +518,7 @@ export default function AdminTeams() {
                           >
                             View
                           </span>
-                          {isAdmin && (
+                          {isAdmin && canDelete && (
                             <Button
                               size="icon"
                               variant="ghost"

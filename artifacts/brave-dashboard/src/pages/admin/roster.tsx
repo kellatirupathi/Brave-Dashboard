@@ -82,6 +82,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { Check, ChevronsUpDown } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -269,6 +270,9 @@ export default function AdminRoster() {
   const updateRequest = useUpdateAccessRequest();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  // Per-page permission gating (Super Admin permissions). Default-allow for
+  // legacy/super admins; restricted admins lose edit/delete actions.
+  const { canEdit, canDelete } = useAdminPageAccess("/admin/roster");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -768,7 +772,7 @@ export default function AdminRoster() {
             onChange={handleFileImport}
             className="hidden"
           />
-          {selectedIds.size > 0 && (
+          {canDelete && selectedIds.size > 0 && (
             <Button
               variant="destructive"
               onClick={() => setIsBulkDeleteOpen(true)}
@@ -794,36 +798,42 @@ export default function AdminRoster() {
             Export
           </Button>
 
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
-          >
-            {isImporting ? (
-              <Spinner className="w-4 h-4 mr-2" />
-            ) : (
-              <Upload className="w-4 h-4 mr-2" />
-            )}
-            Import Excel
-          </Button>
+          {canEdit && (
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+            >
+              {isImporting ? (
+                <Spinner className="w-4 h-4 mr-2" />
+              ) : (
+                <Upload className="w-4 h-4 mr-2" />
+              )}
+              Import Excel
+            </Button>
+          )}
 
-          <Button
-            variant="destructive"
-            onClick={() => setIsClearAllOpen(true)}
-            disabled={!roster || roster.total === 0}
-            title="Permanently remove every roster entry"
-            data-testid="button-clear-all-roster"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete all
-          </Button>
+          {canDelete && (
+            <Button
+              variant="destructive"
+              onClick={() => setIsClearAllOpen(true)}
+              disabled={!roster || roster.total === 0}
+              title="Permanently remove every roster entry"
+              data-testid="button-clear-all-roster"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete all
+            </Button>
+          )}
 
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" /> Add Student
-              </Button>
-            </DialogTrigger>
+            {canEdit && (
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" /> Add Student
+                </Button>
+              </DialogTrigger>
+            )}
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add to Roster</DialogTitle>
@@ -1024,36 +1034,42 @@ export default function AdminRoster() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                data-testid={`button-actions-roster-${entry.id}`}
-                                aria-label="Open actions"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => openEdit(entry as RosterRow)}
-                                data-testid={`button-edit-roster-${entry.id}`}
-                              >
-                                <Pencil className="w-4 h-4 mr-2" /> Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  setDeleteTarget(entry as RosterRow)
-                                }
-                                className="text-destructive focus:text-destructive"
-                                data-testid={`button-delete-roster-${entry.id}`}
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {(canEdit || canDelete) && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  data-testid={`button-actions-roster-${entry.id}`}
+                                  aria-label="Open actions"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {canEdit && (
+                                  <DropdownMenuItem
+                                    onClick={() => openEdit(entry as RosterRow)}
+                                    data-testid={`button-edit-roster-${entry.id}`}
+                                  >
+                                    <Pencil className="w-4 h-4 mr-2" /> Edit
+                                  </DropdownMenuItem>
+                                )}
+                                {canDelete && (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setDeleteTarget(entry as RosterRow)
+                                    }
+                                    className="text-destructive focus:text-destructive"
+                                    data-testid={`button-delete-roster-${entry.id}`}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

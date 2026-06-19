@@ -46,6 +46,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
@@ -189,7 +190,10 @@ export default function AdminProjects({
   const isCoordinator = user?.role === "coordinator";
   // Staff (admin or coordinator) see the "Last updated" column. Students do not.
   const showLastUpdated = isAdmin || isCoordinator;
-  const allowDelete = isAdmin && !readOnly;
+  // Per-page permission gating (Super Admin permissions). Default-allow for
+  // legacy/super admins; a restricted admin without delete loses the button.
+  const { canDelete } = useAdminPageAccess("/admin/projects");
+  const allowDelete = isAdmin && !readOnly && canDelete;
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
