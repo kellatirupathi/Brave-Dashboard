@@ -84,11 +84,13 @@ import CoordinatorProjects from "@/pages/coordinator/projects";
 import StudentJournal from "@/pages/student/journal";
 import StudentResourcesLibrary from "@/pages/student/resources";
 import AdminJournals from "@/pages/admin/journals";
+import AdminJournalTeamDetail from "@/pages/admin/journal-team-detail";
 import AdminHeatmap from "@/pages/admin/heatmap";
 import AdminCampusInsights from "@/pages/admin/campus-insights";
 import AdminChatbotHistory from "@/pages/admin/chatbot-history";
 import AdminNotifications from "@/pages/admin/notifications";
 import CoordinatorJournals from "@/pages/coordinator/journals";
+import CoordinatorJournalTeamDetail from "@/pages/coordinator/journal-team-detail";
 import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
 
 // Shared
@@ -405,6 +407,12 @@ function Router() {
             allowedRoles={["coordinator"]}
           />
         </Route>
+        <Route path="/coordinator/journals/team/:teamId">
+          <ProtectedRoute
+            component={CoordinatorJournalTeamDetail}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
         <Route path="/coordinator/journals">
           <ProtectedRoute
             component={CoordinatorJournals}
@@ -561,6 +569,12 @@ function Router() {
         </Route>
 
         {/* Progress enforcement (admin) */}
+        <Route path="/admin/journals/team/:teamId">
+          <ProtectedRoute
+            component={AdminJournalTeamDetail}
+            allowedRoles={["admin"]}
+          />
+        </Route>
         <Route path="/admin/journals">
           <ProtectedRoute component={AdminJournals} allowedRoles={["admin"]} />
         </Route>

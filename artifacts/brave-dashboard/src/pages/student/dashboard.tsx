@@ -76,7 +76,12 @@ function GoalRing({
   const offset = circumference * (1 - pct);
   return (
     <div className="relative grid place-items-center">
-      <svg width="132" height="132" viewBox="0 0 132 132" className="-rotate-90">
+      <svg
+        width="132"
+        height="132"
+        viewBox="0 0 132 132"
+        className="-rotate-90"
+      >
         <circle
           cx="66"
           cy="66"
@@ -412,7 +417,9 @@ export default function TeamDashboard() {
                           <span
                             className={cn(
                               "h-2 w-2 rounded-full",
-                              reached ? "bg-emerald-500" : "bg-muted-foreground/30",
+                              reached
+                                ? "bg-emerald-500"
+                                : "bg-muted-foreground/30",
                             )}
                           />
                           <span
@@ -559,9 +566,13 @@ export default function TeamDashboard() {
             <section className={cn(PANEL, "p-5")}>
               <div className="flex items-center justify-between">
                 <SectionLabel>
-                  {weekNumber != null ? `Week ${weekNumber} goal` : "This week's goal"}
+                  {weekNumber != null
+                    ? `Week ${weekNumber} goal`
+                    : "This week's goal"}
                 </SectionLabel>
-                <Badge className={TONE_BADGE[journalTone]}>{journalLabel}</Badge>
+                <Badge className={TONE_BADGE[journalTone]}>
+                  {journalLabel}
+                </Badge>
               </div>
               <div className="mt-4 flex justify-center">
                 <GoalRing value={submittedThisWeek ? 100 : 0} max={100}>
@@ -591,7 +602,9 @@ export default function TeamDashboard() {
                 )}
                 data-testid="rail-journal-cta"
               >
-                {submittedThisWeek ? "View / edit journal" : "Submit & earn 100 pts"}
+                {submittedThisWeek
+                  ? "View / edit journal"
+                  : "Submit & earn 100 pts"}
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </section>

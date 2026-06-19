@@ -15,6 +15,7 @@ import {
   DeleteCampusParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { requireAdminPage } from "../lib/require-admin-page";
 
 const router: IRouter = Router();
 
@@ -103,35 +104,39 @@ router.get("/campuses", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.post("/campuses", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = CreateCampusBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [campus] = await db
-    .insert(campusesTable)
-    .values(parsed.data)
-    .returning();
-  await logAudit(
-    req.user.id,
-    "create_campus",
-    "campus",
-    campus.id,
-    campus.name,
-  );
-  res.status(201).json({
-    ...campus,
-    coordinatorName: null,
-    totalTeams: 0,
-    activeTeams: 0,
-    totalRevenue: 0,
-  });
-});
+router.post(
+  "/campuses",
+  requireAdminPage("/admin/campuses", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = CreateCampusBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [campus] = await db
+      .insert(campusesTable)
+      .values(parsed.data)
+      .returning();
+    await logAudit(
+      req.user.id,
+      "create_campus",
+      "campus",
+      campus.id,
+      campus.name,
+    );
+    res.status(201).json({
+      ...campus,
+      coordinatorName: null,
+      totalTeams: 0,
+      activeTeams: 0,
+      totalRevenue: 0,
+    });
+  },
+);
 
 router.get("/campuses/:id", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
@@ -200,93 +205,101 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.patch("/campuses/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = UpdateCampusParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = UpdateCampusBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [campus] = await db
-    .update(campusesTable)
-    .set(parsed.data)
-    .where(eq(campusesTable.id, params.data.id))
-    .returning();
-  if (!campus) {
-    res.status(404).json({ error: "Campus not found" });
-    return;
-  }
-  await logAudit(
-    req.user.id,
-    "update_campus",
-    "campus",
-    campus.id,
-    JSON.stringify(parsed.data),
-  );
-  res.json({
-    ...campus,
-    coordinatorName: null,
-    totalTeams: 0,
-    activeTeams: 0,
-    totalRevenue: 0,
-  });
-});
-
-router.delete("/campuses/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = DeleteCampusParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [campus] = await db
-    .select()
-    .from(campusesTable)
-    .where(eq(campusesTable.id, params.data.id));
-  if (!campus) {
-    res.status(404).json({ error: "Campus not found" });
-    return;
-  }
-
-  // Block deletion when teams still belong to the campus.
-  const [teamCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(teamsTable)
-    .where(eq(teamsTable.campusId, params.data.id));
-  if (Number(teamCount?.count ?? 0) > 0) {
-    res.status(409).json({
-      error: `Cannot delete this campus. ${teamCount.count} team(s) are still registered here. Move or delete those teams first.`,
+router.patch(
+  "/campuses/:id",
+  requireAdminPage("/admin/campuses", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const params = UpdateCampusParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = UpdateCampusBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [campus] = await db
+      .update(campusesTable)
+      .set(parsed.data)
+      .where(eq(campusesTable.id, params.data.id))
+      .returning();
+    if (!campus) {
+      res.status(404).json({ error: "Campus not found" });
+      return;
+    }
+    await logAudit(
+      req.user.id,
+      "update_campus",
+      "campus",
+      campus.id,
+      JSON.stringify(parsed.data),
+    );
+    res.json({
+      ...campus,
+      coordinatorName: null,
+      totalTeams: 0,
+      activeTeams: 0,
+      totalRevenue: 0,
     });
-    return;
-  }
+  },
+);
 
-  // Detach any users (coordinators / students on the roster) currently assigned to this campus.
-  await db
-    .update(usersTable)
-    .set({ campusId: null })
-    .where(eq(usersTable.campusId, params.data.id));
+router.delete(
+  "/campuses/:id",
+  requireAdminPage("/admin/campuses", "delete"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const params = DeleteCampusParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
 
-  await db.delete(campusesTable).where(eq(campusesTable.id, params.data.id));
-  await logAudit(
-    req.user.id,
-    "delete_campus",
-    "campus",
-    params.data.id,
-    campus.name,
-  );
-  res.status(204).end();
-});
+    const [campus] = await db
+      .select()
+      .from(campusesTable)
+      .where(eq(campusesTable.id, params.data.id));
+    if (!campus) {
+      res.status(404).json({ error: "Campus not found" });
+      return;
+    }
+
+    // Block deletion when teams still belong to the campus.
+    const [teamCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(teamsTable)
+      .where(eq(teamsTable.campusId, params.data.id));
+    if (Number(teamCount?.count ?? 0) > 0) {
+      res.status(409).json({
+        error: `Cannot delete this campus. ${teamCount.count} team(s) are still registered here. Move or delete those teams first.`,
+      });
+      return;
+    }
+
+    // Detach any users (coordinators / students on the roster) currently assigned to this campus.
+    await db
+      .update(usersTable)
+      .set({ campusId: null })
+      .where(eq(usersTable.campusId, params.data.id));
+
+    await db.delete(campusesTable).where(eq(campusesTable.id, params.data.id));
+    await logAudit(
+      req.user.id,
+      "delete_campus",
+      "campus",
+      params.data.id,
+      campus.name,
+    );
+    res.status(204).end();
+  },
+);
 
 export default router;

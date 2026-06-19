@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, sql, or, ne, inArray, notInArray } from "drizzle-orm";
 import { getProjectClientCount } from "../lib/project-stats";
+import { requireAdminPage } from "../lib/require-admin-page";
 import {
   getTeamMemberLimit,
   getTeamMemberCount,
@@ -902,487 +903,528 @@ router.get("/teams/:id", async (req, res): Promise<void> => {
   res.json({ ...teamDetail, projects: projectsWithStats });
 });
 
-router.patch("/teams/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const params = UpdateTeamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = UpdateTeamBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  // Authorization: admins/coordinators can edit any team; otherwise only the
-  // current team leader may edit their own team. Previously this endpoint
-  // accepted any authenticated user, which let regular members rename or
-  // change the photo of teams they were not even on.
-  const [existingTeam] = await db
-    .select()
-    .from(teamsTable)
-    .where(eq(teamsTable.id, params.data.id));
-  if (!existingTeam) {
-    res.status(404).json({ error: "Team not found" });
-    return;
-  }
-  const isStaff = req.user.role === "admin" || req.user.role === "coordinator";
-  const isLeader = existingTeam.leaderId === req.user.id;
-  if (!isStaff && !isLeader) {
-    res.status(403).json({
-      error:
-        "Only the team leader, a coordinator, or an admin can edit this team.",
-    });
-    return;
-  }
+router.patch(
+  "/teams/:id",
+  requireAdminPage("/admin/teams", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const params = UpdateTeamParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = UpdateTeamBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    // Authorization: admins/coordinators can edit any team; otherwise only the
+    // current team leader may edit their own team. Previously this endpoint
+    // accepted any authenticated user, which let regular members rename or
+    // change the photo of teams they were not even on.
+    const [existingTeam] = await db
+      .select()
+      .from(teamsTable)
+      .where(eq(teamsTable.id, params.data.id));
+    if (!existingTeam) {
+      res.status(404).json({ error: "Team not found" });
+      return;
+    }
+    const isStaff =
+      req.user.role === "admin" || req.user.role === "coordinator";
+    const isLeader = existingTeam.leaderId === req.user.id;
+    if (!isStaff && !isLeader) {
+      res.status(403).json({
+        error:
+          "Only the team leader, a coordinator, or an admin can edit this team.",
+      });
+      return;
+    }
 
-  const { reason, ...updateData } = parsed.data;
-  const [team] = await db
-    .update(teamsTable)
-    .set(updateData)
-    .where(eq(teamsTable.id, params.data.id))
-    .returning();
-  if (!team) {
-    res.status(404).json({ error: "Team not found" });
-    return;
-  }
-  if (req.user.role === "admin") {
+    const { reason, ...updateData } = parsed.data;
+    const [team] = await db
+      .update(teamsTable)
+      .set(updateData)
+      .where(eq(teamsTable.id, params.data.id))
+      .returning();
+    if (!team) {
+      res.status(404).json({ error: "Team not found" });
+      return;
+    }
+    if (req.user.role === "admin") {
+      await logAudit(
+        req.user.id,
+        "update_team",
+        "team",
+        team.id,
+        reason ?? JSON.stringify(updateData),
+      );
+    }
+    const teamData = await getTeamWithStats(team.id);
+    res.json(teamData);
+  },
+);
+
+router.delete(
+  "/teams/:id",
+  requireAdminPage("/admin/teams", "delete"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    // Reuse GetTeamParams – same shape (id: integer path param) and avoids minting a new schema.
+    const params = GetTeamParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const teamId = params.data.id;
+    const userId = req.user.id;
+
+    // Wrap the entire cascade in a single transaction so a mid-sequence failure
+    // rolls back cleanly. We also lock the team row up-front (FOR UPDATE) so
+    // concurrent writers cannot insert new child rows while we are tearing the
+    // team down — eliminating the race window of orphaned rows in this no-FK
+    // schema.
+    let teamName: string | null = null;
+    let blockedReason: string | null = null;
+    try {
+      teamName = await db.transaction(async (tx) => {
+        const [team] = await tx
+          .select()
+          .from(teamsTable)
+          .where(eq(teamsTable.id, teamId))
+          .for("update");
+
+        if (!team) return null;
+
+        // Authorization inside the lock so we authorize against the
+        // post-lock leader and so leaders can delete their own team.
+        const isAdmin = req.user.role === "admin";
+        const isLeader = team.leaderId === userId;
+        if (!isAdmin && !isLeader) {
+          blockedReason = "forbidden";
+          return null;
+        }
+
+        // Leaders may only delete a team that has no submitted/verified entries
+        // — preserves auditable financial history. Admins keep their wider
+        // override (cascade everything).
+        if (!isAdmin) {
+          const [revHit] = await tx
+            .select({ id: revenueEntriesTable.id })
+            .from(revenueEntriesTable)
+            .where(
+              and(
+                eq(revenueEntriesTable.teamId, teamId),
+                sql`status in ('submitted', 'verified')`,
+              ),
+            )
+            .limit(1);
+          if (revHit) {
+            blockedReason = "has_revenue";
+            return null;
+          }
+          const [obHit] = await tx
+            .select({ id: orderBookEntriesTable.id })
+            .from(orderBookEntriesTable)
+            .where(
+              and(
+                eq(orderBookEntriesTable.teamId, teamId),
+                sql`status in ('submitted', 'verified')`,
+              ),
+            )
+            .limit(1);
+          if (obHit) {
+            blockedReason = "has_orderbook";
+            return null;
+          }
+        }
+
+        await tx
+          .delete(orderBookEntriesTable)
+          .where(eq(orderBookEntriesTable.teamId, teamId));
+        await tx
+          .delete(revenueEntriesTable)
+          .where(eq(revenueEntriesTable.teamId, teamId));
+        await tx.delete(projectsTable).where(eq(projectsTable.teamId, teamId));
+        await tx
+          .delete(milestonesTable)
+          .where(eq(milestonesTable.teamId, teamId));
+        await tx
+          .delete(demoDayApplicationsTable)
+          .where(eq(demoDayApplicationsTable.teamId, teamId));
+        await tx
+          .delete(teamInvitationsTable)
+          .where(eq(teamInvitationsTable.teamId, teamId));
+        await tx
+          .delete(teamJoinRequestsTable)
+          .where(eq(teamJoinRequestsTable.teamId, teamId));
+        await tx
+          .delete(teamLeaveRequestsTable)
+          .where(eq(teamLeaveRequestsTable.teamId, teamId));
+        // Drop any pending admin-approval requests for this team. Without this
+        // they would linger in /admin/team-requests as un-actionable "leaving
+        // Unknown" cards that error with "Team no longer exists" on approve.
+        await tx
+          .delete(membershipRequestsTable)
+          .where(
+            and(
+              eq(membershipRequestsTable.teamId, teamId),
+              eq(membershipRequestsTable.status, "pending"),
+            ),
+          );
+        await tx
+          .delete(teamMembersTable)
+          .where(eq(teamMembersTable.teamId, teamId));
+        await tx
+          .delete(announcementsTable)
+          .where(
+            and(
+              eq(announcementsTable.target, "team"),
+              eq(announcementsTable.teamId, teamId),
+            ),
+          );
+
+        await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
+
+        return team.name;
+      });
+    } catch (err) {
+      res.status(500).json({
+        error: "Failed to delete team",
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+
+    if (teamName === null) {
+      if (blockedReason === "forbidden") {
+        res.status(403).json({
+          error: "Only the team leader or an admin can delete this team.",
+        });
+        return;
+      }
+      if (blockedReason === "has_revenue") {
+        res.status(409).json({
+          error:
+            "This team has submitted or verified revenue entries. Only an admin can delete a team with reviewed revenue.",
+        });
+        return;
+      }
+      if (blockedReason === "has_orderbook") {
+        res.status(409).json({
+          error:
+            "This team has submitted or verified order book entries. Only an admin can delete a team with reviewed orders.",
+        });
+        return;
+      }
+      res.status(404).json({ error: "Team not found" });
+      return;
+    }
+
+    await logAudit(userId, "delete_team", "team", teamId, teamName);
+    res.status(204).end();
+  },
+);
+
+router.post(
+  "/teams/:id/reject",
+  requireAdminPage("/admin/teams", "edit"),
+  async (req, res): Promise<void> => {
+    if (
+      !req.isAuthenticated() ||
+      !["coordinator", "admin"].includes(req.user.role ?? "")
+    ) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const params = RejectTeamParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = RejectTeamBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    // Auto-approve flow: only pending teams can be rejected. Active/rejected/
+    // changes_requested teams are off-limits — reject is a registration-time
+    // gate, not a way to re-state an active team.
+    const [team] = await db
+      .update(teamsTable)
+      .set({ status: "rejected", rejectionReason: parsed.data.reason })
+      .where(
+        and(
+          eq(teamsTable.id, params.data.id),
+          eq(teamsTable.status, "pending"),
+        ),
+      )
+      .returning();
+    if (!team) {
+      res
+        .status(404)
+        .json({ error: "Team not found or not in a pending state" });
+      return;
+    }
+    await createNotification(
+      team.leaderId,
+      "Team Registration Rejected",
+      `Your team "${team.name}" was rejected: ${parsed.data.reason}`,
+      "team_rejected",
+      "/team",
+    );
     await logAudit(
       req.user.id,
-      "update_team",
+      "reject_team",
       "team",
       team.id,
-      reason ?? JSON.stringify(updateData),
+      parsed.data.reason,
     );
-  }
-  const teamData = await getTeamWithStats(team.id);
-  res.json(teamData);
-});
+    const teamData = await getTeamWithStats(team.id);
+    res.json(teamData);
+  },
+);
 
-router.delete("/teams/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  // Reuse GetTeamParams – same shape (id: integer path param) and avoids minting a new schema.
-  const params = GetTeamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const teamId = params.data.id;
-  const userId = req.user.id;
+router.post(
+  "/teams/:id/request-changes",
+  requireAdminPage("/admin/teams", "edit"),
+  async (req, res): Promise<void> => {
+    if (
+      !req.isAuthenticated() ||
+      !["coordinator", "admin"].includes(req.user.role ?? "")
+    ) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const params = RequestTeamChangesParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = RequestTeamChangesBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    // Auto-approve flow: only pending teams can have changes requested.
+    const [team] = await db
+      .update(teamsTable)
+      .set({
+        status: "changes_requested",
+        coordinatorComment: parsed.data.comment,
+      })
+      .where(
+        and(
+          eq(teamsTable.id, params.data.id),
+          eq(teamsTable.status, "pending"),
+        ),
+      )
+      .returning();
+    if (!team) {
+      res
+        .status(404)
+        .json({ error: "Team not found or not in a pending state" });
+      return;
+    }
+    await createNotification(
+      team.leaderId,
+      "Changes Requested",
+      `Changes requested for team "${team.name}": ${parsed.data.comment}`,
+      "team_changes_requested",
+      "/team",
+    );
+    const teamData = await getTeamWithStats(team.id);
+    res.json(teamData);
+  },
+);
 
-  // Wrap the entire cascade in a single transaction so a mid-sequence failure
-  // rolls back cleanly. We also lock the team row up-front (FOR UPDATE) so
-  // concurrent writers cannot insert new child rows while we are tearing the
-  // team down — eliminating the race window of orphaned rows in this no-FK
-  // schema.
-  let teamName: string | null = null;
-  let blockedReason: string | null = null;
-  try {
-    teamName = await db.transaction(async (tx) => {
-      const [team] = await tx
-        .select()
-        .from(teamsTable)
-        .where(eq(teamsTable.id, teamId))
-        .for("update");
-
-      if (!team) return null;
-
-      // Authorization inside the lock so we authorize against the
-      // post-lock leader and so leaders can delete their own team.
-      const isAdmin = req.user.role === "admin";
-      const isLeader = team.leaderId === userId;
-      if (!isAdmin && !isLeader) {
-        blockedReason = "forbidden";
-        return null;
-      }
-
-      // Leaders may only delete a team that has no submitted/verified entries
-      // — preserves auditable financial history. Admins keep their wider
-      // override (cascade everything).
-      if (!isAdmin) {
-        const [revHit] = await tx
-          .select({ id: revenueEntriesTable.id })
-          .from(revenueEntriesTable)
-          .where(
-            and(
-              eq(revenueEntriesTable.teamId, teamId),
-              sql`status in ('submitted', 'verified')`,
-            ),
-          )
-          .limit(1);
-        if (revHit) {
-          blockedReason = "has_revenue";
-          return null;
-        }
-        const [obHit] = await tx
-          .select({ id: orderBookEntriesTable.id })
-          .from(orderBookEntriesTable)
-          .where(
-            and(
-              eq(orderBookEntriesTable.teamId, teamId),
-              sql`status in ('submitted', 'verified')`,
-            ),
-          )
-          .limit(1);
-        if (obHit) {
-          blockedReason = "has_orderbook";
-          return null;
-        }
-      }
-
-      await tx
-        .delete(orderBookEntriesTable)
-        .where(eq(orderBookEntriesTable.teamId, teamId));
-      await tx
-        .delete(revenueEntriesTable)
-        .where(eq(revenueEntriesTable.teamId, teamId));
-      await tx.delete(projectsTable).where(eq(projectsTable.teamId, teamId));
-      await tx
-        .delete(milestonesTable)
-        .where(eq(milestonesTable.teamId, teamId));
-      await tx
-        .delete(demoDayApplicationsTable)
-        .where(eq(demoDayApplicationsTable.teamId, teamId));
-      await tx
-        .delete(teamInvitationsTable)
-        .where(eq(teamInvitationsTable.teamId, teamId));
-      await tx
-        .delete(teamJoinRequestsTable)
-        .where(eq(teamJoinRequestsTable.teamId, teamId));
-      await tx
-        .delete(teamLeaveRequestsTable)
-        .where(eq(teamLeaveRequestsTable.teamId, teamId));
-      // Drop any pending admin-approval requests for this team. Without this
-      // they would linger in /admin/team-requests as un-actionable "leaving
-      // Unknown" cards that error with "Team no longer exists" on approve.
-      await tx
-        .delete(membershipRequestsTable)
-        .where(
-          and(
-            eq(membershipRequestsTable.teamId, teamId),
-            eq(membershipRequestsTable.status, "pending"),
-          ),
-        );
-      await tx
-        .delete(teamMembersTable)
-        .where(eq(teamMembersTable.teamId, teamId));
-      await tx
-        .delete(announcementsTable)
-        .where(
-          and(
-            eq(announcementsTable.target, "team"),
-            eq(announcementsTable.teamId, teamId),
-          ),
-        );
-
-      await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
-
-      return team.name;
-    });
-  } catch (err) {
-    res.status(500).json({
-      error: "Failed to delete team",
-      detail: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-
-  if (teamName === null) {
-    if (blockedReason === "forbidden") {
+router.post(
+  "/teams/:id/members",
+  requireAdminPage("/admin/teams", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({
-        error: "Only the team leader or an admin can delete this team.",
+        error: "Admin only — students must use the team invitation flow.",
       });
       return;
     }
-    if (blockedReason === "has_revenue") {
-      res.status(409).json({
-        error:
-          "This team has submitted or verified revenue entries. Only an admin can delete a team with reviewed revenue.",
+    const params = AddTeamMemberParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = AddTeamMemberBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, parsed.data.email));
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(teamMembersTable)
+      .where(eq(teamMembersTable.userId, user.id));
+    if (existing) {
+      res.status(400).json({ error: "User is already a member of a team" });
+      return;
+    }
+    await db
+      .insert(teamMembersTable)
+      .values({ teamId: params.data.id, userId: user.id });
+    const teamDetail = await getTeamWithStats(params.data.id);
+    res.status(201).json({ ...teamDetail, projects: [] });
+  },
+);
+
+router.delete(
+  "/teams/:id/members/:userId",
+  requireAdminPage("/admin/teams", "delete"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const params = RemoveTeamMemberParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const [team] = await db
+      .select()
+      .from(teamsTable)
+      .where(eq(teamsTable.id, params.data.id));
+    if (!team) {
+      res.status(404).json({ error: "Team not found" });
+      return;
+    }
+    const isAdmin = req.user.role === "admin";
+    const isLeader = team.leaderId === req.user.id;
+    if (!isAdmin && !isLeader) {
+      res
+        .status(403)
+        .json({
+          error: "Only the team leader or an admin can remove members.",
+        });
+      return;
+    }
+    // A leader cannot remove themselves through this endpoint
+    if (isLeader && !isAdmin && params.data.userId === req.user.id) {
+      res.status(400).json({
+        error: "You cannot remove yourself. Transfer leadership first.",
       });
       return;
     }
-    if (blockedReason === "has_orderbook") {
-      res.status(409).json({
-        error:
-          "This team has submitted or verified order book entries. Only an admin can delete a team with reviewed orders.",
+    // Prevent removing the team leader
+    if (team.leaderId === params.data.userId) {
+      res.status(400).json({
+        error: "Cannot remove the team leader. Transfer leadership first.",
       });
       return;
     }
-    res.status(404).json({ error: "Team not found" });
-    return;
-  }
-
-  await logAudit(userId, "delete_team", "team", teamId, teamName);
-  res.status(204).end();
-});
-
-router.post("/teams/:id/reject", async (req, res): Promise<void> => {
-  if (
-    !req.isAuthenticated() ||
-    !["coordinator", "admin"].includes(req.user.role ?? "")
-  ) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = RejectTeamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = RejectTeamBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  // Auto-approve flow: only pending teams can be rejected. Active/rejected/
-  // changes_requested teams are off-limits — reject is a registration-time
-  // gate, not a way to re-state an active team.
-  const [team] = await db
-    .update(teamsTable)
-    .set({ status: "rejected", rejectionReason: parsed.data.reason })
-    .where(
-      and(eq(teamsTable.id, params.data.id), eq(teamsTable.status, "pending")),
-    )
-    .returning();
-  if (!team) {
-    res.status(404).json({ error: "Team not found or not in a pending state" });
-    return;
-  }
-  await createNotification(
-    team.leaderId,
-    "Team Registration Rejected",
-    `Your team "${team.name}" was rejected: ${parsed.data.reason}`,
-    "team_rejected",
-    "/team",
-  );
-  await logAudit(
-    req.user.id,
-    "reject_team",
-    "team",
-    team.id,
-    parsed.data.reason,
-  );
-  const teamData = await getTeamWithStats(team.id);
-  res.json(teamData);
-});
-
-router.post("/teams/:id/request-changes", async (req, res): Promise<void> => {
-  if (
-    !req.isAuthenticated() ||
-    !["coordinator", "admin"].includes(req.user.role ?? "")
-  ) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = RequestTeamChangesParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = RequestTeamChangesBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  // Auto-approve flow: only pending teams can have changes requested.
-  const [team] = await db
-    .update(teamsTable)
-    .set({
-      status: "changes_requested",
-      coordinatorComment: parsed.data.comment,
-    })
-    .where(
-      and(eq(teamsTable.id, params.data.id), eq(teamsTable.status, "pending")),
-    )
-    .returning();
-  if (!team) {
-    res.status(404).json({ error: "Team not found or not in a pending state" });
-    return;
-  }
-  await createNotification(
-    team.leaderId,
-    "Changes Requested",
-    `Changes requested for team "${team.name}": ${parsed.data.comment}`,
-    "team_changes_requested",
-    "/team",
-  );
-  const teamData = await getTeamWithStats(team.id);
-  res.json(teamData);
-});
-
-router.post("/teams/:id/members", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({
-      error: "Admin only — students must use the team invitation flow.",
-    });
-    return;
-  }
-  const params = AddTeamMemberParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = AddTeamMemberBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.email, parsed.data.email));
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  const [existing] = await db
-    .select()
-    .from(teamMembersTable)
-    .where(eq(teamMembersTable.userId, user.id));
-  if (existing) {
-    res.status(400).json({ error: "User is already a member of a team" });
-    return;
-  }
-  await db
-    .insert(teamMembersTable)
-    .values({ teamId: params.data.id, userId: user.id });
-  const teamDetail = await getTeamWithStats(params.data.id);
-  res.status(201).json({ ...teamDetail, projects: [] });
-});
-
-router.delete("/teams/:id/members/:userId", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const params = RemoveTeamMemberParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const [team] = await db
-    .select()
-    .from(teamsTable)
-    .where(eq(teamsTable.id, params.data.id));
-  if (!team) {
-    res.status(404).json({ error: "Team not found" });
-    return;
-  }
-  const isAdmin = req.user.role === "admin";
-  const isLeader = team.leaderId === req.user.id;
-  if (!isAdmin && !isLeader) {
-    res
-      .status(403)
-      .json({ error: "Only the team leader or an admin can remove members." });
-    return;
-  }
-  // A leader cannot remove themselves through this endpoint
-  if (isLeader && !isAdmin && params.data.userId === req.user.id) {
-    res.status(400).json({
-      error: "You cannot remove yourself. Transfer leadership first.",
-    });
-    return;
-  }
-  // Prevent removing the team leader
-  if (team.leaderId === params.data.userId) {
-    res.status(400).json({
-      error: "Cannot remove the team leader. Transfer leadership first.",
-    });
-    return;
-  }
-  // Confirm the target is actually a member of this team
-  const [membership] = await db
-    .select()
-    .from(teamMembersTable)
-    .where(
-      and(
-        eq(teamMembersTable.teamId, params.data.id),
-        eq(teamMembersTable.userId, params.data.userId),
-      ),
-    );
-  if (!membership) {
-    res.status(404).json({ error: "That user is not a member of this team." });
-    return;
-  }
-  // Admin approval gate: a team leader removing a member no longer removes them
-  // instantly — it records a pending request for an admin to approve. Admin
-  // direct removals stay instant (handled by the branch below).
-  if (!isAdmin) {
-    const alreadyPending = await findPendingRequestForUser(params.data.userId);
-    if (alreadyPending) {
-      res.status(409).json({
-        error:
-          "There is already a membership request for this student awaiting admin approval.",
+    // Confirm the target is actually a member of this team
+    const [membership] = await db
+      .select()
+      .from(teamMembersTable)
+      .where(
+        and(
+          eq(teamMembersTable.teamId, params.data.id),
+          eq(teamMembersTable.userId, params.data.userId),
+        ),
+      );
+    if (!membership) {
+      res
+        .status(404)
+        .json({ error: "That user is not a member of this team." });
+      return;
+    }
+    // Admin approval gate: a team leader removing a member no longer removes them
+    // instantly — it records a pending request for an admin to approve. Admin
+    // direct removals stay instant (handled by the branch below).
+    if (!isAdmin) {
+      const alreadyPending = await findPendingRequestForUser(
+        params.data.userId,
+      );
+      if (alreadyPending) {
+        res.status(409).json({
+          error:
+            "There is already a membership request for this student awaiting admin approval.",
+        });
+        return;
+      }
+      const result = await createMembershipRequest({
+        type: "leader_remove",
+        teamId: team.id,
+        targetUserId: params.data.userId,
+        actorUserId: req.user.id,
+        campusId: team.campusId,
       });
-      return;
-    }
-    const result = await createMembershipRequest({
-      type: "leader_remove",
-      teamId: team.id,
-      targetUserId: params.data.userId,
-      actorUserId: req.user.id,
-      campusId: team.campusId,
-    });
-    if (result.kind === "error") {
-      res.status(result.status).json({ error: result.error });
-      return;
-    }
-    if (result.kind === "applied") {
-      res.status(200).json({
-        status: "applied",
+      if (result.kind === "error") {
+        res.status(result.status).json({ error: result.error });
+        return;
+      }
+      if (result.kind === "applied") {
+        res.status(200).json({
+          status: "applied",
+          requestId: result.request.id,
+          message: "The member has been removed from the team.",
+        });
+        return;
+      }
+      res.status(202).json({
+        status: "pending_approval",
         requestId: result.request.id,
-        message: "The member has been removed from the team.",
+        message:
+          "Removal request sent for admin approval. The member stays until approved.",
       });
       return;
     }
-    res.status(202).json({
-      status: "pending_approval",
-      requestId: result.request.id,
-      message:
-        "Removal request sent for admin approval. The member stays until approved.",
-    });
-    return;
-  }
-  await db
-    .delete(teamMembersTable)
-    .where(
-      and(
-        eq(teamMembersTable.teamId, params.data.id),
-        eq(teamMembersTable.userId, params.data.userId),
-      ),
+    await db
+      .delete(teamMembersTable)
+      .where(
+        and(
+          eq(teamMembersTable.teamId, params.data.id),
+          eq(teamMembersTable.userId, params.data.userId),
+        ),
+      );
+    const [removedUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, params.data.userId));
+    await logAudit(
+      req.user.id,
+      "team_member_removed",
+      "team",
+      team.id,
+      JSON.stringify({
+        removedUserId: params.data.userId,
+        removedUserEmail: removedUser?.email ?? null,
+        removedUserName: fullName(removedUser),
+        removedBy: isAdmin ? "admin" : "leader",
+      }),
     );
-  const [removedUser] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, params.data.userId));
-  await logAudit(
-    req.user.id,
-    "team_member_removed",
-    "team",
-    team.id,
-    JSON.stringify({
-      removedUserId: params.data.userId,
-      removedUserEmail: removedUser?.email ?? null,
-      removedUserName: fullName(removedUser),
-      removedBy: isAdmin ? "admin" : "leader",
-    }),
-  );
-  await createNotification(
-    params.data.userId,
-    "Removed from team",
-    `You were removed from "${team.name}".`,
-    "team_member_removed",
-    "/",
-  );
-  const teamDetail = await getTeamWithStats(params.data.id);
-  res.json({ ...teamDetail, projects: [] });
-});
+    await createNotification(
+      params.data.userId,
+      "Removed from team",
+      `You were removed from "${team.name}".`,
+      "team_member_removed",
+      "/",
+    );
+    const teamDetail = await getTeamWithStats(params.data.id);
+    res.json({ ...teamDetail, projects: [] });
+  },
+);
 
 router.post(
   "/teams/:id/transfer-leadership",

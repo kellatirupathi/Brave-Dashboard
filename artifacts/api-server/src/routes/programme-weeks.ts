@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
 import { db, programmeWeeksTable, programmeConfigTable } from "@workspace/db";
 import { z } from "zod/v4";
+import { requireAdminPage } from "../lib/require-admin-page";
 
 /**
  * Helper used by Module 5 cron and the heatmap manual-remind endpoint to
@@ -211,6 +212,7 @@ router.get("/admin/programme-weeks", async (req, res): Promise<void> => {
 // Admin: rebuild from current programme_config (call after editing start/end).
 router.post(
   "/admin/programme-weeks/regenerate",
+  requireAdminPage("/admin/journals", "edit"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });
@@ -226,36 +228,41 @@ const ToggleBody = z.object({
 });
 
 // Admin: flip a single week's toggle (sets manualOverride=true so cron won't undo it).
-router.patch("/admin/programme-weeks/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const parsed = ToggleBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [updated] = await db
-    .update(programmeWeeksTable)
-    .set({ isOpen: parsed.data.isOpen, manualOverride: true })
-    .where(eq(programmeWeeksTable.id, id))
-    .returning();
-  if (!updated) {
-    res.status(404).json({ error: "Week not found" });
-    return;
-  }
-  res.json(updated);
-});
+router.patch(
+  "/admin/programme-weeks/:id",
+  requireAdminPage("/admin/journals", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = ToggleBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [updated] = await db
+      .update(programmeWeeksTable)
+      .set({ isOpen: parsed.data.isOpen, manualOverride: true })
+      .where(eq(programmeWeeksTable.id, id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Week not found" });
+      return;
+    }
+    res.json(updated);
+  },
+);
 
 // Admin: clear manual override on a week (cron resumes auto-control).
 router.post(
   "/admin/programme-weeks/:id/clear-override",
+  requireAdminPage("/admin/journals", "edit"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });
@@ -304,60 +311,64 @@ const ReminderSettingsBody = z.object({
   allowPastWeekEdits: z.boolean().optional(),
 });
 
-router.patch("/admin/reminder-settings", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = ReminderSettingsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  if (
-    parsed.data.notificationsEnabled === undefined &&
-    parsed.data.emailsEnabled === undefined &&
-    parsed.data.coordinatorNotificationsEnabled === undefined &&
-    parsed.data.allowPastWeekEdits === undefined
-  ) {
-    res.status(400).json({ error: "Provide at least one toggle" });
-    return;
-  }
+router.patch(
+  "/admin/reminder-settings",
+  requireAdminPage("/admin/journals", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = ReminderSettingsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    if (
+      parsed.data.notificationsEnabled === undefined &&
+      parsed.data.emailsEnabled === undefined &&
+      parsed.data.coordinatorNotificationsEnabled === undefined &&
+      parsed.data.allowPastWeekEdits === undefined
+    ) {
+      res.status(400).json({ error: "Provide at least one toggle" });
+      return;
+    }
 
-  // Ensure a programme_config row exists.
-  let configs = await db.select().from(programmeConfigTable).limit(1);
-  if (configs.length === 0) {
-    const [created] = await db
-      .insert(programmeConfigTable)
-      .values({})
-      .returning();
-    configs = [created];
-  }
+    // Ensure a programme_config row exists.
+    let configs = await db.select().from(programmeConfigTable).limit(1);
+    if (configs.length === 0) {
+      const [created] = await db
+        .insert(programmeConfigTable)
+        .values({})
+        .returning();
+      configs = [created];
+    }
 
-  const update: Partial<typeof programmeConfigTable.$inferInsert> = {};
-  if (parsed.data.notificationsEnabled !== undefined) {
-    update.reminderNotificationsEnabled = parsed.data.notificationsEnabled;
-  }
-  if (parsed.data.emailsEnabled !== undefined) {
-    update.reminderEmailsEnabled = parsed.data.emailsEnabled;
-  }
-  if (parsed.data.coordinatorNotificationsEnabled !== undefined) {
-    update.coordinatorNotificationsEnabled =
-      parsed.data.coordinatorNotificationsEnabled;
-  }
-  if (parsed.data.allowPastWeekEdits !== undefined) {
-    update.allowPastWeekEdits = parsed.data.allowPastWeekEdits;
-  }
+    const update: Partial<typeof programmeConfigTable.$inferInsert> = {};
+    if (parsed.data.notificationsEnabled !== undefined) {
+      update.reminderNotificationsEnabled = parsed.data.notificationsEnabled;
+    }
+    if (parsed.data.emailsEnabled !== undefined) {
+      update.reminderEmailsEnabled = parsed.data.emailsEnabled;
+    }
+    if (parsed.data.coordinatorNotificationsEnabled !== undefined) {
+      update.coordinatorNotificationsEnabled =
+        parsed.data.coordinatorNotificationsEnabled;
+    }
+    if (parsed.data.allowPastWeekEdits !== undefined) {
+      update.allowPastWeekEdits = parsed.data.allowPastWeekEdits;
+    }
 
-  await db
-    .update(programmeConfigTable)
-    .set(update)
-    .where(eq(programmeConfigTable.id, configs[0].id));
+    await db
+      .update(programmeConfigTable)
+      .set(update)
+      .where(eq(programmeConfigTable.id, configs[0].id));
 
-  const settings = await getReminderSettings();
-  const allowPastWeekEdits = await getAllowPastWeekEdits();
-  res.json({ ...settings, allowPastWeekEdits });
-});
+    const settings = await getReminderSettings();
+    const allowPastWeekEdits = await getAllowPastWeekEdits();
+    res.json({ ...settings, allowPastWeekEdits });
+  },
+);
 
 // Student-facing: list of weeks that are currently open for journal submission.
 router.get("/journals/open-weeks", async (req, res): Promise<void> => {

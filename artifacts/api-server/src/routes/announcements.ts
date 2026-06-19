@@ -16,6 +16,7 @@ import {
   DismissAnnouncementParams,
 } from "@workspace/api-zod";
 import { createNotification } from "../lib/notifications";
+import { requireAdminPage } from "../lib/require-admin-page";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import { renderAnnouncementEmail } from "../lib/email/templates/announcement";
 import { logger } from "../lib/logger";
@@ -317,89 +318,92 @@ router.get("/announcements/pinned", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/announcements", async (req, res): Promise<void> => {
-  if (
-    !req.isAuthenticated() ||
-    !["coordinator", "admin"].includes(req.user.role ?? "")
-  ) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = CreateAnnouncementBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const audienceErr = validateAudience(parsed.data);
-  if (audienceErr) {
-    res.status(400).json({ error: audienceErr });
-    return;
-  }
-  // Normalize: when target=all, drop any stray campus/team ids so audience
-  // resolution and notification fan-out cannot match the wrong scope.
-  const normalized = {
-    ...parsed.data,
-    campusId:
-      parsed.data.target === "all" ? null : (parsed.data.campusId ?? null),
-    teamId: parsed.data.target === "team" ? (parsed.data.teamId ?? null) : null,
-  };
-  const [announcement] = await db
-    .insert(announcementsTable)
-    .values({ ...normalized, authorId: req.user.id })
-    .returning();
-  const [author] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, req.user.id));
+router.post(
+  "/announcements",
+  requireAdminPage("/admin/announcements", "edit"),
+  async (req, res): Promise<void> => {
+    if (
+      !req.isAuthenticated() ||
+      !["coordinator", "admin"].includes(req.user.role ?? "")
+    ) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = CreateAnnouncementBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const audienceErr = validateAudience(parsed.data);
+    if (audienceErr) {
+      res.status(400).json({ error: audienceErr });
+      return;
+    }
+    // Normalize: when target=all, drop any stray campus/team ids so audience
+    // resolution and notification fan-out cannot match the wrong scope.
+    const normalized = {
+      ...parsed.data,
+      campusId:
+        parsed.data.target === "all" ? null : (parsed.data.campusId ?? null),
+      teamId:
+        parsed.data.target === "team" ? (parsed.data.teamId ?? null) : null,
+    };
+    const [announcement] = await db
+      .insert(announcementsTable)
+      .values({ ...normalized, authorId: req.user.id })
+      .returning();
+    const [author] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user.id));
 
-  // Fire-and-record the fan-out. We await it so a failure surfaces in logs,
-  // but individual createNotification failures don't block the response.
-  try {
-    await fanOutNotifications(
-      {
-        id: announcement.id,
-        authorId: announcement.authorId,
-        target: announcement.target,
-        campusId: announcement.campusId,
-        teamId: announcement.teamId,
-        title: announcement.title,
-        body: announcement.body,
-      },
-      req.log,
+    // Fire-and-record the fan-out. We await it so a failure surfaces in logs,
+    // but individual createNotification failures don't block the response.
+    try {
+      await fanOutNotifications(
+        {
+          id: announcement.id,
+          authorId: announcement.authorId,
+          target: announcement.target,
+          campusId: announcement.campusId,
+          teamId: announcement.teamId,
+          title: announcement.title,
+          body: announcement.body,
+        },
+        req.log,
+      );
+    } catch (err) {
+      req.log.error(
+        { err, announcementId: announcement.id },
+        "Announcement created but notification fan-out failed",
+      );
+    }
+
+    // Email the same students who got the in-app notification. Detached on
+    // purpose — a large fan-out can take several minutes and must not block
+    // the admin's response. sendEmail() no-ops cleanly if SES is unconfigured.
+    void fanOutAnnouncementEmails({
+      id: announcement.id,
+      authorId: announcement.authorId,
+      target: announcement.target,
+      campusId: announcement.campusId,
+      teamId: announcement.teamId,
+      title: announcement.title,
+      body: announcement.body,
+      authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
+    }).catch((err) =>
+      req.log.error(
+        { err, announcementId: announcement.id },
+        "Announcement email fan-out failed",
+      ),
     );
-  } catch (err) {
-    req.log.error(
-      { err, announcementId: announcement.id },
-      "Announcement created but notification fan-out failed",
-    );
-  }
 
-  // Email the same students who got the in-app notification. Detached on
-  // purpose — a large fan-out can take several minutes and must not block
-  // the admin's response. sendEmail() no-ops cleanly if SES is unconfigured.
-  void fanOutAnnouncementEmails({
-    id: announcement.id,
-    authorId: announcement.authorId,
-    target: announcement.target,
-    campusId: announcement.campusId,
-    teamId: announcement.teamId,
-    title: announcement.title,
-    body: announcement.body,
-    authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
-  }).catch((err) =>
-    req.log.error(
-      { err, announcementId: announcement.id },
-      "Announcement email fan-out failed",
-    ),
-  );
-
-  res
-    .status(201)
-    .json({
+    res.status(201).json({
       ...announcement,
       authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
     });
-});
+  },
+);
 
 // Permanently dismiss a pinned announcement for the current user. Idempotent.
 router.post("/announcements/:id/dismiss", async (req, res): Promise<void> => {
@@ -429,111 +433,119 @@ router.post("/announcements/:id/dismiss", async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
-router.patch("/announcements/:id", async (req, res): Promise<void> => {
-  if (
-    !req.isAuthenticated() ||
-    !["coordinator", "admin"].includes(req.user.role ?? "")
-  ) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = UpdateAnnouncementParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = UpdateAnnouncementBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+router.patch(
+  "/announcements/:id",
+  requireAdminPage("/admin/announcements", "edit"),
+  async (req, res): Promise<void> => {
+    if (
+      !req.isAuthenticated() ||
+      !["coordinator", "admin"].includes(req.user.role ?? "")
+    ) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const params = UpdateAnnouncementParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = UpdateAnnouncementBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
 
-  const [existing] = await db
-    .select()
-    .from(announcementsTable)
-    .where(eq(announcementsTable.id, params.data.id));
-  if (!existing) {
-    res.status(404).json({ error: "Announcement not found" });
-    return;
-  }
-  // Coordinators may only edit their own announcements; admins can edit any.
-  if (req.user.role !== "admin" && existing.authorId !== req.user.id) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+    const [existing] = await db
+      .select()
+      .from(announcementsTable)
+      .where(eq(announcementsTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Announcement not found" });
+      return;
+    }
+    // Coordinators may only edit their own announcements; admins can edit any.
+    if (req.user.role !== "admin" && existing.authorId !== req.user.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
 
-  // Validate audience consistency against the merged result of existing+patch.
-  const merged = {
-    target: parsed.data.target ?? existing.target,
-    campusId:
-      parsed.data.campusId !== undefined
-        ? parsed.data.campusId
-        : existing.campusId,
-    teamId:
-      parsed.data.teamId !== undefined ? parsed.data.teamId : existing.teamId,
-  };
-  const audienceErr = validateAudience(merged);
-  if (audienceErr) {
-    res.status(400).json({ error: audienceErr });
-    return;
-  }
-  // Normalize fields if target is being changed so we never persist stray ids.
-  const updateValues = {
-    ...parsed.data,
-    ...(parsed.data.target !== undefined
-      ? {
-          campusId: merged.target === "all" ? null : merged.campusId,
-          teamId: merged.target === "team" ? merged.teamId : null,
-        }
-      : {}),
-  };
+    // Validate audience consistency against the merged result of existing+patch.
+    const merged = {
+      target: parsed.data.target ?? existing.target,
+      campusId:
+        parsed.data.campusId !== undefined
+          ? parsed.data.campusId
+          : existing.campusId,
+      teamId:
+        parsed.data.teamId !== undefined ? parsed.data.teamId : existing.teamId,
+    };
+    const audienceErr = validateAudience(merged);
+    if (audienceErr) {
+      res.status(400).json({ error: audienceErr });
+      return;
+    }
+    // Normalize fields if target is being changed so we never persist stray ids.
+    const updateValues = {
+      ...parsed.data,
+      ...(parsed.data.target !== undefined
+        ? {
+            campusId: merged.target === "all" ? null : merged.campusId,
+            teamId: merged.target === "team" ? merged.teamId : null,
+          }
+        : {}),
+    };
 
-  const [announcement] = await db
-    .update(announcementsTable)
-    .set(updateValues as Partial<typeof announcementsTable.$inferInsert>)
-    .where(eq(announcementsTable.id, params.data.id))
-    .returning();
-  const [author] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, announcement.authorId));
-  res.json({
-    ...announcement,
-    authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
-  });
-});
+    const [announcement] = await db
+      .update(announcementsTable)
+      .set(updateValues as Partial<typeof announcementsTable.$inferInsert>)
+      .where(eq(announcementsTable.id, params.data.id))
+      .returning();
+    const [author] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, announcement.authorId));
+    res.json({
+      ...announcement,
+      authorName: author ? `${author.firstName} ${author.lastName}` : "Admin",
+    });
+  },
+);
 
-router.delete("/announcements/:id", async (req, res): Promise<void> => {
-  if (
-    !req.isAuthenticated() ||
-    !["coordinator", "admin"].includes(req.user.role ?? "")
-  ) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = DeleteAnnouncementParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+router.delete(
+  "/announcements/:id",
+  requireAdminPage("/admin/announcements", "delete"),
+  async (req, res): Promise<void> => {
+    if (
+      !req.isAuthenticated() ||
+      !["coordinator", "admin"].includes(req.user.role ?? "")
+    ) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const params = DeleteAnnouncementParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
 
-  const [existing] = await db
-    .select()
-    .from(announcementsTable)
-    .where(eq(announcementsTable.id, params.data.id));
-  if (!existing) {
-    res.status(404).json({ error: "Announcement not found" });
-    return;
-  }
-  if (req.user.role !== "admin" && existing.authorId !== req.user.id) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+    const [existing] = await db
+      .select()
+      .from(announcementsTable)
+      .where(eq(announcementsTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Announcement not found" });
+      return;
+    }
+    if (req.user.role !== "admin" && existing.authorId !== req.user.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
 
-  await db
-    .delete(announcementsTable)
-    .where(eq(announcementsTable.id, params.data.id));
-  res.status(204).end();
-});
+    await db
+      .delete(announcementsTable)
+      .where(eq(announcementsTable.id, params.data.id));
+    res.status(204).end();
+  },
+);
 
 export default router;

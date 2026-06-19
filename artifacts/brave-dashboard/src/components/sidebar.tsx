@@ -32,7 +32,12 @@ import {
   UserCheck,
   UserPlus,
   GraduationCap,
+  ExternalLink,
 } from "lucide-react";
+
+// Student documentation guide (opens in a new tab from the sidebar bottom).
+const STUDENT_DOCS_URL =
+  "https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?tab=t.0";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { cn } from "@/lib/utils";
@@ -498,6 +503,19 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
               <PlayCircle className="w-3.5 h-3.5" />
               Watch intro video
             </button>
+
+            <a
+              href={STUDENT_DOCS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onNavigate}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              data-testid="link-sidebar-documentation"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span className="flex-1">Documentation</span>
+              <ExternalLink className="w-4 h-4 opacity-70" />
+            </a>
           </div>
         )}
 

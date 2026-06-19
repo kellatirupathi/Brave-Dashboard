@@ -16,6 +16,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR, formatDateTime } from "@/lib/format";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -107,6 +108,9 @@ export default function AdminTeamDetail() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const isAdmin = user?.role === "admin";
+  // Respect the super-admin-controlled per-page delete permission for the
+  // Teams page on this detail view too (API enforces it as well).
+  const { canDelete } = useAdminPageAccess("/admin/teams");
 
   const handleDelete = () => {
     deleteTeam.mutate(
@@ -212,7 +216,7 @@ export default function AdminTeamDetail() {
           >
             {team.status}
           </Badge>
-          {isAdmin && (
+          {isAdmin && canDelete && (
             <Button
               size="sm"
               variant="outline"

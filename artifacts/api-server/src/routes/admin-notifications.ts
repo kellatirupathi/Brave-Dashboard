@@ -4,10 +4,8 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod/v4";
-import {
-  db,
-  overdueNotificationSubscribersTable,
-} from "@workspace/db";
+import { db, overdueNotificationSubscribersTable } from "@workspace/db";
+import { requireAdminPage } from "../lib/require-admin-page";
 
 const router: IRouter = Router();
 
@@ -31,6 +29,7 @@ function isAdmin(
 
 router.get(
   "/admin/notification-subscribers",
+  requireAdminPage("/admin/notifications", "view"),
   async (req, res): Promise<void> => {
     if (!isAdmin(req)) {
       res.status(403).json({ error: "Forbidden" });
@@ -46,6 +45,7 @@ router.get(
 
 router.post(
   "/admin/notification-subscribers",
+  requireAdminPage("/admin/notifications", "edit"),
   async (req, res): Promise<void> => {
     if (!isAdmin(req)) {
       res.status(403).json({ error: "Forbidden" });
@@ -83,6 +83,7 @@ router.post(
 
 router.patch(
   "/admin/notification-subscribers/:id",
+  requireAdminPage("/admin/notifications", "edit"),
   async (req, res): Promise<void> => {
     if (!isAdmin(req)) {
       res.status(403).json({ error: "Forbidden" });
@@ -98,8 +99,9 @@ router.patch(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const update: Partial<typeof overdueNotificationSubscribersTable.$inferInsert> =
-      {};
+    const update: Partial<
+      typeof overdueNotificationSubscribersTable.$inferInsert
+    > = {};
     if (parsed.data.email !== undefined)
       update.email = parsed.data.email.trim().toLowerCase();
     if (parsed.data.name !== undefined) update.name = parsed.data.name;
@@ -124,6 +126,7 @@ router.patch(
 
 router.delete(
   "/admin/notification-subscribers/:id",
+  requireAdminPage("/admin/notifications", "delete"),
   async (req, res): Promise<void> => {
     if (!isAdmin(req)) {
       res.status(403).json({ error: "Forbidden" });

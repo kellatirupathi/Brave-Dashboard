@@ -29,6 +29,7 @@ import {
   UpdateAccessRequestParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { requireAdminPage } from "../lib/require-admin-page";
 import {
   shapeMembershipRequest,
   applyMembershipRequest,
@@ -377,247 +378,257 @@ async function resolveCampusByName(name: string | null | undefined) {
   return campus ?? null;
 }
 
-router.post("/admin/users", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = CreateUserBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const {
-    password,
-    campusName,
-    niatId,
-    batchSectionName,
-    formsUserId,
-    ...userData
-  } = parsed.data;
-
-  // Resolve campusId from name when provided
-  let resolvedCampusId: number | null | undefined = userData.campusId;
-  if (campusName && resolvedCampusId == null) {
-    const c = await resolveCampusByName(campusName);
-    if (!c) {
-      res.status(400).json({ error: `Unknown campus: "${campusName}"` });
+router.post(
+  "/admin/users",
+  requireAdminPage("/admin/users", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
-    resolvedCampusId = c.id;
-  }
-
-  if (userData.role === "admin") {
-    resolvedCampusId = null;
-  } else if (
-    (userData.role === "coordinator" || userData.role === "student") &&
-    resolvedCampusId == null
-  ) {
-    res
-      .status(400)
-      .json({ error: `A ${userData.role} must be assigned to a campus.` });
-    return;
-  }
-
-  const passwordHash = password ? await bcrypt.hash(password, 10) : null;
-  const insertValues: Partial<typeof usersTable.$inferInsert> = {
-    ...userData,
-    campusId: resolvedCampusId ?? null,
-    passwordHash,
-    formsUserId: formsUserId ?? null,
-    provisionedVia: "manual",
-  };
-
-  let user;
-  try {
-    [user] = await db
-      .insert(usersTable)
-      .values(insertValues as typeof usersTable.$inferInsert)
-      .returning();
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("unique") || msg.includes("duplicate")) {
-      res
-        .status(409)
-        .json({ error: "A user with this email or Forms ID already exists." });
+    const parsed = CreateUserBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
       return;
     }
-    throw err;
-  }
+    const {
+      password,
+      campusName,
+      niatId,
+      batchSectionName,
+      formsUserId,
+      ...userData
+    } = parsed.data;
 
-  // For students, also mirror into the roster table so existing
-  // roster-based UI sees them.
-  if (user.role === "student") {
-    const campus = resolvedCampusId
-      ? await db
-          .select()
-          .from(campusesTable)
-          .where(eq(campusesTable.id, resolvedCampusId))
-          .then((r) => r[0])
-      : null;
-    await db
-      .insert(rosterTable)
-      .values({
-        studentId: formsUserId ?? user.id,
-        fullName: `${user.firstName} ${user.lastName}`.trim(),
-        email: user.email,
-        campusName: campus?.name ?? "",
-        campusId: resolvedCampusId ?? null,
-        niatId: niatId ?? null,
-        batchSectionName: batchSectionName ?? null,
-        isWhitelisted: true,
-      })
-      .onConflictDoNothing();
-  }
+    // Resolve campusId from name when provided
+    let resolvedCampusId: number | null | undefined = userData.campusId;
+    if (campusName && resolvedCampusId == null) {
+      const c = await resolveCampusByName(campusName);
+      if (!c) {
+        res.status(400).json({ error: `Unknown campus: "${campusName}"` });
+        return;
+      }
+      resolvedCampusId = c.id;
+    }
 
-  // Mirror the relationship onto campuses.coordinator_id so the Campuses
-  // page reflects the assignment immediately. No-op for non-coordinators.
-  try {
-    await syncCampusCoordinatorLink({
-      userId: user.id,
-      before: null,
-      after: { role: user.role, campusId: user.campusId ?? null },
-    });
-  } catch (err) {
-    req.log.warn(
-      { err, userId: user.id },
-      "Failed to sync campuses.coordinator_id after create_user",
-    );
-  }
-
-  await logAudit(
-    req.user.id,
-    "create_user",
-    "user",
-    undefined,
-    `Created ${user.role} ${user.id}: ${user.email}`,
-  );
-  const {
-    passwordHash: _,
-    isSuperAdmin: _sa,
-    adminPermissions: _ap,
-    ...safe
-  } = user;
-  res.status(201).json({ ...safe, campusName: null });
-});
-
-router.patch("/admin/users/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = UpdateUserParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = UpdateUserBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const updates: typeof parsed.data = { ...parsed.data };
-  if (typeof updates.firstName === "string")
-    updates.firstName = updates.firstName.trim();
-  if (typeof updates.lastName === "string")
-    updates.lastName = updates.lastName.trim();
-  if (typeof updates.email === "string")
-    updates.email = updates.email.trim().toLowerCase();
-  if (typeof updates.niatId === "string") {
-    const v = updates.niatId.trim();
-    updates.niatId = v.length === 0 ? null : v;
-  }
-  if (typeof updates.profileImage === "string") {
-    const v = updates.profileImage.trim();
-    updates.profileImage = v.length === 0 ? null : v;
-  }
-  if (updates.firstName === "") {
-    res.status(400).json({ error: "First name cannot be empty." });
-    return;
-  }
-  if (updates.lastName === "") {
-    res.status(400).json({ error: "Last name cannot be empty." });
-    return;
-  }
-  const [existing] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, params.data.id));
-  if (!existing) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  const finalRole: string = updates.role ?? existing.role;
-  if (finalRole === "admin") {
-    updates.campusId = null;
-  } else if (finalRole === "coordinator" || finalRole === "student") {
-    const finalCampusId =
-      updates.campusId === undefined ? existing.campusId : updates.campusId;
-    if (finalCampusId == null) {
-      const label = finalRole === "coordinator" ? "coordinator" : "student";
+    if (userData.role === "admin") {
+      resolvedCampusId = null;
+    } else if (
+      (userData.role === "coordinator" || userData.role === "student") &&
+      resolvedCampusId == null
+    ) {
       res
         .status(400)
-        .json({ error: `A ${label} must be assigned to a campus.` });
+        .json({ error: `A ${userData.role} must be assigned to a campus.` });
       return;
     }
-  }
-  const [user] = await db
-    .update(usersTable)
-    .set(updates)
-    .where(eq(usersTable.id, params.data.id))
-    .returning();
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  // If role or active status changed, kill the target user's existing
-  // sessions so they can't keep using stale (possibly elevated) permissions.
-  const roleChanged =
-    updates.role !== undefined && updates.role !== existing.role;
-  const activeChanged =
-    updates.isActive !== undefined && updates.isActive !== existing.isActive;
-  if (roleChanged || activeChanged) {
+
+    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+    const insertValues: Partial<typeof usersTable.$inferInsert> = {
+      ...userData,
+      campusId: resolvedCampusId ?? null,
+      passwordHash,
+      formsUserId: formsUserId ?? null,
+      provisionedVia: "manual",
+    };
+
+    let user;
     try {
-      await deleteSessionsForUser(user.id);
+      [user] = await db
+        .insert(usersTable)
+        .values(insertValues as typeof usersTable.$inferInsert)
+        .returning();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("unique") || msg.includes("duplicate")) {
+        res
+          .status(409)
+          .json({
+            error: "A user with this email or Forms ID already exists.",
+          });
+        return;
+      }
+      throw err;
+    }
+
+    // For students, also mirror into the roster table so existing
+    // roster-based UI sees them.
+    if (user.role === "student") {
+      const campus = resolvedCampusId
+        ? await db
+            .select()
+            .from(campusesTable)
+            .where(eq(campusesTable.id, resolvedCampusId))
+            .then((r) => r[0])
+        : null;
+      await db
+        .insert(rosterTable)
+        .values({
+          studentId: formsUserId ?? user.id,
+          fullName: `${user.firstName} ${user.lastName}`.trim(),
+          email: user.email,
+          campusName: campus?.name ?? "",
+          campusId: resolvedCampusId ?? null,
+          niatId: niatId ?? null,
+          batchSectionName: batchSectionName ?? null,
+          isWhitelisted: true,
+        })
+        .onConflictDoNothing();
+    }
+
+    // Mirror the relationship onto campuses.coordinator_id so the Campuses
+    // page reflects the assignment immediately. No-op for non-coordinators.
+    try {
+      await syncCampusCoordinatorLink({
+        userId: user.id,
+        before: null,
+        after: { role: user.role, campusId: user.campusId ?? null },
+      });
     } catch (err) {
       req.log.warn(
         { err, userId: user.id },
-        "Failed to invalidate sessions after role/isActive change",
+        "Failed to sync campuses.coordinator_id after create_user",
       );
     }
-  }
 
-  // Mirror the role/campus change onto campuses.coordinator_id. Handles all
-  // the transition cases: coordinator gaining/losing the role, and a
-  // coordinator switching campuses.
-  try {
-    await syncCampusCoordinatorLink({
-      userId: user.id,
-      before: { role: existing.role, campusId: existing.campusId ?? null },
-      after: { role: user.role, campusId: user.campusId ?? null },
-    });
-  } catch (err) {
-    req.log.warn(
-      { err, userId: user.id },
-      "Failed to sync campuses.coordinator_id after update_user",
+    await logAudit(
+      req.user.id,
+      "create_user",
+      "user",
+      undefined,
+      `Created ${user.role} ${user.id}: ${user.email}`,
     );
-  }
+    const {
+      passwordHash: _,
+      isSuperAdmin: _sa,
+      adminPermissions: _ap,
+      ...safe
+    } = user;
+    res.status(201).json({ ...safe, campusName: null });
+  },
+);
 
-  await logAudit(
-    req.user.id,
-    "update_user",
-    "user",
-    undefined,
-    `${user.id} ${JSON.stringify(updates)}`,
-  );
-  const {
-    passwordHash,
-    isSuperAdmin: _sa,
-    adminPermissions: _ap,
-    ...safe
-  } = user;
-  res.json({ ...safe, campusName: null });
-});
+router.patch(
+  "/admin/users/:id",
+  requireAdminPage("/admin/users", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const params = UpdateUserParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = UpdateUserBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const updates: typeof parsed.data = { ...parsed.data };
+    if (typeof updates.firstName === "string")
+      updates.firstName = updates.firstName.trim();
+    if (typeof updates.lastName === "string")
+      updates.lastName = updates.lastName.trim();
+    if (typeof updates.email === "string")
+      updates.email = updates.email.trim().toLowerCase();
+    if (typeof updates.niatId === "string") {
+      const v = updates.niatId.trim();
+      updates.niatId = v.length === 0 ? null : v;
+    }
+    if (typeof updates.profileImage === "string") {
+      const v = updates.profileImage.trim();
+      updates.profileImage = v.length === 0 ? null : v;
+    }
+    if (updates.firstName === "") {
+      res.status(400).json({ error: "First name cannot be empty." });
+      return;
+    }
+    if (updates.lastName === "") {
+      res.status(400).json({ error: "Last name cannot be empty." });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const finalRole: string = updates.role ?? existing.role;
+    if (finalRole === "admin") {
+      updates.campusId = null;
+    } else if (finalRole === "coordinator" || finalRole === "student") {
+      const finalCampusId =
+        updates.campusId === undefined ? existing.campusId : updates.campusId;
+      if (finalCampusId == null) {
+        const label = finalRole === "coordinator" ? "coordinator" : "student";
+        res
+          .status(400)
+          .json({ error: `A ${label} must be assigned to a campus.` });
+        return;
+      }
+    }
+    const [user] = await db
+      .update(usersTable)
+      .set(updates)
+      .where(eq(usersTable.id, params.data.id))
+      .returning();
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    // If role or active status changed, kill the target user's existing
+    // sessions so they can't keep using stale (possibly elevated) permissions.
+    const roleChanged =
+      updates.role !== undefined && updates.role !== existing.role;
+    const activeChanged =
+      updates.isActive !== undefined && updates.isActive !== existing.isActive;
+    if (roleChanged || activeChanged) {
+      try {
+        await deleteSessionsForUser(user.id);
+      } catch (err) {
+        req.log.warn(
+          { err, userId: user.id },
+          "Failed to invalidate sessions after role/isActive change",
+        );
+      }
+    }
+
+    // Mirror the role/campus change onto campuses.coordinator_id. Handles all
+    // the transition cases: coordinator gaining/losing the role, and a
+    // coordinator switching campuses.
+    try {
+      await syncCampusCoordinatorLink({
+        userId: user.id,
+        before: { role: existing.role, campusId: existing.campusId ?? null },
+        after: { role: user.role, campusId: user.campusId ?? null },
+      });
+    } catch (err) {
+      req.log.warn(
+        { err, userId: user.id },
+        "Failed to sync campuses.coordinator_id after update_user",
+      );
+    }
+
+    await logAudit(
+      req.user.id,
+      "update_user",
+      "user",
+      undefined,
+      `${user.id} ${JSON.stringify(updates)}`,
+    );
+    const {
+      passwordHash,
+      isSuperAdmin: _sa,
+      adminPermissions: _ap,
+      ...safe
+    } = user;
+    res.json({ ...safe, campusName: null });
+  },
+);
 
 // Admin sets a password for any admin / coordinator account. Used both to
 // bootstrap a password on an account that was created SSO-only and to reset
@@ -625,128 +636,136 @@ router.patch("/admin/users/:id", async (req, res): Promise<void> => {
 const AdminSetPasswordBody = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
-router.post("/admin/users/:id/password", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const id = String(req.params.id);
-  const parsed = AdminSetPasswordBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [target] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, id));
-  if (!target) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  if (target.role === "student") {
-    res.status(400).json({ error: "Students sign in via Forms SSO only." });
-    return;
-  }
-  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-  await db
-    .update(usersTable)
-    .set({ passwordHash, updatedAt: new Date() })
-    .where(eq(usersTable.id, id));
-  await logAudit(
-    req.user.id,
-    "set_user_password",
-    "user",
-    undefined,
-    `Set password for ${target.id}`,
-  );
-  res.json({ ok: true });
-});
-
-router.delete("/admin/users/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const id = String(req.params.id);
-  if (id === req.user.id) {
-    res.status(400).json({ error: "You cannot delete your own account." });
-    return;
-  }
-  const [target] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, id));
-  if (!target) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  if (target.role === "admin") {
-    const [{ count: adminCount }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(usersTable)
-      .where(eq(usersTable.role, "admin"));
-    if (Number(adminCount) <= 1) {
-      res
-        .status(400)
-        .json({ error: "Cannot delete the last remaining admin." });
+router.post(
+  "/admin/users/:id/password",
+  requireAdminPage("/admin/users", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
-  }
-  // If this user was the registered coordinator on a campus, clear that
-  // link first so the Campuses page doesn't dangle a reference to a deleted
-  // user. Done before the user delete so the WHERE-by-coordinatorId works.
-  if (target.role === "coordinator" && target.campusId != null) {
-    try {
-      await db
-        .update(campusesTable)
-        .set({ coordinatorId: null, updatedAt: new Date() })
-        .where(
-          and(
-            eq(campusesTable.id, target.campusId),
-            eq(campusesTable.coordinatorId, target.id),
-          ),
+    const id = String(req.params.id);
+    const parsed = AdminSetPasswordBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [target] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, id));
+    if (!target) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (target.role === "student") {
+      res.status(400).json({ error: "Students sign in via Forms SSO only." });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+    await db
+      .update(usersTable)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(usersTable.id, id));
+    await logAudit(
+      req.user.id,
+      "set_user_password",
+      "user",
+      undefined,
+      `Set password for ${target.id}`,
+    );
+    res.json({ ok: true });
+  },
+);
+
+router.delete(
+  "/admin/users/:id",
+  requireAdminPage("/admin/users", "delete"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = String(req.params.id);
+    if (id === req.user.id) {
+      res.status(400).json({ error: "You cannot delete your own account." });
+      return;
+    }
+    const [target] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, id));
+    if (!target) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (target.role === "admin") {
+      const [{ count: adminCount }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(usersTable)
+        .where(eq(usersTable.role, "admin"));
+      if (Number(adminCount) <= 1) {
+        res
+          .status(400)
+          .json({ error: "Cannot delete the last remaining admin." });
+        return;
+      }
+    }
+    // If this user was the registered coordinator on a campus, clear that
+    // link first so the Campuses page doesn't dangle a reference to a deleted
+    // user. Done before the user delete so the WHERE-by-coordinatorId works.
+    if (target.role === "coordinator" && target.campusId != null) {
+      try {
+        await db
+          .update(campusesTable)
+          .set({ coordinatorId: null, updatedAt: new Date() })
+          .where(
+            and(
+              eq(campusesTable.id, target.campusId),
+              eq(campusesTable.coordinatorId, target.id),
+            ),
+          );
+      } catch (err) {
+        req.log.warn(
+          { err, userId: target.id },
+          "Failed to clear campuses.coordinator_id before delete_user",
         );
-    } catch (err) {
-      req.log.warn(
-        { err, userId: target.id },
-        "Failed to clear campuses.coordinator_id before delete_user",
-      );
+      }
     }
-  }
-  await db.delete(usersTable).where(eq(usersTable.id, id));
-  // If this user is also a student on the roster, remove the linked roster row.
-  // Match the SAME entry deterministically: prefer formsUserId, otherwise
-  // email, otherwise both — and always restrict to a single id before deleting.
-  if (target.role === "student") {
-    let rosterMatch: { id: number } | undefined;
-    if (target.formsUserId) {
-      [rosterMatch] = await db
-        .select({ id: rosterTable.id })
-        .from(rosterTable)
-        .where(eq(rosterTable.studentId, target.formsUserId))
-        .limit(1);
+    await db.delete(usersTable).where(eq(usersTable.id, id));
+    // If this user is also a student on the roster, remove the linked roster row.
+    // Match the SAME entry deterministically: prefer formsUserId, otherwise
+    // email, otherwise both — and always restrict to a single id before deleting.
+    if (target.role === "student") {
+      let rosterMatch: { id: number } | undefined;
+      if (target.formsUserId) {
+        [rosterMatch] = await db
+          .select({ id: rosterTable.id })
+          .from(rosterTable)
+          .where(eq(rosterTable.studentId, target.formsUserId))
+          .limit(1);
+      }
+      if (!rosterMatch && target.email) {
+        [rosterMatch] = await db
+          .select({ id: rosterTable.id })
+          .from(rosterTable)
+          .where(eq(rosterTable.email, target.email))
+          .limit(1);
+      }
+      if (rosterMatch) {
+        await db.delete(rosterTable).where(eq(rosterTable.id, rosterMatch.id));
+      }
     }
-    if (!rosterMatch && target.email) {
-      [rosterMatch] = await db
-        .select({ id: rosterTable.id })
-        .from(rosterTable)
-        .where(eq(rosterTable.email, target.email))
-        .limit(1);
-    }
-    if (rosterMatch) {
-      await db.delete(rosterTable).where(eq(rosterTable.id, rosterMatch.id));
-    }
-  }
-  await logAudit(
-    req.user.id,
-    "delete_user",
-    "user",
-    undefined,
-    `Deleted ${target.role} ${target.email}`,
-  );
-  res.json({ ok: true });
-});
+    await logAudit(
+      req.user.id,
+      "delete_user",
+      "user",
+      undefined,
+      `Deleted ${target.role} ${target.email}`,
+    );
+    res.json({ ok: true });
+  },
+);
 
 // Full leaderboard payload with team members for Excel export.
 // Always includes hidden teams. No campus / search filters.
@@ -914,79 +933,97 @@ router.get("/admin/leaderboard-export", async (req, res): Promise<void> => {
 
 // Bulk import / upsert users (admin / coordinator / student) from a parsed CSV.
 // Identity key is forms_user_id. Existing rows are updated; missing rows are created.
-router.post("/admin/users/import-csv", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = ImportUsersCsvBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const rows = parsed.data.rows;
+router.post(
+  "/admin/users/import-csv",
+  requireAdminPage("/admin/users", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = ImportUsersCsvBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const rows = parsed.data.rows;
 
-  // Pre-load all campuses once for fast case-insensitive lookup.
-  const allCampuses = await db.select().from(campusesTable);
-  const campusByName = new Map<string, (typeof allCampuses)[number]>();
-  for (const c of allCampuses) campusByName.set(c.name.trim().toLowerCase(), c);
+    // Pre-load all campuses once for fast case-insensitive lookup.
+    const allCampuses = await db.select().from(campusesTable);
+    const campusByName = new Map<string, (typeof allCampuses)[number]>();
+    for (const c of allCampuses)
+      campusByName.set(c.name.trim().toLowerCase(), c);
 
-  let created = 0;
-  let updated = 0;
-  let failed = 0;
-  const errors: {
-    rowNumber: number;
-    forms_user_id: string | null;
-    message: string;
-  }[] = [];
+    let created = 0;
+    let updated = 0;
+    let failed = 0;
+    const errors: {
+      rowNumber: number;
+      forms_user_id: string | null;
+      message: string;
+    }[] = [];
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const rowNumber = i + 2; // 1 header + 1-indexed
-    try {
-      const formsUserId = String(row.forms_user_id || "").trim();
-      const role = String(row.role || "")
-        .trim()
-        .toLowerCase();
-      const name = String(row.name || "").trim();
-      const email = String(row.email || "")
-        .trim()
-        .toLowerCase();
-      const campusNameRaw = (row.campus_name ?? "").toString().trim();
-      const niatId = (row.niat_id ?? "").toString().trim() || null;
-      const batchSection = (row.batch_section ?? "").toString().trim() || null;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2; // 1 header + 1-indexed
+      try {
+        const formsUserId = String(row.forms_user_id || "").trim();
+        const role = String(row.role || "")
+          .trim()
+          .toLowerCase();
+        const name = String(row.name || "").trim();
+        const email = String(row.email || "")
+          .trim()
+          .toLowerCase();
+        const campusNameRaw = (row.campus_name ?? "").toString().trim();
+        const niatId = (row.niat_id ?? "").toString().trim() || null;
+        const batchSection =
+          (row.batch_section ?? "").toString().trim() || null;
 
-      if (!formsUserId) throw new Error("forms_user_id is required");
-      if (!["admin", "coordinator", "student"].includes(role))
-        throw new Error(
-          `role must be admin | coordinator | student (got "${role}")`,
-        );
-      if (!name) throw new Error("name is required");
-      if (!email || !/^\S+@\S+\.\S+$/.test(email))
-        throw new Error(`invalid email: "${email}"`);
+        if (!formsUserId) throw new Error("forms_user_id is required");
+        if (!["admin", "coordinator", "student"].includes(role))
+          throw new Error(
+            `role must be admin | coordinator | student (got "${role}")`,
+          );
+        if (!name) throw new Error("name is required");
+        if (!email || !/^\S+@\S+\.\S+$/.test(email))
+          throw new Error(`invalid email: "${email}"`);
 
-      let campusId: number | null = null;
-      if (role !== "admin") {
-        if (!campusNameRaw) throw new Error(`${role} requires campus_name`);
-        const campus = campusByName.get(campusNameRaw.toLowerCase());
-        if (!campus) throw new Error(`unknown campus: "${campusNameRaw}"`);
-        campusId = campus.id;
-      }
+        let campusId: number | null = null;
+        if (role !== "admin") {
+          if (!campusNameRaw) throw new Error(`${role} requires campus_name`);
+          const campus = campusByName.get(campusNameRaw.toLowerCase());
+          if (!campus) throw new Error(`unknown campus: "${campusNameRaw}"`);
+          campusId = campus.id;
+        }
 
-      const parts = name.split(/\s+/);
-      const firstName = parts[0] ?? "";
-      const lastName = parts.slice(1).join(" ") || "";
+        const parts = name.split(/\s+/);
+        const firstName = parts[0] ?? "";
+        const lastName = parts.slice(1).join(" ") || "";
 
-      // Upsert by forms_user_id
-      const [existing] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.formsUserId, formsUserId));
+        // Upsert by forms_user_id
+        const [existing] = await db
+          .select()
+          .from(usersTable)
+          .where(eq(usersTable.formsUserId, formsUserId));
 
-      if (existing) {
-        await db
-          .update(usersTable)
-          .set({
+        if (existing) {
+          await db
+            .update(usersTable)
+            .set({
+              email,
+              firstName,
+              lastName,
+              role: role as "admin" | "coordinator" | "student",
+              campusId,
+              isActive: true,
+              provisionedVia: "csv_import",
+            })
+            .where(eq(usersTable.id, existing.id));
+          updated++;
+        } else {
+          await db.insert(usersTable).values({
+            formsUserId,
             email,
             firstName,
             lastName,
@@ -994,78 +1031,66 @@ router.post("/admin/users/import-csv", async (req, res): Promise<void> => {
             campusId,
             isActive: true,
             provisionedVia: "csv_import",
-          })
-          .where(eq(usersTable.id, existing.id));
-        updated++;
-      } else {
-        await db.insert(usersTable).values({
-          formsUserId,
-          email,
-          firstName,
-          lastName,
-          role: role as "admin" | "coordinator" | "student",
-          campusId,
-          isActive: true,
-          provisionedVia: "csv_import",
-        });
-        created++;
-      }
-
-      // Mirror students into the roster table.
-      if (role === "student" && campusId != null) {
-        const campus = allCampuses.find((c) => c.id === campusId);
-        const [existingRoster] = await db
-          .select()
-          .from(rosterTable)
-          .where(eq(rosterTable.studentId, formsUserId));
-        if (existingRoster) {
-          await db
-            .update(rosterTable)
-            .set({
-              fullName: name,
-              email,
-              campusName: campus?.name ?? "",
-              campusId,
-              niatId,
-              batchSectionName: batchSection,
-              isWhitelisted: true,
-            })
-            .where(eq(rosterTable.id, existingRoster.id));
-        } else {
-          await db
-            .insert(rosterTable)
-            .values({
-              studentId: formsUserId,
-              fullName: name,
-              email,
-              campusName: campus?.name ?? "",
-              campusId,
-              niatId,
-              batchSectionName: batchSection,
-              isWhitelisted: true,
-            })
-            .onConflictDoNothing();
+          });
+          created++;
         }
-      }
-    } catch (err) {
-      failed++;
-      errors.push({
-        rowNumber,
-        forms_user_id: row.forms_user_id ? String(row.forms_user_id) : null,
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
 
-  await logAudit(
-    req.user.id,
-    "import_users_csv",
-    "user",
-    undefined,
-    `Imported ${created} created, ${updated} updated, ${failed} failed (of ${rows.length}).`,
-  );
-  res.json({ total: rows.length, created, updated, failed, errors });
-});
+        // Mirror students into the roster table.
+        if (role === "student" && campusId != null) {
+          const campus = allCampuses.find((c) => c.id === campusId);
+          const [existingRoster] = await db
+            .select()
+            .from(rosterTable)
+            .where(eq(rosterTable.studentId, formsUserId));
+          if (existingRoster) {
+            await db
+              .update(rosterTable)
+              .set({
+                fullName: name,
+                email,
+                campusName: campus?.name ?? "",
+                campusId,
+                niatId,
+                batchSectionName: batchSection,
+                isWhitelisted: true,
+              })
+              .where(eq(rosterTable.id, existingRoster.id));
+          } else {
+            await db
+              .insert(rosterTable)
+              .values({
+                studentId: formsUserId,
+                fullName: name,
+                email,
+                campusName: campus?.name ?? "",
+                campusId,
+                niatId,
+                batchSectionName: batchSection,
+                isWhitelisted: true,
+              })
+              .onConflictDoNothing();
+          }
+        }
+      } catch (err) {
+        failed++;
+        errors.push({
+          rowNumber,
+          forms_user_id: row.forms_user_id ? String(row.forms_user_id) : null,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    await logAudit(
+      req.user.id,
+      "import_users_csv",
+      "user",
+      undefined,
+      `Imported ${created} created, ${updated} updated, ${failed} failed (of ${rows.length}).`,
+    );
+    res.json({ total: rows.length, created, updated, failed, errors });
+  },
+);
 
 // Programme Config
 router.get("/admin/programme-config", async (req, res): Promise<void> => {
@@ -1084,39 +1109,45 @@ router.get("/admin/programme-config", async (req, res): Promise<void> => {
   res.json(configs[0]);
 });
 
-router.patch("/admin/programme-config", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = UpdateProgrammeConfigBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  let configs = await db.select().from(programmeConfigTable).limit(1);
-  let config;
-  if (configs.length === 0) {
-    [config] = await db
-      .insert(programmeConfigTable)
-      .values(parsed.data as Partial<typeof programmeConfigTable.$inferInsert>)
-      .returning();
-  } else {
-    [config] = await db
-      .update(programmeConfigTable)
-      .set(parsed.data as Partial<typeof programmeConfigTable.$inferInsert>)
-      .where(eq(programmeConfigTable.id, configs[0].id))
-      .returning();
-  }
-  await logAudit(
-    req.user.id,
-    "update_programme_config",
-    "programme_config",
-    config?.id,
-    JSON.stringify(parsed.data),
-  );
-  res.json(config);
-});
+router.patch(
+  "/admin/programme-config",
+  requireAdminPage("/admin/config", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = UpdateProgrammeConfigBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    let configs = await db.select().from(programmeConfigTable).limit(1);
+    let config;
+    if (configs.length === 0) {
+      [config] = await db
+        .insert(programmeConfigTable)
+        .values(
+          parsed.data as Partial<typeof programmeConfigTable.$inferInsert>,
+        )
+        .returning();
+    } else {
+      [config] = await db
+        .update(programmeConfigTable)
+        .set(parsed.data as Partial<typeof programmeConfigTable.$inferInsert>)
+        .where(eq(programmeConfigTable.id, configs[0].id))
+        .returning();
+    }
+    await logAudit(
+      req.user.id,
+      "update_programme_config",
+      "programme_config",
+      config?.id,
+      JSON.stringify(parsed.data),
+    );
+    res.json(config);
+  },
+);
 
 // Chatbot LLM provider — runtime switch between Cloudflare Workers AI and
 // Cerebras. Admin-only. ADD-only: do not touch existing routes.
@@ -1136,47 +1167,51 @@ router.get("/admin/chatbot-provider", async (req, res): Promise<void> => {
   res.json({ provider: row?.provider ?? "cloudflare" });
 });
 
-router.patch("/admin/chatbot-provider", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = ChatbotProviderBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const newProvider = parsed.data.provider;
+router.patch(
+  "/admin/chatbot-provider",
+  requireAdminPage("/admin/config", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = ChatbotProviderBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const newProvider = parsed.data.provider;
 
-  let configs = await db.select().from(programmeConfigTable).limit(1);
-  const oldProvider = configs[0]?.chatbotProvider ?? "cloudflare";
+    let configs = await db.select().from(programmeConfigTable).limit(1);
+    const oldProvider = configs[0]?.chatbotProvider ?? "cloudflare";
 
-  let config;
-  if (configs.length === 0) {
-    [config] = await db
-      .insert(programmeConfigTable)
-      .values({ chatbotProvider: newProvider })
-      .returning();
-  } else {
-    [config] = await db
-      .update(programmeConfigTable)
-      .set({ chatbotProvider: newProvider })
-      .where(eq(programmeConfigTable.id, configs[0].id))
-      .returning();
-  }
+    let config;
+    if (configs.length === 0) {
+      [config] = await db
+        .insert(programmeConfigTable)
+        .values({ chatbotProvider: newProvider })
+        .returning();
+    } else {
+      [config] = await db
+        .update(programmeConfigTable)
+        .set({ chatbotProvider: newProvider })
+        .where(eq(programmeConfigTable.id, configs[0].id))
+        .returning();
+    }
 
-  invalidateChatbotProviderCache();
+    invalidateChatbotProviderCache();
 
-  await logAudit(
-    req.user.id,
-    "change_chatbot_provider",
-    "programme_config",
-    config?.id,
-    JSON.stringify({ from: oldProvider, to: newProvider }),
-  );
+    await logAudit(
+      req.user.id,
+      "change_chatbot_provider",
+      "programme_config",
+      config?.id,
+      JSON.stringify({ from: oldProvider, to: newProvider }),
+    );
 
-  res.json({ provider: newProvider });
-});
+    res.json({ provider: newProvider });
+  },
+);
 
 // Audit Log
 router.get("/admin/audit-log", async (req, res): Promise<void> => {
@@ -1270,249 +1305,262 @@ router.get("/admin/roster", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/admin/roster", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = AddRosterEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const data = parsed.data;
-  // Resolve campusId from campusName if not provided
-  let campusId = data.campusId ?? null;
-  if (campusId == null && data.campusName) {
-    const c = await resolveCampusByName(data.campusName);
-    if (c) campusId = c.id;
-  }
+router.post(
+  "/admin/roster",
+  requireAdminPage("/admin/roster", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = AddRosterEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const data = parsed.data;
+    // Resolve campusId from campusName if not provided
+    let campusId = data.campusId ?? null;
+    if (campusId == null && data.campusName) {
+      const c = await resolveCampusByName(data.campusName);
+      if (c) campusId = c.id;
+    }
 
-  // Uniqueness on roster is enforced ONLY on studentId. Duplicate emails,
-  // NIAT IDs, and full names are explicitly allowed (multiple students
-  // legitimately share a college mailbox or have the same name).
-  const [existing] = await db
-    .select({ id: rosterTable.id })
-    .from(rosterTable)
-    .where(eq(rosterTable.studentId, data.studentId))
-    .limit(1);
-  if (existing) {
-    res
-      .status(409)
-      .json({ error: "A student with this Student User ID already exists" });
-    return;
-  }
-
-  let entry;
-  try {
-    [entry] = await db
-      .insert(rosterTable)
-      .values({
-        ...data,
-        email: data.email ?? null,
-        campusId,
-        isWhitelisted: data.isWhitelisted ?? true,
-      })
-      .returning();
-  } catch (err: unknown) {
-    // Race: another request inserted the same studentId between the pre-check
-    // and the insert. Surface as a 409 instead of a generic 500.
-    const code = (err as { code?: string } | null)?.code;
-    if (code === "23505") {
+    // Uniqueness on roster is enforced ONLY on studentId. Duplicate emails,
+    // NIAT IDs, and full names are explicitly allowed (multiple students
+    // legitimately share a college mailbox or have the same name).
+    const [existing] = await db
+      .select({ id: rosterTable.id })
+      .from(rosterTable)
+      .where(eq(rosterTable.studentId, data.studentId))
+      .limit(1);
+    if (existing) {
       res
         .status(409)
         .json({ error: "A student with this Student User ID already exists" });
       return;
     }
-    throw err;
-  }
 
-  // Mirror into users table so /admin/users shows the student. Dedup by
-  // formsUserId only — never by email, since multiple students may share
-  // a mailbox. If the admin didn't supply an email, synthesize a unique
-  // placeholder so the (still NOT NULL) users.email column is satisfied
-  // without colliding with any other row.
-  if (data.studentId || data.email) {
-    const nameParts = data.fullName.trim().split(/\s+/);
-    const firstName = nameParts[0] ?? "";
-    const lastName = nameParts.slice(1).join(" ") || "";
-    const userEmail =
-      data.email && data.email.trim().length > 0
-        ? data.email
-        : `sso_${data.studentId}_${Date.now()}@forms.local`;
-    await db
-      .insert(usersTable)
-      .values({
-        formsUserId: data.studentId || null,
-        email: userEmail,
-        firstName,
-        lastName,
-        role: "student",
-        campusId,
-      })
-      .onConflictDoNothing({ target: usersTable.formsUserId });
-  }
+    let entry;
+    try {
+      [entry] = await db
+        .insert(rosterTable)
+        .values({
+          ...data,
+          email: data.email ?? null,
+          campusId,
+          isWhitelisted: data.isWhitelisted ?? true,
+        })
+        .returning();
+    } catch (err: unknown) {
+      // Race: another request inserted the same studentId between the pre-check
+      // and the insert. Surface as a 409 instead of a generic 500.
+      const code = (err as { code?: string } | null)?.code;
+      if (code === "23505") {
+        res
+          .status(409)
+          .json({
+            error: "A student with this Student User ID already exists",
+          });
+        return;
+      }
+      throw err;
+    }
 
-  await logAudit(
-    req.user.id,
-    "create_roster_entry",
-    "roster",
-    entry.id,
-    `Added ${entry.fullName} (${entry.studentId})`,
-  );
-  res.status(201).json(entry);
-});
+    // Mirror into users table so /admin/users shows the student. Dedup by
+    // formsUserId only — never by email, since multiple students may share
+    // a mailbox. If the admin didn't supply an email, synthesize a unique
+    // placeholder so the (still NOT NULL) users.email column is satisfied
+    // without colliding with any other row.
+    if (data.studentId || data.email) {
+      const nameParts = data.fullName.trim().split(/\s+/);
+      const firstName = nameParts[0] ?? "";
+      const lastName = nameParts.slice(1).join(" ") || "";
+      const userEmail =
+        data.email && data.email.trim().length > 0
+          ? data.email
+          : `sso_${data.studentId}_${Date.now()}@forms.local`;
+      await db
+        .insert(usersTable)
+        .values({
+          formsUserId: data.studentId || null,
+          email: userEmail,
+          firstName,
+          lastName,
+          role: "student",
+          campusId,
+        })
+        .onConflictDoNothing({ target: usersTable.formsUserId });
+    }
+
+    await logAudit(
+      req.user.id,
+      "create_roster_entry",
+      "roster",
+      entry.id,
+      `Added ${entry.fullName} (${entry.studentId})`,
+    );
+    res.status(201).json(entry);
+  },
+);
 
 // Update a single roster entry
-router.patch("/admin/roster/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const parsed = UpdateRosterEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const updates = parsed.data;
-
-  // Look up the row BEFORE mutating it so we can resolve the linked user
-  // record by the OLD identifiers below — otherwise renaming the studentId
-  // or email here would orphan the mirror update.
-  const [target] = await db
-    .select({ studentId: rosterTable.studentId, email: rosterTable.email })
-    .from(rosterTable)
-    .where(eq(rosterTable.id, id))
-    .limit(1);
-  if (!target) {
-    res.status(404).json({ error: "Roster entry not found" });
-    return;
-  }
-
-  let campusId: number | null | undefined;
-  if (updates.campusName) {
-    const c = await resolveCampusByName(updates.campusName);
-    if (!c) {
-      res
-        .status(400)
-        .json({ error: `Unknown campus: "${updates.campusName}"` });
+router.patch(
+  "/admin/roster/:id",
+  requireAdminPage("/admin/roster", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
-    campusId = c.id;
-  }
-  const set: Record<string, unknown> = {};
-  if (updates.studentId !== undefined && updates.studentId !== null)
-    set.studentId = updates.studentId;
-  if (updates.fullName !== undefined && updates.fullName !== null)
-    set.fullName = updates.fullName;
-  if (updates.email !== undefined) set.email = updates.email;
-  if (updates.campusName !== undefined && updates.campusName !== null)
-    set.campusName = updates.campusName;
-  if (campusId !== undefined) set.campusId = campusId;
-  if (updates.niatId !== undefined) set.niatId = updates.niatId;
-  if (updates.batchSectionName !== undefined)
-    set.batchSectionName = updates.batchSectionName;
-  if (updates.isWhitelisted !== undefined && updates.isWhitelisted !== null)
-    set.isWhitelisted = updates.isWhitelisted;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = UpdateRosterEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const updates = parsed.data;
 
-  // If we're changing the studentId, pre-check that no OTHER row already
-  // has it. We still wrap the actual update in try/catch below so a race
-  // (admin A and admin B renaming to the same id concurrently) maps to a
-  // clean 409 instead of a 500.
-  if (typeof set.studentId === "string" && set.studentId !== target.studentId) {
-    const [clash] = await db
-      .select({ id: rosterTable.id })
+    // Look up the row BEFORE mutating it so we can resolve the linked user
+    // record by the OLD identifiers below — otherwise renaming the studentId
+    // or email here would orphan the mirror update.
+    const [target] = await db
+      .select({ studentId: rosterTable.studentId, email: rosterTable.email })
       .from(rosterTable)
-      .where(eq(rosterTable.studentId, set.studentId as string))
-      .limit(1);
-    if (clash && clash.id !== id) {
-      res.status(409).json({
-        error: `Another roster entry already uses Student User ID "${set.studentId}".`,
-      });
-      return;
-    }
-  }
-
-  let updated: typeof rosterTable.$inferSelect | undefined;
-  try {
-    [updated] = await db
-      .update(rosterTable)
-      .set(set)
       .where(eq(rosterTable.id, id))
-      .returning();
-  } catch (err: unknown) {
-    // Postgres unique-violation: surface as a friendly 409 rather than a 500.
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      (err as { code?: unknown }).code === "23505"
-    ) {
-      res.status(409).json({
-        error: "Another roster entry already uses that Student User ID.",
-      });
+      .limit(1);
+    if (!target) {
+      res.status(404).json({ error: "Roster entry not found" });
       return;
     }
-    throw err;
-  }
-  if (!updated) {
-    res.status(404).json({ error: "Roster entry not found" });
-    return;
-  }
 
-  // Mirror into the linked user row, if one exists. Use the PRE-UPDATE
-  // identifiers (target) to find the linked row so renaming the studentId or
-  // email still resolves to the same person. Always restrict to a single row.
-  let linkedUserId: string | undefined;
-  if (target.studentId) {
-    const [hit] = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.formsUserId, target.studentId))
-      .limit(1);
-    linkedUserId = hit?.id;
-  }
-  if (!linkedUserId && target.email) {
-    const [hit] = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.email, target.email))
-      .limit(1);
-    linkedUserId = hit?.id;
-  }
-  if (linkedUserId) {
-    const userSet: Record<string, unknown> = {};
-    if (updates.fullName) {
-      const parts = updates.fullName.trim().split(/\s+/);
-      userSet.firstName = parts[0] ?? "";
-      userSet.lastName = parts.slice(1).join(" ") || "";
+    let campusId: number | null | undefined;
+    if (updates.campusName) {
+      const c = await resolveCampusByName(updates.campusName);
+      if (!c) {
+        res
+          .status(400)
+          .json({ error: `Unknown campus: "${updates.campusName}"` });
+        return;
+      }
+      campusId = c.id;
     }
-    if (campusId !== undefined) userSet.campusId = campusId;
-    if (updates.email !== undefined && updates.email !== null)
-      userSet.email = updates.email;
+    const set: Record<string, unknown> = {};
     if (updates.studentId !== undefined && updates.studentId !== null)
-      userSet.formsUserId = updates.studentId;
-    if (Object.keys(userSet).length > 0) {
-      await db
-        .update(usersTable)
-        .set(userSet)
-        .where(eq(usersTable.id, linkedUserId));
-    }
-  }
+      set.studentId = updates.studentId;
+    if (updates.fullName !== undefined && updates.fullName !== null)
+      set.fullName = updates.fullName;
+    if (updates.email !== undefined) set.email = updates.email;
+    if (updates.campusName !== undefined && updates.campusName !== null)
+      set.campusName = updates.campusName;
+    if (campusId !== undefined) set.campusId = campusId;
+    if (updates.niatId !== undefined) set.niatId = updates.niatId;
+    if (updates.batchSectionName !== undefined)
+      set.batchSectionName = updates.batchSectionName;
+    if (updates.isWhitelisted !== undefined && updates.isWhitelisted !== null)
+      set.isWhitelisted = updates.isWhitelisted;
 
-  await logAudit(
-    req.user.id,
-    "update_roster_entry",
-    "roster",
-    updated.id,
-    `Updated ${updated.fullName}`,
-  );
-  res.json(updated);
-});
+    // If we're changing the studentId, pre-check that no OTHER row already
+    // has it. We still wrap the actual update in try/catch below so a race
+    // (admin A and admin B renaming to the same id concurrently) maps to a
+    // clean 409 instead of a 500.
+    if (
+      typeof set.studentId === "string" &&
+      set.studentId !== target.studentId
+    ) {
+      const [clash] = await db
+        .select({ id: rosterTable.id })
+        .from(rosterTable)
+        .where(eq(rosterTable.studentId, set.studentId as string))
+        .limit(1);
+      if (clash && clash.id !== id) {
+        res.status(409).json({
+          error: `Another roster entry already uses Student User ID "${set.studentId}".`,
+        });
+        return;
+      }
+    }
+
+    let updated: typeof rosterTable.$inferSelect | undefined;
+    try {
+      [updated] = await db
+        .update(rosterTable)
+        .set(set)
+        .where(eq(rosterTable.id, id))
+        .returning();
+    } catch (err: unknown) {
+      // Postgres unique-violation: surface as a friendly 409 rather than a 500.
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        (err as { code?: unknown }).code === "23505"
+      ) {
+        res.status(409).json({
+          error: "Another roster entry already uses that Student User ID.",
+        });
+        return;
+      }
+      throw err;
+    }
+    if (!updated) {
+      res.status(404).json({ error: "Roster entry not found" });
+      return;
+    }
+
+    // Mirror into the linked user row, if one exists. Use the PRE-UPDATE
+    // identifiers (target) to find the linked row so renaming the studentId or
+    // email still resolves to the same person. Always restrict to a single row.
+    let linkedUserId: string | undefined;
+    if (target.studentId) {
+      const [hit] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.formsUserId, target.studentId))
+        .limit(1);
+      linkedUserId = hit?.id;
+    }
+    if (!linkedUserId && target.email) {
+      const [hit] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.email, target.email))
+        .limit(1);
+      linkedUserId = hit?.id;
+    }
+    if (linkedUserId) {
+      const userSet: Record<string, unknown> = {};
+      if (updates.fullName) {
+        const parts = updates.fullName.trim().split(/\s+/);
+        userSet.firstName = parts[0] ?? "";
+        userSet.lastName = parts.slice(1).join(" ") || "";
+      }
+      if (campusId !== undefined) userSet.campusId = campusId;
+      if (updates.email !== undefined && updates.email !== null)
+        userSet.email = updates.email;
+      if (updates.studentId !== undefined && updates.studentId !== null)
+        userSet.formsUserId = updates.studentId;
+      if (Object.keys(userSet).length > 0) {
+        await db
+          .update(usersTable)
+          .set(userSet)
+          .where(eq(usersTable.id, linkedUserId));
+      }
+    }
+
+    await logAudit(
+      req.user.id,
+      "update_roster_entry",
+      "roster",
+      updated.id,
+      `Updated ${updated.fullName}`,
+    );
+    res.json(updated);
+  },
+);
 
 // Wipe ALL roster entries in a single transaction. Linked user accounts,
 // teams, projects and progress are intentionally left intact — only the
@@ -1523,274 +1571,288 @@ router.patch("/admin/roster/:id", async (req, res): Promise<void> => {
 // accidental clicks. There are currently no tables with a FK pointing at
 // roster.id, so no `?force=true` flag is exposed (the schema makes this
 // always safe to run; nothing else cascades).
-router.post("/admin/roster/clear", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const confirm =
-    typeof req.body?.confirm === "string" ? req.body.confirm.trim() : "";
-  if (confirm !== "DELETE ALL ROSTER") {
-    res.status(400).json({
-      error:
-        'Confirmation phrase missing. Send { confirm: "DELETE ALL ROSTER" } to proceed.',
-    });
-    return;
-  }
+router.post(
+  "/admin/roster/clear",
+  requireAdminPage("/admin/roster", "delete"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const confirm =
+      typeof req.body?.confirm === "string" ? req.body.confirm.trim() : "";
+    if (confirm !== "DELETE ALL ROSTER") {
+      res.status(400).json({
+        error:
+          'Confirmation phrase missing. Send { confirm: "DELETE ALL ROSTER" } to proceed.',
+      });
+      return;
+    }
 
-  // Use DELETE ... RETURNING so the count reflects the rows actually
-  // removed by THIS statement, even under READ COMMITTED concurrency.
-  const deletedRows = await db
-    .delete(rosterTable)
-    .returning({ id: rosterTable.id });
-  const deleted = deletedRows.length;
+    // Use DELETE ... RETURNING so the count reflects the rows actually
+    // removed by THIS statement, even under READ COMMITTED concurrency.
+    const deletedRows = await db
+      .delete(rosterTable)
+      .returning({ id: rosterTable.id });
+    const deleted = deletedRows.length;
 
-  await logAudit(
-    req.user.id,
-    "clear_roster_all",
-    "roster",
-    undefined,
-    `Cleared all roster entries (${deleted} deleted)`,
-  );
-  res.json({ ok: true, deleted });
-});
+    await logAudit(
+      req.user.id,
+      "clear_roster_all",
+      "roster",
+      undefined,
+      `Cleared all roster entries (${deleted} deleted)`,
+    );
+    res.json({ ok: true, deleted });
+  },
+);
 
 // Delete a roster entry (and its mirrored user row, if any).
-router.delete("/admin/roster/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const [target] = await db
-    .select()
-    .from(rosterTable)
-    .where(eq(rosterTable.id, id));
-  if (!target) {
-    res.status(404).json({ error: "Roster entry not found" });
-    return;
-  }
-  await db.delete(rosterTable).where(eq(rosterTable.id, id));
+router.delete(
+  "/admin/roster/:id",
+  requireAdminPage("/admin/roster", "delete"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [target] = await db
+      .select()
+      .from(rosterTable)
+      .where(eq(rosterTable.id, id));
+    if (!target) {
+      res.status(404).json({ error: "Roster entry not found" });
+      return;
+    }
+    await db.delete(rosterTable).where(eq(rosterTable.id, id));
 
-  // Also delete the linked user row, if it exists and is a student. Resolve
-  // ONE matching user (formsUserId first, email fallback) and delete by id so
-  // we never accidentally hit unrelated rows that share an email.
-  let linkedUserId: string | undefined;
-  if (target.studentId) {
-    const [hit] = await db
-      .select({ id: usersTable.id, role: usersTable.role })
-      .from(usersTable)
-      .where(eq(usersTable.formsUserId, target.studentId))
-      .limit(1);
-    if (hit?.role === "student") linkedUserId = hit.id;
-  }
-  if (!linkedUserId && target.email) {
-    const [hit] = await db
-      .select({ id: usersTable.id, role: usersTable.role })
-      .from(usersTable)
-      .where(eq(usersTable.email, target.email))
-      .limit(1);
-    if (hit?.role === "student") linkedUserId = hit.id;
-  }
-  if (linkedUserId) {
-    await db.delete(usersTable).where(eq(usersTable.id, linkedUserId));
-  }
+    // Also delete the linked user row, if it exists and is a student. Resolve
+    // ONE matching user (formsUserId first, email fallback) and delete by id so
+    // we never accidentally hit unrelated rows that share an email.
+    let linkedUserId: string | undefined;
+    if (target.studentId) {
+      const [hit] = await db
+        .select({ id: usersTable.id, role: usersTable.role })
+        .from(usersTable)
+        .where(eq(usersTable.formsUserId, target.studentId))
+        .limit(1);
+      if (hit?.role === "student") linkedUserId = hit.id;
+    }
+    if (!linkedUserId && target.email) {
+      const [hit] = await db
+        .select({ id: usersTable.id, role: usersTable.role })
+        .from(usersTable)
+        .where(eq(usersTable.email, target.email))
+        .limit(1);
+      if (hit?.role === "student") linkedUserId = hit.id;
+    }
+    if (linkedUserId) {
+      await db.delete(usersTable).where(eq(usersTable.id, linkedUserId));
+    }
 
-  await logAudit(
-    req.user.id,
-    "delete_roster_entry",
-    "roster",
-    id,
-    `Deleted ${target.fullName} (${target.studentId})`,
-  );
-  res.json({ ok: true });
-});
+    await logAudit(
+      req.user.id,
+      "delete_roster_entry",
+      "roster",
+      id,
+      `Deleted ${target.fullName} (${target.studentId})`,
+    );
+    res.json({ ok: true });
+  },
+);
 
 // Bulk import roster from parsed Excel/CSV data
-router.post("/admin/roster/import", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = BulkImportRosterBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const { students } = parsed.data;
-  // Pre-resolve campuses so every imported row gets a real campusId — without
-  // it the SSO whitelist gate would refuse to log these students in.
-  const allCampuses = await db.select().from(campusesTable);
-  const campusByName = new Map<string, (typeof allCampuses)[number]>();
-  for (const c of allCampuses) campusByName.set(c.name.trim().toLowerCase(), c);
-
-  // ---------------------------------------------------------------------
-  // Pass 1: prepare in-memory rows. Drop blank-studentId rows up front
-  // and de-duplicate within the import payload itself (first row wins),
-  // mirroring the prior per-row behavior.
-  // ---------------------------------------------------------------------
-  type Prepared = {
-    studentId: string;
-    fullName: string;
-    email: string | null;
-    campusName: string;
-    campusId: number | null;
-    niatId: string | null;
-    batchSectionName: string | null;
-    isWhitelisted: true;
-  };
-  const prepared: Prepared[] = [];
-  const seenInPayload = new Set<string>();
-  let skipped = 0;
-  for (const s of students) {
-    const studentUserId = (s.studentUserId ?? "").trim();
-    if (!studentUserId) {
-      skipped++;
-      continue;
+router.post(
+  "/admin/roster/import",
+  requireAdminPage("/admin/roster", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
     }
-    if (seenInPayload.has(studentUserId)) {
-      skipped++;
-      continue;
+    const parsed = BulkImportRosterBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
     }
-    seenInPayload.add(studentUserId);
-    const campus = s.instituteName
-      ? campusByName.get(s.instituteName.trim().toLowerCase())
-      : undefined;
-    const email = s.email?.trim() ? s.email.trim().toLowerCase() : null;
-    prepared.push({
-      studentId: studentUserId,
-      fullName: s.studentName?.trim() || studentUserId,
-      email,
-      campusName: campus?.name ?? s.instituteName?.trim() ?? "",
-      campusId: campus?.id ?? null,
-      niatId: s.niatId?.trim() || null,
-      batchSectionName: s.batchSectionName?.trim() || null,
-      isWhitelisted: true,
-    });
-  }
+    const { students } = parsed.data;
+    // Pre-resolve campuses so every imported row gets a real campusId — without
+    // it the SSO whitelist gate would refuse to log these students in.
+    const allCampuses = await db.select().from(campusesTable);
+    const campusByName = new Map<string, (typeof allCampuses)[number]>();
+    for (const c of allCampuses)
+      campusByName.set(c.name.trim().toLowerCase(), c);
 
-  // ---------------------------------------------------------------------
-  // Pass 2: in a single round-trip, find which studentIds already exist
-  // in the DB and exclude them. Postgres parameter limit is 65k so we
-  // chunk the IN-list into 1k-id slices. Uniqueness on roster is
-  // enforced ONLY on studentId — duplicate emails / NIAT IDs / names
-  // are allowed.
-  // ---------------------------------------------------------------------
-  const ID_LOOKUP_CHUNK = 1000;
-  const existingIds = new Set<string>();
-  const allIds = prepared.map((p) => p.studentId);
-  for (let i = 0; i < allIds.length; i += ID_LOOKUP_CHUNK) {
-    const slice = allIds.slice(i, i + ID_LOOKUP_CHUNK);
-    if (slice.length === 0) continue;
-    const rows = await db
-      .select({ s: rosterTable.studentId })
-      .from(rosterTable)
-      .where(inArray(rosterTable.studentId, slice));
-    for (const r of rows) existingIds.add(r.s);
-  }
-  const fresh = prepared.filter((p) => {
-    if (existingIds.has(p.studentId)) {
-      skipped++;
-      return false;
-    }
-    return true;
-  });
-
-  // ---------------------------------------------------------------------
-  // Pass 3: chunked INSERT inside a transaction. onConflictDoNothing on
-  // studentId guards against any race where another admin imports the
-  // same id concurrently — those rows are silently skipped.
-  // ---------------------------------------------------------------------
-  const INSERT_CHUNK = 250;
-  let inserted = 0;
-  // Track the studentIds the DB actually accepted (not the optimistic
-  // `fresh` list) so the email-mirror pass below only updates rows that
-  // really got imported, even under races with onConflictDoNothing.
-  const insertedStudentIds = new Set<string>();
-  if (fresh.length > 0) {
-    await db.transaction(async (tx) => {
-      for (let i = 0; i < fresh.length; i += INSERT_CHUNK) {
-        const slice = fresh.slice(i, i + INSERT_CHUNK);
-        const inserted_rows = await tx
-          .insert(rosterTable)
-          .values(slice)
-          .onConflictDoNothing({ target: rosterTable.studentId })
-          .returning({
-            id: rosterTable.id,
-            studentId: rosterTable.studentId,
-          });
-        inserted += inserted_rows.length;
-        for (const row of inserted_rows) insertedStudentIds.add(row.studentId);
+    // ---------------------------------------------------------------------
+    // Pass 1: prepare in-memory rows. Drop blank-studentId rows up front
+    // and de-duplicate within the import payload itself (first row wins),
+    // mirroring the prior per-row behavior.
+    // ---------------------------------------------------------------------
+    type Prepared = {
+      studentId: string;
+      fullName: string;
+      email: string | null;
+      campusName: string;
+      campusId: number | null;
+      niatId: string | null;
+      batchSectionName: string | null;
+      isWhitelisted: true;
+    };
+    const prepared: Prepared[] = [];
+    const seenInPayload = new Set<string>();
+    let skipped = 0;
+    for (const s of students) {
+      const studentUserId = (s.studentUserId ?? "").trim();
+      if (!studentUserId) {
+        skipped++;
+        continue;
       }
-    });
-    // Anything that conflicted at insert time was a race — count it.
-    skipped += fresh.length - inserted;
-  }
+      if (seenInPayload.has(studentUserId)) {
+        skipped++;
+        continue;
+      }
+      seenInPayload.add(studentUserId);
+      const campus = s.instituteName
+        ? campusByName.get(s.instituteName.trim().toLowerCase())
+        : undefined;
+      const email = s.email?.trim() ? s.email.trim().toLowerCase() : null;
+      prepared.push({
+        studentId: studentUserId,
+        fullName: s.studentName?.trim() || studentUserId,
+        email,
+        campusName: campus?.name ?? s.instituteName?.trim() ?? "",
+        campusId: campus?.id ?? null,
+        niatId: s.niatId?.trim() || null,
+        batchSectionName: s.batchSectionName?.trim() || null,
+        isWhitelisted: true,
+      });
+    }
 
-  // ---------------------------------------------------------------------
-  // Pass 4: mirror email onto linked user rows that match by formsUserId.
-  // Bulk: load all matching users in one query, then issue a single
-  // UPDATE per (email -> userIds) bucket. Multiple students may share a
-  // college mailbox, so matching is keyed strictly by formsUserId.
-  //
-  // Restrict to rows we actually inserted (insertedStudentIds) — anything
-  // dropped by onConflictDoNothing belongs to another import / admin and
-  // shouldn't have its mirrored email overwritten by ours.
-  // ---------------------------------------------------------------------
-  const idsWithEmail = fresh.filter(
-    (p) => p.email && insertedStudentIds.has(p.studentId),
-  );
-  if (idsWithEmail.length > 0) {
-    const lookupIds = idsWithEmail.map((p) => p.studentId);
-    const linkedUsers: { id: string; formsUserId: string | null }[] = [];
-    for (let i = 0; i < lookupIds.length; i += ID_LOOKUP_CHUNK) {
-      const slice = lookupIds.slice(i, i + ID_LOOKUP_CHUNK);
+    // ---------------------------------------------------------------------
+    // Pass 2: in a single round-trip, find which studentIds already exist
+    // in the DB and exclude them. Postgres parameter limit is 65k so we
+    // chunk the IN-list into 1k-id slices. Uniqueness on roster is
+    // enforced ONLY on studentId — duplicate emails / NIAT IDs / names
+    // are allowed.
+    // ---------------------------------------------------------------------
+    const ID_LOOKUP_CHUNK = 1000;
+    const existingIds = new Set<string>();
+    const allIds = prepared.map((p) => p.studentId);
+    for (let i = 0; i < allIds.length; i += ID_LOOKUP_CHUNK) {
+      const slice = allIds.slice(i, i + ID_LOOKUP_CHUNK);
+      if (slice.length === 0) continue;
       const rows = await db
-        .select({ id: usersTable.id, formsUserId: usersTable.formsUserId })
-        .from(usersTable)
-        .where(inArray(usersTable.formsUserId, slice));
-      linkedUsers.push(...rows);
+        .select({ s: rosterTable.studentId })
+        .from(rosterTable)
+        .where(inArray(rosterTable.studentId, slice));
+      for (const r of rows) existingIds.add(r.s);
     }
-    const userIdByFormsId = new Map<string, string>();
-    for (const u of linkedUsers) {
-      if (u.formsUserId) userIdByFormsId.set(u.formsUserId, u.id);
-    }
-    if (userIdByFormsId.size > 0) {
-      // Group user ids by the new email value so each distinct email
-      // becomes one UPDATE … WHERE id IN (…) instead of one per row.
-      const idsByEmail = new Map<string, string[]>();
-      for (const p of idsWithEmail) {
-        const userId = userIdByFormsId.get(p.studentId);
-        if (!userId || !p.email) continue;
-        const bucket = idsByEmail.get(p.email);
-        if (bucket) bucket.push(userId);
-        else idsByEmail.set(p.email, [userId]);
+    const fresh = prepared.filter((p) => {
+      if (existingIds.has(p.studentId)) {
+        skipped++;
+        return false;
       }
-      for (const [email, userIds] of idsByEmail) {
-        for (let i = 0; i < userIds.length; i += ID_LOOKUP_CHUNK) {
-          const slice = userIds.slice(i, i + ID_LOOKUP_CHUNK);
-          await db
-            .update(usersTable)
-            .set({ email })
-            .where(inArray(usersTable.id, slice));
+      return true;
+    });
+
+    // ---------------------------------------------------------------------
+    // Pass 3: chunked INSERT inside a transaction. onConflictDoNothing on
+    // studentId guards against any race where another admin imports the
+    // same id concurrently — those rows are silently skipped.
+    // ---------------------------------------------------------------------
+    const INSERT_CHUNK = 250;
+    let inserted = 0;
+    // Track the studentIds the DB actually accepted (not the optimistic
+    // `fresh` list) so the email-mirror pass below only updates rows that
+    // really got imported, even under races with onConflictDoNothing.
+    const insertedStudentIds = new Set<string>();
+    if (fresh.length > 0) {
+      await db.transaction(async (tx) => {
+        for (let i = 0; i < fresh.length; i += INSERT_CHUNK) {
+          const slice = fresh.slice(i, i + INSERT_CHUNK);
+          const inserted_rows = await tx
+            .insert(rosterTable)
+            .values(slice)
+            .onConflictDoNothing({ target: rosterTable.studentId })
+            .returning({
+              id: rosterTable.id,
+              studentId: rosterTable.studentId,
+            });
+          inserted += inserted_rows.length;
+          for (const row of inserted_rows)
+            insertedStudentIds.add(row.studentId);
+        }
+      });
+      // Anything that conflicted at insert time was a race — count it.
+      skipped += fresh.length - inserted;
+    }
+
+    // ---------------------------------------------------------------------
+    // Pass 4: mirror email onto linked user rows that match by formsUserId.
+    // Bulk: load all matching users in one query, then issue a single
+    // UPDATE per (email -> userIds) bucket. Multiple students may share a
+    // college mailbox, so matching is keyed strictly by formsUserId.
+    //
+    // Restrict to rows we actually inserted (insertedStudentIds) — anything
+    // dropped by onConflictDoNothing belongs to another import / admin and
+    // shouldn't have its mirrored email overwritten by ours.
+    // ---------------------------------------------------------------------
+    const idsWithEmail = fresh.filter(
+      (p) => p.email && insertedStudentIds.has(p.studentId),
+    );
+    if (idsWithEmail.length > 0) {
+      const lookupIds = idsWithEmail.map((p) => p.studentId);
+      const linkedUsers: { id: string; formsUserId: string | null }[] = [];
+      for (let i = 0; i < lookupIds.length; i += ID_LOOKUP_CHUNK) {
+        const slice = lookupIds.slice(i, i + ID_LOOKUP_CHUNK);
+        const rows = await db
+          .select({ id: usersTable.id, formsUserId: usersTable.formsUserId })
+          .from(usersTable)
+          .where(inArray(usersTable.formsUserId, slice));
+        linkedUsers.push(...rows);
+      }
+      const userIdByFormsId = new Map<string, string>();
+      for (const u of linkedUsers) {
+        if (u.formsUserId) userIdByFormsId.set(u.formsUserId, u.id);
+      }
+      if (userIdByFormsId.size > 0) {
+        // Group user ids by the new email value so each distinct email
+        // becomes one UPDATE … WHERE id IN (…) instead of one per row.
+        const idsByEmail = new Map<string, string[]>();
+        for (const p of idsWithEmail) {
+          const userId = userIdByFormsId.get(p.studentId);
+          if (!userId || !p.email) continue;
+          const bucket = idsByEmail.get(p.email);
+          if (bucket) bucket.push(userId);
+          else idsByEmail.set(p.email, [userId]);
+        }
+        for (const [email, userIds] of idsByEmail) {
+          for (let i = 0; i < userIds.length; i += ID_LOOKUP_CHUNK) {
+            const slice = userIds.slice(i, i + ID_LOOKUP_CHUNK);
+            await db
+              .update(usersTable)
+              .set({ email })
+              .where(inArray(usersTable.id, slice));
+          }
         }
       }
     }
-  }
 
-  await logAudit(
-    req.user.id,
-    "bulk_import_roster",
-    "roster",
-    undefined,
-    `Imported ${inserted} students, skipped ${skipped}`,
-  );
-  res.json({ inserted, skipped, total: students.length });
-});
+    await logAudit(
+      req.user.id,
+      "bulk_import_roster",
+      "roster",
+      undefined,
+      `Imported ${inserted} students, skipped ${skipped}`,
+    );
+    res.json({ inserted, skipped, total: students.length });
+  },
+);
 
 // Access Requests (admin)
 router.get("/admin/access-requests", async (req, res): Promise<void> => {
@@ -1829,37 +1891,41 @@ router.get("/admin/access-requests", async (req, res): Promise<void> => {
   );
 });
 
-router.patch("/admin/access-requests/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const params = UpdateAccessRequestParams.safeParse({
-    id: Number(req.params.id),
-  });
-  const body = UpdateAccessRequestBody.safeParse(req.body);
-  if (!params.success || !body.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
-  const [updated] = await db
-    .update(accessRequestsTable)
-    .set({ status: body.data.status, notes: body.data.notes ?? null })
-    .where(eq(accessRequestsTable.id, params.data.id))
-    .returning();
-  if (!updated) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  await logAudit(
-    req.user.id,
-    `access_request_${body.data.status}`,
-    "access_request",
-    updated.id,
-    `${body.data.status}: ${updated.email}`,
-  );
-  res.json(updated);
-});
+router.patch(
+  "/admin/access-requests/:id",
+  requireAdminPage("/admin/new-users-requests", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const params = UpdateAccessRequestParams.safeParse({
+      id: Number(req.params.id),
+    });
+    const body = UpdateAccessRequestBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Invalid request" });
+      return;
+    }
+    const [updated] = await db
+      .update(accessRequestsTable)
+      .set({ status: body.data.status, notes: body.data.notes ?? null })
+      .where(eq(accessRequestsTable.id, params.data.id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    await logAudit(
+      req.user.id,
+      `access_request_${body.data.status}`,
+      "access_request",
+      updated.id,
+      `${body.data.status}: ${updated.email}`,
+    );
+    res.json(updated);
+  },
+);
 
 // --- New-User Access Request review (powers the separate /admin/new-users
 // page). Approve provisions roster + user; reject revokes the whitelist.
@@ -2050,6 +2116,7 @@ router.get("/admin/access-requests/:id", async (req, res): Promise<void> => {
 
 router.post(
   "/admin/access-requests/:id/approve",
+  requireAdminPage("/admin/new-users-requests", "edit"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });
@@ -2112,6 +2179,7 @@ router.post(
 
 router.post(
   "/admin/access-requests/:id/reject",
+  requireAdminPage("/admin/new-users-requests", "edit"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });
@@ -2450,6 +2518,7 @@ const MembershipDecisionBody = z.object({
 // source rows + email + notification). Re-checks invariants at approval time.
 router.post(
   "/admin/membership-requests/:id/approve",
+  requireAdminPage("/admin/team-requests", "edit"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Admin access required" });
@@ -2531,6 +2600,7 @@ router.post(
 // notification to the initiator (and target for add-flows).
 router.post(
   "/admin/membership-requests/:id/reject",
+  requireAdminPage("/admin/team-requests", "edit"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Admin access required" });

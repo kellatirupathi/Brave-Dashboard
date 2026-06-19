@@ -32,6 +32,7 @@ import {
   UnverifyOrderBookEntryParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { requireAdminPage } from "../lib/require-admin-page";
 import { createNotification } from "../lib/notifications";
 import { requireTeamLeader } from "../lib/auth";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
@@ -580,271 +581,280 @@ router.post(
   },
 );
 
-router.post("/revenue-entries/:id/verify", async (req, res): Promise<void> => {
-  const params = VerifyRevenueEntryParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const ok = await ensureCanReviewRevenueEntry(req, res, params.data.id);
-  if (!ok) return;
-  const parsed = VerifyRevenueEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [entry] = await db
-    .update(revenueEntriesTable)
-    .set({
-      status: "verified",
-      verifiedAmount: parsed.data.verifiedAmount,
-      adminNotes: parsed.data.adminNotes ?? null,
-      verifiedAt: new Date(),
-    })
-    .where(eq(revenueEntriesTable.id, params.data.id))
-    .returning();
-  if (!entry) {
-    res.status(404).json({ error: "Entry not found" });
-    return;
-  }
-  // Milestone checks
-  const [team] = await db
-    .select()
-    .from(teamsTable)
-    .where(eq(teamsTable.id, entry.teamId));
-  const [revCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(revenueEntriesTable)
-    .where(
-      and(
-        eq(revenueEntriesTable.teamId, entry.teamId),
-        sql`status = 'verified'`,
-      ),
-    );
-  if (Number(revCount?.count ?? 0) === 1) {
-    await db.insert(milestonesTable).values({
-      teamId: entry.teamId,
-      type: "auto",
-      title: "First Revenue Received Verified",
-      description: `First revenue entry verified for ₹${parsed.data.verifiedAmount?.toLocaleString("en-IN")}`,
-      date: new Date(),
-    });
-  }
-  // Check cumulative milestones
-  const [totalRev] = await db
-    .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
-    .from(revenueEntriesTable)
-    .where(
-      and(
-        eq(revenueEntriesTable.teamId, entry.teamId),
-        sql`status = 'verified'`,
-      ),
-    );
-  const total = Number(totalRev?.total ?? 0);
-  const configs = await db.select().from(programmeConfigTable).limit(1);
-  const threshold = configs[0]?.demoEligibilityThreshold ?? 200000;
-  if (total >= 50000 && total - (parsed.data.verifiedAmount ?? 0) < 50000) {
-    await db.insert(milestonesTable).values({
-      teamId: entry.teamId,
-      type: "auto",
-      title: "₹50,000 Revenue Reached",
-      date: new Date(),
-    });
-  }
-  if (total >= 100000 && total - (parsed.data.verifiedAmount ?? 0) < 100000) {
-    await db.insert(milestonesTable).values({
-      teamId: entry.teamId,
-      type: "auto",
-      title: "₹1,00,000 Revenue Reached",
-      date: new Date(),
-    });
-  }
-  if (
-    total >= threshold &&
-    total - (parsed.data.verifiedAmount ?? 0) < threshold
-  ) {
-    await db.insert(milestonesTable).values({
-      teamId: entry.teamId,
-      type: "auto",
-      title: `Demo Day Eligible — ₹${(threshold / 100000).toFixed(0)} Lakh Reached`,
-      date: new Date(),
-    });
+router.post(
+  "/revenue-entries/:id/verify",
+  requireAdminPage("/admin/queue", "edit"),
+  async (req, res): Promise<void> => {
+    const params = VerifyRevenueEntryParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const ok = await ensureCanReviewRevenueEntry(req, res, params.data.id);
+    if (!ok) return;
+    const parsed = VerifyRevenueEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [entry] = await db
+      .update(revenueEntriesTable)
+      .set({
+        status: "verified",
+        verifiedAmount: parsed.data.verifiedAmount,
+        adminNotes: parsed.data.adminNotes ?? null,
+        verifiedAt: new Date(),
+      })
+      .where(eq(revenueEntriesTable.id, params.data.id))
+      .returning();
+    if (!entry) {
+      res.status(404).json({ error: "Entry not found" });
+      return;
+    }
+    // Milestone checks
+    const [team] = await db
+      .select()
+      .from(teamsTable)
+      .where(eq(teamsTable.id, entry.teamId));
+    const [revCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(revenueEntriesTable)
+      .where(
+        and(
+          eq(revenueEntriesTable.teamId, entry.teamId),
+          sql`status = 'verified'`,
+        ),
+      );
+    if (Number(revCount?.count ?? 0) === 1) {
+      await db.insert(milestonesTable).values({
+        teamId: entry.teamId,
+        type: "auto",
+        title: "First Revenue Received Verified",
+        description: `First revenue entry verified for ₹${parsed.data.verifiedAmount?.toLocaleString("en-IN")}`,
+        date: new Date(),
+      });
+    }
+    // Check cumulative milestones
+    const [totalRev] = await db
+      .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
+      .from(revenueEntriesTable)
+      .where(
+        and(
+          eq(revenueEntriesTable.teamId, entry.teamId),
+          sql`status = 'verified'`,
+        ),
+      );
+    const total = Number(totalRev?.total ?? 0);
+    const configs = await db.select().from(programmeConfigTable).limit(1);
+    const threshold = configs[0]?.demoEligibilityThreshold ?? 200000;
+    if (total >= 50000 && total - (parsed.data.verifiedAmount ?? 0) < 50000) {
+      await db.insert(milestonesTable).values({
+        teamId: entry.teamId,
+        type: "auto",
+        title: "₹50,000 Revenue Reached",
+        date: new Date(),
+      });
+    }
+    if (total >= 100000 && total - (parsed.data.verifiedAmount ?? 0) < 100000) {
+      await db.insert(milestonesTable).values({
+        teamId: entry.teamId,
+        type: "auto",
+        title: "₹1,00,000 Revenue Reached",
+        date: new Date(),
+      });
+    }
+    if (
+      total >= threshold &&
+      total - (parsed.data.verifiedAmount ?? 0) < threshold
+    ) {
+      await db.insert(milestonesTable).values({
+        teamId: entry.teamId,
+        type: "auto",
+        title: `Demo Day Eligible — ₹${(threshold / 100000).toFixed(0)} Lakh Reached`,
+        date: new Date(),
+      });
+      if (team)
+        await createNotification(
+          team.leaderId,
+          "Demo Day Eligible!",
+          `Congratulations! Your team has crossed ₹${(threshold / 100000).toFixed(0)} Lakh in verified revenue.`,
+          "demo_eligible",
+          "/demo-day",
+        );
+    }
     if (team)
       await createNotification(
         team.leaderId,
-        "Demo Day Eligible!",
-        `Congratulations! Your team has crossed ₹${(threshold / 100000).toFixed(0)} Lakh in verified revenue.`,
-        "demo_eligible",
-        "/demo-day",
+        "Revenue Verified",
+        `Revenue entry of ₹${parsed.data.verifiedAmount?.toLocaleString("en-IN")} has been verified.`,
+        "entry_verified",
+        "/projects",
       );
-  }
-  if (team)
-    await createNotification(
-      team.leaderId,
-      "Revenue Verified",
-      `Revenue entry of ₹${parsed.data.verifiedAmount?.toLocaleString("en-IN")} has been verified.`,
-      "entry_verified",
-      "/projects",
-    );
-  // Email the WHOLE team (leader + all members) on the To: line. Failures
-  // are swallowed inside sendEmail so they never block the verify response.
-  if (team) {
-    const [leader] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, team.leaderId));
-    const [project] = await db
-      .select()
-      .from(projectsTable)
-      .where(eq(projectsTable.id, entry.projectId));
-    const memberRows = await db
-      .select({
-        id: usersTable.id,
-        email: usersTable.email,
-        firstName: usersTable.firstName,
-      })
-      .from(teamMembersTable)
-      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
-      .where(eq(teamMembersTable.teamId, team.id));
-    // Build recipient list (de-duplicated by email) — include leader even
-    // if they happen to not be in teamMembersTable for any reason.
-    const seen = new Set<string>();
-    const recipients: { email: string; name?: string }[] = [];
-    const addRecipient = (
-      email: string | null | undefined,
-      firstName: string | null | undefined,
-    ) => {
-      if (!email) return;
-      const lower = email.toLowerCase();
-      if (seen.has(lower)) return;
-      seen.add(lower);
-      recipients.push({ email, name: firstName ?? undefined });
-    };
-    addRecipient(leader?.email, leader?.firstName);
-    for (const m of memberRows) addRecipient(m.email, m.firstName);
-    // SES caps a single Destination at 50 ToAddresses; cap defensively so an
-    // unusually large team can never silently drop the whole send.
-    const cappedRecipients = recipients.slice(0, 50);
+    // Email the WHOLE team (leader + all members) on the To: line. Failures
+    // are swallowed inside sendEmail so they never block the verify response.
+    if (team) {
+      const [leader] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, team.leaderId));
+      const [project] = await db
+        .select()
+        .from(projectsTable)
+        .where(eq(projectsTable.id, entry.projectId));
+      const memberRows = await db
+        .select({
+          id: usersTable.id,
+          email: usersTable.email,
+          firstName: usersTable.firstName,
+        })
+        .from(teamMembersTable)
+        .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+        .where(eq(teamMembersTable.teamId, team.id));
+      // Build recipient list (de-duplicated by email) — include leader even
+      // if they happen to not be in teamMembersTable for any reason.
+      const seen = new Set<string>();
+      const recipients: { email: string; name?: string }[] = [];
+      const addRecipient = (
+        email: string | null | undefined,
+        firstName: string | null | undefined,
+      ) => {
+        if (!email) return;
+        const lower = email.toLowerCase();
+        if (seen.has(lower)) return;
+        seen.add(lower);
+        recipients.push({ email, name: firstName ?? undefined });
+      };
+      addRecipient(leader?.email, leader?.firstName);
+      for (const m of memberRows) addRecipient(m.email, m.firstName);
+      // SES caps a single Destination at 50 ToAddresses; cap defensively so an
+      // unusually large team can never silently drop the whole send.
+      const cappedRecipients = recipients.slice(0, 50);
 
-    if (cappedRecipients.length > 0) {
-      const { subject, text } = renderRevenueVerifiedEmail({
-        recipientName: "team",
-        teamName: team.name,
-        amount: parsed.data.verifiedAmount ?? 0,
-        clientName: entry.clientName,
-        projectTitle: project?.title ?? "",
-        totalVerifiedRevenue: total,
-        adminNotes: parsed.data.adminNotes ?? null,
-        appUrl: getAppUrl(),
-      });
-      void sendEmail({ to: cappedRecipients, subject, text });
+      if (cappedRecipients.length > 0) {
+        const { subject, text } = renderRevenueVerifiedEmail({
+          recipientName: "team",
+          teamName: team.name,
+          amount: parsed.data.verifiedAmount ?? 0,
+          clientName: entry.clientName,
+          projectTitle: project?.title ?? "",
+          totalVerifiedRevenue: total,
+          adminNotes: parsed.data.adminNotes ?? null,
+          appUrl: getAppUrl(),
+        });
+        void sendEmail({ to: cappedRecipients, subject, text });
+      }
     }
-  }
-  await logAudit(
-    req.user.id,
-    "verify_revenue_entry",
-    "revenue_entry",
-    entry.id,
-    `Verified: ₹${parsed.data.verifiedAmount}`,
-  );
-  res.json(await enrichRevEntry(entry));
-});
-
-router.post("/revenue-entries/:id/reject", async (req, res): Promise<void> => {
-  const params = RejectRevenueEntryParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const ok = await ensureCanReviewRevenueEntry(req, res, params.data.id);
-  if (!ok) return;
-  const parsed = RejectRevenueEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [entry] = await db
-    .update(revenueEntriesTable)
-    .set({ status: "rejected", adminNotes: parsed.data.adminNotes })
-    .where(eq(revenueEntriesTable.id, params.data.id))
-    .returning();
-  if (!entry) {
-    res.status(404).json({ error: "Entry not found" });
-    return;
-  }
-  const [team] = await db
-    .select()
-    .from(teamsTable)
-    .where(eq(teamsTable.id, entry.teamId));
-  if (team)
-    await createNotification(
-      team.leaderId,
-      "Revenue Entry Rejected",
-      `Your revenue entry was rejected: ${parsed.data.adminNotes}`,
-      "entry_rejected",
-      "/projects",
+    await logAudit(
+      req.user.id,
+      "verify_revenue_entry",
+      "revenue_entry",
+      entry.id,
+      `Verified: ₹${parsed.data.verifiedAmount}`,
     );
-  // Email the WHOLE team (leader + all members) on the To: line. Failures
-  // are swallowed inside sendEmail so they never block the reject response.
-  if (team) {
-    const [leader] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, team.leaderId));
-    const [project] = await db
-      .select()
-      .from(projectsTable)
-      .where(eq(projectsTable.id, entry.projectId));
-    const memberRows = await db
-      .select({
-        id: usersTable.id,
-        email: usersTable.email,
-        firstName: usersTable.firstName,
-      })
-      .from(teamMembersTable)
-      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
-      .where(eq(teamMembersTable.teamId, team.id));
-    const seen = new Set<string>();
-    const recipients: { email: string; name?: string }[] = [];
-    const addRecipient = (
-      email: string | null | undefined,
-      firstName: string | null | undefined,
-    ) => {
-      if (!email) return;
-      const lower = email.toLowerCase();
-      if (seen.has(lower)) return;
-      seen.add(lower);
-      recipients.push({ email, name: firstName ?? undefined });
-    };
-    addRecipient(leader?.email, leader?.firstName);
-    for (const m of memberRows) addRecipient(m.email, m.firstName);
-    const cappedRecipients = recipients.slice(0, 50);
+    res.json(await enrichRevEntry(entry));
+  },
+);
 
-    if (cappedRecipients.length > 0) {
-      const { subject, text } = renderRevenueRejectedEmail({
-        recipientName: "team",
-        teamName: team.name,
-        amount: entry.amount,
-        clientName: entry.clientName,
-        projectTitle: project?.title ?? "",
-        reason: parsed.data.adminNotes,
-        appUrl: getAppUrl(),
-      });
-      void sendEmail({ to: cappedRecipients, subject, text });
+router.post(
+  "/revenue-entries/:id/reject",
+  requireAdminPage("/admin/queue", "edit"),
+  async (req, res): Promise<void> => {
+    const params = RejectRevenueEntryParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
     }
-  }
-  await logAudit(
-    req.user.id,
-    "reject_revenue_entry",
-    "revenue_entry",
-    entry.id,
-    parsed.data.adminNotes,
-  );
-  res.json(await enrichRevEntry(entry));
-});
+    const ok = await ensureCanReviewRevenueEntry(req, res, params.data.id);
+    if (!ok) return;
+    const parsed = RejectRevenueEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [entry] = await db
+      .update(revenueEntriesTable)
+      .set({ status: "rejected", adminNotes: parsed.data.adminNotes })
+      .where(eq(revenueEntriesTable.id, params.data.id))
+      .returning();
+    if (!entry) {
+      res.status(404).json({ error: "Entry not found" });
+      return;
+    }
+    const [team] = await db
+      .select()
+      .from(teamsTable)
+      .where(eq(teamsTable.id, entry.teamId));
+    if (team)
+      await createNotification(
+        team.leaderId,
+        "Revenue Entry Rejected",
+        `Your revenue entry was rejected: ${parsed.data.adminNotes}`,
+        "entry_rejected",
+        "/projects",
+      );
+    // Email the WHOLE team (leader + all members) on the To: line. Failures
+    // are swallowed inside sendEmail so they never block the reject response.
+    if (team) {
+      const [leader] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, team.leaderId));
+      const [project] = await db
+        .select()
+        .from(projectsTable)
+        .where(eq(projectsTable.id, entry.projectId));
+      const memberRows = await db
+        .select({
+          id: usersTable.id,
+          email: usersTable.email,
+          firstName: usersTable.firstName,
+        })
+        .from(teamMembersTable)
+        .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+        .where(eq(teamMembersTable.teamId, team.id));
+      const seen = new Set<string>();
+      const recipients: { email: string; name?: string }[] = [];
+      const addRecipient = (
+        email: string | null | undefined,
+        firstName: string | null | undefined,
+      ) => {
+        if (!email) return;
+        const lower = email.toLowerCase();
+        if (seen.has(lower)) return;
+        seen.add(lower);
+        recipients.push({ email, name: firstName ?? undefined });
+      };
+      addRecipient(leader?.email, leader?.firstName);
+      for (const m of memberRows) addRecipient(m.email, m.firstName);
+      const cappedRecipients = recipients.slice(0, 50);
+
+      if (cappedRecipients.length > 0) {
+        const { subject, text } = renderRevenueRejectedEmail({
+          recipientName: "team",
+          teamName: team.name,
+          amount: entry.amount,
+          clientName: entry.clientName,
+          projectTitle: project?.title ?? "",
+          reason: parsed.data.adminNotes,
+          appUrl: getAppUrl(),
+        });
+        void sendEmail({ to: cappedRecipients, subject, text });
+      }
+    }
+    await logAudit(
+      req.user.id,
+      "reject_revenue_entry",
+      "revenue_entry",
+      entry.id,
+      parsed.data.adminNotes,
+    );
+    res.json(await enrichRevEntry(entry));
+  },
+);
 
 router.post(
   "/revenue-entries/:id/unverify",
+  requireAdminPage("/admin/queue", "edit"),
   async (req, res): Promise<void> => {
     const params = UnverifyRevenueEntryParams.safeParse(req.params);
     if (!params.success) {
@@ -919,6 +929,7 @@ router.post(
 
 router.post(
   "/order-book-entries/:id/unverify",
+  requireAdminPage("/admin/queue", "edit"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });

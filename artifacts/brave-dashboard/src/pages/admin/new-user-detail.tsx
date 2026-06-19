@@ -12,6 +12,7 @@ import {
 } from "@/lib/access-api";
 import { normalizeError } from "@/lib/api-error";
 import { formatDateTime } from "@/lib/format";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,9 @@ function Field({ label, value }: { label: string; value: string | null }) {
       <p className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
-      <p className="text-sm font-medium">{value && value.trim() ? value : "—"}</p>
+      <p className="text-sm font-medium">
+        {value && value.trim() ? value : "—"}
+      </p>
     </div>
   );
 }
@@ -66,6 +69,9 @@ export default function AdminNewUserDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const id = Number(params.id);
+  // Approve / reject are "edit" actions on the New User Requests page — honour
+  // the super-admin-controlled permission here too (API enforces it as well).
+  const { canEdit } = useAdminPageAccess("/admin/new-users-requests");
 
   const [confirm, setConfirm] = useState<null | "approve" | "reject">(null);
 
@@ -158,7 +164,11 @@ export default function AdminNewUserDetail() {
             />
           </Card>
 
-          {data.status === "pending" ? (
+          {!canEdit ? (
+            <p className="text-sm text-muted-foreground">
+              You don't have permission to approve or reject requests.
+            </p>
+          ) : data.status === "pending" ? (
             <div className="flex items-center gap-3">
               <Button
                 onClick={() => setConfirm("approve")}

@@ -16,6 +16,7 @@ import {
   scheduleJournalAnalysis,
   runJournalAnalysisNow,
 } from "../lib/ai/journal-scheduler";
+import { requireAdminPage } from "../lib/require-admin-page";
 
 const router: IRouter = Router();
 
@@ -759,63 +760,67 @@ router.delete("/journals/:id", async (req, res): Promise<void> => {
 // Run / re-run the Gemini auditor on ONE journal immediately. Used by the
 // per-journal "Analyse" / "Re-analyse" buttons and driven sequentially by the
 // "Analyse all" action on the frontend. Returns the refreshed AI fields.
-router.post("/admin/journals/:id/analyse", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  if (req.user.role !== "admin" && req.user.role !== "coordinator") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const [existing] = await db
-    .select()
-    .from(weeklyJournalsTable)
-    .where(eq(weeklyJournalsTable.id, id))
-    .limit(1);
-  if (!existing) {
-    res.status(404).json({ error: "Journal not found" });
-    return;
-  }
-  // Coordinators may only analyse journals in their own campus.
-  const denial = await authorizeJournalMutation(req.user, existing);
-  if (denial) {
-    res.status(denial.status).json({ error: denial.error });
-    return;
-  }
+router.post(
+  "/admin/journals/:id/analyse",
+  requireAdminPage("/admin/journals", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (req.user.role !== "admin" && req.user.role !== "coordinator") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(weeklyJournalsTable)
+      .where(eq(weeklyJournalsTable.id, id))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Journal not found" });
+      return;
+    }
+    // Coordinators may only analyse journals in their own campus.
+    const denial = await authorizeJournalMutation(req.user, existing);
+    if (denial) {
+      res.status(denial.status).json({ error: denial.error });
+      return;
+    }
 
-  const ok = await runJournalAnalysisNow(id);
+    const ok = await runJournalAnalysisNow(id);
 
-  const [updated] = await db
-    .select({
-      id: weeklyJournalsTable.id,
-      aiAnalysis: weeklyJournalsTable.aiAnalysis,
-      aiAnalysedAt: weeklyJournalsTable.aiAnalysedAt,
-      blockerPriority: weeklyJournalsTable.blockerPriority,
-      blockerPriorityManual: weeklyJournalsTable.blockerPriorityManual,
-      blockerStatus: weeklyJournalsTable.blockerStatus,
-      blockerNote: weeklyJournalsTable.blockerNote,
-      blockerUpdatedAt: weeklyJournalsTable.blockerUpdatedAt,
-    })
-    .from(weeklyJournalsTable)
-    .where(eq(weeklyJournalsTable.id, id))
-    .limit(1);
+    const [updated] = await db
+      .select({
+        id: weeklyJournalsTable.id,
+        aiAnalysis: weeklyJournalsTable.aiAnalysis,
+        aiAnalysedAt: weeklyJournalsTable.aiAnalysedAt,
+        blockerPriority: weeklyJournalsTable.blockerPriority,
+        blockerPriorityManual: weeklyJournalsTable.blockerPriorityManual,
+        blockerStatus: weeklyJournalsTable.blockerStatus,
+        blockerNote: weeklyJournalsTable.blockerNote,
+        blockerUpdatedAt: weeklyJournalsTable.blockerUpdatedAt,
+      })
+      .from(weeklyJournalsTable)
+      .where(eq(weeklyJournalsTable.id, id))
+      .limit(1);
 
-  if (!ok && !updated?.aiAnalysedAt) {
-    res.status(502).json({
-      error:
-        "Analysis did not complete. Check that GEMINI_API_KEY is configured.",
-      journal: updated ?? null,
-    });
-    return;
-  }
-  res.json({ ok, journal: updated ?? null });
-});
+    if (!ok && !updated?.aiAnalysedAt) {
+      res.status(502).json({
+        error:
+          "Analysis did not complete. Check that GEMINI_API_KEY is configured.",
+        journal: updated ?? null,
+      });
+      return;
+    }
+    res.json({ ok, journal: updated ?? null });
+  },
+);
 
 // Update blocker triage on a journal: priority (manual override of the AI's
 // suggestion), status (open/assigned/resolved), and an optional admin note.
@@ -833,91 +838,95 @@ const BlockerTriageBody = z
     { message: "No fields to update" },
   );
 
-router.patch("/admin/journals/:id/blocker", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  if (req.user.role !== "admin" && req.user.role !== "coordinator") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const parsed = BlockerTriageBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [existing] = await db
-    .select()
-    .from(weeklyJournalsTable)
-    .where(eq(weeklyJournalsTable.id, id))
-    .limit(1);
-  if (!existing) {
-    res.status(404).json({ error: "Journal not found" });
-    return;
-  }
-  const denial = await authorizeJournalMutation(req.user, existing);
-  if (denial) {
-    res.status(denial.status).json({ error: denial.error });
-    return;
-  }
+router.patch(
+  "/admin/journals/:id/blocker",
+  requireAdminPage("/admin/journals", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (req.user.role !== "admin" && req.user.role !== "coordinator") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = BlockerTriageBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(weeklyJournalsTable)
+      .where(eq(weeklyJournalsTable.id, id))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Journal not found" });
+      return;
+    }
+    const denial = await authorizeJournalMutation(req.user, existing);
+    if (denial) {
+      res.status(denial.status).json({ error: denial.error });
+      return;
+    }
 
-  const update: Partial<typeof weeklyJournalsTable.$inferInsert> = {
-    blockerUpdatedBy: req.user.id,
-    blockerUpdatedAt: new Date(),
-  };
-  if (parsed.data.priority !== undefined) {
-    update.blockerPriority = parsed.data.priority;
-    // A manual priority pins the value so re-analysis won't overwrite it.
-    update.blockerPriorityManual = true;
-  }
-  if (parsed.data.status !== undefined) {
-    update.blockerStatus = parsed.data.status;
-  }
-  if (parsed.data.note !== undefined) {
-    update.blockerNote = parsed.data.note;
-  }
+    const update: Partial<typeof weeklyJournalsTable.$inferInsert> = {
+      blockerUpdatedBy: req.user.id,
+      blockerUpdatedAt: new Date(),
+    };
+    if (parsed.data.priority !== undefined) {
+      update.blockerPriority = parsed.data.priority;
+      // A manual priority pins the value so re-analysis won't overwrite it.
+      update.blockerPriorityManual = true;
+    }
+    if (parsed.data.status !== undefined) {
+      update.blockerStatus = parsed.data.status;
+    }
+    if (parsed.data.note !== undefined) {
+      update.blockerNote = parsed.data.note;
+    }
 
-  const [updated] = await db
-    .update(weeklyJournalsTable)
-    .set(update)
-    .where(eq(weeklyJournalsTable.id, id))
-    .returning({
-      id: weeklyJournalsTable.id,
-      blockerPriority: weeklyJournalsTable.blockerPriority,
-      blockerPriorityManual: weeklyJournalsTable.blockerPriorityManual,
-      blockerStatus: weeklyJournalsTable.blockerStatus,
-      blockerNote: weeklyJournalsTable.blockerNote,
-      blockerUpdatedAt: weeklyJournalsTable.blockerUpdatedAt,
+    const [updated] = await db
+      .update(weeklyJournalsTable)
+      .set(update)
+      .where(eq(weeklyJournalsTable.id, id))
+      .returning({
+        id: weeklyJournalsTable.id,
+        blockerPriority: weeklyJournalsTable.blockerPriority,
+        blockerPriorityManual: weeklyJournalsTable.blockerPriorityManual,
+        blockerStatus: weeklyJournalsTable.blockerStatus,
+        blockerNote: weeklyJournalsTable.blockerNote,
+        blockerUpdatedAt: weeklyJournalsTable.blockerUpdatedAt,
+      });
+
+    await db.insert(auditLogTable).values({
+      actorId: req.user.id,
+      action: "update_journal_blocker",
+      targetType: "weekly_journal",
+      targetId: id,
+      details: JSON.stringify({
+        teamId: existing.teamId,
+        weekStartDate: existing.weekStartDate,
+        before: {
+          blockerPriority: existing.blockerPriority,
+          blockerStatus: existing.blockerStatus,
+          blockerNote: existing.blockerNote,
+        },
+        after: {
+          blockerPriority: updated.blockerPriority,
+          blockerStatus: updated.blockerStatus,
+          blockerNote: updated.blockerNote,
+        },
+      }),
     });
 
-  await db.insert(auditLogTable).values({
-    actorId: req.user.id,
-    action: "update_journal_blocker",
-    targetType: "weekly_journal",
-    targetId: id,
-    details: JSON.stringify({
-      teamId: existing.teamId,
-      weekStartDate: existing.weekStartDate,
-      before: {
-        blockerPriority: existing.blockerPriority,
-        blockerStatus: existing.blockerStatus,
-        blockerNote: existing.blockerNote,
-      },
-      after: {
-        blockerPriority: updated.blockerPriority,
-        blockerStatus: updated.blockerStatus,
-        blockerNote: updated.blockerNote,
-      },
-    }),
-  });
-
-  res.json(updated);
-});
+    res.json(updated);
+  },
+);
 
 export default router;

@@ -61,6 +61,7 @@ import {
   CoordinatorsCell,
   type CampusCoordinator,
 } from "@/components/coordinators-popover";
+import { useAdminPageAccess } from "@/lib/admin-access";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -73,6 +74,10 @@ export default function AdminCampusDetail() {
   const { toast } = useToast();
   const deleteCampus = useDeleteCampus();
   const updateCampus = useUpdateCampus();
+  // Mirror the list page's per-page permissions on the detail view so a
+  // restricted admin (edit/delete off for /admin/campuses) sees no edit or
+  // delete affordance here either. The API enforces it too (defense in depth).
+  const { canEdit, canDelete } = useAdminPageAccess("/admin/campuses");
   const { data: coordinatorUsersResp } = useListUsers({
     role: "coordinator",
     pageSize: 1000,
@@ -374,42 +379,43 @@ export default function AdminCampusDetail() {
               </span>
             </div>
           )}
-          {isEditing ? (
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={saveEdit}
-                disabled={updateCampus.isPending}
-                data-testid="button-save-campus-detail"
-              >
-                {updateCampus.isPending ? (
-                  <Spinner className="w-4 h-4 mr-1" />
-                ) : (
-                  <Check className="w-4 h-4 mr-1" />
-                )}
-                Save
-              </Button>
+          {canEdit &&
+            (isEditing ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={saveEdit}
+                  disabled={updateCampus.isPending}
+                  data-testid="button-save-campus-detail"
+                >
+                  {updateCampus.isPending ? (
+                    <Spinner className="w-4 h-4 mr-1" />
+                  ) : (
+                    <Check className="w-4 h-4 mr-1" />
+                  )}
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={cancelEdit}
+                  disabled={updateCampus.isPending}
+                  data-testid="button-cancel-edit-campus-detail"
+                >
+                  <X className="w-4 h-4 mr-1" /> Cancel
+                </Button>
+              </div>
+            ) : (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={cancelEdit}
-                disabled={updateCampus.isPending}
-                data-testid="button-cancel-edit-campus-detail"
+                onClick={startEdit}
+                data-testid="button-edit-campus-detail"
               >
-                <X className="w-4 h-4 mr-1" /> Cancel
+                <Pencil className="w-4 h-4 mr-1" /> Edit
               </Button>
-            </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={startEdit}
-              data-testid="button-edit-campus-detail"
-            >
-              <Pencil className="w-4 h-4 mr-1" /> Edit
-            </Button>
-          )}
-          {!isEditing && (
+            ))}
+          {canDelete && !isEditing && (
             <Button
               size="sm"
               variant="outline"

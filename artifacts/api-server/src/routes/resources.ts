@@ -16,6 +16,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
+import { requireAdminPage } from "../lib/require-admin-page";
 import {
   db,
   resourcesTable,
@@ -99,72 +100,80 @@ router.get("/resources", async (req, res): Promise<void> => {
 });
 
 // Create — any authenticated user (student / coordinator / admin).
-router.post("/resources", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const parsed = CreateResourceBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [created] = await db
-    .insert(resourcesTable)
-    .values({
-      title: parsed.data.title,
-      description: parsed.data.description,
-      docUrl: parsed.data.docUrl,
-      createdById: req.user.id,
-    })
-    .returning();
-  res.status(201).json(created);
-});
+router.post(
+  "/resources",
+  requireAdminPage("/admin/resources", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const parsed = CreateResourceBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [created] = await db
+      .insert(resourcesTable)
+      .values({
+        title: parsed.data.title,
+        description: parsed.data.description,
+        docUrl: parsed.data.docUrl,
+        createdById: req.user.id,
+      })
+      .returning();
+    res.status(201).json(created);
+  },
+);
 
 // Update — admin can edit any; non-admins can edit only resources they
 // created themselves.
-router.patch("/resources/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const parsed = UpdateResourceBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const updates = parsed.data;
-  if (Object.keys(updates).length === 0) {
-    res.status(400).json({ error: "No fields to update" });
-    return;
-  }
-  const [existing] = await db
-    .select()
-    .from(resourcesTable)
-    .where(eq(resourcesTable.id, id))
-    .limit(1);
-  if (!existing) {
-    res.status(404).json({ error: "Resource not found" });
-    return;
-  }
-  if (req.user.role !== "admin" && existing.createdById !== req.user.id) {
-    res
-      .status(403)
-      .json({ error: "You can only edit resources you created." });
-    return;
-  }
-  const [updated] = await db
-    .update(resourcesTable)
-    .set(updates)
-    .where(eq(resourcesTable.id, id))
-    .returning();
-  res.json(updated);
-});
+router.patch(
+  "/resources/:id",
+  requireAdminPage("/admin/resources", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = UpdateResourceBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const updates = parsed.data;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(resourcesTable)
+      .where(eq(resourcesTable.id, id))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Resource not found" });
+      return;
+    }
+    if (req.user.role !== "admin" && existing.createdById !== req.user.id) {
+      res
+        .status(403)
+        .json({ error: "You can only edit resources you created." });
+      return;
+    }
+    const [updated] = await db
+      .update(resourcesTable)
+      .set(updates)
+      .where(eq(resourcesTable.id, id))
+      .returning();
+    res.json(updated);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Resources visibility settings — controls whether students see the Resources
@@ -198,73 +207,81 @@ const ResourcesSettingsBody = z.object({
   enabledForStudents: z.boolean(),
 });
 
-router.patch("/admin/resources-settings", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated() || req.user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const parsed = ResourcesSettingsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const rows = await db.select().from(programmeConfigTable).limit(1);
-  if (rows.length === 0) {
-    const [created] = await db
-      .insert(programmeConfigTable)
-      .values({
-        resourcesEnabledForStudents: parsed.data.enabledForStudents,
-      })
+router.patch(
+  "/admin/resources-settings",
+  requireAdminPage("/admin/resources", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = ResourcesSettingsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const rows = await db.select().from(programmeConfigTable).limit(1);
+    if (rows.length === 0) {
+      const [created] = await db
+        .insert(programmeConfigTable)
+        .values({
+          resourcesEnabledForStudents: parsed.data.enabledForStudents,
+        })
+        .returning();
+      res.json({
+        enabledForStudents: created.resourcesEnabledForStudents,
+      });
+      return;
+    }
+    const [updated] = await db
+      .update(programmeConfigTable)
+      .set({ resourcesEnabledForStudents: parsed.data.enabledForStudents })
+      .where(eq(programmeConfigTable.id, rows[0].id))
       .returning();
-    res.json({
-      enabledForStudents: created.resourcesEnabledForStudents,
-    });
-    return;
-  }
-  const [updated] = await db
-    .update(programmeConfigTable)
-    .set({ resourcesEnabledForStudents: parsed.data.enabledForStudents })
-    .where(eq(programmeConfigTable.id, rows[0].id))
-    .returning();
-  res.json({ enabledForStudents: updated.resourcesEnabledForStudents });
-});
+    res.json({ enabledForStudents: updated.resourcesEnabledForStudents });
+  },
+);
 
 // Delete — admin can delete any; non-admins can delete only resources they
 // created themselves.
-router.delete("/resources/:id", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const [existing] = await db
-    .select()
-    .from(resourcesTable)
-    .where(eq(resourcesTable.id, id))
-    .limit(1);
-  if (!existing) {
-    res.status(404).json({ error: "Resource not found" });
-    return;
-  }
-  if (req.user.role !== "admin" && existing.createdById !== req.user.id) {
-    res
-      .status(403)
-      .json({ error: "You can only delete resources you created." });
-    return;
-  }
-  const [deleted] = await db
-    .delete(resourcesTable)
-    .where(eq(resourcesTable.id, id))
-    .returning();
-  if (!deleted) {
-    res.status(404).json({ error: "Resource not found" });
-    return;
-  }
-  res.json({ ok: true });
-});
+router.delete(
+  "/resources/:id",
+  requireAdminPage("/admin/resources", "delete"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(resourcesTable)
+      .where(eq(resourcesTable.id, id))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Resource not found" });
+      return;
+    }
+    if (req.user.role !== "admin" && existing.createdById !== req.user.id) {
+      res
+        .status(403)
+        .json({ error: "You can only delete resources you created." });
+      return;
+    }
+    const [deleted] = await db
+      .delete(resourcesTable)
+      .where(eq(resourcesTable.id, id))
+      .returning();
+    if (!deleted) {
+      res.status(404).json({ error: "Resource not found" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
 
 export default router;

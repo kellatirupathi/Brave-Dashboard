@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpenCheck,
@@ -96,7 +97,7 @@ const ALL = "all" as const;
 type Tab = "overview" | "all" | "missed";
 
 // ---- Blocker priority / status presentation ----
-const PRIORITY_META: Record<
+export const PRIORITY_META: Record<
   BlockerPriority,
   { label: string; rank: number; badge: string; dot: string }
 > = {
@@ -126,7 +127,7 @@ const PRIORITY_META: Record<
   },
 };
 
-const STATUS_META: Record<
+export const STATUS_META: Record<
   BlockerStatus,
   { label: string; badge: string; icon: typeof CircleDot }
 > = {
@@ -149,43 +150,28 @@ const STATUS_META: Record<
 
 const PRIORITY_ORDER: BlockerPriority[] = ["high", "medium", "low", "none"];
 
-function getPriority(j: WeeklyJournal): BlockerPriority {
+export function getPriority(j: WeeklyJournal): BlockerPriority {
   return (j.blockerPriority ??
     j.aiAnalysis?.blockers?.priority ??
     "none") as BlockerPriority;
 }
-function getStatus(j: WeeklyJournal): BlockerStatus {
+export function getStatus(j: WeeklyJournal): BlockerStatus {
   return (j.blockerStatus ?? "open") as BlockerStatus;
 }
 
 export default function AdminJournals({ scope = "admin" }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<WeeklyJournal | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [openTeamId, setOpenTeamId] = useState<number | null>(null);
+  const [, setLocation] = useLocation();
+  // Team drill-down now lives on its own full page instead of a modal.
+  const teamDetailBase =
+    scope === "coordinator" ? "/coordinator/journals" : "/admin/journals";
 
   const { data: journals, isLoading } = useQuery({
     queryKey: ["admin-journals"],
     queryFn: () => listAdminJournals(),
   });
 
-  const deleteMut = useMutation({
-    mutationFn: deleteJournal,
-    onSuccess: () => {
-      toast({ title: "Journal deleted" });
-      queryClient.invalidateQueries({ queryKey: ["admin-journals"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-journals-coverage"] });
-      setDeletingId(null);
-    },
-    onError: (err: Error) => {
-      toast({
-        title: "Delete failed",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
-  });
   const { data: coverage } = useQuery({
     queryKey: ["admin-journals-coverage"],
     queryFn: getJournalCoverage,
@@ -369,11 +355,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
     return groups;
   }, [filtered]);
 
-  const activeTeam = useMemo(
-    () => teamGroups.find((g) => g.teamId === openTeamId) ?? null,
-    [teamGroups, openTeamId],
-  );
-
   const missedTeams = useMemo(() => {
     if (!coverage) return [];
     const q = query.trim().toLowerCase();
@@ -408,51 +389,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
       old?.map((j) => (j.id === id ? { ...j, ...fields } : j)),
     );
   }
-
-  const analyseOneMut = useMutation({
-    mutationFn: (id: number) => analyseJournalNow(id),
-    onSuccess: (res, id) => {
-      if (res.journal) patchJournalInCache(id, res.journal);
-      if (!res.ok && !res.journal?.aiAnalysedAt) {
-        toast({
-          title: "Analysis not completed",
-          description: "Check that the AI key (GEMINI_API_KEY) is configured.",
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "Journal analysed" });
-      }
-    },
-    onError: (err: Error) => {
-      toast({
-        title: "Analyse failed",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const blockerMut = useMutation({
-    mutationFn: (vars: {
-      id: number;
-      body: {
-        priority?: BlockerPriority;
-        status?: BlockerStatus;
-        note?: string | null;
-      };
-    }) => updateJournalBlocker(vars.id, vars.body),
-    onSuccess: (updated) => {
-      patchJournalInCache(updated.id, updated);
-      toast({ title: "Blocker updated" });
-    },
-    onError: (err: Error) => {
-      toast({
-        title: "Update failed",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   // Sequentially analyse every not-yet-analysed journal in the filtered set,
   // one at a time, with live progress. Driven from the frontend so progress is
@@ -720,7 +656,9 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                       <TableRow
                         key={g.teamId}
                         className="cursor-pointer"
-                        onClick={() => setOpenTeamId(g.teamId)}
+                        onClick={() =>
+                          setLocation(`${teamDetailBase}/team/${g.teamId}`)
+                        }
                         data-testid={`journal-team-row-${g.teamId}`}
                       >
                         <TableCell className="font-medium">
@@ -847,44 +785,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
         </Card>
       )}
 
-      {/* ===================== TEAM DRILL-DOWN ===================== */}
-      <Dialog
-        open={activeTeam !== null}
-        onOpenChange={(o) => !o && setOpenTeamId(null)}
-      >
-        <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
-          {activeTeam && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{activeTeam.teamName}</DialogTitle>
-                <DialogDescription>
-                  {activeTeam.campusName ?? "—"} · {activeTeam.journals.length}{" "}
-                  journals
-                </DialogDescription>
-              </DialogHeader>
-              <TeamSnapshot journals={activeTeam.journals} />
-              <div className="space-y-4">
-                {activeTeam.journals.map((j) => (
-                  <JournalDetailCard
-                    key={j.id}
-                    journal={j}
-                    analysing={
-                      analyseOneMut.isPending &&
-                      analyseOneMut.variables === j.id
-                    }
-                    onAnalyse={() => analyseOneMut.mutate(j.id)}
-                    onEdit={() => setEditing(j as unknown as WeeklyJournal)}
-                    onDelete={() => setDeletingId(j.id)}
-                    onBlocker={(body) => blockerMut.mutate({ id: j.id, body })}
-                    blockerSaving={blockerMut.isPending}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={confirmAnalyseAll} onOpenChange={setConfirmAnalyseAll}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -905,40 +805,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
               data-testid="confirm-analyse-all"
             >
               Yes, analyse all
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <JournalEditDialog
-        open={editing !== null}
-        onOpenChange={(o) => !o && setEditing(null)}
-        journal={editing}
-        invalidateKeys={[["admin-journals"], ["admin-journals-coverage"]]}
-      />
-
-      <AlertDialog
-        open={deletingId !== null}
-        onOpenChange={(o) => !o && setDeletingId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this journal?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently deletes the journal entry. The action is logged
-              to the audit log and cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() =>
-                deletingId !== null && deleteMut.mutate(deletingId)
-              }
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="confirm-delete-journal"
-            >
-              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1112,7 +978,7 @@ function Metric({
 // ============================================================
 // Team snapshot (drill-down header rollup)
 // ============================================================
-function TeamSnapshot({ journals }: { journals: JournalRow[] }) {
+export function TeamSnapshot({ journals }: { journals: JournalRow[] }) {
   const snap = useMemo(() => {
     const sums = { clients: 0, convos: 0, started: 0, closed: 0 };
     const priority: Record<BlockerPriority, number> = {
@@ -1171,7 +1037,7 @@ function TeamSnapshot({ journals }: { journals: JournalRow[] }) {
 // ============================================================
 // Single journal detail card (used inside the drill-down)
 // ============================================================
-function JournalDetailCard({
+export function JournalDetailCard({
   journal,
   analysing,
   onAnalyse,
