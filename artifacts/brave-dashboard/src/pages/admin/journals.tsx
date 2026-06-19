@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   CircleDot,
   UserCog,
+  Download,
 } from "lucide-react";
 import {
   Card,
@@ -161,6 +162,98 @@ export function getPriority(j: WeeklyJournal): BlockerPriority {
 }
 export function getStatus(j: WeeklyJournal): BlockerStatus {
   return (j.blockerStatus ?? "open") as BlockerStatus;
+}
+
+// ---- CSV export ----
+function csvCell(value: unknown): string {
+  if (value == null) return "";
+  let s = String(value);
+  // Neutralize spreadsheet formula injection: prefix a single quote when the
+  // value (ignoring leading whitespace) starts with a formula trigger char.
+  if (/^[\s]*[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
+  // Quote when the value contains a comma, quote, or newline; escape inner quotes.
+  if (/[",\n\r]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function triggerCsvDownload(filename: string, lines: string[]): void {
+  // Prepend a BOM so Excel reads UTF-8 correctly.
+  const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Builds the full text of a single journal for a CSV cell.
+function journalCellText(j: WeeklyJournal): string {
+  const parts: string[] = [];
+  if (j.whatWeDid?.trim()) parts.push(j.whatWeDid.trim());
+  if (j.blockers?.trim()) parts.push(`Blockers: ${j.blockers.trim()}`);
+  if (j.nextWeekPlan?.trim()) parts.push(`Next week: ${j.nextWeekPlan.trim()}`);
+  return parts.join("\n\n");
+}
+
+// Exports every journal as a team × week matrix: one row per team, one column
+// per week, each cell holding that team's journal for that week.
+function exportJournalsToCsv(journals: JournalRow[]): void {
+  // Distinct weeks across all journals, ascending by start date.
+  const weekMap = new Map<string, string>();
+  for (const j of journals) {
+    if (!weekMap.has(j.weekStartDate)) {
+      weekMap.set(j.weekStartDate, `${j.weekStartDate} → ${j.weekEndDate}`);
+    }
+  }
+  const weeks = Array.from(weekMap.entries())
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([start, label]) => ({ start, label }));
+
+  // Group journals by team.
+  const teams = new Map<
+    number,
+    {
+      teamName: string;
+      campusName: string;
+      byWeek: Map<string, JournalRow>;
+    }
+  >();
+  for (const j of journals) {
+    const t = teams.get(j.teamId) ?? {
+      teamName: j.teamName ?? `Team #${j.teamId}`,
+      campusName: j.campusName ?? "",
+      byWeek: new Map<string, JournalRow>(),
+    };
+    t.byWeek.set(j.weekStartDate, j);
+    teams.set(j.teamId, t);
+  }
+
+  const headers = ["Team", "Campus", ...weeks.map((w) => `Week ${w.label}`)];
+  const lines = [headers.map(csvCell).join(",")];
+
+  const teamRows = Array.from(teams.values()).sort((a, b) =>
+    a.teamName.localeCompare(b.teamName),
+  );
+  for (const t of teamRows) {
+    const cells: unknown[] = [t.teamName, t.campusName];
+    for (const w of weeks) {
+      const j = t.byWeek.get(w.start);
+      cells.push(j ? journalCellText(j) : "");
+    }
+    lines.push(cells.map(csvCell).join(","));
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  triggerCsvDownload(`weekly-journals-${stamp}.csv`, lines);
 }
 
 export default function AdminJournals({ scope = "admin" }: Props) {
@@ -515,16 +608,28 @@ export default function AdminJournals({ scope = "admin" }: Props) {
 
       {/* Filters + tabs */}
       <div className="flex flex-col gap-3">
-        {/* Search — full width */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by team, campus, member name, or content"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-9"
-            data-testid="journals-search"
-          />
+        {/* Search (left, reduced width) + export (right) */}
+        <div className="flex items-center gap-2">
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by team, campus, member name, or content"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="pl-9"
+              data-testid="journals-search"
+            />
+          </div>
+          <Button
+            variant="outline"
+            className="ml-auto gap-2"
+            onClick={() => exportJournalsToCsv(journals ?? [])}
+            disabled={!journals || journals.length === 0}
+            data-testid="journals-export"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
         </div>
 
         {/* Tabs (left) + week/campus filters (right) — one row */}
