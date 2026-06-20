@@ -268,8 +268,8 @@ export default function TeamDashboard() {
                     className="mt-2 h-1.5"
                   />
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    {progress?.journal?.weekStart && progress?.journal?.weekEnd
-                      ? `${progress.journal.weekStart} → ${progress.journal.weekEnd}`
+                    {progress?.journal?.weekNumber != null
+                      ? `Week ${progress.journal.weekNumber}`
                       : "Submit a short 3-field journal to stay on track."}
                   </p>
                 </div>

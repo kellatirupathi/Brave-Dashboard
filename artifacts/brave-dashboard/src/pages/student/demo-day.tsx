@@ -45,38 +45,6 @@ export default function GritMiles() {
         </p>
       </div>
 
-      {/* Summary strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {(
-          [
-            { label: "Current revenue", value: formatINR(revenue) },
-            {
-              label: "Current level",
-              value: grit.currentLevel > 0 ? `Level ${grit.currentLevel}` : "—",
-            },
-            {
-              label: "Miles unlocked",
-              value: grit.milesUnlocked.toLocaleString("en-IN"),
-            },
-            {
-              label: "Revenue for next level",
-              value: grit.nextLevel ? formatINR(grit.revenueToNext) : "Maxed",
-            },
-          ] as const
-        ).map((m) => (
-          <Card key={m.label}>
-            <CardContent className="p-4">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {m.label}
-              </div>
-              <div className="mt-1 text-xl font-bold tabular-nums">
-                {m.value}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
       {grit.nextLevel ? (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="p-5 flex items-center gap-3">
