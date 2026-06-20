@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { sql } from "drizzle-orm";
-import { db } from "@workspace/db";
+import { sql, eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -31,6 +31,22 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   // Match the Review Queue's 48-hour overdue cutoff.
   const overdueCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
+  // Coordinators only ever see their OWN campus. Admins see everything.
+  // When the requester is a coordinator we resolve their campus and inject a
+  // `t.campus_id = X` predicate into each team-derived subquery; when admin,
+  // the predicate is empty SQL so the aggregates stay global (unchanged).
+  let scopedCampusId: number | null = null;
+  if (req.user.role === "coordinator") {
+    const [me] = await db
+      .select({ campusId: usersTable.campusId })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user.id));
+    // -1 can never match a real campus → coordinator with no campus sees zeros.
+    scopedCampusId = me?.campusId ?? -1;
+  }
+  const teamScope =
+    scopedCampusId != null ? sql`AND t.campus_id = ${scopedCampusId}` : sql``;
+
   const countersP = db.execute<{
     threshold: number;
     total_revenue: string;
@@ -49,15 +65,15 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   }>(sql`
     SELECT
       COALESCE((SELECT demo_eligibility_threshold FROM programme_config LIMIT 1), 200000) AS threshold,
-      (SELECT COALESCE(SUM(verified_amount), 0) FROM revenue_entries WHERE status = 'verified')      AS total_revenue,
-      (SELECT COALESCE(SUM(verified_amount), 0) FROM order_book_entries WHERE status = 'verified')   AS total_ob,
-      (SELECT COUNT(*) FROM teams WHERE status = 'active')                                            AS active_teams,
-      (SELECT COUNT(*) FROM teams WHERE status = 'pending')                                           AS pending_teams,
-      (SELECT MIN(created_at) FROM teams WHERE status = 'pending')                                    AS pending_teams_oldest,
+      (SELECT COALESCE(SUM(re.verified_amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'verified' ${teamScope})      AS total_revenue,
+      (SELECT COALESCE(SUM(obe.verified_amount), 0) FROM order_book_entries obe JOIN teams t ON t.id = obe.team_id WHERE obe.status = 'verified' ${teamScope})   AS total_ob,
+      (SELECT COUNT(*) FROM teams t WHERE t.status = 'active' ${teamScope})                           AS active_teams,
+      (SELECT COUNT(*) FROM teams t WHERE t.status = 'pending' ${teamScope})                          AS pending_teams,
+      (SELECT MIN(t.created_at) FROM teams t WHERE t.status = 'pending' ${teamScope})                 AS pending_teams_oldest,
       (SELECT COUNT(*) FROM campuses)                                                                 AS total_campuses,
-      (SELECT COUNT(*) FROM revenue_entries WHERE status = 'submitted')                               AS pending_review,
-      (SELECT MIN(submitted_at) FROM revenue_entries WHERE status = 'submitted')                      AS pending_review_oldest,
-      (SELECT COUNT(*) FROM revenue_entries WHERE status = 'submitted' AND submitted_at < ${overdueCutoff}) AS overdue_review,
+      (SELECT COUNT(*) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${teamScope})                               AS pending_review,
+      (SELECT MIN(re.submitted_at) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${teamScope})                      AS pending_review_oldest,
+      (SELECT COUNT(*) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' AND re.submitted_at < ${overdueCutoff} ${teamScope}) AS overdue_review,
       (SELECT COUNT(*) FROM demo_day_applications WHERE status = 'submitted')                         AS pending_demo_day,
       (SELECT MIN(submitted_at) FROM demo_day_applications WHERE status = 'submitted')                AS pending_demo_day_oldest,
       (SELECT COUNT(*) FROM access_requests WHERE status = 'pending')                                 AS pending_access_req,
@@ -79,6 +95,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       GROUP BY team_id
     ) rev_by_team ON rev_by_team.team_id = t.id
     WHERE t.status = 'active'
+      ${teamScope}
       AND COALESCE(rev_by_team.total, 0) >= COALESCE(
         (SELECT demo_eligibility_threshold FROM programme_config LIMIT 1),
         200000

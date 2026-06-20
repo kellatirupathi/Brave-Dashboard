@@ -1,45 +1,23 @@
 import { useGetTeamDashboardSummary } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { formatINR } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Lock, Trophy } from "lucide-react";
+import { CheckCircle, Lock, Award, Trophy } from "lucide-react";
+import {
+  getStudentGritConfig,
+  computeGritProgress,
+  DEFAULT_GRIT_LEVELS,
+} from "@/lib/grit-config-api";
 
-type Level = {
-  num: 1 | 2 | 3;
-  threshold: number;
-  title: string;
-  unlockedMessage: string;
-  lockedMessage: string;
-};
-
-const LEVELS: Level[] = [
-  {
-    num: 1,
-    threshold: 200000,
-    title: "Level 1",
-    unlockedMessage: "Congratulations! You have cleared Level 1.",
-    lockedMessage: "Cross ₹2,00,000 in verified revenue to clear Level 1.",
-  },
-  {
-    num: 2,
-    threshold: 500000,
-    title: "Level 2",
-    unlockedMessage: "Congratulations! You have cleared Level 2.",
-    lockedMessage: "Generate more revenue to unlock Level 2.",
-  },
-  {
-    num: 3,
-    threshold: 2000000,
-    title: "Level 3",
-    unlockedMessage: "Congratulations! You have cleared Level 3.",
-    lockedMessage: "Generate more revenue to unlock Level 3.",
-  },
-];
-
-export default function DemoDay() {
+export default function GritMiles() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
+  const { data: gritConfig } = useQuery({
+    queryKey: ["student-grit-config"],
+    queryFn: getStudentGritConfig,
+  });
 
   if (isLoading)
     return (
@@ -50,24 +28,78 @@ export default function DemoDay() {
   if (!summary) return <div>Failed to load data</div>;
 
   const revenue = summary.totalRevenue ?? 0;
-  const highestCleared = LEVELS.filter((l) => revenue >= l.threshold).pop();
+  const levels = gritConfig?.levels?.length
+    ? gritConfig.levels
+    : DEFAULT_GRIT_LEVELS;
+  const grit = computeGritProgress(revenue, levels);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Demo Day</h1>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Award className="w-7 h-7 text-amber-500" /> GRIT Miles
+        </h1>
         <p className="text-muted-foreground mt-1">
-          Climb the levels by growing your verified revenue.
+          Climb the levels by growing your verified revenue and unlock GRIT
+          Miles rewards.
         </p>
       </div>
 
-      {highestCleared && (
+      {/* Summary strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {(
+          [
+            { label: "Current revenue", value: formatINR(revenue) },
+            {
+              label: "Current level",
+              value: grit.currentLevel > 0 ? `Level ${grit.currentLevel}` : "—",
+            },
+            {
+              label: "Miles unlocked",
+              value: grit.milesUnlocked.toLocaleString("en-IN"),
+            },
+            {
+              label: "Revenue for next level",
+              value: grit.nextLevel ? formatINR(grit.revenueToNext) : "Maxed",
+            },
+          ] as const
+        ).map((m) => (
+          <Card key={m.label}>
+            <CardContent className="p-4">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {m.label}
+              </div>
+              <div className="mt-1 text-xl font-bold tabular-nums">
+                {m.value}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {grit.nextLevel ? (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-5 flex items-center gap-3">
+            <Trophy className="w-8 h-8 text-amber-600 shrink-0" />
+            <div>
+              <p className="font-semibold">
+                {formatINR(grit.revenueToNext)} more required to unlock{" "}
+                {grit.nextLevel.miles} GRIT Miles
+              </p>
+              <p className="text-sm text-muted-foreground">
+                You're at Level {grit.currentLevel} · {formatINR(revenue)}{" "}
+                verified so far.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
         <Card className="border-green-500/50 bg-green-500/5">
           <CardContent className="p-5 flex items-center gap-3">
             <Trophy className="w-8 h-8 text-green-600 shrink-0" />
             <div>
               <p className="font-semibold">
-                {highestCleared.unlockedMessage}
+                You've unlocked every GRIT Miles reward!
               </p>
               <p className="text-sm text-muted-foreground">
                 Verified revenue so far: {formatINR(revenue)}
@@ -77,30 +109,26 @@ export default function DemoDay() {
         </Card>
       )}
 
+      {/* Level ladder. Each level unlocks once the previous is cleared. */}
       <div className="grid gap-4">
-        {LEVELS.map((level) => {
-          const cleared = revenue >= level.threshold;
-          const level1Threshold = LEVELS[0].threshold;
-          const level1Cleared = revenue >= level1Threshold;
-          const level2Threshold = LEVELS[1].threshold;
-          const level2Cleared = revenue >= level2Threshold;
-          const lockedBehindPrevious =
-            (level.num === 2 && !level1Cleared) ||
-            (level.num === 3 && !level2Cleared);
-          const previousLevelToClear = level.num === 3 ? 2 : 1;
-          const remaining = Math.max(level.threshold - revenue, 0);
+        {levels.map((level, idx) => {
+          const cleared = revenue >= level.revenueTarget;
+          const prevTarget = idx > 0 ? levels[idx - 1].revenueTarget : 0;
+          const prevCleared = idx === 0 || revenue >= prevTarget;
+          const lockedBehindPrevious = !cleared && !prevCleared;
+          const remaining = Math.max(level.revenueTarget - revenue, 0);
           const progressPercent = Math.min(
-            (revenue / level.threshold) * 100,
+            (revenue / level.revenueTarget) * 100,
             100,
           );
 
           return (
             <Card
-              key={level.num}
+              key={level.level}
               className={
                 cleared ? "border-green-500/50 bg-green-500/5" : "opacity-95"
               }
-              data-testid={`level-${level.num}`}
+              data-testid={`grit-level-${level.level}`}
             >
               <CardHeader>
                 <CardTitle className="flex items-center justify-between gap-2">
@@ -110,14 +138,16 @@ export default function DemoDay() {
                     ) : (
                       <Lock className="w-5 h-5 text-muted-foreground" />
                     )}
-                    {level.title}
+                    Level {level.level}
                     <span className="text-sm font-normal text-muted-foreground">
-                      · Target {formatINR(level.threshold)}
+                      · Target {formatINR(level.revenueTarget)} · {level.miles}{" "}
+                      GRIT Miles
+                      {level.reward ? ` · ${level.reward}` : ""}
                     </span>
                   </span>
                   {cleared ? (
                     <Badge className="bg-green-500 hover:bg-green-600">
-                      <CheckCircle className="w-3 h-3 mr-1" /> Cleared
+                      <CheckCircle className="w-3 h-3 mr-1" /> Unlocked
                     </Badge>
                   ) : (
                     <Badge variant="secondary">
@@ -129,21 +159,19 @@ export default function DemoDay() {
               <CardContent>
                 {lockedBehindPrevious ? (
                   <p className="text-sm text-muted-foreground text-center">
-                    Clear Level {previousLevelToClear} to unlock
+                    Clear Level {idx} to unlock
                   </p>
                 ) : (
                   <>
                     <div className="flex justify-between text-sm mb-2 font-medium">
                       <span>Verified Revenue: {formatINR(revenue)}</span>
-                      <span>Target: {formatINR(level.threshold)}</span>
+                      <span>Target: {formatINR(level.revenueTarget)}</span>
                     </div>
                     <Progress value={progressPercent} className="h-3" />
                     <p className="text-sm text-muted-foreground mt-3 text-center">
                       {cleared
-                        ? level.unlockedMessage
-                        : remaining > 0
-                          ? `${level.lockedMessage} ${formatINR(remaining)} to go.`
-                          : level.lockedMessage}
+                        ? `Cleared! You unlocked ${level.miles} GRIT Miles.`
+                        : `${formatINR(remaining)} more to unlock ${level.miles} GRIT Miles.`}
                     </p>
                   </>
                 )}

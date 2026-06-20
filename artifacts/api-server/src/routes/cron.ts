@@ -363,7 +363,8 @@ router.post("/internal/cron/reminders", async (req: Request, res: Response) => {
   const expected = process.env.CRON_SECRET;
   if (!expected) {
     logger.error("[cron] CRON_SECRET is not configured on the server");
-    return res.status(500).json({ error: "cron not configured" });
+    res.status(500).json({ error: "cron not configured" });
+    return;
   }
   const provided = req.header("x-cron-secret");
   if (provided !== expected) {
@@ -371,7 +372,8 @@ router.post("/internal/cron/reminders", async (req: Request, res: Response) => {
       { providedHeaderPresent: !!provided },
       "[cron] rejected request with bad secret",
     );
-    return res.status(401).json({ error: "unauthorized" });
+    res.status(401).json({ error: "unauthorized" });
+    return;
   }
 
   // If a previous invocation is still working, return immediately — don't
@@ -380,7 +382,8 @@ router.post("/internal/cron/reminders", async (req: Request, res: Response) => {
     logger.warn(
       "[cron] reminders run already in flight — skipping this trigger",
     );
-    return res.status(202).json({ ok: true, alreadyRunning: true });
+    res.status(202).json({ ok: true, alreadyRunning: true });
+    return;
   }
 
   // Fire-and-forget: respond *immediately* so cron-job.org never times

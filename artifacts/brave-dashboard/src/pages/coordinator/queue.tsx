@@ -1,57 +1,29 @@
-import {
-  useGetAdminReviewQueue,
-  useVerifyRevenueEntry,
-  useRejectRevenueEntry,
-  useUnverifyRevenueEntry,
-  getGetAdminReviewQueueQueryKey,
-} from "@workspace/api-client-react";
+import { useGetAdminReviewQueue } from "@workspace/api-client-react";
 import { formatINR, formatDateTime } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertCircle,
   Check,
-  X,
   Sparkles,
   Search,
-  RotateCcw,
   CheckCircle2,
   XCircle,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 
 /**
- * Campus-scoped review queue for coordinators.
+ * Campus-scoped review queue for coordinators — VIEW ONLY.
  *
  * Uses the same /api/admin/review-queue endpoint as admins — the backend
- * auto-scopes results to the coordinator's own campus and ignores any
- * campusId query param the client might try to send. Only Verify, Reject,
- * and Unverify actions are exposed; no edit / delete affordances.
+ * auto-scopes results to the coordinator's own campus. Coordinators can read
+ * the queue and open documents, but cannot verify / reject / re-open; those
+ * actions are admin-only (enforced server-side too).
  */
 
 type QueueItem = {
@@ -96,8 +68,8 @@ export default function CoordinatorQueue() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Review Queue</h1>
           <p className="text-muted-foreground mt-1">
-            Verify, reject, or unverify revenue entries from teams on your
-            campus.
+            View revenue entries from teams on your campus. Verification,
+            rejection, and re-opening are handled by admins.
           </p>
         </div>
         <div className="relative w-full md:w-80">
@@ -347,361 +319,14 @@ function QueueRow({
             />
           </div>
 
-          {status === "submitted" ? (
-            <PendingActions item={item} />
-          ) : status === "rejected" ? (
-            <ReopenAction item={item} />
-          ) : (
-            <UnverifyAction item={item} />
-          )}
+          <Badge
+            variant="outline"
+            className="self-center text-muted-foreground"
+          >
+            View only
+          </Badge>
         </div>
       </div>
     </Card>
-  );
-}
-
-function PendingActions({ item }: { item: QueueItem }) {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const verify = useVerifyRevenueEntry();
-  const reject = useRejectRevenueEntry();
-  const [open, setOpen] = useState<"approve" | "reject" | null>(null);
-  const [verifiedAmount, setVerifiedAmount] = useState<number | "">(
-    item.amount,
-  );
-  const [adminNotes, setAdminNotes] = useState("");
-
-  const isPending = verify.isPending || reject.isPending;
-
-  const reset = () => {
-    setOpen(null);
-    setAdminNotes("");
-    setVerifiedAmount(item.amount);
-  };
-
-  const invalidate = () => {
-    queryClient.invalidateQueries({
-      queryKey: getGetAdminReviewQueueQueryKey({
-        type: "revenue",
-        status: "submitted",
-      }),
-    });
-    queryClient.invalidateQueries({
-      queryKey: getGetAdminReviewQueueQueryKey({
-        type: "revenue",
-        status: "verified",
-      }),
-    });
-    queryClient.invalidateQueries({
-      queryKey: getGetAdminReviewQueueQueryKey({
-        type: "revenue",
-        status: "rejected" as "submitted" | "verified",
-      }),
-    });
-  };
-
-  const onApprove = () => {
-    const amount = Number(verifiedAmount) || item.amount;
-    verify.mutate(
-      { id: item.id, data: { verifiedAmount: amount, adminNotes } },
-      {
-        onSuccess: () => {
-          toast({ title: "Revenue entry verified" });
-          invalidate();
-          reset();
-        },
-        onError: (err: unknown) => {
-          const message = err instanceof Error ? err.message : "Verify failed";
-          toast({
-            title: "Verify failed",
-            description: message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  };
-
-  const onReject = () => {
-    reject.mutate(
-      { id: item.id, data: { adminNotes } },
-      {
-        onSuccess: () => {
-          toast({ title: "Revenue entry rejected" });
-          invalidate();
-          reset();
-        },
-        onError: (err: unknown) => {
-          const message = err instanceof Error ? err.message : "Reject failed";
-          toast({
-            title: "Reject failed",
-            description: message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  };
-
-  return (
-    <div className="flex gap-2">
-      <Button
-        size="sm"
-        className="bg-green-600 hover:bg-green-700 text-white"
-        onClick={() => setOpen("approve")}
-        data-testid={`button-verify-${item.id}`}
-      >
-        <Check className="w-4 h-4 mr-1" /> Verify
-      </Button>
-      <Button
-        size="sm"
-        className="bg-red-400 hover:bg-red-500 text-white"
-        onClick={() => setOpen("reject")}
-        data-testid={`button-reject-${item.id}`}
-      >
-        <X className="w-4 h-4 mr-1" /> Reject
-      </Button>
-
-      <Dialog
-        open={open === "approve"}
-        onOpenChange={(o) => (!o ? reset() : null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Verify Revenue Entry</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Verified Amount (₹)</label>
-              <Input
-                type="number"
-                value={verifiedAmount}
-                onChange={(e) => setVerifiedAmount(Number(e.target.value))}
-              />
-              <p className="text-xs text-muted-foreground">
-                Original claim: {formatINR(item.amount)}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Notes (Optional)</label>
-              <Textarea
-                placeholder="Add internal notes or feedback..."
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end pt-4">
-              <Button
-                onClick={onApprove}
-                disabled={isPending}
-                className="bg-green-600 hover:bg-green-700 text-white"
-                data-testid={`button-confirm-verify-${item.id}`}
-              >
-                {isPending && <Spinner className="w-4 h-4 mr-2" />} Confirm
-                Verification
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={open === "reject"}
-        onOpenChange={(o) => (!o ? reset() : null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Revenue Entry</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-destructive">
-                Rejection Reason (Required)
-              </label>
-              <Textarea
-                placeholder="Explain why this is being rejected so the student can fix it..."
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex justify-end pt-4">
-              <Button
-                className="bg-red-400 hover:bg-red-500 text-white"
-                onClick={onReject}
-                disabled={isPending || !adminNotes.trim()}
-                data-testid={`button-confirm-reject-${item.id}`}
-              >
-                {isPending && <Spinner className="w-4 h-4 mr-2" />} Reject Entry
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function UnverifyAction({ item }: { item: QueueItem }) {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const unverify = useUnverifyRevenueEntry();
-  const [open, setOpen] = useState(false);
-
-  const onConfirm = () => {
-    unverify.mutate(
-      { id: item.id },
-      {
-        onSuccess: () => {
-          toast({
-            title: "Entry unverified",
-            description:
-              "The entry was moved back to the pending review queue.",
-          });
-          queryClient.invalidateQueries({
-            queryKey: getGetAdminReviewQueueQueryKey({
-              type: "revenue",
-              status: "submitted",
-            }),
-          });
-          queryClient.invalidateQueries({
-            queryKey: getGetAdminReviewQueueQueryKey({
-              type: "revenue",
-              status: "verified",
-            }),
-          });
-          setOpen(false);
-        },
-        onError: (err: unknown) => {
-          const message =
-            err instanceof Error ? err.message : "Failed to unverify entry";
-          toast({
-            title: "Unverify failed",
-            description: message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  };
-
-  return (
-    <>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => setOpen(true)}
-        data-testid={`button-unverify-${item.id}`}
-      >
-        <RotateCcw className="w-4 h-4 mr-1" /> Unverify
-      </Button>
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Move entry back to review?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will clear the verified amount and notes, move the entry back
-              to <strong>Pending review</strong>, and notify the team leader.
-              You can re-verify or reject it from the pending tab.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={unverify.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={onConfirm}
-              disabled={unverify.isPending}
-              data-testid={`button-confirm-unverify-${item.id}`}
-            >
-              {unverify.isPending && <Spinner className="w-4 h-4 mr-2" />}
-              Unverify
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
-
-function ReopenAction({ item }: { item: QueueItem }) {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const unverify = useUnverifyRevenueEntry();
-  const [open, setOpen] = useState(false);
-
-  const onConfirm = () => {
-    unverify.mutate(
-      { id: item.id },
-      {
-        onSuccess: () => {
-          toast({
-            title: "Entry re-opened",
-            description:
-              "The entry was moved back to the pending review queue.",
-          });
-          queryClient.invalidateQueries({
-            queryKey: getGetAdminReviewQueueQueryKey({
-              type: "revenue",
-              status: "submitted",
-            }),
-          });
-          queryClient.invalidateQueries({
-            queryKey: getGetAdminReviewQueueQueryKey({
-              type: "revenue",
-              status: "rejected" as "submitted" | "verified",
-            }),
-          });
-          setOpen(false);
-        },
-        onError: (err: unknown) => {
-          const message =
-            err instanceof Error ? err.message : "Failed to re-open entry";
-          toast({
-            title: "Re-open failed",
-            description: message,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  };
-
-  return (
-    <>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => setOpen(true)}
-        data-testid={`button-reopen-${item.id}`}
-      >
-        <RotateCcw className="w-4 h-4 mr-1" /> Re-open
-      </Button>
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Re-open this entry for review?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will move the entry back to <strong>Pending review</strong>{" "}
-              so it can be verified or rejected again. The team leader will be
-              notified.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={unverify.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={onConfirm}
-              disabled={unverify.isPending}
-              data-testid={`button-confirm-reopen-${item.id}`}
-            >
-              {unverify.isPending && <Spinner className="w-4 h-4 mr-2" />}
-              Re-open
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
   );
 }

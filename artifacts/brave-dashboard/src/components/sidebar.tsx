@@ -18,6 +18,7 @@ import {
   Settings,
   FolderKanban,
   FileText,
+  Award,
   LogOut,
   CheckSquare,
   UserCog,
@@ -27,6 +28,7 @@ import {
   Activity,
   BookOpen,
   BarChart3,
+  FileBarChart,
   MessageSquare,
   Bell,
   UserCheck,
@@ -149,9 +151,8 @@ function GroupFlyout({
         className="min-w-[200px]"
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
-        // Don't grab focus when the panel opens — focus stealing causes the
+        // Don't grab focus when the panel closes — focus stealing causes the
         // trigger to lose its hover state, which closes/re-opens the panel.
-        onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {group.children.map((child) => {
@@ -260,7 +261,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Projects", href: "/projects", icon: FolderKanban },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
-          { name: "Demo Day", href: "/demo-day", icon: FileText },
+          { name: "GRIT Miles", href: "/demo-day", icon: Award },
           { name: "My Team", href: "/team", icon: Users },
           // Resources entry is gated by the admin-controlled visibility flag.
           ...(resourcesVisibleForStudent
@@ -303,7 +304,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     coordinator: [
       { name: "Dashboard", href: "/coordinator", icon: LayoutDashboard },
       { name: "Review Queue", href: "/coordinator/queue", icon: CheckSquare },
-      { name: "Teams", href: "/coordinator/teams", icon: Users },
+      {
+        name: "Journals Tracking",
+        href: "/coordinator/journal-tracking",
+        icon: BookOpenCheck,
+      },
       { name: "Projects", href: "/coordinator/projects", icon: FolderKanban },
       { name: "Leaderboard", href: "/coordinator/leaderboard", icon: Trophy },
       { name: "Heatmap", href: "/coordinator/heatmap", icon: Activity },
@@ -374,6 +379,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         href: "/admin/campus-insights",
         icon: BarChart3,
       },
+      { name: "Reports", href: "/admin/reports", icon: FileBarChart },
       {
         name: "Chatbot History",
         href: "/admin/chatbot-history",
@@ -430,7 +436,6 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 <GroupFlyout
                   key={item.name}
                   group={item}
-                  isActive={false}
                   childActive={childActive}
                   currentLocation={location}
                   onNavigate={onNavigate}

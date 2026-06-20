@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, sql, gte, asc } from "drizzle-orm";
+import { eq, and, desc, sql, gte, asc, inArray } from "drizzle-orm";
 import {
   db,
   weeklyJournalsTable,
@@ -9,6 +9,7 @@ import {
   campusesTable,
   programmeWeeksTable,
   auditLogTable,
+  notificationsTable,
 } from "@workspace/db";
 import { z } from "zod/v4";
 import { getAllowPastWeekEdits } from "./programme-weeks";
@@ -275,6 +276,48 @@ router.get("/journals/mine", async (req, res): Promise<void> => {
   res.json(rows);
 });
 
+// Student: week-by-week completion tracker for the dashboard. Returns EVERY
+// programme week (not just open ones) with whether this team submitted, plus
+// which week is current — so the dashboard can render Week 1 → N circles.
+router.get("/journals/week-tracker", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const teamId = await getMyTeamId(req.user.id);
+  const weeks = await db
+    .select({
+      id: programmeWeeksTable.id,
+      weekNumber: programmeWeeksTable.weekNumber,
+      startDate: programmeWeeksTable.startDate,
+      endDate: programmeWeeksTable.endDate,
+      isOpen: programmeWeeksTable.isOpen,
+    })
+    .from(programmeWeeksTable)
+    .orderBy(asc(programmeWeeksTable.weekNumber));
+
+  const submitted = new Set<string>();
+  if (teamId) {
+    const rows = await db
+      .select({ weekStartDate: weeklyJournalsTable.weekStartDate })
+      .from(weeklyJournalsTable)
+      .where(eq(weeklyJournalsTable.teamId, teamId));
+    for (const r of rows) submitted.add(r.weekStartDate);
+  }
+
+  const current = await getCurrentOpenWeek();
+  const items = weeks.map((w) => ({
+    weekId: w.id,
+    weekNumber: w.weekNumber,
+    startDate: w.startDate,
+    endDate: w.endDate,
+    isOpen: w.isOpen,
+    isCurrent: current?.id === w.id,
+    submitted: submitted.has(w.startDate),
+  }));
+  res.json({ currentWeekId: current?.id ?? null, weeks: items });
+});
+
 // Student (any team member): submit / upsert a journal for the team.
 // Body may include `weekId` to target a specific open week. If omitted,
 // defaults to the current open week.
@@ -340,6 +383,7 @@ router.post("/journals", async (req, res): Promise<void> => {
       projectsStarted: parsed.data.projectsStarted ?? 0,
       projectsClosed: parsed.data.projectsClosed ?? 0,
       submittedBy: req.user.id,
+      submittedByRole: req.user.role,
     })
     .onConflictDoUpdate({
       target: [weeklyJournalsTable.teamId, weeklyJournalsTable.weekStartDate],
@@ -352,6 +396,7 @@ router.post("/journals", async (req, res): Promise<void> => {
         projectsStarted: parsed.data.projectsStarted ?? 0,
         projectsClosed: parsed.data.projectsClosed ?? 0,
         submittedBy: req.user.id,
+        submittedByRole: req.user.role,
         submittedAt: new Date(),
       },
     })
@@ -361,6 +406,325 @@ router.post("/journals", async (req, res): Promise<void> => {
   // response; no-ops without a Gemini key.
   if (created) scheduleJournalAnalysis(created.id);
   res.status(201).json(created);
+});
+
+// ── Coordinator journal management (fill on behalf + tracking) ─────────────
+
+// Resolve the campus a coordinator/admin is acting on. Coordinators are pinned
+// to their own campus; admins may pass ?campusId=. Returns null when an admin
+// passes no campus (caller treats as "all campuses").
+function resolveActingCampusId(
+  req: import("express").Request,
+  queryCampusId?: number,
+): number | null {
+  if (req.user?.role === "coordinator") return req.user.campusId ?? -1;
+  return queryCampusId ?? null;
+}
+
+// GET /coordinator/journal-tracking?weekId=&campusId=
+// Per-team submitted/not-submitted status for one programme week. Used by the
+// coordinator "Journals Tracking" page (and bulk/broadcast target lists).
+router.get("/coordinator/journal-tracking", async (req, res): Promise<void> => {
+  if (
+    !req.isAuthenticated() ||
+    (req.user.role !== "coordinator" && req.user.role !== "admin")
+  ) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const weekIdRaw = req.query.weekId ? Number(req.query.weekId) : null;
+  const campusIdRaw = req.query.campusId
+    ? Number(req.query.campusId)
+    : undefined;
+  const campusId = resolveActingCampusId(req, campusIdRaw);
+
+  const week =
+    weekIdRaw && Number.isFinite(weekIdRaw)
+      ? await getOpenWeekById(weekIdRaw)
+      : await getCurrentOpenWeek();
+  if (!week) {
+    res.json({ week: null, teams: [] });
+    return;
+  }
+
+  const teamConds = [eq(teamsTable.status, "active")];
+  if (campusId != null) teamConds.push(eq(teamsTable.campusId, campusId));
+  const teams = await db
+    .select({
+      teamId: teamsTable.id,
+      teamName: teamsTable.name,
+      campusId: teamsTable.campusId,
+    })
+    .from(teamsTable)
+    .where(and(...teamConds))
+    .orderBy(asc(teamsTable.name));
+
+  const journals = await db
+    .select({
+      teamId: weeklyJournalsTable.teamId,
+      id: weeklyJournalsTable.id,
+      submittedByRole: weeklyJournalsTable.submittedByRole,
+      submittedAt: weeklyJournalsTable.submittedAt,
+    })
+    .from(weeklyJournalsTable)
+    .where(eq(weeklyJournalsTable.weekStartDate, week.startDate));
+  const byTeam = new Map(journals.map((j) => [j.teamId, j]));
+
+  const rows = teams.map((t) => {
+    const j = byTeam.get(t.teamId);
+    return {
+      teamId: t.teamId,
+      teamName: t.teamName,
+      campusId: t.campusId,
+      submitted: !!j,
+      journalId: j?.id ?? null,
+      submittedByRole: j?.submittedByRole ?? null,
+      submittedAt: j?.submittedAt ?? null,
+    };
+  });
+  res.json({
+    week: {
+      weekId: week.id,
+      weekNumber: week.weekNumber,
+      startDate: week.startDate,
+      endDate: week.endDate,
+    },
+    teams: rows,
+    submittedCount: rows.filter((r) => r.submitted).length,
+    totalTeams: rows.length,
+  });
+});
+
+// POST /coordinator/journals — coordinator/admin fills a journal on behalf of
+// a team. Accepts an explicit `teamId`. Coordinators may only act on teams in
+// their own campus. Stamps submittedByRole = the actor's role.
+const CoordinatorJournalBody = z.object({
+  teamId: z.number().int().positive(),
+  weekId: z.number().int().positive().optional(),
+  whatWeDid: z.string().min(1).max(2000),
+  blockers: z.string().max(2000).optional(),
+  nextWeekPlan: z.string().max(2000).optional(),
+  clientsVisited: counterField,
+  activeConversations: counterField,
+  projectsStarted: counterField,
+  projectsClosed: counterField,
+});
+
+router.post("/coordinator/journals", async (req, res): Promise<void> => {
+  if (
+    !req.isAuthenticated() ||
+    (req.user.role !== "coordinator" && req.user.role !== "admin")
+  ) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const parsed = CoordinatorJournalBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { teamId } = parsed.data;
+
+  const [team] = await db
+    .select({ id: teamsTable.id, campusId: teamsTable.campusId })
+    .from(teamsTable)
+    .where(eq(teamsTable.id, teamId));
+  if (!team) {
+    res.status(404).json({ error: "Team not found" });
+    return;
+  }
+  if (req.user.role === "coordinator" && team.campusId !== req.user.campusId) {
+    res.status(403).json({ error: "This team is not in your campus." });
+    return;
+  }
+
+  const week = parsed.data.weekId
+    ? await getOpenWeekById(parsed.data.weekId)
+    : await getCurrentOpenWeek();
+  if (!week) {
+    res.status(400).json({ error: "No programme week to file against." });
+    return;
+  }
+
+  const [created] = await db
+    .insert(weeklyJournalsTable)
+    .values({
+      teamId,
+      weekStartDate: week.startDate,
+      weekEndDate: week.endDate,
+      whatWeDid: parsed.data.whatWeDid,
+      blockers: parsed.data.blockers ?? null,
+      nextWeekPlan: parsed.data.nextWeekPlan ?? null,
+      clientsVisited: parsed.data.clientsVisited ?? 0,
+      activeConversations: parsed.data.activeConversations ?? 0,
+      projectsStarted: parsed.data.projectsStarted ?? 0,
+      projectsClosed: parsed.data.projectsClosed ?? 0,
+      submittedBy: req.user.id,
+      submittedByRole: req.user.role,
+    })
+    .onConflictDoUpdate({
+      target: [weeklyJournalsTable.teamId, weeklyJournalsTable.weekStartDate],
+      set: {
+        whatWeDid: parsed.data.whatWeDid,
+        blockers: parsed.data.blockers ?? null,
+        nextWeekPlan: parsed.data.nextWeekPlan ?? null,
+        clientsVisited: parsed.data.clientsVisited ?? 0,
+        activeConversations: parsed.data.activeConversations ?? 0,
+        projectsStarted: parsed.data.projectsStarted ?? 0,
+        projectsClosed: parsed.data.projectsClosed ?? 0,
+        submittedBy: req.user.id,
+        submittedByRole: req.user.role,
+        submittedAt: new Date(),
+      },
+    })
+    .returning();
+  if (created) scheduleJournalAnalysis(created.id);
+  res.status(201).json(created);
+});
+
+// Filter a requested set of team ids down to those the actor may act on:
+// admins → all requested; coordinators → only teams in their own campus.
+async function scopeTeamIdsForActor(
+  req: import("express").Request,
+  teamIds: number[],
+): Promise<number[]> {
+  if (teamIds.length === 0) return [];
+  const rows = await db
+    .select({ id: teamsTable.id, campusId: teamsTable.campusId })
+    .from(teamsTable)
+    .where(inArray(teamsTable.id, teamIds));
+  if (req.user?.role === "coordinator") {
+    const campusId = req.user.campusId ?? -1;
+    return rows.filter((r) => r.campusId === campusId).map((r) => r.id);
+  }
+  return rows.map((r) => r.id);
+}
+
+// POST /coordinator/journals/bulk — file ONE common journal update across many
+// teams at once (exams / events / holidays). Upserts the same content for each
+// allowed team for the target week.
+const BulkJournalBody = z.object({
+  teamIds: z.array(z.number().int().positive()).min(1).max(2000),
+  weekId: z.number().int().positive().optional(),
+  whatWeDid: z.string().min(1).max(2000),
+  blockers: z.string().max(2000).optional(),
+  nextWeekPlan: z.string().max(2000).optional(),
+});
+
+router.post("/coordinator/journals/bulk", async (req, res): Promise<void> => {
+  if (
+    !req.isAuthenticated() ||
+    (req.user.role !== "coordinator" && req.user.role !== "admin")
+  ) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const parsed = BulkJournalBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const allowed = await scopeTeamIdsForActor(
+    req,
+    Array.from(new Set(parsed.data.teamIds)),
+  );
+  if (allowed.length === 0) {
+    res.status(400).json({ error: "No teams you can update were selected." });
+    return;
+  }
+  const week = parsed.data.weekId
+    ? await getOpenWeekById(parsed.data.weekId)
+    : await getCurrentOpenWeek();
+  if (!week) {
+    res.status(400).json({ error: "No programme week to file against." });
+    return;
+  }
+
+  const values = allowed.map((teamId) => ({
+    teamId,
+    weekStartDate: week.startDate,
+    weekEndDate: week.endDate,
+    whatWeDid: parsed.data.whatWeDid,
+    blockers: parsed.data.blockers ?? null,
+    nextWeekPlan: parsed.data.nextWeekPlan ?? null,
+    submittedBy: req.user.id,
+    submittedByRole: req.user.role,
+  }));
+  const inserted = await db
+    .insert(weeklyJournalsTable)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [weeklyJournalsTable.teamId, weeklyJournalsTable.weekStartDate],
+      set: {
+        whatWeDid: parsed.data.whatWeDid,
+        blockers: parsed.data.blockers ?? null,
+        nextWeekPlan: parsed.data.nextWeekPlan ?? null,
+        submittedBy: req.user.id,
+        submittedByRole: req.user.role,
+        submittedAt: new Date(),
+      },
+    })
+    .returning({ id: weeklyJournalsTable.id });
+  for (const row of inserted) scheduleJournalAnalysis(row.id);
+  res.json({ ok: true, filled: inserted.length });
+});
+
+// POST /coordinator/broadcast — send a common in-app message to the members of
+// many teams at once (journal reminder / revenue push / event / exam notice).
+const BroadcastBody = z.object({
+  teamIds: z.array(z.number().int().positive()).min(1).max(2000),
+  title: z.string().min(1).max(160),
+  message: z.string().min(1).max(2000),
+});
+
+router.post("/coordinator/broadcast", async (req, res): Promise<void> => {
+  if (
+    !req.isAuthenticated() ||
+    (req.user.role !== "coordinator" && req.user.role !== "admin")
+  ) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const parsed = BroadcastBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const allowed = await scopeTeamIdsForActor(
+    req,
+    Array.from(new Set(parsed.data.teamIds)),
+  );
+  if (allowed.length === 0) {
+    res.status(400).json({ error: "No teams you can message were selected." });
+    return;
+  }
+  const members = await db
+    .select({
+      userId: teamMembersTable.userId,
+      teamId: teamMembersTable.teamId,
+    })
+    .from(teamMembersTable)
+    .where(inArray(teamMembersTable.teamId, allowed));
+  if (members.length === 0) {
+    res.json({ ok: true, notifiedUsers: 0, notifiedTeams: 0 });
+    return;
+  }
+  const rows = members.map((m) => ({
+    userId: m.userId,
+    title: parsed.data.title,
+    body: parsed.data.message,
+    type: "announcement",
+    link: "/journal",
+  }));
+  // Chunked inserts to stay under the bound-parameter limit on large campuses.
+  for (let i = 0; i < rows.length; i += 500) {
+    await db.insert(notificationsTable).values(rows.slice(i, i + 500));
+  }
+  res.json({
+    ok: true,
+    notifiedUsers: members.length,
+    notifiedTeams: new Set(members.map((m) => m.teamId)).size,
+  });
 });
 
 // Coordinator/admin: list all journals (coordinators scoped to their campus).
@@ -409,6 +773,7 @@ router.get("/admin/journals", async (req, res): Promise<void> => {
       projectsStarted: weeklyJournalsTable.projectsStarted,
       projectsClosed: weeklyJournalsTable.projectsClosed,
       submittedBy: weeklyJournalsTable.submittedBy,
+      submittedByRole: weeklyJournalsTable.submittedByRole,
       submittedAt: weeklyJournalsTable.submittedAt,
       // AI journal analysis (additive — null until analysed).
       aiAnalysis: weeklyJournalsTable.aiAnalysis,

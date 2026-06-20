@@ -40,6 +40,8 @@ import {
 import { ProgrammeWeeksManager } from "@/components/programme-weeks-manager";
 import { ReminderSettingsCard } from "@/components/reminder-settings-card";
 import { ResourcesSettingsCard } from "@/components/resources-settings-card";
+import { CoordinatorTagsCard } from "@/components/coordinator-tags-card";
+import { GritConfigCard } from "@/components/grit-config-card";
 import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
@@ -217,8 +219,7 @@ export default function AdminConfig() {
       if (!res.ok || !data.ok) {
         toast({
           title: "Test email failed",
-          description:
-            data.error || "Email failed — check SES config/logs.",
+          description: data.error || "Email failed — check SES config/logs.",
           variant: "destructive",
         });
         return;
@@ -374,8 +375,8 @@ export default function AdminConfig() {
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Send a sample transactional email to confirm Amazon SES is
-                delivering correctly. Use your own inbox first; results show
-                up in a toast.
+                delivering correctly. Use your own inbox first; results show up
+                in a toast.
               </p>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Recipient email</label>
@@ -434,6 +435,9 @@ export default function AdminConfig() {
               </p>
             </CardContent>
           </Card>
+
+          {/* Coordinator Tags — admin-managed catalog (add / edit / delete). */}
+          <CoordinatorTagsCard />
         </div>
 
         {/* RIGHT column — Key Dates, Thresholds + Save, Notifications & Reminders. */}
@@ -577,6 +581,9 @@ export default function AdminConfig() {
               Save Configuration
             </Button>
           </div>
+
+          {/* GRIT Miles ladder + journal edit deadline + escalation toggle. */}
+          <GritConfigCard />
 
           {/* SECTION 3 — Reminder service master toggles (auto-saves per toggle). */}
           <ReminderSettingsCard />

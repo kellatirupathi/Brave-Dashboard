@@ -1,6 +1,11 @@
 import { useGetTeamDashboardSummary } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { getProgressSummary } from "@/lib/progress-api";
+import {
+  getStudentGritConfig,
+  computeGritProgress,
+  DEFAULT_GRIT_LEVELS,
+} from "@/lib/grit-config-api";
 import { formatINR } from "@/lib/format";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +19,8 @@ import {
   CheckCircle,
   AlertCircle,
   BookOpenCheck,
-  Flame,
   ChevronRight,
-  Target,
-  TrendingUp,
-  Star,
+  Award,
   Wallet,
   ArrowUpRight,
 } from "lucide-react";
@@ -27,20 +29,11 @@ import { HelpMenu } from "@/components/help-menu";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
+import { JournalWeekTracker } from "@/components/journal-week-tracker";
 
 // ── Design system helpers ───────────────────────────────────────────────────
 // Flat, enterprise SaaS surfaces (border + card bg, no shadows/gradients).
 const PANEL = "rounded-xl border bg-card";
-
-// Each submitted weekly journal is worth this many points (gamification).
-const POINTS_PER_JOURNAL = 100;
-
-// Demo Day verified-revenue goal + the auto-milestone markers along the way.
-const DEMO_DAY_THRESHOLD = 200000;
-const REVENUE_MILESTONES = [50000, 100000, 200000];
-
-// Streak badge tiers — used to compute progress toward the next milestone.
-const STREAK_TIERS = [3, 5, 8, 12];
 
 // Level-1 workspace section label.
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -59,66 +52,17 @@ const TONE_BADGE: Record<Tone, string> = {
   muted: "bg-muted text-muted-foreground hover:bg-muted",
 };
 
-// ── Circular progress ring (used for the weekly journal goal) ───────────────
-function GoalRing({
-  value,
-  max,
-  children,
-}: {
-  value: number;
-  max: number;
-  children: React.ReactNode;
-}) {
-  const pct = max > 0 ? Math.min(value / max, 1) : 0;
-  const radius = 52;
-  const stroke = 9;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - pct);
-  return (
-    <div className="relative grid place-items-center">
-      <svg
-        width="132"
-        height="132"
-        viewBox="0 0 132 132"
-        className="-rotate-90"
-      >
-        <circle
-          cx="66"
-          cy="66"
-          r={radius}
-          fill="none"
-          strokeWidth={stroke}
-          className="stroke-muted"
-        />
-        <circle
-          cx="66"
-          cy="66"
-          r={radius}
-          fill="none"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className={cn(
-            "transition-[stroke-dashoffset] duration-700 ease-out",
-            pct >= 1 ? "stroke-emerald-500" : "stroke-primary",
-          )}
-        />
-      </svg>
-      <div className="absolute inset-0 grid place-items-center text-center">
-        {children}
-      </div>
-    </div>
-  );
-}
-
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
-  // Same data source the journal widgets already used — reused here so the
-  // journal status / streak / consistency features are preserved.
+  // Journal status (current-week submission + pending count source).
   const { data: progress } = useQuery({
     queryKey: ["progress-summary"],
     queryFn: getProgressSummary,
+  });
+  // GRIT Miles ladder (admin-configurable).
+  const { data: gritConfig } = useQuery({
+    queryKey: ["student-grit-config"],
+    queryFn: getStudentGritConfig,
   });
 
   if (isLoading) {
@@ -133,17 +77,27 @@ export default function TeamDashboard() {
     return <div>Failed to load dashboard</div>;
   }
 
-  const progressPercent = Math.min(
-    (summary.totalRevenue / DEMO_DAY_THRESHOLD) * 100,
-    100,
-  );
+  const levels = gritConfig?.levels?.length
+    ? gritConfig.levels
+    : DEFAULT_GRIT_LEVELS;
+  const grit = computeGritProgress(summary.totalRevenue, levels);
+  const topTarget = levels[levels.length - 1]?.revenueTarget ?? 1;
+  const ladderPercent = Math.min((summary.totalRevenue / topTarget) * 100, 100);
+
+  // Progress toward the *next* level only (for the Next-Milestone bar).
+  const prevTarget =
+    [...levels].filter((l) => summary.totalRevenue >= l.revenueTarget).pop()
+      ?.revenueTarget ?? 0;
+  const nextMilestonePercent = grit.nextLevel
+    ? Math.min(
+        ((summary.totalRevenue - prevTarget) /
+          (grit.nextLevel.revenueTarget - prevTarget)) *
+          100,
+        100,
+      )
+    : 100;
 
   const submittedThisWeek = !!progress?.journal?.submittedThisWeek;
-  const streak = progress?.streak ?? 0;
-  const totalJournals = progress?.totalJournals ?? 0;
-  const points = totalJournals * POINTS_PER_JOURNAL;
-  const weekNumber = progress?.journal?.weekNumber ?? null;
-
   const journalTone: Tone = submittedThisWeek
     ? "good"
     : progress?.lastJournalAt
@@ -156,17 +110,8 @@ export default function TeamDashboard() {
       : "Not started";
 
   const pending = summary.pendingSubmissions ?? 0;
-  const activeProjects = summary.activeProjects ?? 0;
 
-  // Next streak milestone (for the "X to next badge" progress).
-  const nextTier = STREAK_TIERS.find((t) => t > streak) ?? null;
-  const tierFloor = [...STREAK_TIERS].reverse().find((t) => t <= streak) ?? 0;
-  const tierProgress =
-    nextTier != null
-      ? ((streak - tierFloor) / (nextTier - tierFloor)) * 100
-      : 100;
-
-  // ── Section 1 — Performance Overview KPI cards ────────────────────────────
+  // ── Performance Overview KPI cards (Demo Day "to goal" card removed) ──────
   const kpis: {
     label: string;
     value: React.ReactNode;
@@ -207,14 +152,6 @@ export default function TeamDashboard() {
       href: "/leaderboard",
       accent: "text-violet-600 bg-violet-50",
     },
-    {
-      label: "Demo Day",
-      value: `${progressPercent.toFixed(0)}%`,
-      sub: summary.demoEligible ? "Eligible" : "To goal",
-      icon: Target,
-      href: "/demo-day",
-      accent: "text-rose-600 bg-rose-50",
-    },
   ];
 
   return (
@@ -224,10 +161,10 @@ export default function TeamDashboard() {
         <PinnedAnnouncementBanner />
 
         {/* ===================== HEADER ===================== */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <Link
             href="/team"
-            className="block rounded-md -mx-2 px-2 py-1 hover-elevate active-elevate-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block rounded-md -mx-2 px-2 py-1 hover-elevate active-elevate-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
             data-testid="link-team-header"
           >
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -237,7 +174,13 @@ export default function TeamDashboard() {
               {summary.team?.tagline || "No tagline set"}
             </p>
           </Link>
-          <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end">
+
+          {/* Week-wise journal tracker — between team name and the right actions */}
+          <div className="min-w-0 flex-1 lg:px-4">
+            <JournalWeekTracker />
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 self-start justify-end">
             <HelpMenu inline />
             {summary.demoEligible && (
               <Badge
@@ -255,7 +198,7 @@ export default function TeamDashboard() {
         {/* ============ SECTION 1 — PERFORMANCE OVERVIEW ============ */}
         <section>
           <SectionLabel>Performance overview</SectionLabel>
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {kpis.map((k) => {
               const Icon = k.icon;
               return (
@@ -294,7 +237,7 @@ export default function TeamDashboard() {
           </div>
         </section>
 
-        {/* ============ MAIN WORKSPACE (left flow + right streak rail) ============ */}
+        {/* ============ MAIN WORKSPACE (left flow + right GRIT rail) ============ */}
         <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
           {/* ---------- LEFT: primary workspace ---------- */}
           <div className="space-y-6 min-w-0">
@@ -331,24 +274,47 @@ export default function TeamDashboard() {
                   </p>
                 </div>
 
-                {/* Demo Day readiness */}
+                {/* Next milestone progress */}
                 <div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2 text-muted-foreground">
-                      <Target className="h-4 w-4" /> Demo Day readiness
+                      <Award className="h-4 w-4" /> Next milestone
                     </span>
                     <span className="text-sm font-semibold tabular-nums">
-                      {progressPercent.toFixed(0)}%
+                      {grit.nextLevel
+                        ? `Level ${grit.nextLevel.level}`
+                        : "Maxed"}
                     </span>
                   </div>
-                  <Progress value={progressPercent} className="mt-2 h-1.5" />
+                  <Progress
+                    value={nextMilestonePercent}
+                    className="mt-2 h-1.5"
+                  />
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    {formatINR(summary.totalRevenue)} of{" "}
-                    {formatINR(DEMO_DAY_THRESHOLD)} verified
+                    {grit.nextLevel
+                      ? `${formatINR(grit.revenueToNext)} more required to unlock ${grit.nextLevel.miles} GRIT Miles`
+                      : "All GRIT levels unlocked 🎉"}
                   </p>
                 </div>
 
-                {/* Submission status */}
+                {/* Miles unlocked */}
+                <div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Award className="h-4 w-4" /> Miles unlocked
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {grit.milesUnlocked.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {grit.currentLevel > 0
+                      ? `You're at Level ${grit.currentLevel}.`
+                      : "Reach Level 1 to start earning GRIT Miles."}
+                  </p>
+                </div>
+
+                {/* Pending submissions */}
                 <div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2 text-muted-foreground">
@@ -364,54 +330,38 @@ export default function TeamDashboard() {
                       : "Nothing awaiting review."}
                   </p>
                 </div>
-
-                {/* Journals submitted */}
-                <div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      <BookOpenCheck className="h-4 w-4" /> Journals submitted
-                    </span>
-                    <span className="text-sm font-semibold tabular-nums">
-                      {totalJournals}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Worth {points.toLocaleString("en-IN")} points so far.
-                  </p>
-                </div>
               </div>
             </section>
 
-            {/* SECTION 3 — PERFORMANCE ANALYTICS */}
+            {/* SECTION 3 — GRIT MILES LADDER */}
             <section className={cn(PANEL, "p-5")}>
               <div className="flex items-center justify-between">
-                <SectionLabel>Performance analytics</SectionLabel>
+                <SectionLabel>GRIT Miles ladder</SectionLabel>
                 <Link
                   href="/demo-day"
                   className="text-xs font-medium text-primary hover:underline"
                 >
-                  Demo Day
+                  GRIT Miles
                 </Link>
               </div>
 
-              {/* Journey to Demo Day — milestone track on real verified revenue */}
               <div className="mt-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-muted-foreground">
-                    <TrendingUp className="h-4 w-4" /> Journey to Demo Day
+                    <Award className="h-4 w-4" /> Verified revenue
                   </span>
                   <span className="font-semibold tabular-nums">
                     {formatINR(summary.totalRevenue)}
                   </span>
                 </div>
                 <div className="relative mt-4">
-                  <Progress value={progressPercent} className="h-2" />
+                  <Progress value={ladderPercent} className="h-2" />
                   <div className="mt-2 flex justify-between">
-                    {REVENUE_MILESTONES.map((m) => {
-                      const reached = summary.totalRevenue >= m;
+                    {levels.map((l) => {
+                      const reached = summary.totalRevenue >= l.revenueTarget;
                       return (
                         <div
-                          key={m}
+                          key={l.level}
                           className="flex flex-col items-center gap-1 text-center"
                         >
                           <span
@@ -430,7 +380,10 @@ export default function TeamDashboard() {
                                 : "text-muted-foreground",
                             )}
                           >
-                            {formatINR(m)}
+                            {formatINR(l.revenueTarget)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {l.miles} mi
                           </span>
                         </div>
                       );
@@ -439,7 +392,7 @@ export default function TeamDashboard() {
                 </div>
               </div>
 
-              {/* Achievement metrics — real figures, no fabricated trends */}
+              {/* Snapshot metrics — verified revenue, order book, level, miles */}
               <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
                 {(
                   [
@@ -452,10 +405,14 @@ export default function TeamDashboard() {
                       value: formatINR(summary.totalOrderBook),
                     },
                     {
-                      label: "Journal points",
-                      value: points.toLocaleString("en-IN"),
+                      label: "Current level",
+                      value:
+                        grit.currentLevel > 0 ? `L${grit.currentLevel}` : "—",
                     },
-                    { label: "Best streak", value: `${streak} wk` },
+                    {
+                      label: "Miles unlocked",
+                      value: grit.milesUnlocked.toLocaleString("en-IN"),
+                    },
                   ] as const
                 ).map((m) => (
                   <div key={m.label} className="bg-card p-4">
@@ -474,123 +431,70 @@ export default function TeamDashboard() {
             <SupportBanner />
           </div>
 
-          {/* ---------- RIGHT: streak & rewards rail (Duolingo-style) ---------- */}
+          {/* ---------- RIGHT: GRIT Miles rail ---------- */}
           <aside className="space-y-4 lg:sticky lg:top-4 self-start">
-            {/* Points & rewards */}
+            {/* GRIT Miles summary */}
             <section className={cn(PANEL, "p-5")}>
-              <SectionLabel>Your points</SectionLabel>
+              <SectionLabel>GRIT Miles</SectionLabel>
               <div className="mt-4 flex items-center gap-4">
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-600">
-                  <Star className="h-6 w-6 fill-violet-500 text-violet-500" />
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-600">
+                  <Award className="h-6 w-6" />
                 </span>
                 <div>
                   <div
                     className="text-3xl font-bold tabular-nums leading-none"
-                    data-testid="rail-points"
+                    data-testid="rail-grit-miles"
                   >
-                    {points.toLocaleString("en-IN")}
+                    {grit.milesUnlocked.toLocaleString("en-IN")}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Points earned
+                    Miles unlocked
+                    {grit.currentLevel > 0
+                      ? ` · Level ${grit.currentLevel}`
+                      : ""}
                   </div>
                 </div>
+              </div>
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>
+                    {grit.nextLevel
+                      ? `Next: Level ${grit.nextLevel.level}`
+                      : "Top level reached"}
+                  </span>
+                  {grit.nextLevel && (
+                    <span className="tabular-nums">
+                      {grit.nextLevel.miles} mi
+                    </span>
+                  )}
+                </div>
+                <Progress
+                  value={nextMilestonePercent}
+                  className="mt-1.5 h-1.5"
+                />
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                Every weekly journal you submit earns{" "}
-                <span className="font-semibold text-foreground">
-                  {POINTS_PER_JOURNAL} points
-                </span>
-                . {totalJournals} submitted so far.
+                {grit.nextLevel
+                  ? `${formatINR(grit.revenueToNext)} more required to unlock ${grit.nextLevel.miles} GRIT Miles.`
+                  : "You've unlocked every GRIT Miles reward 🎉"}
               </p>
+              <Link
+                href="/demo-day"
+                className="mt-4 flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/40"
+                data-testid="rail-grit-cta"
+              >
+                View GRIT Miles
+                <ChevronRight className="h-4 w-4" />
+              </Link>
             </section>
 
-            {/* Journal streak — the focal gamified element */}
-            <section className={cn(PANEL, "p-5 text-center")}>
-              <div className="flex items-center justify-center gap-2">
-                <Flame
-                  className={cn(
-                    "h-5 w-5",
-                    streak > 0
-                      ? "fill-orange-400 text-orange-500"
-                      : "text-muted-foreground",
-                  )}
-                />
-                <SectionLabel>Journal streak</SectionLabel>
-              </div>
-              <div className="mt-3 flex items-end justify-center gap-2">
-                <span
-                  className={cn(
-                    "text-6xl font-extrabold leading-none tabular-nums",
-                    streak === 0
-                      ? "text-muted-foreground"
-                      : streak >= 4
-                        ? "text-orange-500"
-                        : "text-foreground",
-                  )}
-                  data-testid="rail-streak-count"
-                >
-                  {streak}
-                </span>
-                <span className="mb-1 text-sm text-muted-foreground">
-                  week{streak === 1 ? "" : "s"}
-                </span>
-              </div>
-
-              {/* Progress toward next streak milestone */}
-              {nextTier != null ? (
-                <div className="mt-4 text-left">
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>Next badge</span>
-                    <span className="tabular-nums">
-                      {streak}/{nextTier} weeks
-                    </span>
-                  </div>
-                  <Progress value={tierProgress} className="mt-1.5 h-1.5" />
-                </div>
-              ) : (
-                <p className="mt-3 text-xs font-medium text-orange-600">
-                  Top-tier streak — you're unstoppable 🔥
-                </p>
-              )}
-
-              <p className="mt-4 text-xs text-muted-foreground">
-                {streak === 0
-                  ? "Submit this week's journal to start your streak."
-                  : submittedThisWeek
-                    ? "You're covered this week — keep it alive next week."
-                    : "Submit before the week closes to keep your streak alive."}
-              </p>
-            </section>
-
-            {/* This week's goal ring */}
+            {/* This week's journal CTA */}
             <section className={cn(PANEL, "p-5")}>
               <div className="flex items-center justify-between">
-                <SectionLabel>
-                  {weekNumber != null
-                    ? `Week ${weekNumber} goal`
-                    : "This week's goal"}
-                </SectionLabel>
+                <SectionLabel>This week's journal</SectionLabel>
                 <Badge className={TONE_BADGE[journalTone]}>
                   {journalLabel}
                 </Badge>
-              </div>
-              <div className="mt-4 flex justify-center">
-                <GoalRing value={submittedThisWeek ? 100 : 0} max={100}>
-                  <Star
-                    className={cn(
-                      "h-5 w-5",
-                      submittedThisWeek
-                        ? "fill-emerald-500 text-emerald-500"
-                        : "fill-primary text-primary",
-                    )}
-                  />
-                  <span className="mt-1 text-lg font-bold tabular-nums">
-                    {submittedThisWeek ? 100 : 0}
-                    <span className="text-sm font-medium text-muted-foreground">
-                      /100
-                    </span>
-                  </span>
-                </GoalRing>
               </div>
               <Link
                 href="/journal"
@@ -602,9 +506,7 @@ export default function TeamDashboard() {
                 )}
                 data-testid="rail-journal-cta"
               >
-                {submittedThisWeek
-                  ? "View / edit journal"
-                  : "Submit & earn 100 pts"}
+                {submittedThisWeek ? "View / edit journal" : "Submit this week"}
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </section>

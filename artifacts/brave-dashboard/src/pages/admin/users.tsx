@@ -31,6 +31,7 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Tags,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import {
@@ -75,11 +76,18 @@ import { CampusCombobox } from "@/components/campus-combobox";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/lib/api-error";
 import { useLocation } from "wouter";
 import { useMyAdminAccess, canAccess } from "@/lib/admin-access";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  listCoordinatorTags,
+  getCoordinatorTagAssignments,
+  getUserCoordinatorTagIds,
+  setUserCoordinatorTags,
+} from "@/lib/coordinator-tags-api";
 import * as XLSX from "xlsx";
 
 const createUserSchema = z.object({
@@ -307,6 +315,67 @@ export default function AdminUsers() {
   const [showCreateConfirm, setShowCreateConfirm] = useState(false);
   const [changePasswordTarget, setChangePasswordTarget] =
     useState<AnyUser | null>(null);
+
+  // ----- Coordinator Tags -----
+  // Catalog of available tags (for the assign modal) + the current
+  // userId→tags map (for the Tag column). Both are admin-only reads.
+  const { data: tagCatalog } = useQuery({
+    queryKey: ["coordinator-tags"],
+    queryFn: listCoordinatorTags,
+  });
+  const { data: tagAssignments } = useQuery({
+    queryKey: ["coordinator-tag-assignments"],
+    queryFn: getCoordinatorTagAssignments,
+  });
+  const [tagTarget, setTagTarget] = useState<AnyUser | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [loadingTagSelection, setLoadingTagSelection] = useState(false);
+  const [savingTags, setSavingTags] = useState(false);
+
+  const openTags = async (u: AnyUser) => {
+    setTagTarget(u);
+    setSelectedTagIds([]);
+    setLoadingTagSelection(true);
+    try {
+      const ids = await getUserCoordinatorTagIds(u.id);
+      setSelectedTagIds(ids);
+    } catch (e: unknown) {
+      toast({
+        title: "Couldn't load current tags",
+        description: normalizeError(e).message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingTagSelection(false);
+    }
+  };
+
+  const toggleTag = (id: number, checked: boolean) => {
+    setSelectedTagIds((prev) =>
+      checked ? [...new Set([...prev, id])] : prev.filter((t) => t !== id),
+    );
+  };
+
+  const onSaveTags = async () => {
+    if (!tagTarget) return;
+    setSavingTags(true);
+    try {
+      await setUserCoordinatorTags(tagTarget.id, selectedTagIds);
+      toast({ title: "Tags updated" });
+      queryClient.invalidateQueries({
+        queryKey: ["coordinator-tag-assignments"],
+      });
+      setTagTarget(null);
+    } catch (e: unknown) {
+      toast({
+        title: "Couldn't save tags",
+        description: normalizeError(e).message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTags(false);
+    }
+  };
 
   const onCreate = (values: z.infer<typeof createUserSchema>) => {
     if (
@@ -1056,6 +1125,7 @@ export default function AdminUsers() {
                   <TableHead>Email</TableHead>
                   <TableHead>Forms User ID</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Tags</TableHead>
                   <TableHead>Campus</TableHead>
                   <TableHead>Campus ID</TableHead>
                   <TableHead>Source</TableHead>
@@ -1109,6 +1179,29 @@ export default function AdminUsers() {
                       </span>
                     </TableCell>
                     <TableCell>{renderRoleBadge(user.role)}</TableCell>
+                    {/* Tags — coordinators only. Blank for other roles. */}
+                    <TableCell data-testid={`tags-${user.id}`}>
+                      {user.role === "coordinator" ? (
+                        (() => {
+                          const tags = tagAssignments?.[user.id] ?? [];
+                          if (tags.length === 0)
+                            return (
+                              <span className="text-muted-foreground">—</span>
+                            );
+                          return (
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {tags.map((t) => (
+                                <Badge key={t.id} variant="outline">
+                                  {t.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {user.role === "admin" ? "—" : user.campusName || "—"}
                     </TableCell>
@@ -1181,6 +1274,14 @@ export default function AdminUsers() {
                               <Pencil className="w-4 h-4 mr-2" /> Edit
                             </DropdownMenuItem>
                           )}
+                          {canEditUsers && user.role === "coordinator" && (
+                            <DropdownMenuItem
+                              onClick={() => openTags(user)}
+                              data-testid={`button-tags-${user.id}`}
+                            >
+                              <Tags className="w-4 h-4 mr-2" /> Tags
+                            </DropdownMenuItem>
+                          )}
                           {callerIsSuperAdmin && user.role === "admin" && (
                             <DropdownMenuItem
                               onClick={() =>
@@ -1222,7 +1323,7 @@ export default function AdminUsers() {
                 {allUsers.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={13}
+                      colSpan={14}
                       className="h-24 text-center text-muted-foreground"
                     >
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -1555,6 +1656,66 @@ export default function AdminUsers() {
               </Button>
             )}
             <Button onClick={() => setImportResult(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign coordinator tags */}
+      <Dialog
+        open={!!tagTarget}
+        onOpenChange={(open) => !open && setTagTarget(null)}
+      >
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>
+              Tags — {tagTarget?.firstName} {tagTarget?.lastName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Select one or more tags for this campus coordinator.
+            </p>
+            {loadingTagSelection ? (
+              <div className="flex h-20 items-center justify-center">
+                <Spinner />
+              </div>
+            ) : !tagCatalog || tagCatalog.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                No tags available. Add tags in Setup → Config first.
+              </p>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-1 rounded-md border p-2">
+                {tagCatalog.map((tag) => {
+                  const checked = selectedTagIds.includes(tag.id);
+                  return (
+                    <label
+                      key={tag.id}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 cursor-pointer"
+                      data-testid={`tag-option-${tag.id}`}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) => toggleTag(tag.id, v === true)}
+                      />
+                      <span className="text-sm">{tag.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTagTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={onSaveTags}
+              disabled={savingTags || loadingTagSelection}
+              data-testid="button-save-tags"
+            >
+              {savingTags && <Spinner className="w-4 h-4 mr-2" />}
+              Submit
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

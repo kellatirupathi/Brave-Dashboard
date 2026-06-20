@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpenCheck,
@@ -77,6 +78,18 @@ export default function Journal() {
 
   // The week the user has selected to view/edit (defaults to current).
   const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
+
+  // Deep link: /journal?week=<weekId> (from the dashboard week tracker) opens
+  // that specific week directly.
+  const search = useSearch();
+  useEffect(() => {
+    const wk = new URLSearchParams(search).get("week");
+    if (wk) {
+      const id = Number(wk);
+      if (Number.isFinite(id) && id > 0) setSelectedWeekId(id);
+    }
+  }, [search]);
+
   useEffect(() => {
     if (selectedWeekId == null && currentStatus?.weekId) {
       setSelectedWeekId(currentStatus.weekId);

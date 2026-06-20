@@ -95,11 +95,7 @@ type Props = {
 };
 
 const ALL = "all" as const;
-type Tab = "overview" | "all" | "missed" | "points";
-
-// Gamification: each submitted weekly journal is worth this many points.
-// Mirrors POINTS_PER_JOURNAL on the student dashboard.
-const POINTS_PER_JOURNAL = 100;
+type Tab = "overview" | "all" | "missed";
 
 // ---- Blocker priority / status presentation ----
 export const PRIORITY_META: Record<
@@ -477,48 +473,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
       });
   }, [coverage, query, weekFilter, campusFilter, scope, campuses]);
 
-  // ---- Journals Points: per-team, week-by-week points matrix ----
-  // Each submitted weekly journal earns POINTS_PER_JOURNAL. Columns are the
-  // distinct weeks present in the (filtered) data, ascending. Cells show the
-  // points earned that week (or "—" when no journal was submitted).
-  const journalPoints = useMemo(() => {
-    const weeks = [...weekOptions].sort((a, b) => (a.value < b.value ? -1 : 1));
-    const rows = teamGroups.map((g) => {
-      const submitted = new Set(g.journals.map((j) => j.weekStartDate));
-      const perWeek = weeks.map((w) => ({
-        week: w.value,
-        submitted: submitted.has(w.value),
-        points: submitted.has(w.value) ? POINTS_PER_JOURNAL : 0,
-      }));
-      const totalJournals = g.journals.length;
-      return {
-        teamId: g.teamId,
-        teamName: g.teamName,
-        campusName: g.campusName,
-        perWeek,
-        totalJournals,
-        totalPoints: totalJournals * POINTS_PER_JOURNAL,
-      };
-    });
-    rows.sort(
-      (a, b) =>
-        b.totalPoints - a.totalPoints || b.totalJournals - a.totalJournals,
-    );
-    const grand = {
-      journals: rows.reduce((s, r) => s + r.totalJournals, 0),
-      points: rows.reduce((s, r) => s + r.totalPoints, 0),
-      perWeek: weeks.map((w, i) => ({
-        week: w.value,
-        journals: rows.reduce(
-          (s, r) => s + (r.perWeek[i].submitted ? 1 : 0),
-          0,
-        ),
-        points: rows.reduce((s, r) => s + r.perWeek[i].points, 0),
-      })),
-    };
-    return { weeks, rows, grand };
-  }, [teamGroups, weekOptions]);
-
   // ---- Mutations: analyse one + blocker triage ----
   function patchJournalInCache(
     id: number,
@@ -640,7 +594,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                 { v: "overview", label: "Overview" },
                 { v: "all", label: "All Journals" },
                 { v: "missed", label: "Teams missing journals" },
-                { v: "points", label: "Journals Points" },
               ] as const
             ).map((b) => (
               <button
@@ -795,7 +748,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                       <TableHead>Team</TableHead>
                       <TableHead>Campus</TableHead>
                       <TableHead className="text-center">Journals</TableHead>
-                      <TableHead className="text-center">Points</TableHead>
                       <TableHead>Latest</TableHead>
                       <TableHead className="text-center">Clients</TableHead>
                       <TableHead className="text-center">Convos</TableHead>
@@ -822,11 +774,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                         </TableCell>
                         <TableCell className="text-center tabular-nums">
                           {g.journals.length}
-                        </TableCell>
-                        <TableCell className="text-center tabular-nums font-medium text-primary">
-                          {(
-                            g.journals.length * POINTS_PER_JOURNAL
-                          ).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-xs">
                           {g.latestWeek ?? "—"}
@@ -937,112 +884,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ===================== JOURNALS POINTS ===================== */}
-      {tab === "points" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Journals Points</CardTitle>
-            <CardDescription>
-              {journalPoints.rows.length} teams · {journalPoints.grand.journals}{" "}
-              journals · {journalPoints.grand.points.toLocaleString()} points ·{" "}
-              {POINTS_PER_JOURNAL} pts per submitted weekly journal
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center py-12">
-                <Spinner className="size-8" />
-              </div>
-            ) : journalPoints.rows.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-12 text-center">
-                No journals match.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky left-0 bg-background">
-                        Team
-                      </TableHead>
-                      <TableHead>Campus</TableHead>
-                      {journalPoints.weeks.map((w) => (
-                        <TableHead
-                          key={w.value}
-                          className="text-center whitespace-nowrap text-xs"
-                        >
-                          {w.value}
-                        </TableHead>
-                      ))}
-                      <TableHead className="text-center">Journals</TableHead>
-                      <TableHead className="text-center">
-                        Total Points
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {journalPoints.rows.map((r) => (
-                      <TableRow
-                        key={r.teamId}
-                        data-testid={`journal-points-row-${r.teamId}`}
-                      >
-                        <TableCell className="font-medium sticky left-0 bg-background">
-                          {r.teamName}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {r.campusName ?? "—"}
-                        </TableCell>
-                        {r.perWeek.map((c) => (
-                          <TableCell
-                            key={c.week}
-                            className={cn(
-                              "text-center tabular-nums text-xs",
-                              c.submitted
-                                ? "text-primary font-medium"
-                                : "text-muted-foreground/40",
-                            )}
-                          >
-                            {c.submitted ? c.points : "—"}
-                          </TableCell>
-                        ))}
-                        <TableCell className="text-center tabular-nums">
-                          {r.totalJournals}
-                        </TableCell>
-                        <TableCell className="text-center tabular-nums font-semibold text-primary">
-                          {r.totalPoints.toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {/* Grand totals */}
-                    <TableRow className="border-t-2 font-semibold bg-muted/30">
-                      <TableCell className="sticky left-0 bg-muted/30">
-                        All teams
-                      </TableCell>
-                      <TableCell />
-                      {journalPoints.grand.perWeek.map((c) => (
-                        <TableCell
-                          key={c.week}
-                          className="text-center tabular-nums text-xs"
-                          title={`${c.journals} journals`}
-                        >
-                          {c.points.toLocaleString()}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-center tabular-nums">
-                        {journalPoints.grand.journals}
-                      </TableCell>
-                      <TableCell className="text-center tabular-nums text-primary">
-                        {journalPoints.grand.points.toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
               </div>
             )}
           </CardContent>
@@ -1338,10 +1179,23 @@ export function JournalDetailCard({
           <div className="text-sm font-medium">
             Week {journal.weekStartDate} → {journal.weekEndDate}
           </div>
-          <div className="text-xs text-muted-foreground">
-            by {journal.submittedByName ?? "?"} ·{" "}
-            {new Date(journal.submittedAt).toLocaleDateString()}
-            {ai?.primary_category ? ` · ${ai.primary_category}` : ""}
+          <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5">
+            <span>
+              by {journal.submittedByName ?? "?"} ·{" "}
+              {new Date(journal.submittedAt).toLocaleDateString()}
+              {ai?.primary_category ? ` · ${ai.primary_category}` : ""}
+            </span>
+            <Badge
+              variant="outline"
+              className="text-[10px] py-0 px-1.5"
+              data-testid={`journal-source-${journal.id}`}
+            >
+              {journal.submittedByRole === "coordinator"
+                ? "Coordinator submitted"
+                : journal.submittedByRole === "admin"
+                  ? "Admin submitted"
+                  : "Student submitted"}
+            </Badge>
           </div>
         </div>
         <div className="flex items-center gap-1.5">

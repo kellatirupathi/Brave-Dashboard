@@ -862,7 +862,10 @@ router.post("/auth/password-login", async (req: Request, res: Response) => {
   // Generic message — don't leak whether email exists.
   const invalid = () =>
     res.status(401).json({ error: "Invalid email or password." });
-  if (!dbUser || !dbUser.passwordHash) return invalid();
+  if (!dbUser || !dbUser.passwordHash) {
+    invalid();
+    return;
+  }
   if (!dbUser.isActive) {
     res.status(403).json({ error: "Account is inactive." });
     return;
@@ -880,7 +883,10 @@ router.post("/auth/password-login", async (req: Request, res: Response) => {
   } catch {
     ok = false;
   }
-  if (!ok) return invalid();
+  if (!ok) {
+    invalid();
+    return;
+  }
 
   const authUser = await buildAuthUser(dbUser);
   const sessionData: SessionData = {

@@ -28,7 +28,6 @@ import {
 import {
   Trophy,
   Users,
-  CheckCircle,
   AlertCircle,
   BookOpenCheck,
   Activity,
@@ -36,6 +35,7 @@ import {
   Calendar,
   Megaphone,
   ArrowRight,
+  Briefcase,
 } from "lucide-react";
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
@@ -75,7 +75,7 @@ export default function CoordinatorDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: summary, isLoading } = useGetDashboardSummary();
-  const { data: leaderboard } = useGetLeaderboard({ limit: 10 });
+  const { data: leaderboard } = useGetLeaderboard();
 
   // Heatmap (last 8 weeks). Server scopes coordinator to their campus.
   const { data: heatmap } = useQuery({
@@ -221,7 +221,8 @@ export default function CoordinatorDashboard() {
           </div>
         </div>
 
-        {/* Row 1 — KPI Cards (UNCHANGED) */}
+        {/* Row 1 — KPI Cards. Campus-scoped. Order: Verified Revenue →
+            Order Book → Active Teams → Pending Reviews. Demo Eligible removed. */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Link
             href="/coordinator/leaderboard"
@@ -239,12 +240,38 @@ export default function CoordinatorDashboard() {
                 <div className="text-2xl font-bold">
                   {formatINR(summary.totalVerifiedRevenue)}
                 </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Your campus
+                </p>
               </CardContent>
             </Card>
           </Link>
 
           <Link
-            href="/coordinator/teams"
+            href="/coordinator/projects"
+            className={cardLinkClass}
+            data-testid="link-card-order-book"
+          >
+            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-medium">
+                  Order Book
+                </CardTitle>
+                <Briefcase className="w-4 h-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatINR(summary.totalOrderBook)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Committed pipeline
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link
+            href="/coordinator/leaderboard"
             className={cardLinkClass}
             data-testid="link-card-teams"
           >
@@ -265,30 +292,7 @@ export default function CoordinatorDashboard() {
           </Link>
 
           <Link
-            href="/coordinator/leaderboard"
-            className={cardLinkClass}
-            data-testid="link-card-demo-eligible"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Demo Eligible
-                </CardTitle>
-                <CheckCircle className="w-4 h-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {summary.demoEligibleTeams}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Teams crossed ₹2,00,000
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link
-            href="/coordinator/teams"
+            href="/coordinator/queue"
             className={cardLinkClass}
             data-testid="link-card-pending-reviews"
           >

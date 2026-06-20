@@ -32,6 +32,10 @@ import accessRequestsRouter from "./access-requests";
 import adminPermissionsRouter from "./admin-permissions";
 import adminChatbotRouter from "./admin-chatbot";
 import pageViewsRouter from "./page-views";
+import coordinatorTagsRouter from "./coordinator-tags";
+import gritConfigRouter from "./grit-config";
+import reportsRouter from "./reports";
+import cronJournalEscalationRouter from "./cron-journal-escalation";
 
 const router: IRouter = Router();
 
@@ -82,5 +86,13 @@ router.use(adminPermissionsRouter);
 router.use(adminChatbotRouter);
 // Page-view tracking + admin Pages Log (additive only, isolated)
 router.use(pageViewsRouter);
+// Coordinator Tags catalog + per-coordinator assignments (additive, isolated)
+router.use(coordinatorTagsRouter);
+// GRIT Miles ladder + journal-edit deadline + escalation toggle (additive)
+router.use(gritConfigRouter);
+// Admin journal Reports (campus-wise tables + saved report links, additive)
+router.use(reportsRouter);
+// Journal escalation chain + weekly report crons (additive, isolated)
+router.use(cronJournalEscalationRouter);
 
 export default router;

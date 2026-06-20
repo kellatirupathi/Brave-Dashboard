@@ -22,14 +22,16 @@ export default function Leaderboard({
 }: { headerExtra?: ReactNode } = {}) {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
-  const [view, setView] = useState<"national" | "campus">("national");
+  // Coordinators default to their own campus view; students/admins to national.
+  const [view, setView] = useState<"national" | "campus">(
+    user?.role === "coordinator" ? "campus" : "national",
+  );
   const [search, setSearch] = useState("");
-  const canOpenTeam =
-    user?.role === "admin" || user?.role === "coordinator";
+  const canOpenTeam = user?.role === "admin" || user?.role === "coordinator";
 
   const { data: leaderboard, isLoading } = useGetLeaderboard({
     view,
-    campusId: view === "campus" ? user?.campusId ?? undefined : undefined,
+    campusId: view === "campus" ? (user?.campusId ?? undefined) : undefined,
     search: search || undefined,
   });
 

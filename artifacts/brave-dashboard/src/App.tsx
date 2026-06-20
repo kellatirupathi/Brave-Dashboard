@@ -90,6 +90,9 @@ import AdminCampusInsights from "@/pages/admin/campus-insights";
 import AdminChatbotHistory from "@/pages/admin/chatbot-history";
 import AdminNotifications from "@/pages/admin/notifications";
 import CoordinatorJournals from "@/pages/coordinator/journals";
+import CoordinatorJournalTracking from "@/pages/coordinator/journal-tracking";
+import AdminReports from "@/pages/admin/reports";
+import ReportView from "@/pages/reports/view";
 import CoordinatorJournalTeamDetail from "@/pages/coordinator/journal-team-detail";
 import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
 
@@ -407,6 +410,12 @@ function Router() {
             allowedRoles={["coordinator"]}
           />
         </Route>
+        <Route path="/coordinator/journal-tracking">
+          <ProtectedRoute
+            component={CoordinatorJournalTracking}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
         <Route path="/coordinator/journals/team/:teamId">
           <ProtectedRoute
             component={CoordinatorJournalTeamDetail}
@@ -426,9 +435,20 @@ function Router() {
           />
         </Route>
 
+        {/* Journal report viewer — admin + coordinator (login-gated). */}
+        <Route path="/reports/view/:token">
+          <ProtectedRoute
+            component={ReportView}
+            allowedRoles={["admin", "coordinator"]}
+          />
+        </Route>
+
         {/* Admin Routes */}
         <Route path="/admin">
           <ProtectedRoute component={AdminDashboard} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/reports">
+          <ProtectedRoute component={AdminReports} allowedRoles={["admin"]} />
         </Route>
         <Route path="/admin/queue/detailed-analysis">
           <ProtectedRoute

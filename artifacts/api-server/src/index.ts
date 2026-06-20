@@ -5,6 +5,7 @@ import { and, inArray, isNull, sql } from "drizzle-orm";
 import { bootstrapCanonicalCampuses } from "./bootstrap-campuses";
 import { bootstrapAdmins } from "./bootstrap-admins";
 import { bootstrapSuperAdmins } from "./bootstrap-superadmins";
+import { bootstrapCoordinatorTags } from "./bootstrap-coordinator-tags";
 import { catchUpPendingBrdAnalyses } from "./lib/ai/analyse-brd";
 import { catchUpPendingJournalAnalyses } from "./lib/ai/journal-scheduler";
 import { sweepAutoApprovePendingRequests } from "./lib/membership-requests";
@@ -118,6 +119,11 @@ async function runBootstrap(): Promise<void> {
     await bootstrapSuperAdmins();
   } catch (err) {
     logger.error({ err }, "bootstrapSuperAdmins failed");
+  }
+  try {
+    await bootstrapCoordinatorTags();
+  } catch (err) {
+    logger.error({ err }, "bootstrapCoordinatorTags failed");
   }
   try {
     await backfillOrderBookEntries();

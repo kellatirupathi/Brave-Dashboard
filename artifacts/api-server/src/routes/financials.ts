@@ -93,8 +93,8 @@ async function enrichRevEntry(entry: typeof revenueEntriesTable.$inferSelect) {
 
 /**
  * Checks if the current user is allowed to review a given revenue entry.
- * - Admins can review anything.
- * - Coordinators can review only entries whose team belongs to their campus.
+ * - Admins only. Verify / reject / re-open (unverify) are admin-only actions.
+ * - Coordinators are view-only on revenue and are rejected here.
  * - Anyone else is rejected.
  *
  * Writes the appropriate error response and returns false on failure so the
@@ -109,8 +109,7 @@ async function ensureCanReviewRevenueEntry(
     res.status(401).json({ error: "Unauthorized" });
     return null;
   }
-  const role = req.user.role;
-  if (role !== "admin" && role !== "coordinator") {
+  if (req.user.role !== "admin") {
     res.status(403).json({ error: "Forbidden" });
     return null;
   }
@@ -121,16 +120,6 @@ async function ensureCanReviewRevenueEntry(
   if (!entry) {
     res.status(404).json({ error: "Entry not found" });
     return null;
-  }
-  if (role === "coordinator") {
-    const [team] = await db
-      .select({ campusId: teamsTable.campusId })
-      .from(teamsTable)
-      .where(eq(teamsTable.id, entry.teamId));
-    if (!team || team.campusId !== req.user.campusId) {
-      res.status(403).json({ error: "This entry is not in your campus." });
-      return null;
-    }
   }
   return { teamId: entry.teamId };
 }
@@ -745,7 +734,7 @@ router.post(
       }
     }
     await logAudit(
-      req.user.id,
+      req.user!.id,
       "verify_revenue_entry",
       "revenue_entry",
       entry.id,
@@ -842,7 +831,7 @@ router.post(
       }
     }
     await logAudit(
-      req.user.id,
+      req.user!.id,
       "reject_revenue_entry",
       "revenue_entry",
       entry.id,
@@ -917,7 +906,7 @@ router.post(
       );
     }
     await logAudit(
-      req.user.id,
+      req.user!.id,
       "unverify_revenue_entry",
       "revenue_entry",
       entry.id,

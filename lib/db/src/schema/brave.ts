@@ -757,6 +757,13 @@ export const programmeConfigTable = pgTable("programme_config", {
   chatbotProvider: chatbotProviderEnum("chatbot_provider")
     .notNull()
     .default("cloudflare"),
+  // GRIT Miles ladder (array of { level, revenueTarget, miles, reward? }).
+  // Null until configured — callers fall back to DEFAULT_GRIT_LEVELS.
+  gritLevels: jsonb("grit_levels"),
+  // Deadline (YYYY-MM-DD) after which students can no longer edit journals.
+  journalEditDeadline: text("journal_edit_deadline"),
+  // Master toggle for the weekly journal escalation crons (on by default).
+  escalationEnabled: boolean("escalation_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -860,6 +867,9 @@ export const weeklyJournalsTable = pgTable(
     projectsStarted: integer("projects_started").notNull().default(0),
     projectsClosed: integer("projects_closed").notNull().default(0),
     submittedBy: text("submitted_by").notNull(),
+    // Role of the actor who last submitted/edited this journal
+    // ('student' | 'coordinator' | 'admin'). Nullable for legacy rows.
+    submittedByRole: text("submitted_by_role"),
     submittedAt: timestamp("submitted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1057,3 +1067,92 @@ export const brdAnalysisHistoryTable = pgTable(
 );
 
 export type BrdAnalysisHistory = typeof brdAnalysisHistoryTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Coordinator Tags — admin-managed functional tags for campus coordinators
+// (e.g. "Success Coach", "COS"). Many-to-many with users via the join table.
+// ---------------------------------------------------------------------------
+export const coordinatorTagsTable = pgTable("coordinator_tags", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type CoordinatorTag = typeof coordinatorTagsTable.$inferSelect;
+
+// Per-coordinator tag assignments. Composite PK doubles as the dedup key for
+// onConflictDoNothing. Tag deletes cascade to their assignments.
+export const userCoordinatorTagsTable = pgTable(
+  "user_coordinator_tags",
+  {
+    userId: text("user_id").notNull(),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => coordinatorTagsTable.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.tagId] }),
+    index("user_coordinator_tags_user_idx").on(t.userId),
+    index("user_coordinator_tags_tag_idx").on(t.tagId),
+  ],
+);
+
+export type UserCoordinatorTag = typeof userCoordinatorTagsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Journal reporting — persisted login-gated report snapshots + escalation log.
+// Written by the escalation / weekly-report crons; read by the Reports pages.
+// ---------------------------------------------------------------------------
+export const journalReportLinksTable = pgTable(
+  "journal_report_links",
+  {
+    id: serial("id").primaryKey(),
+    token: text("token").notNull().unique(),
+    scope: text("scope").notNull(), // 'campus' | 'admin'
+    kind: text("kind").notNull(),
+    campusId: integer("campus_id"),
+    campusName: text("campus_name"),
+    weekId: integer("week_id").notNull(),
+    weekLabel: text("week_label").notNull(),
+    title: text("title").notNull(),
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("journal_report_links_created_idx").on(t.createdAt),
+    index("journal_report_links_week_idx").on(t.weekId),
+  ],
+);
+
+export type JournalReportLink = typeof journalReportLinksTable.$inferSelect;
+
+// One row per (campus, week, level) escalation email batch that was sent, so
+// re-runs never double-send. campusId is null for admin-level sends.
+export const journalEscalationLogTable = pgTable(
+  "journal_escalation_log",
+  {
+    id: serial("id").primaryKey(),
+    campusId: integer("campus_id"),
+    weekId: integer("week_id").notNull(),
+    level: text("level").notNull(), // 'success_coach' | 'cos' | 'admin'
+    recipientCount: integer("recipient_count").notNull().default(0),
+    reportToken: text("report_token"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("journal_escalation_log_campus_week_level_unique").on(
+      t.campusId,
+      t.weekId,
+      t.level,
+    ),
+    index("journal_escalation_log_week_idx").on(t.weekId),
+  ],
+);
+
+export type JournalEscalationLog = typeof journalEscalationLogTable.$inferSelect;

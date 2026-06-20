@@ -39,6 +39,8 @@ export type WeeklyJournal = {
   projectsStarted: number;
   projectsClosed: number;
   submittedBy: string;
+  // 'student' | 'coordinator' | 'admin' — who actually filed the journal.
+  submittedByRole?: string;
   submittedAt: string;
   // AI analysis (additive — null/absent until analysed).
   aiAnalysis?: JournalAiAnalysis | null;
@@ -426,6 +428,114 @@ export type ProgressSummary = {
 
 export function getProgressSummary(): Promise<ProgressSummary> {
   return customFetch<ProgressSummary>("/api/progress-summary");
+}
+
+// Week-by-week completion tracker for the student dashboard header.
+export type WeekTrackerItem = {
+  weekId: number;
+  weekNumber: number;
+  startDate: string;
+  endDate: string;
+  isOpen: boolean;
+  isCurrent: boolean;
+  submitted: boolean;
+};
+
+export type WeekTracker = {
+  currentWeekId: number | null;
+  weeks: WeekTrackerItem[];
+};
+
+export function getWeekTracker(): Promise<WeekTracker> {
+  return customFetch<WeekTracker>("/api/journals/week-tracker");
+}
+
+// ---------- Coordinator journal management (tracking + fill-on-behalf) ------
+
+export type JournalTrackingRow = {
+  teamId: number;
+  teamName: string;
+  campusId: number | null;
+  submitted: boolean;
+  journalId: number | null;
+  submittedByRole: string | null;
+  submittedAt: string | null;
+};
+
+export type JournalTracking = {
+  week: {
+    weekId: number;
+    weekNumber: number;
+    startDate: string;
+    endDate: string;
+  } | null;
+  teams: JournalTrackingRow[];
+  submittedCount: number;
+  totalTeams: number;
+};
+
+export function getJournalTracking(opts?: {
+  weekId?: number;
+  campusId?: number;
+}): Promise<JournalTracking> {
+  const params = new URLSearchParams();
+  if (opts?.weekId) params.set("weekId", String(opts.weekId));
+  if (opts?.campusId) params.set("campusId", String(opts.campusId));
+  const qs = params.toString();
+  return customFetch<JournalTracking>(
+    `/api/coordinator/journal-tracking${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export type CoordinatorJournalInput = {
+  teamId: number;
+  weekId?: number;
+  whatWeDid: string;
+  blockers?: string;
+  nextWeekPlan?: string;
+  clientsVisited?: number;
+  activeConversations?: number;
+  projectsStarted?: number;
+  projectsClosed?: number;
+};
+
+export function fillCoordinatorJournal(
+  body: CoordinatorJournalInput,
+): Promise<WeeklyJournal> {
+  return customFetch<WeeklyJournal>("/api/coordinator/journals", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+// Bulk: file ONE common journal update across many teams at once (Phase 4).
+export function bulkFillCoordinatorJournal(body: {
+  teamIds: number[];
+  weekId?: number;
+  whatWeDid: string;
+  blockers?: string;
+  nextWeekPlan?: string;
+}): Promise<{ ok: true; filled: number }> {
+  return customFetch<{ ok: true; filled: number }>(
+    "/api/coordinator/journals/bulk",
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+// Broadcast a common message (notification) to many teams at once (Phase 4).
+export function broadcastCoordinatorMessage(body: {
+  teamIds: number[];
+  title: string;
+  message: string;
+}): Promise<{ ok: true; notifiedUsers: number; notifiedTeams: number }> {
+  return customFetch<{
+    ok: true;
+    notifiedUsers: number;
+    notifiedTeams: number;
+  }>("/api/coordinator/broadcast", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 // ---------- Admin: overdue notification subscribers ----------
