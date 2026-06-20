@@ -151,8 +151,9 @@ function GroupFlyout({
         className="min-w-[200px]"
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
-        // Don't grab focus when the panel closes — focus stealing causes the
+        // Don't grab focus when the panel opens — focus stealing causes the
         // trigger to lose its hover state, which closes/re-opens the panel.
+        onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {group.children.map((child) => {
@@ -379,11 +380,21 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         href: "/admin/campus-insights",
         icon: BarChart3,
       },
-      { name: "Reports", href: "/admin/reports", icon: FileBarChart },
       {
-        name: "Chatbot History",
-        href: "/admin/chatbot-history",
-        icon: MessageSquare,
+        name: "Reports",
+        icon: FileBarChart,
+        children: [
+          {
+            name: "Journal Reports",
+            href: "/admin/reports",
+            icon: FileBarChart,
+          },
+          {
+            name: "Chatbot History",
+            href: "/admin/chatbot-history",
+            icon: MessageSquare,
+          },
+        ],
       },
       { name: "Config", href: "/admin/config", icon: Settings },
       { name: "Resources", href: "/admin/resources", icon: BookOpen },
@@ -436,6 +447,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 <GroupFlyout
                   key={item.name}
                   group={item}
+                  isActive={false}
                   childActive={childActive}
                   currentLocation={location}
                   onNavigate={onNavigate}

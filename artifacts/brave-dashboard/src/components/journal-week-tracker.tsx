@@ -34,7 +34,7 @@ export function JournalWeekTracker({ className }: { className?: string }) {
       className={cn("min-w-0", className)}
       data-testid="journal-week-tracker"
     >
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
         {weeks.map((w) => {
           const tone = w.submitted
             ? "text-emerald-600"
@@ -80,7 +80,7 @@ export function JournalWeekTracker({ className }: { className?: string }) {
           );
         })}
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground text-center">
         {deadlineLabel
           ? `Editing your previous journal entries is available until ${deadlineLabel}. `
           : ""}

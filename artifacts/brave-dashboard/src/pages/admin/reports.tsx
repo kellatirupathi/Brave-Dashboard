@@ -61,12 +61,12 @@ function CampusReportsTab() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [campusFilter, setCampusFilter] = useState<string>("all");
-  // "" = current week, "all" = all weeks, else weekId.
-  const [weekFilter, setWeekFilter] = useState<string>("");
+  // "current" = current week, "all" = all weeks, else weekId.
+  const [weekFilter, setWeekFilter] = useState<string>("current");
   const [drilldownId, setDrilldownId] = useState<number | null>(null);
 
   const weekParam =
-    weekFilter === ""
+    weekFilter === "current"
       ? undefined
       : weekFilter === "all"
         ? "all"
@@ -167,7 +167,7 @@ function CampusReportsTab() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Current week</SelectItem>
+            <SelectItem value="current">Current week</SelectItem>
             <SelectItem value="all">All weeks</SelectItem>
             {(weeks ?? []).map((w) => (
               <SelectItem key={w.id} value={String(w.id)}>
