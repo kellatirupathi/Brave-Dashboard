@@ -64,8 +64,8 @@ const TONE_DOT: Record<Tone, string> = {
 // centred slot for the headline number.
 function RadialProgress({
   value,
-  size = 168,
-  stroke = 12,
+  size = 208,
+  stroke = 16,
   children,
 }: {
   value: number;
@@ -359,12 +359,12 @@ export default function TeamDashboard() {
             </Link>
           </div>
 
-          <div className="flex flex-col items-center gap-6 px-6 py-6 lg:flex-row lg:items-center lg:gap-10">
+          <div className="flex flex-col items-center gap-8 px-8 py-8 lg:flex-row lg:items-center lg:gap-14">
             {/* Radial focal point */}
             <div className="flex flex-col items-center gap-3">
               <RadialProgress value={nextMilestonePercent}>
                 <div
-                  className="text-4xl font-bold leading-none tabular-nums tracking-tight"
+                  className="text-5xl font-bold leading-none tabular-nums tracking-tight"
                   data-testid="rail-grit-miles"
                 >
                   {grit.milesUnlocked.toLocaleString("en-IN")}
