@@ -421,11 +421,11 @@ export default function TeamDashboard() {
               </div>
 
               {/* Horizontal ladder */}
-              <div className="relative mt-8 px-1">
-                <div className="absolute left-1 right-1 top-2 h-1 -translate-y-1/2 rounded-full bg-muted" />
+              <div className="relative mt-8 px-3">
+                <div className="absolute left-3 right-3 top-3.5 h-1.5 -translate-y-1/2 rounded-full bg-muted" />
                 <div
-                  className="absolute left-1 top-2 h-1 -translate-y-1/2 rounded-full bg-primary transition-all duration-700 ease-out"
-                  style={{ width: `calc(${ladderPercent}% - 0.5rem)` }}
+                  className="absolute left-3 top-3.5 h-1.5 -translate-y-1/2 rounded-full bg-primary transition-all duration-700 ease-out"
+                  style={{ width: `calc(${ladderPercent}% - 1.5rem)` }}
                 />
                 <div className="relative flex justify-between">
                   {levels.map((l) => {
@@ -438,7 +438,7 @@ export default function TeamDashboard() {
                       >
                         <span
                           className={cn(
-                            "grid h-4 w-4 place-items-center rounded-full ring-4 ring-card transition-colors",
+                            "grid h-7 w-7 place-items-center rounded-full ring-4 ring-card transition-colors",
                             reached
                               ? "bg-primary"
                               : isNext
@@ -447,10 +447,10 @@ export default function TeamDashboard() {
                           )}
                         >
                           {reached && (
-                            <CheckCircle className="h-3 w-3 text-primary-foreground" />
+                            <CheckCircle className="h-4 w-4 text-primary-foreground" />
                           )}
                           {!reached && !isNext && (
-                            <Lock className="h-2 w-2 text-card" />
+                            <Lock className="h-3 w-3 text-card" />
                           )}
                         </span>
                         <span
