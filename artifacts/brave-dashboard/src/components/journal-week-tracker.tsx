@@ -34,7 +34,7 @@ export function JournalWeekTracker({ className }: { className?: string }) {
       className={cn("min-w-0", className)}
       data-testid="journal-week-tracker"
     >
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-center gap-2.5">
         {weeks.map((w) => {
           const tone = w.submitted
             ? "text-emerald-600"
@@ -63,14 +63,14 @@ export function JournalWeekTracker({ className }: { className?: string }) {
                 )}
               >
                 {w.submitted ? (
-                  <CheckCircle2 className="h-5 w-5" />
+                  <CheckCircle2 className="h-7 w-7" />
                 ) : (
-                  <Circle className="h-5 w-5" />
+                  <Circle className="h-7 w-7" />
                 )}
               </span>
               <span
                 className={cn(
-                  "text-[10px] font-medium tabular-nums",
+                  "text-xs font-medium tabular-nums",
                   w.isCurrent ? "text-primary" : "text-muted-foreground",
                 )}
               >
