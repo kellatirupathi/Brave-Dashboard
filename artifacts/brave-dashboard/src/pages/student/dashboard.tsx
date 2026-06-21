@@ -512,92 +512,103 @@ export default function TeamDashboard() {
 
         {/* ============ WORKSPACE: progress center + action rail ============ */}
         <div className="grid gap-5 lg:grid-cols-[1fr_340px] lg:items-start">
-          {/* Progress center */}
-          <section className={cn(PANEL, "overflow-hidden")}>
-            <div className="flex items-center justify-between px-5 py-4">
-              <SectionLabel>Progress center</SectionLabel>
-              <Link
-                href="/journal"
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                Open journal
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 gap-px border-t bg-border sm:grid-cols-2">
-              {/* Journal this week */}
-              <div className="bg-card p-5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <BookOpenCheck className="h-4 w-4" /> Journal this week
-                  </span>
-                  <Badge className={TONE_BADGE[journalTone]}>
-                    {journalLabel}
-                  </Badge>
-                </div>
-                <Progress
-                  value={submittedThisWeek ? 100 : 0}
-                  className="mt-3 h-1.5"
-                />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {progress?.journal?.weekNumber != null
-                    ? `Week ${progress.journal.weekNumber}`
-                    : "Submit a short 3-field journal to stay on track."}
-                </p>
+          {/* Left column — progress center + support */}
+          <div className="min-w-0 space-y-5">
+            {/* Progress center */}
+            <section className={cn(PANEL, "overflow-hidden")}>
+              <div className="flex items-center justify-between px-5 py-4">
+                <SectionLabel>Progress center</SectionLabel>
+                <Link
+                  href="/journal"
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Open journal
+                </Link>
               </div>
+              <div className="grid grid-cols-1 gap-px border-t bg-border sm:grid-cols-2">
+                {/* Journal this week */}
+                <div className="bg-card p-5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <BookOpenCheck className="h-4 w-4" /> Journal this week
+                    </span>
+                    <Badge className={TONE_BADGE[journalTone]}>
+                      {journalLabel}
+                    </Badge>
+                  </div>
+                  <Progress
+                    value={submittedThisWeek ? 100 : 0}
+                    className="mt-3 h-1.5"
+                  />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {progress?.journal?.weekNumber != null
+                      ? `Week ${progress.journal.weekNumber}`
+                      : "Submit a short 3-field journal to stay on track."}
+                  </p>
+                </div>
 
-              {/* Next milestone */}
-              <div className="bg-card p-5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <Award className="h-4 w-4" /> Next milestone
-                  </span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {grit.nextLevel ? `Level ${grit.nextLevel.level}` : "Maxed"}
-                  </span>
+                {/* Next milestone */}
+                <div className="bg-card p-5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Award className="h-4 w-4" /> Next milestone
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {grit.nextLevel
+                        ? `Level ${grit.nextLevel.level}`
+                        : "Maxed"}
+                    </span>
+                  </div>
+                  <Progress
+                    value={nextMilestonePercent}
+                    className="mt-3 h-1.5"
+                  />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {grit.nextLevel
+                      ? `${formatINR(grit.revenueToNext)} more required to unlock ${grit.nextLevel.miles} GRIT Miles`
+                      : "All GRIT levels unlocked 🎉"}
+                  </p>
                 </div>
-                <Progress value={nextMilestonePercent} className="mt-3 h-1.5" />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {grit.nextLevel
-                    ? `${formatINR(grit.revenueToNext)} more required to unlock ${grit.nextLevel.miles} GRIT Miles`
-                    : "All GRIT levels unlocked 🎉"}
-                </p>
-              </div>
 
-              {/* Miles unlocked */}
-              <div className="bg-card p-5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <Award className="h-4 w-4" /> Miles unlocked
-                  </span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {grit.milesUnlocked.toLocaleString("en-IN")}
-                  </span>
+                {/* Miles unlocked */}
+                <div className="bg-card p-5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Award className="h-4 w-4" /> Miles unlocked
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {grit.milesUnlocked.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {grit.currentLevel > 0
+                      ? `You're at Level ${grit.currentLevel}.`
+                      : "Reach Level 1 to start earning GRIT Miles."}
+                  </p>
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {grit.currentLevel > 0
-                    ? `You're at Level ${grit.currentLevel}.`
-                    : "Reach Level 1 to start earning GRIT Miles."}
-                </p>
-              </div>
 
-              {/* Pending submissions */}
-              <div className="bg-card p-5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <AlertCircle className="h-4 w-4" /> Pending submissions
-                  </span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {pending}
-                  </span>
+                {/* Pending submissions */}
+                <div className="bg-card p-5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <AlertCircle className="h-4 w-4" /> Pending submissions
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {pending}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {pending > 0
+                      ? "Awaiting admin review."
+                      : "Nothing awaiting review."}
+                  </p>
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {pending > 0
-                    ? "Awaiting admin review."
-                    : "Nothing awaiting review."}
-                </p>
               </div>
-            </div>
-          </section>
+            </section>
+
+            {/* Email / support — moved to the left column */}
+            <SupportBanner />
+          </div>
 
           {/* Action rail */}
           <aside className="space-y-5 self-start lg:sticky lg:top-4">
@@ -662,8 +673,6 @@ export default function TeamDashboard() {
                 </span>
               </div>
             </section>
-
-            <SupportBanner />
           </aside>
         </div>
       </div>
