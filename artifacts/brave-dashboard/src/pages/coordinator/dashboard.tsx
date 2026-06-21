@@ -5,13 +5,6 @@ import {
 } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatINR } from "@/lib/format";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +27,9 @@ import {
   Bell,
   Calendar,
   Megaphone,
-  ArrowRight,
   Briefcase,
+  Building2,
+  ArrowUpRight,
 } from "lucide-react";
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
@@ -48,6 +42,74 @@ import {
   sendBulkHeatmapReminders,
   sendHeatmapReminder,
 } from "@/lib/progress-api";
+
+// ── Design system helpers ───────────────────────────────────────────────────
+// Flat, enterprise SaaS surfaces. One confident focal point (the coverage
+// ring), everything else calm and precisely aligned.
+const PANEL = "rounded-2xl border bg-card";
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      {children}
+    </h2>
+  );
+}
+
+// Circular progress ring (SVG, no deps). Colour-aware arc for coverage health.
+function RadialProgress({
+  value,
+  size = 150,
+  stroke = 13,
+  arcClass = "text-primary",
+  children,
+}: {
+  value: number;
+  size?: number;
+  stroke?: number;
+  arcClass?: string;
+  children: React.ReactNode;
+}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, value));
+  const offset = c * (1 - pct / 100);
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          className="text-muted"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          className={cn(arcClass, "transition-all duration-700 ease-out")}
+        />
+      </svg>
+      <div className="absolute inset-0 grid place-items-center text-center">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function relativeTime(iso: string): string {
   const d = new Date(iso).getTime();
@@ -191,234 +253,291 @@ export default function CoordinatorDashboard() {
     );
   if (!summary) return <div>Failed to load dashboard</div>;
 
-  const cardLinkClass =
-    "block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-
-  // Coverage color
-  const coverageColor = !coverage
+  // Coverage health → arc + bar colour.
+  const coverageArc = !coverage
+    ? "text-muted-foreground"
+    : coverage.pct >= 80
+      ? "text-emerald-500"
+      : coverage.pct >= 50
+        ? "text-amber-500"
+        : "text-red-500";
+  const coverageBar = !coverage
     ? "bg-muted"
     : coverage.pct >= 80
       ? "bg-emerald-500"
       : coverage.pct >= 50
         ? "bg-amber-500"
         : "bg-red-500";
+  const pendingCoverage = coverage ? coverage.total - coverage.submitted : 0;
+
+  // ── KPI bar (campus-scoped). Order: Verified Revenue → Order Book →
+  //    Active Teams → Pending Reviews. ───────────────────────────────────────
+  const kpis: {
+    label: string;
+    value: React.ReactNode;
+    sub: React.ReactNode;
+    icon: React.ComponentType<{ className?: string }>;
+    href: string;
+    testid: string;
+  }[] = [
+    {
+      label: "Verified revenue",
+      value: formatINR(summary.totalVerifiedRevenue),
+      sub: "Your campus",
+      icon: Trophy,
+      href: "/coordinator/leaderboard",
+      testid: "link-card-revenue",
+    },
+    {
+      label: "Order book",
+      value: formatINR(summary.totalOrderBook),
+      sub: "Committed pipeline",
+      icon: Briefcase,
+      href: "/coordinator/projects",
+      testid: "link-card-order-book",
+    },
+    {
+      label: "Active teams",
+      value: summary.activeTeams,
+      sub: "Teams at your campus",
+      icon: Users,
+      href: "/coordinator/leaderboard",
+      testid: "link-card-teams",
+    },
+    {
+      label: "Pending reviews",
+      value: summary.pendingReviewCount,
+      sub:
+        summary.overdueReviewCount > 0 ? (
+          <span className="text-destructive">
+            {summary.overdueReviewCount} overdue
+          </span>
+        ) : (
+          "Nothing overdue"
+        ),
+      icon: AlertCircle,
+      href: "/coordinator/queue",
+      testid: "link-card-pending-reviews",
+    },
+  ];
 
   return (
     <>
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Campus Dashboard
-            </h1>
-            <p className="text-muted-foreground">
-              Overview of your campus performance
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <HelpMenu inline />
-            <NotificationsBell />
-          </div>
-        </div>
-
-        {/* Row 1 — KPI Cards. Campus-scoped. Order: Verified Revenue →
-            Order Book → Active Teams → Pending Reviews. Demo Eligible removed. */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Link
-            href="/coordinator/leaderboard"
-            className={cardLinkClass}
-            data-testid="link-card-revenue"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Verified Revenue
-                </CardTitle>
-                <Trophy className="w-4 h-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatINR(summary.totalVerifiedRevenue)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Your campus
+      <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* ===================== COMMAND HEADER ===================== */}
+        <header className={cn(PANEL, "p-5")}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3.5">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+                <Building2 className="h-6 w-6" />
+              </span>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold tracking-tight text-foreground">
+                  Campus Dashboard
+                </h1>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Operational overview of your campus performance
                 </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link
-            href="/coordinator/projects"
-            className={cardLinkClass}
-            data-testid="link-card-order-book"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Order Book
-                </CardTitle>
-                <Briefcase className="w-4 h-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatINR(summary.totalOrderBook)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Committed pipeline
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link
-            href="/coordinator/leaderboard"
-            className={cardLinkClass}
-            data-testid="link-card-teams"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Active Teams
-                </CardTitle>
-                <Users className="w-4 h-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{summary.activeTeams}</div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Teams at your campus
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link
-            href="/coordinator/queue"
-            className={cardLinkClass}
-            data-testid="link-card-pending-reviews"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Pending Reviews
-                </CardTitle>
-                <AlertCircle className="w-4 h-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {summary.pendingReviewCount}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2 text-destructive">
-                  {summary.overdueReviewCount} overdue
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-
-        {/* Row 2 — Campus Journal Coverage (full width) */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <BookOpenCheck className="w-5 h-5 text-primary" />
-                This Week's Journal Coverage
-              </CardTitle>
-              {coverage && (
-                <Badge
-                  variant="outline"
-                  className="text-xs flex items-center gap-1"
-                >
-                  <Calendar className="w-3 h-3" />
-                  {coverage.currentWeek}
-                </Badge>
-              )}
+              </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            {!coverage ? (
-              <p className="text-sm text-muted-foreground py-4">
-                No programme weeks generated yet, or no teams in this campus.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="text-2xl font-bold">
-                    {coverage.submitted} / {coverage.total}
-                    <span className="text-base font-normal text-muted-foreground ml-2">
-                      teams submitted ({coverage.pct}%)
+            <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
+              <HelpMenu inline />
+              <NotificationsBell />
+            </div>
+          </div>
+        </header>
+
+        {/* ============ PERFORMANCE OVERVIEW — segmented stat bar ============ */}
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <SectionLabel>Campus performance</SectionLabel>
+            <Link
+              href="/coordinator/leaderboard"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              View leaderboard
+            </Link>
+          </div>
+          <div
+            className={cn(
+              PANEL,
+              "grid grid-cols-2 gap-px overflow-hidden bg-border lg:grid-cols-4",
+            )}
+          >
+            {kpis.map((k) => {
+              const Icon = k.icon;
+              return (
+                <Link
+                  key={k.testid}
+                  href={k.href}
+                  className="group relative flex flex-col bg-card p-5 transition-colors hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  data-testid={k.testid}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Icon className="h-4 w-4" />
+                      {k.label}
+                    </span>
+                    <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  </div>
+                  <div className="mt-4 text-[1.7rem] font-bold leading-none tracking-tight tabular-nums">
+                    {k.value}
+                  </div>
+                  <div className="mt-2 truncate text-xs text-muted-foreground/80">
+                    {k.sub}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ===================== JOURNAL COVERAGE HERO ===================== */}
+        <section className={cn(PANEL, "overflow-hidden")}>
+          <div className="flex items-center justify-between px-6 pt-5">
+            <div className="flex items-center gap-2">
+              <BookOpenCheck className="h-4 w-4 text-primary" />
+              <SectionLabel>This week's journal coverage</SectionLabel>
+            </div>
+            {coverage && (
+              <Badge
+                variant="outline"
+                className="flex items-center gap-1 text-xs"
+              >
+                <Calendar className="h-3 w-3" />
+                {coverage.currentWeek}
+              </Badge>
+            )}
+          </div>
+
+          {!coverage ? (
+            <p className="px-6 py-8 text-sm text-muted-foreground">
+              No programme weeks generated yet, or no teams in this campus.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-col items-center gap-8 px-6 py-7 lg:flex-row lg:gap-12">
+                {/* Radial focal point */}
+                <RadialProgress value={coverage.pct} arcClass={coverageArc}>
+                  <div className="text-4xl font-bold leading-none tabular-nums tracking-tight">
+                    {coverage.pct}
+                    <span className="text-xl">%</span>
+                  </div>
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    Submitted
+                  </div>
+                </RadialProgress>
+
+                {/* Readouts + actions */}
+                <div className="min-w-0 flex-1">
+                  <div className="text-2xl font-bold tabular-nums tracking-tight">
+                    {coverage.submitted}{" "}
+                    <span className="text-muted-foreground">
+                      / {coverage.total}
+                    </span>
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      teams submitted this week
                     </span>
                   </div>
-                </div>
-                <div className="h-3 w-full bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={cn("h-full transition-all", coverageColor)}
-                    style={{ width: `${coverage.pct}%` }}
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button asChild variant="outline" size="sm">
-                    <Link
-                      href="/coordinator/heatmap"
-                      data-testid="link-coverage-heatmap"
+
+                  <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn("h-full transition-all", coverageBar)}
+                      style={{ width: `${coverage.pct}%` }}
+                    />
+                  </div>
+
+                  {/* Mini breakdown */}
+                  <div className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-lg border bg-border">
+                    {(
+                      [
+                        { label: "Submitted", value: coverage.submitted },
+                        { label: "Pending", value: pendingCoverage },
+                        { label: "Silent", value: silentTeams.length },
+                      ] as const
+                    ).map((s) => (
+                      <div key={s.label} className="bg-card p-3 text-center">
+                        <div className="text-lg font-bold tabular-nums">
+                          {s.value}
+                        </div>
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          {s.label}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link
+                        href="/coordinator/heatmap"
+                        data-testid="link-coverage-heatmap"
+                      >
+                        <Activity className="mr-1 h-4 w-4" />
+                        View heatmap
+                      </Link>
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={
+                        silentTeams.length === 0 || bulkRemindMut.isPending
+                      }
+                      onClick={() => setBulkOpen(true)}
+                      data-testid="button-bulk-remind-silent"
                     >
-                      <Activity className="w-4 h-4 mr-1" />
-                      View heatmap
-                    </Link>
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={
-                      silentTeams.length === 0 || bulkRemindMut.isPending
-                    }
-                    onClick={() => setBulkOpen(true)}
-                    data-testid="button-bulk-remind-silent"
-                  >
-                    <Bell className="w-4 h-4 mr-1" />
-                    Send reminder to {silentTeams.length} silent team
-                    {silentTeams.length === 1 ? "" : "s"}
-                  </Button>
+                      <Bell className="mr-1 h-4 w-4" />
+                      Send reminder to {silentTeams.length} silent team
+                      {silentTeams.length === 1 ? "" : "s"}
+                    </Button>
+                  </div>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </>
+          )}
+        </section>
 
-        {/* Row 3 — Top 3 Silent + Recent Journals (side-by-side) */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Top 3 Silent Teams */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-orange-500" />
-                Teams Needing Attention
-              </CardTitle>
-              <CardDescription>
-                Most silent teams in your campus
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        {/* ============ WORKSPACE — triage + activity ============ */}
+        <div className="grid gap-5 lg:grid-cols-2">
+          {/* Teams Needing Attention */}
+          <section className={cn(PANEL, "overflow-hidden")}>
+            <div className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-orange-500" />
+                <SectionLabel>Teams needing attention</SectionLabel>
+              </div>
+              {topSilent.length > 0 && (
+                <Link
+                  href="/coordinator/heatmap"
+                  className="text-xs font-medium text-primary hover:underline"
+                  data-testid="link-view-all-silent"
+                >
+                  View all
+                </Link>
+              )}
+            </div>
+            <div className="border-t">
               {topSilent.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
+                <p className="px-5 py-8 text-sm text-muted-foreground">
                   All teams are active — no silent teams flagged.
                 </p>
               ) : (
-                <div className="space-y-2">
+                <ul className="divide-y">
                   {topSilent.map((t, idx) => (
-                    <div
+                    <li
                       key={t.teamId}
-                      className="flex items-center justify-between p-3 border rounded-md hover:bg-accent/30"
+                      className="flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-muted/30"
                       data-testid={`silent-team-${t.teamId}`}
                     >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <span className="text-sm font-mono text-muted-foreground tabular-nums w-6">
-                          #{idx + 1}
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold tabular-nums text-orange-700 dark:bg-orange-950 dark:text-orange-300">
+                          {idx + 1}
                         </span>
                         <div className="min-w-0">
-                          <div className="font-medium truncate">
+                          <div className="truncate text-sm font-medium">
                             {t.teamName}
                           </div>
-                          <div className="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3" />
+                          <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                            <AlertCircle className="h-3 w-3" />
                             {t.status === "never_logged"
                               ? "Never logged a journal"
                               : `${t.daysSinceLastJournal ?? 0} days silent`}
@@ -432,139 +551,121 @@ export default function CoordinatorDashboard() {
                         onClick={() => remindMut.mutate(t.teamId)}
                         data-testid={`button-remind-${t.teamId}`}
                       >
-                        <Bell className="w-3 h-3 mr-1" />
+                        <Bell className="mr-1 h-3 w-3" />
                         Remind
                       </Button>
-                    </div>
+                    </li>
                   ))}
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-2"
-                  >
-                    <Link
-                      href="/coordinator/heatmap"
-                      data-testid="link-view-all-silent"
-                    >
-                      View all silent teams
-                      <ArrowRight className="w-4 h-4 ml-1" />
-                    </Link>
-                  </Button>
-                </div>
+                </ul>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          {/* Recent Journals */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpenCheck className="w-5 h-5 text-primary" />
-                Recent Journal Submissions
-              </CardTitle>
-              <CardDescription>Latest entries from your campus</CardDescription>
-            </CardHeader>
-            <CardContent>
+          {/* Recent Journal Submissions */}
+          <section className={cn(PANEL, "overflow-hidden")}>
+            <div className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-2">
+                <BookOpenCheck className="h-4 w-4 text-primary" />
+                <SectionLabel>Recent journal submissions</SectionLabel>
+              </div>
+              {recentJournals.length > 0 && (
+                <Link
+                  href="/coordinator/journals"
+                  className="text-xs font-medium text-primary hover:underline"
+                  data-testid="link-view-all-journals"
+                >
+                  View all
+                </Link>
+              )}
+            </div>
+            <div className="border-t">
               {recentJournals.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
+                <p className="px-5 py-8 text-sm text-muted-foreground">
                   No journal submissions yet.
                 </p>
               ) : (
-                <div className="space-y-3">
+                <ul className="divide-y">
                   {recentJournals.map((j) => (
-                    <Link
-                      key={j.id}
-                      href="/coordinator/journals"
-                      className="block p-3 border rounded-md hover:bg-accent/30 transition-colors"
-                      data-testid={`recent-journal-${j.id}`}
-                    >
-                      <div className="flex items-baseline justify-between gap-2 mb-1">
-                        <div className="text-sm font-medium truncate">
-                          {j.teamName ?? `Team #${j.teamId}`}
+                    <li key={j.id}>
+                      <Link
+                        href="/coordinator/journals"
+                        className="block px-5 py-3.5 transition-colors hover:bg-muted/30"
+                        data-testid={`recent-journal-${j.id}`}
+                      >
+                        <div className="mb-1 flex items-baseline justify-between gap-2">
+                          <div className="truncate text-sm font-medium">
+                            {j.teamName ?? `Team #${j.teamId}`}
+                          </div>
+                          <span className="whitespace-nowrap text-xs text-muted-foreground">
+                            {relativeTime(j.submittedAt)}
+                          </span>
                         </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {relativeTime(j.submittedAt)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {truncate(j.whatWeDid, 120)}
-                      </p>
-                    </Link>
+                        <p className="line-clamp-2 text-xs text-muted-foreground">
+                          {truncate(j.whatWeDid, 120)}
+                        </p>
+                      </Link>
+                    </li>
                   ))}
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-2"
-                  >
-                    <Link
-                      href="/coordinator/journals"
-                      data-testid="link-view-all-journals"
-                    >
-                      View all journals
-                      <ArrowRight className="w-4 h-4 ml-1" />
-                    </Link>
-                  </Button>
-                </div>
+                </ul>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </div>
 
-        {/* Row 4 — Demo Day Pipeline (only if eligible teams exist) */}
+        {/* ============ DEMO DAY PIPELINE (conditional) ============ */}
         {demoEligibleCount > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-primary" />
-                Demo Day Pipeline
-              </CardTitle>
-              <CardDescription>
-                Teams in your campus that have crossed the ₹2L threshold
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap items-center gap-3 justify-between">
+          <section className={cn(PANEL, "p-5")}>
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-primary" />
+              <SectionLabel>Demo Day pipeline</SectionLabel>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+                  <Trophy className="h-6 w-6" />
+                </span>
                 <div>
-                  <div className="text-2xl font-bold">{demoEligibleCount}</div>
-                  <p className="text-sm text-muted-foreground">
-                    eligible team{demoEligibleCount === 1 ? "" : "s"} — make
-                    sure they apply on `/demo-day` before the deadline.
+                  <div className="text-2xl font-bold tabular-nums leading-none">
+                    {demoEligibleCount}
+                  </div>
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    eligible team{demoEligibleCount === 1 ? "" : "s"} crossed
+                    the ₹2L threshold — make sure they apply before the
+                    deadline.
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button asChild variant="outline" size="sm">
-                    <Link
-                      href="/coordinator/leaderboard"
-                      data-testid="link-demo-leaderboard"
-                    >
-                      <Trophy className="w-4 h-4 mr-1" />
-                      View leaderboard
-                    </Link>
-                  </Button>
-                  <Button asChild size="sm">
-                    <Link
-                      href="/coordinator/announcements"
-                      data-testid="link-demo-nudge"
-                    >
-                      <Megaphone className="w-4 h-4 mr-1" />
-                      Nudge via announcement
-                    </Link>
-                  </Button>
-                </div>
               </div>
-              {leaderboard && leaderboard.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-3">
-                  Top eligible:{" "}
-                  {leaderboard
-                    .slice(0, Math.min(3, leaderboard.length))
-                    .map((t: { teamName: string }) => t.teamName)
-                    .join(", ")}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              <div className="flex gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link
+                    href="/coordinator/leaderboard"
+                    data-testid="link-demo-leaderboard"
+                  >
+                    <Trophy className="mr-1 h-4 w-4" />
+                    View leaderboard
+                  </Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link
+                    href="/coordinator/announcements"
+                    data-testid="link-demo-nudge"
+                  >
+                    <Megaphone className="mr-1 h-4 w-4" />
+                    Nudge via announcement
+                  </Link>
+                </Button>
+              </div>
+            </div>
+            {leaderboard && leaderboard.length > 0 && (
+              <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
+                Top eligible:{" "}
+                {leaderboard
+                  .slice(0, Math.min(3, leaderboard.length))
+                  .map((t: { teamName: string }) => t.teamName)
+                  .join(", ")}
+              </p>
+            )}
+          </section>
         )}
       </div>
 
