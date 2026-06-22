@@ -15,7 +15,6 @@ import {
   AlertCircle,
   BookOpenCheck,
   Flame,
-  ChevronRight,
   Target,
   TrendingUp,
   Wallet,
@@ -148,14 +147,6 @@ export default function TeamDashboard() {
       href: "/leaderboard",
       accent: "text-violet-600 bg-violet-50",
     },
-    {
-      label: "Demo Day",
-      value: `${progressPercent.toFixed(0)}%`,
-      sub: summary.demoEligible ? "Eligible" : "To goal",
-      icon: Target,
-      href: "/demo-day",
-      accent: "text-rose-600 bg-rose-50",
-    },
   ];
 
   return (
@@ -196,7 +187,7 @@ export default function TeamDashboard() {
         {/* ============ SECTION 1 — PERFORMANCE OVERVIEW ============ */}
         <section>
           <SectionLabel>Performance overview</SectionLabel>
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {kpis.map((k) => {
               const Icon = k.icon;
               return (
@@ -266,8 +257,8 @@ export default function TeamDashboard() {
                     className="mt-2 h-1.5"
                   />
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    {progress?.journal?.weekStart && progress?.journal?.weekEnd
-                      ? `${progress.journal.weekStart} → ${progress.journal.weekEnd}`
+                    {progress?.journal?.weekNumber != null
+                      ? `Week ${progress.journal.weekNumber}`
                       : "Submit a short 3-field journal to stay on track."}
                   </p>
                 </div>
