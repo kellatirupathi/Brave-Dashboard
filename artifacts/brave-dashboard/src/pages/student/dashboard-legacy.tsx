@@ -163,7 +163,7 @@ export default function TeamDashboard() {
         <PinnedAnnouncementBanner />
 
         {/* ===================== HEADER ===================== */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <Link
             href="/team"
             className="block rounded-md -mx-2 px-2 py-1 hover-elevate active-elevate-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -176,7 +176,27 @@ export default function TeamDashboard() {
               {summary.team?.tagline || "No tagline set"}
             </p>
           </Link>
-          <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end">
+
+          {/* Weekly Journal — top-middle tracker strip */}
+          <div className="min-w-0 lg:px-6">
+            <div className="mb-1.5 flex items-center justify-center gap-2">
+              <span
+                className={cn("h-1.5 w-1.5 rounded-full", TONE_DOT[journalTone])}
+              />
+              <SectionLabel>Weekly journal</SectionLabel>
+              <Badge
+                className={cn(
+                  "text-[10px] leading-none",
+                  TONE_BADGE[journalTone],
+                )}
+              >
+                {journalLabel}
+              </Badge>
+            </div>
+            <JournalWeekTracker />
+          </div>
+
+          <div className="flex items-center gap-3 self-stretch lg:self-auto justify-end">
             <HelpMenu inline />
             {summary.demoEligible && (
               <Badge
@@ -190,22 +210,6 @@ export default function TeamDashboard() {
             <NotificationsBell />
           </div>
         </div>
-
-        {/* ============ WEEKLY JOURNAL TRACKER STRIP ============ */}
-        <section className={cn(PANEL, "p-4")}>
-          <div className="mb-2 flex items-center justify-center gap-2">
-            <span
-              className={cn("h-1.5 w-1.5 rounded-full", TONE_DOT[journalTone])}
-            />
-            <SectionLabel>Weekly journal</SectionLabel>
-            <Badge
-              className={cn("text-[10px] leading-none", TONE_BADGE[journalTone])}
-            >
-              {journalLabel}
-            </Badge>
-          </div>
-          <JournalWeekTracker />
-        </section>
 
         {/* ============ SECTION 1 — PERFORMANCE OVERVIEW ============ */}
         <section>
