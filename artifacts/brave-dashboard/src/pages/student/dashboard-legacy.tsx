@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { HelpMenu } from "@/components/help-menu";
+import { JournalWeekTracker } from "@/components/journal-week-tracker";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
@@ -52,6 +53,12 @@ const TONE_BADGE: Record<Tone, string> = {
   warn: "bg-amber-100 text-amber-700 hover:bg-amber-100",
   bad: "bg-red-100 text-red-700 hover:bg-red-100",
   muted: "bg-muted text-muted-foreground hover:bg-muted",
+};
+const TONE_DOT: Record<Tone, string> = {
+  good: "bg-emerald-500",
+  warn: "bg-amber-500",
+  bad: "bg-red-500",
+  muted: "bg-muted-foreground/40",
 };
 
 export default function TeamDashboard() {
@@ -183,6 +190,22 @@ export default function TeamDashboard() {
             <NotificationsBell />
           </div>
         </div>
+
+        {/* ============ WEEKLY JOURNAL TRACKER STRIP ============ */}
+        <section className={cn(PANEL, "p-4")}>
+          <div className="mb-2 flex items-center justify-center gap-2">
+            <span
+              className={cn("h-1.5 w-1.5 rounded-full", TONE_DOT[journalTone])}
+            />
+            <SectionLabel>Weekly journal</SectionLabel>
+            <Badge
+              className={cn("text-[10px] leading-none", TONE_BADGE[journalTone])}
+            >
+              {journalLabel}
+            </Badge>
+          </div>
+          <JournalWeekTracker />
+        </section>
 
         {/* ============ SECTION 1 — PERFORMANCE OVERVIEW ============ */}
         <section>
