@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Target,
   TrendingUp,
-  Star,
   Wallet,
   ArrowUpRight,
 } from "lucide-react";
@@ -31,9 +30,6 @@ import { AutoIntroVideo } from "@/components/intro-video-dialog";
 // ── Design system helpers ───────────────────────────────────────────────────
 // Flat, enterprise SaaS surfaces (border + card bg, no shadows/gradients).
 const PANEL = "rounded-xl border bg-card";
-
-// Each submitted weekly journal is worth this many points (gamification).
-const POINTS_PER_JOURNAL = 100;
 
 // Demo Day verified-revenue goal + the auto-milestone markers along the way.
 const DEMO_DAY_THRESHOLD = 200000;
@@ -58,59 +54,6 @@ const TONE_BADGE: Record<Tone, string> = {
   bad: "bg-red-100 text-red-700 hover:bg-red-100",
   muted: "bg-muted text-muted-foreground hover:bg-muted",
 };
-
-// ── Circular progress ring (used for the weekly journal goal) ───────────────
-function GoalRing({
-  value,
-  max,
-  children,
-}: {
-  value: number;
-  max: number;
-  children: React.ReactNode;
-}) {
-  const pct = max > 0 ? Math.min(value / max, 1) : 0;
-  const radius = 52;
-  const stroke = 9;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - pct);
-  return (
-    <div className="relative grid place-items-center">
-      <svg
-        width="132"
-        height="132"
-        viewBox="0 0 132 132"
-        className="-rotate-90"
-      >
-        <circle
-          cx="66"
-          cy="66"
-          r={radius}
-          fill="none"
-          strokeWidth={stroke}
-          className="stroke-muted"
-        />
-        <circle
-          cx="66"
-          cy="66"
-          r={radius}
-          fill="none"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className={cn(
-            "transition-[stroke-dashoffset] duration-700 ease-out",
-            pct >= 1 ? "stroke-emerald-500" : "stroke-primary",
-          )}
-        />
-      </svg>
-      <div className="absolute inset-0 grid place-items-center text-center">
-        {children}
-      </div>
-    </div>
-  );
-}
 
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
@@ -141,8 +84,6 @@ export default function TeamDashboard() {
   const submittedThisWeek = !!progress?.journal?.submittedThisWeek;
   const streak = progress?.streak ?? 0;
   const totalJournals = progress?.totalJournals ?? 0;
-  const points = totalJournals * POINTS_PER_JOURNAL;
-  const weekNumber = progress?.journal?.weekNumber ?? null;
 
   const journalTone: Tone = submittedThisWeek
     ? "good"
@@ -375,9 +316,6 @@ export default function TeamDashboard() {
                       {totalJournals}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Worth {points.toLocaleString("en-IN")} points so far.
-                  </p>
                 </div>
               </div>
             </section>
@@ -440,7 +378,7 @@ export default function TeamDashboard() {
               </div>
 
               {/* Achievement metrics — real figures, no fabricated trends */}
-              <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
+              <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3">
                 {(
                   [
                     {
@@ -450,10 +388,6 @@ export default function TeamDashboard() {
                     {
                       label: "Order book",
                       value: formatINR(summary.totalOrderBook),
-                    },
-                    {
-                      label: "Journal points",
-                      value: points.toLocaleString("en-IN"),
                     },
                     { label: "Best streak", value: `${streak} wk` },
                   ] as const
@@ -476,34 +410,6 @@ export default function TeamDashboard() {
 
           {/* ---------- RIGHT: streak & rewards rail (Duolingo-style) ---------- */}
           <aside className="space-y-4 lg:sticky lg:top-4 self-start">
-            {/* Points & rewards */}
-            <section className={cn(PANEL, "p-5")}>
-              <SectionLabel>Your points</SectionLabel>
-              <div className="mt-4 flex items-center gap-4">
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-600">
-                  <Star className="h-6 w-6 fill-violet-500 text-violet-500" />
-                </span>
-                <div>
-                  <div
-                    className="text-3xl font-bold tabular-nums leading-none"
-                    data-testid="rail-points"
-                  >
-                    {points.toLocaleString("en-IN")}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Points earned
-                  </div>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Every weekly journal you submit earns{" "}
-                <span className="font-semibold text-foreground">
-                  {POINTS_PER_JOURNAL} points
-                </span>
-                . {totalJournals} submitted so far.
-              </p>
-            </section>
-
             {/* Journal streak — the focal gamified element */}
             <section className={cn(PANEL, "p-5 text-center")}>
               <div className="flex items-center justify-center gap-2">
@@ -560,53 +466,6 @@ export default function TeamDashboard() {
                     ? "You're covered this week — keep it alive next week."
                     : "Submit before the week closes to keep your streak alive."}
               </p>
-            </section>
-
-            {/* This week's goal ring */}
-            <section className={cn(PANEL, "p-5")}>
-              <div className="flex items-center justify-between">
-                <SectionLabel>
-                  {weekNumber != null
-                    ? `Week ${weekNumber} goal`
-                    : "This week's goal"}
-                </SectionLabel>
-                <Badge className={TONE_BADGE[journalTone]}>
-                  {journalLabel}
-                </Badge>
-              </div>
-              <div className="mt-4 flex justify-center">
-                <GoalRing value={submittedThisWeek ? 100 : 0} max={100}>
-                  <Star
-                    className={cn(
-                      "h-5 w-5",
-                      submittedThisWeek
-                        ? "fill-emerald-500 text-emerald-500"
-                        : "fill-primary text-primary",
-                    )}
-                  />
-                  <span className="mt-1 text-lg font-bold tabular-nums">
-                    {submittedThisWeek ? 100 : 0}
-                    <span className="text-sm font-medium text-muted-foreground">
-                      /100
-                    </span>
-                  </span>
-                </GoalRing>
-              </div>
-              <Link
-                href="/journal"
-                className={cn(
-                  "mt-4 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  submittedThisWeek
-                    ? "border hover:bg-muted/40"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90",
-                )}
-                data-testid="rail-journal-cta"
-              >
-                {submittedThisWeek
-                  ? "View / edit journal"
-                  : "Submit & earn 100 pts"}
-                <ChevronRight className="h-4 w-4" />
-              </Link>
             </section>
           </aside>
         </div>
