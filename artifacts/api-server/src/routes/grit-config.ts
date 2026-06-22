@@ -45,6 +45,8 @@ const UpdateBody = z.object({
     .nullable()
     .optional(),
   escalationEnabled: z.boolean().optional(),
+  gritMilesMenuEnabled: z.boolean().optional(),
+  gritMilesDashboardEnabled: z.boolean().optional(),
 });
 
 // Read/seed the singleton row, normalising the GRIT ladder to defaults when
@@ -76,6 +78,8 @@ router.get(
     res.json({
       levels: resolveLevels(row.gritLevels),
       journalEditDeadline: row.journalEditDeadline ?? null,
+      gritMilesMenuEnabled: row.gritMilesMenuEnabled,
+      gritMilesDashboardEnabled: row.gritMilesDashboardEnabled,
     });
   },
 );
@@ -93,6 +97,8 @@ router.get(
       levels: resolveLevels(row.gritLevels),
       journalEditDeadline: row.journalEditDeadline ?? null,
       escalationEnabled: row.escalationEnabled,
+      gritMilesMenuEnabled: row.gritMilesMenuEnabled,
+      gritMilesDashboardEnabled: row.gritMilesDashboardEnabled,
     });
   },
 );
@@ -123,6 +129,12 @@ router.put(
     if (parsed.data.escalationEnabled !== undefined) {
       patch.escalationEnabled = parsed.data.escalationEnabled;
     }
+    if (parsed.data.gritMilesMenuEnabled !== undefined) {
+      patch.gritMilesMenuEnabled = parsed.data.gritMilesMenuEnabled;
+    }
+    if (parsed.data.gritMilesDashboardEnabled !== undefined) {
+      patch.gritMilesDashboardEnabled = parsed.data.gritMilesDashboardEnabled;
+    }
     const [updated] = await db
       .update(programmeConfigTable)
       .set(patch)
@@ -132,6 +144,8 @@ router.put(
       levels: resolveLevels(updated.gritLevels),
       journalEditDeadline: updated.journalEditDeadline ?? null,
       escalationEnabled: updated.escalationEnabled,
+      gritMilesMenuEnabled: updated.gritMilesMenuEnabled,
+      gritMilesDashboardEnabled: updated.gritMilesDashboardEnabled,
     });
   },
 );

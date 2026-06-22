@@ -764,6 +764,20 @@ export const programmeConfigTable = pgTable("programme_config", {
   journalEditDeadline: text("journal_edit_deadline"),
   // Master toggle for the weekly journal escalation crons (on by default).
   escalationEnabled: boolean("escalation_enabled").notNull().default(true),
+  // Version toggles for the Demo Day → GRIT Miles migration. Both default
+  // false so students keep the PREVIOUS Demo Day experience until an admin
+  // explicitly switches them on (manager-gated rollout). Independent of
+  // each other.
+  // - gritMilesMenuEnabled: student sidebar label + the /demo-day page
+  //   (false = "Demo Day" 3-level page, true = "GRIT Miles" ladder page).
+  // - gritMilesDashboardEnabled: student home dashboard UI
+  //   (false = previous Demo Day dashboard, true = new GRIT Miles dashboard).
+  gritMilesMenuEnabled: boolean("grit_miles_menu_enabled")
+    .notNull()
+    .default(false),
+  gritMilesDashboardEnabled: boolean("grit_miles_dashboard_enabled")
+    .notNull()
+    .default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

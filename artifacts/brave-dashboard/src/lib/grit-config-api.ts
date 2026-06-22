@@ -13,6 +13,12 @@ export type GritLevel = {
 export type StudentGritConfig = {
   levels: GritLevel[];
   journalEditDeadline: string | null;
+  // Demo Day → GRIT Miles version toggles (admin-controlled, default false =
+  // previous Demo Day experience). gritMilesMenuEnabled drives the student
+  // sidebar label + the /demo-day page; gritMilesDashboardEnabled drives the
+  // student home dashboard UI. Independent of each other.
+  gritMilesMenuEnabled: boolean;
+  gritMilesDashboardEnabled: boolean;
 };
 
 export type AdminGritConfig = StudentGritConfig & {
@@ -42,6 +48,8 @@ export function updateAdminGritConfig(
     levels: GritLevel[];
     journalEditDeadline: string | null;
     escalationEnabled: boolean;
+    gritMilesMenuEnabled: boolean;
+    gritMilesDashboardEnabled: boolean;
   }>,
 ): Promise<AdminGritConfig> {
   return customFetch<AdminGritConfig>("/api/admin/grit-config", {

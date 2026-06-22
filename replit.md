@@ -63,7 +63,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `demoDayApplications` — Demo Day pitch applications
 - `notifications` — Per-user notifications
 - `announcements` — Broadcast announcements (all/campus/team targets)
-- `programmeConfig` — Global settings (Demo Day threshold ₹2L, dates, etc.)
+- `programmeConfig` — Global settings (Demo Day threshold ₹2L, dates, etc.). Includes two independent rollout flags, both `boolean notNull default false` (OFF = previous Demo Day experience): `gritMilesMenuEnabled` (swaps student sidebar label "Demo Day"↔"GRIT Miles" and which page `/demo-day` renders) and `gritMilesDashboardEnabled` (swaps the student home dashboard old↔new GRIT). Nothing GRIT shows to students until an admin enables these.
 - `auditLog` — Admin action log
 
 ### auth.ts — Replit auth:
@@ -115,7 +115,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `/admin/demo-day` — Demo Day applications management
 - `/admin/users` — User management
 - `/admin/campuses` — Campus management
-- `/admin/config` — Programme config (threshold, dates, Demo Day toggle)
+- `/admin/config` — Programme config (threshold, dates, Demo Day toggle, and the two GRIT Miles rollout switches: student menu+page, student dashboard)
 - `/admin/roster` — Student whitelist
 - `/admin/audit-log` — Action audit trail
 - `/admin/announcements` — Post announcements

@@ -43,6 +43,7 @@ const STUDENT_DOCS_URL =
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { cn } from "@/lib/utils";
+import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { BraveLogo } from "./brave-logo";
 import {
   AlertDialog,
@@ -246,6 +247,20 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const resourcesVisibleForStudent =
     resourcesSettings?.enabledForStudents ?? true;
 
+  // Demo Day → GRIT Miles version flag (admin-controlled, default false =
+  // previous "Demo Day" experience). Drives the student menu label + which
+  // page the /demo-day route renders. Reuses the same query key/cache as the
+  // student dashboard so there is no extra request. Defaults to false while
+  // loading so the menu reads "Demo Day" until the admin switches it on.
+  const { data: studentGritConfig } = useQuery({
+    queryKey: ["student-grit-config"],
+    queryFn: getStudentGritConfig,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  const gritMilesMenuEnabled =
+    studentGritConfig?.gritMilesMenuEnabled ?? false;
+
   // Per-page admin permissions (default-allow). Enabled only for admins; the
   // query is cached and shared with ProtectedRoute. Restricted admins have
   // hidden pages filtered out of the nav below.
@@ -262,7 +277,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
           { name: "Projects", href: "/projects", icon: FolderKanban },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
-          { name: "GRIT Miles", href: "/demo-day", icon: Award },
+          {
+            name: gritMilesMenuEnabled ? "GRIT Miles" : "Demo Day",
+            href: "/demo-day",
+            icon: Award,
+          },
           { name: "My Team", href: "/team", icon: Users },
           // Resources entry is gated by the admin-controlled visibility flag.
           ...(resourcesVisibleForStudent

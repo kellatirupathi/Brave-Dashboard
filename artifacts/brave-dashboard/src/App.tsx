@@ -39,6 +39,9 @@ import Leaderboard from "@/pages/student/leaderboard";
 import TeamProfile from "@/pages/student/team";
 import GetStarted from "@/pages/student/get-started";
 import DemoDay from "@/pages/student/demo-day";
+import DemoDayLegacy from "@/pages/student/demo-day-legacy";
+import TeamDashboardLegacy from "@/pages/student/dashboard-legacy";
+import { getStudentGritConfig } from "@/lib/grit-config-api";
 import Notifications from "@/pages/student/notifications";
 import Invitations from "@/pages/student/invitations";
 import JoinByCode from "@/pages/student/join";
@@ -213,7 +216,19 @@ function StudentDashboardOrGetStarted() {
   const { data: team, isLoading } = useGetMyTeam({
     query: { queryKey: getGetMyTeamQueryKey(), retry: false },
   });
-  if (isLoading) {
+  // Demo Day → GRIT Miles dashboard version flag (admin-controlled, default
+  // false = previous Demo Day dashboard). Reuses the shared student-grit-config
+  // cache. Independent from the menu/page flag.
+  const { data: gritConfig, isLoading: gritLoading } = useQuery({
+    queryKey: ["student-grit-config"],
+    queryFn: getStudentGritConfig,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  // Wait for the flag before choosing a dashboard so a flag-ON student never
+  // sees the legacy UI flash before switching. isLoading is false when the
+  // query is disabled (non-students), so this only gates students.
+  if (isLoading || gritLoading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background">
         <Spinner className="size-10" />
@@ -227,7 +242,32 @@ function StudentDashboardOrGetStarted() {
     return <Redirect to="/profile" />;
   }
   if (!team) return <Redirect to="/get-started" />;
-  return <TeamDashboard />;
+  return gritConfig?.gritMilesDashboardEnabled ? (
+    <TeamDashboard />
+  ) : (
+    <TeamDashboardLegacy />
+  );
+}
+
+// /demo-day page version switch. gritMilesMenuEnabled=false (default) renders
+// the previous 3-level Demo Day page; true renders the new GRIT Miles ladder.
+function StudentDemoDayPage() {
+  const { user } = useAuth();
+  const { data: gritConfig, isLoading: gritLoading } = useQuery({
+    queryKey: ["student-grit-config"],
+    queryFn: getStudentGritConfig,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  // Wait for the flag so a flag-ON student never sees the legacy page flash.
+  if (gritLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <Spinner className="size-10" />
+      </div>
+    );
+  }
+  return gritConfig?.gritMilesMenuEnabled ? <DemoDay /> : <DemoDayLegacy />;
 }
 
 function RootRedirect() {
@@ -340,7 +380,10 @@ function Router() {
           <ProtectedRoute component={BrowseTeams} allowedRoles={["student"]} />
         </Route>
         <Route path="/demo-day">
-          <ProtectedRoute component={DemoDay} allowedRoles={["student"]} />
+          <ProtectedRoute
+            component={StudentDemoDayPage}
+            allowedRoles={["student"]}
+          />
         </Route>
         <Route path="/notifications">
           <ProtectedRoute

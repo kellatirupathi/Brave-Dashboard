@@ -29,12 +29,20 @@ export function GritConfigCard() {
   const [levels, setLevels] = useState<GritLevel[]>(DEFAULT_GRIT_LEVELS);
   const [deadline, setDeadline] = useState<string>("");
   const [escalationEnabled, setEscalationEnabled] = useState<boolean>(true);
+  // Demo Day → GRIT Miles rollout toggles. Both default false = students keep
+  // the previous Demo Day experience until explicitly switched on.
+  const [gritMilesMenuEnabled, setGritMilesMenuEnabled] =
+    useState<boolean>(false);
+  const [gritMilesDashboardEnabled, setGritMilesDashboardEnabled] =
+    useState<boolean>(false);
 
   useEffect(() => {
     if (!data) return;
     setLevels(data.levels.length ? data.levels : DEFAULT_GRIT_LEVELS);
     setDeadline(data.journalEditDeadline ?? "");
     setEscalationEnabled(data.escalationEnabled);
+    setGritMilesMenuEnabled(data.gritMilesMenuEnabled);
+    setGritMilesDashboardEnabled(data.gritMilesDashboardEnabled);
   }, [data]);
 
   const saveMut = useMutation({
@@ -48,6 +56,8 @@ export function GritConfigCard() {
         })),
         journalEditDeadline: deadline.trim() === "" ? null : deadline.trim(),
         escalationEnabled,
+        gritMilesMenuEnabled,
+        gritMilesDashboardEnabled,
       }),
     onSuccess: (res) => {
       toast({ title: "GRIT settings saved" });
@@ -193,6 +203,38 @@ export function GritConfigCard() {
                 checked={escalationEnabled}
                 onCheckedChange={setEscalationEnabled}
                 data-testid="switch-escalation-enabled"
+              />
+            </div>
+
+            {/* Demo Day → GRIT Miles rollout (manager-gated). OFF = previous
+                Demo Day experience; ON = new GRIT Miles. Independent toggles. */}
+            <div className="flex items-center justify-between border p-4 rounded-lg">
+              <div>
+                <p className="font-medium">Student menu &amp; page: GRIT Miles</p>
+                <p className="text-sm text-muted-foreground">
+                  ON shows the “GRIT Miles” menu + ladder page to students. OFF
+                  shows the previous “Demo Day” menu + 3-level page.
+                </p>
+              </div>
+              <Switch
+                checked={gritMilesMenuEnabled}
+                onCheckedChange={setGritMilesMenuEnabled}
+                data-testid="switch-grit-menu-enabled"
+              />
+            </div>
+
+            <div className="flex items-center justify-between border p-4 rounded-lg">
+              <div>
+                <p className="font-medium">Student dashboard: new GRIT Miles UI</p>
+                <p className="text-sm text-muted-foreground">
+                  ON shows the new GRIT Miles dashboard. OFF shows the previous
+                  Demo Day dashboard.
+                </p>
+              </div>
+              <Switch
+                checked={gritMilesDashboardEnabled}
+                onCheckedChange={setGritMilesDashboardEnabled}
+                data-testid="switch-grit-dashboard-enabled"
               />
             </div>
 

@@ -3,3 +3,4 @@
 - [Non-unique email identity](identity-non-unique-email.md) — user/roster email is NOT unique; key user-scoped queries on userId/formsUserId, never email; reject re-freeze un-whitelists by roster.studentId.
 - [BRD uniqueness scoring](brd-uniqueness-scoring.md) — ONE rule-based uniqueness score from stored brd_summary (no LLM, no PDF re-upload); compares vs ALL approved BRDs prefiltered by amount+date; don't touch brd_score relevancy.
 - [Admin permissions system](admin-permissions-system.md) — super admin = admin + is_super_admin; per-page perms default-ALLOW; gating is UI-only (no route guards); don't leak the 2 new columns outside /admin/access endpoints.
+- [GRIT/Demo Day rollout toggles](grit-demoday-rollout-toggles.md) — 2 independent programme_config flags (default false=legacy Demo Day) swap student sidebar/page + dashboard to new GRIT; legacy *-legacy.tsx pages are the OFF branch, keep them.
