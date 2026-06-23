@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
 import { formatINR, formatDate } from "@/lib/format";
+import { VerificationTimelineNote } from "@/components/verification-timeline-note";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -649,6 +650,7 @@ export default function ProjectDetail() {
         </TabsList>
 
         <TabsContent value="revenue" className="pt-6">
+          <VerificationTimelineNote className="mb-4" />
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Revenue Entries</h3>
             <Dialog

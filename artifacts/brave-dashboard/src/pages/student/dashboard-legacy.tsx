@@ -26,6 +26,8 @@ import { JournalWeekTracker } from "@/components/journal-week-tracker";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
+import { ProgramCountdown } from "@/components/program-countdown";
+import { InstagramLink } from "@/components/instagram-link";
 
 // ── Design system helpers ───────────────────────────────────────────────────
 // Flat, enterprise SaaS surfaces (border + card bg, no shadows/gradients).
@@ -181,7 +183,10 @@ export default function TeamDashboard() {
           <div className="min-w-0 lg:px-6">
             <div className="mb-1.5 flex items-center justify-center gap-2">
               <span
-                className={cn("h-1.5 w-1.5 rounded-full", TONE_DOT[journalTone])}
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  TONE_DOT[journalTone],
+                )}
               />
               <SectionLabel>Weekly journal</SectionLabel>
               <Badge
@@ -428,6 +433,9 @@ export default function TeamDashboard() {
 
           {/* ---------- RIGHT: streak & rewards rail (Duolingo-style) ---------- */}
           <aside className="space-y-4 lg:sticky lg:top-4 self-start">
+            {/* Programme end date + remaining-time countdown */}
+            <ProgramCountdown />
+
             {/* Journal streak — the focal gamified element */}
             <section className={cn(PANEL, "p-5 text-center")}>
               <div className="flex items-center justify-center gap-2">
@@ -485,6 +493,9 @@ export default function TeamDashboard() {
                     : "Submit before the week closes to keep your streak alive."}
               </p>
             </section>
+
+            {/* Social — fills the right-rail gap */}
+            <InstagramLink />
           </aside>
         </div>
       </div>

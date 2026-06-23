@@ -1532,4 +1532,50 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
       },
     ],
   },
+  // ---------------------------------------------------------------------------
+  {
+    slug: "international-clients-payments",
+    title: "International Clients & Payments",
+    icon: "rupee",
+    tagline: "Work with clients worldwide — and how to get paid.",
+    minutes: 3,
+    sections: [
+      {
+        heading: "You can work with international clients",
+        blocks: [
+          {
+            kind: "p",
+            text: "Your customer doesn't have to be in India. You're free to work with international businesses — including clients in the U.S. — as long as you're building real AI-powered software they pay for. Revenue from an international client counts exactly the same as domestic revenue once it's verified.",
+          },
+          {
+            kind: "list",
+            items: [
+              "International clients, including those in the U.S., are fully allowed.",
+              "The work and the AI-value rules are identical to domestic projects.",
+              "Once verified, international revenue counts the same toward your leaderboard rank and Demo Day eligibility.",
+              "Log the payment in its rupee value at the time you received it, the same way you record any revenue entry.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Accepted payment methods",
+        blocks: [
+          {
+            kind: "list",
+            items: [
+              "Bank / wire transfer (including international SWIFT / wire payments).",
+              "PayPal.",
+              "Wise (TransferWise).",
+              "UPI / Razorpay — for domestic (Indian) clients.",
+            ],
+          },
+          {
+            kind: "tip",
+            text: "Whatever method you use, keep proof of payment (invoice, receipt, or bank statement). You'll attach it as supporting evidence when you submit the revenue entry — submitted revenue is typically verified within 24 hours.",
+          },
+        ],
+      },
+    ],
+  },
 ];

@@ -50,6 +50,8 @@ import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/lib/api-error";
+import { VerificationTimelineNote } from "@/components/verification-timeline-note";
+import { InternationalClientsNote } from "@/components/international-clients-note";
 
 const projectSchema = z.object({
   title: z.string().min(3).max(80),
@@ -208,6 +210,9 @@ export default function ProjectsList() {
           delete projects — ask your leader to make changes.
         </div>
       )}
+
+      <InternationalClientsNote />
+      <VerificationTimelineNote />
 
       {!projects || projects.length === 0 ? (
         <div className="text-center py-20 bg-card border rounded-xl border-dashed">

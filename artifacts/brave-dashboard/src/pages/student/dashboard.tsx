@@ -32,6 +32,8 @@ import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banne
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
 import { JournalWeekTracker } from "@/components/journal-week-tracker";
+import { ProgramCountdown } from "@/components/program-countdown";
+import { InstagramLink } from "@/components/instagram-link";
 
 // ── Design system helpers ───────────────────────────────────────────────────
 // Flat, enterprise SaaS surfaces. One confident focal point (the GRIT ring),
@@ -612,6 +614,9 @@ export default function TeamDashboard() {
 
           {/* Action rail */}
           <aside className="space-y-5 self-start lg:sticky lg:top-4">
+            {/* Programme end date + remaining-time countdown */}
+            <ProgramCountdown />
+
             {/* This week's journal — primary action */}
             <section className={cn(PANEL, "p-5")}>
               <div className="flex items-center justify-between">
@@ -673,6 +678,9 @@ export default function TeamDashboard() {
                 </span>
               </div>
             </section>
+
+            {/* Social — fills the right-rail gap */}
+            <InstagramLink />
           </aside>
         </div>
       </div>

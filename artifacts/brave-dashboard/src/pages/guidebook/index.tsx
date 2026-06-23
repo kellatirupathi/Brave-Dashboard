@@ -70,7 +70,12 @@ const GROUPS: { label: string; slugs: string[] }[] = [
   },
   {
     label: "Build, price & prove",
-    slugs: ["what-to-build", "pricing", "brd-and-revenue"],
+    slugs: [
+      "what-to-build",
+      "pricing",
+      "brd-and-revenue",
+      "international-clients-payments",
+    ],
   },
   {
     label: "Grow & stay on track",

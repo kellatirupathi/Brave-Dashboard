@@ -13,6 +13,9 @@ export type GritLevel = {
 export type StudentGritConfig = {
   levels: GritLevel[];
   journalEditDeadline: string | null;
+  // Programme end date (YYYY-MM-DD) from admin Config → End Date. Drives the
+  // dashboard programme-end-date + countdown display.
+  endDate: string;
   // Demo Day → GRIT Miles version toggles (admin-controlled, default false =
   // previous Demo Day experience). gritMilesMenuEnabled drives the student
   // sidebar label + the /demo-day page; gritMilesDashboardEnabled drives the

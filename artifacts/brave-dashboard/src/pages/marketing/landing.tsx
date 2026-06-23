@@ -20,8 +20,10 @@ import {
   Mic,
   ShieldCheck,
   Flag,
+  Instagram,
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
+import { INSTAGRAM_URL } from "@/components/instagram-link";
 import { Chatbot } from "@/components/chatbot";
 import { useAuth } from "@workspace/replit-auth-web";
 
@@ -1455,9 +1457,23 @@ function Footer() {
         <p style={{ color: "var(--bd-muted)", fontSize: 13, fontWeight: 500 }}>
           Boosting Revenue through AI Value Engineering
         </p>
-        <p style={{ color: "rgba(255,243,223,.45)", fontSize: 12.5 }}>
-          © {new Date().getFullYear()} NIAT India. All rights reserved.
-        </p>
+        <div className="flex flex-col items-center gap-2.5 md:items-end">
+          <a
+            href={INSTAGRAM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Follow BRAVE on Instagram (opens in a new tab)"
+            className="grid h-9 w-9 place-items-center rounded-full text-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:scale-110 hover:rotate-3"
+            style={{
+              background: "linear-gradient(45deg, #f59e0b, #ec4899, #8b5cf6)",
+            }}
+          >
+            <Instagram className="h-[18px] w-[18px]" />
+          </a>
+          <p style={{ color: "rgba(255,243,223,.45)", fontSize: 12.5 }}>
+            © {new Date().getFullYear()} NIAT India. All rights reserved.
+          </p>
+        </div>
       </div>
     </footer>
   );

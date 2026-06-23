@@ -78,6 +78,9 @@ router.get(
     res.json({
       levels: resolveLevels(row.gritLevels),
       journalEditDeadline: row.journalEditDeadline ?? null,
+      // Programme end date (from admin Config → End Date) so the student
+      // dashboard can show the end date + remaining-time countdown.
+      endDate: row.endDate,
       gritMilesMenuEnabled: row.gritMilesMenuEnabled,
       gritMilesDashboardEnabled: row.gritMilesDashboardEnabled,
     });
