@@ -4,10 +4,7 @@
 // from "./lib/email/brevo". Only the implementation has been swapped from
 // Brevo to Amazon SES — exports, types, and signatures are unchanged so
 // nothing else in the codebase needs to change.
-import {
-  SESv2Client,
-  SendEmailCommand,
-} from "@aws-sdk/client-sesv2";
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { logger } from "../logger";
 
 export type EmailRecipient = {
@@ -19,6 +16,12 @@ export type SendEmailInput = {
   to: EmailRecipient | EmailRecipient[];
   subject: string;
   text: string;
+  /**
+   * Optional HTML body. When provided, SES sends a multipart email with both
+   * the HTML and the plain-text `text` (the latter as a fallback for clients
+   * that don't render HTML). Omit it for plain-text-only emails.
+   */
+  html?: string;
 };
 
 /**
@@ -69,6 +72,9 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
           Subject: { Data: input.subject, Charset: "UTF-8" },
           Body: {
             Text: { Data: input.text, Charset: "UTF-8" },
+            ...(input.html
+              ? { Html: { Data: input.html, Charset: "UTF-8" } }
+              : {}),
           },
         },
       },

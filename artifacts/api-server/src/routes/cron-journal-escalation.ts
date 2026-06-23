@@ -104,6 +104,70 @@ function missingTeamsText(report: CampusWeekReport): string {
   return missing.map((t) => `  • ${t.teamName}`).join("\n");
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Admin escalation email rendered as an HTML table (campus-wise submission
+// status). The plain-text bullet list is still sent alongside as a fallback.
+function renderAdminEscalationHtml(
+  week: WeekRef,
+  reports: CampusWeekReport[],
+  link: string,
+): string {
+  const totals = reports.reduce(
+    (acc, r) => ({
+      submitted: acc.submitted + r.submittedCount,
+      total: acc.total + r.totalTeams,
+      pending: acc.pending + r.notSubmittedCount,
+    }),
+    { submitted: 0, total: 0, pending: 0 },
+  );
+
+  const cell = "padding:8px 12px;border:1px solid #e5e7eb;font-size:14px;";
+  const rowsHtml = reports
+    .map((r, i) => {
+      const bg = i % 2 === 0 ? "#ffffff" : "#f9fafb";
+      const pendingColor =
+        r.notSubmittedCount > 0
+          ? "color:#b91c1c;font-weight:600;"
+          : "color:#059669;";
+      return `<tr style="background:${bg};">
+        <td style="${cell}">${escapeHtml(r.campusName)}</td>
+        <td style="${cell}text-align:center;">${r.submittedCount}/${r.totalTeams}</td>
+        <td style="${cell}text-align:center;${pendingColor}">${r.notSubmittedCount}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const th =
+    "padding:10px 12px;border:1px solid #e5e7eb;font-size:14px;color:#ffffff;";
+  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#111827;max-width:640px;">
+  <h2 style="font-size:18px;margin:0 0 4px;">Weekly journal escalation</h2>
+  <p style="margin:0 0 16px;color:#6b7280;font-size:14px;">${escapeHtml(weekLabel(week))}</p>
+  <table style="border-collapse:collapse;width:100%;">
+    <thead>
+      <tr style="background:#b91c1c;">
+        <th style="${th}text-align:left;">Campus</th>
+        <th style="${th}text-align:center;">Submitted</th>
+        <th style="${th}text-align:center;">Pending</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml}
+      <tr style="background:#f3f4f6;font-weight:700;">
+        <td style="${cell}">Total</td>
+        <td style="${cell}text-align:center;">${totals.submitted}/${totals.total}</td>
+        <td style="${cell}text-align:center;">${totals.pending}</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="margin:16px 0;font-size:14px;">
+    <a href="${link}" style="color:#b91c1c;font-weight:600;">View full report →</a>
+  </p>
+</div>`;
+}
+
 router.post(
   "/internal/cron/journal-escalation",
   async (req: Request, res: Response): Promise<void> => {
@@ -176,6 +240,7 @@ router.post(
         )
         .join("\n");
       const text = `Weekly journal escalation — ${weekLabel(week)}\n\nCampus-wise submission status:\n${summary}\n\nFull report: ${link}\n`;
+      const html = renderAdminEscalationHtml(week, reports, link);
 
       let sent = 0;
       for (const s of subs) {
@@ -183,6 +248,7 @@ router.post(
           to: { email: s.email, name: s.name ?? undefined },
           subject: `[BRAVE] Journal report — ${weekLabel(week)}`,
           text,
+          html,
         });
         if (ok) sent += 1;
       }

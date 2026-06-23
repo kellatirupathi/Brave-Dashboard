@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CampusCombobox } from "@/components/campus-combobox";
 import {
   FileBarChart,
   Search,
@@ -176,19 +177,16 @@ function CampusReportsTab() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={campusFilter} onValueChange={setCampusFilter}>
-          <SelectTrigger className="w-56" data-testid="select-report-campus">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All campuses</SelectItem>
-            {(summary?.rows ?? []).map((r) => (
-              <SelectItem key={r.campusId} value={String(r.campusId)}>
-                {r.campusName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <CampusCombobox
+          value={campusFilter}
+          onChange={setCampusFilter}
+          campuses={(summary?.rows ?? []).map((r) => ({
+            id: r.campusId,
+            name: r.campusName,
+          }))}
+          className="w-56"
+          testId="select-report-campus"
+        />
         <Button
           variant="outline"
           onClick={exportTable}
