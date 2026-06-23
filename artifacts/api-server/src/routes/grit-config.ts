@@ -79,8 +79,9 @@ router.get(
       levels: resolveLevels(row.gritLevels),
       journalEditDeadline: row.journalEditDeadline ?? null,
       // Programme end date (from admin Config → End Date) so the student
-      // dashboard can show the end date + remaining-time countdown.
-      endDate: row.endDate,
+      // dashboard can show the end date + remaining-time countdown. Config
+      // dates can carry a timestamp suffix — slice to a clean YYYY-MM-DD.
+      endDate: (row.endDate ?? "").slice(0, 10),
       gritMilesMenuEnabled: row.gritMilesMenuEnabled,
       gritMilesDashboardEnabled: row.gritMilesDashboardEnabled,
     });

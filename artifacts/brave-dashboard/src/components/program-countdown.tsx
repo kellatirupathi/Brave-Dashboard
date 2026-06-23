@@ -9,10 +9,15 @@ import { cn } from "@/lib/utils";
 
 const PANEL = "rounded-xl border bg-card";
 
-// Whole days from `now` until the end of the programme end date (inclusive).
-function daysUntil(endDateISO: string, now: Date): number {
-  const end = new Date(endDateISO + "T23:59:59");
-  return Math.ceil((end.getTime() - now.getTime()) / 86_400_000);
+// Parse a config end date into a Date at end-of-day. Tolerates both a clean
+// "YYYY-MM-DD" and a value carrying a timestamp suffix (e.g. "...T00:00:00Z").
+// Returns null for anything unparseable so the card simply hides instead of
+// rendering "NaN / Invalid Date".
+function parseEndOfDay(raw: string): Date | null {
+  const ymd = raw.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const d = new Date(ymd + "T23:59:59");
+  return isNaN(d.getTime()) ? null : d;
 }
 
 export function ProgramCountdown({ className }: { className?: string }) {
@@ -24,13 +29,13 @@ export function ProgramCountdown({ className }: { className?: string }) {
     staleTime: 60_000,
   });
 
-  const endDate = data?.endDate;
-  if (!endDate) return null;
+  const endOfDay = data?.endDate ? parseEndOfDay(data.endDate) : null;
+  if (!endOfDay) return null;
 
   const now = new Date();
-  const daysLeft = daysUntil(endDate, now);
+  const daysLeft = Math.ceil((endOfDay.getTime() - now.getTime()) / 86_400_000);
   const ended = daysLeft < 0;
-  const endLabel = new Date(endDate + "T00:00:00").toLocaleDateString("en-IN", {
+  const endLabel = endOfDay.toLocaleDateString("en-IN", {
     day: "numeric",
     month: "long",
     year: "numeric",
