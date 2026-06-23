@@ -21,8 +21,8 @@ export function VerificationTimelineNote({
       <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
       <span>
         Submitted revenue is typically reviewed and verified within{" "}
-        <strong className="text-foreground">24 hours</strong>. There's no need
-        to re-submit while an entry is pending.
+        <strong className="text-foreground">48–72 hours</strong>. There's no
+        need to re-submit while an entry is pending.
       </span>
     </div>
   );

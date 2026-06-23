@@ -1572,7 +1572,7 @@ export const GUIDEBOOK_MODULES: GbModule[] = [
           },
           {
             kind: "tip",
-            text: "Whatever method you use, keep proof of payment (invoice, receipt, or bank statement). You'll attach it as supporting evidence when you submit the revenue entry — submitted revenue is typically verified within 24 hours.",
+            text: "Whatever method you use, keep proof of payment (invoice, receipt, or bank statement). You'll attach it as supporting evidence when you submit the revenue entry — submitted revenue is typically verified within 48–72 hours.",
           },
         ],
       },
