@@ -17,7 +17,6 @@ import {
   Building2,
   Settings,
   FolderKanban,
-  FileText,
   Award,
   LogOut,
   CheckSquare,
@@ -365,7 +364,6 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           { name: "Journals", href: "/admin/journals", icon: BookOpenCheck },
         ],
       },
-      { name: "Demo Day", href: "/admin/demo-day", icon: FileText },
       {
         name: "Demo Day Submissions",
         href: "/admin/demo-day-submissions",

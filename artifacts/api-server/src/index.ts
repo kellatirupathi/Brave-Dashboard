@@ -117,6 +117,89 @@ async function ensureTermsColumns(): Promise<void> {
   }
 }
 
+// Adds the per-journal reel-scan + image columns to weekly_journals and creates
+// the demo_day_submissions table. Runs at startup for the same reason as
+// ensureTermsColumns: the production deploy does NOT run `drizzle-kit push`, so
+// without this the admin journals page (`GET /admin/journals`) and the Demo Day
+// submissions endpoints crash in prod with "column/relation does not exist".
+// Fully idempotent (IF NOT EXISTS) and safe to run on every boot.
+async function ensureReelAndDemoDayColumns(): Promise<void> {
+  // 1) Weekly-journal reel scan + optional images columns.
+  try {
+    await db.execute(sql`
+      ALTER TABLE weekly_journals
+        ADD COLUMN IF NOT EXISTS images jsonb,
+        ADD COLUMN IF NOT EXISTS reel_worthy boolean,
+        ADD COLUMN IF NOT EXISTS reel_bucket text,
+        ADD COLUMN IF NOT EXISTS reel_script text,
+        ADD COLUMN IF NOT EXISTS reel_reason text,
+        ADD COLUMN IF NOT EXISTS reel_analysed_at timestamptz
+    `);
+  } catch (err) {
+    logger.error(
+      { err },
+      "Failed to ensure weekly_journals reel/image columns",
+    );
+  }
+
+  // 2) Demo Day "best project" submissions: status enum + table + indexes.
+  try {
+    await db.execute(sql`
+      DO $$ BEGIN
+        CREATE TYPE demo_day_submission_status AS ENUM ('submitted', 'shortlisted', 'rejected');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS demo_day_submissions (
+        id serial PRIMARY KEY,
+        team_id integer NOT NULL,
+        project_id integer,
+        title text NOT NULL,
+        description text NOT NULL,
+        link text,
+        file_url text,
+        status demo_day_submission_status NOT NULL DEFAULT 'submitted',
+        submitted_by text NOT NULL,
+        review_note text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS demo_day_submissions_team_unique
+        ON demo_day_submissions (team_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS demo_day_submissions_status_idx
+        ON demo_day_submissions (status)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure demo_day_submissions table");
+  }
+}
+
+// Ensures the additive `users` columns that several features depend on exist in
+// prod. Prod does NOT run `drizzle-kit push`, so a column added in code but
+// never pushed (e.g. login_count / last_login_at) makes EVERY user INSERT crash
+// (`POST /admin/users` → 500). All IF NOT EXISTS, so this no-ops when a column
+// is already present. Safe to run on every boot.
+async function ensureUserColumns(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS is_super_admin boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS admin_permissions jsonb,
+        ADD COLUMN IF NOT EXISTS profile_completed_at timestamptz,
+        ADD COLUMN IF NOT EXISTS last_seen_at timestamptz,
+        ADD COLUMN IF NOT EXISTS last_login_at timestamptz,
+        ADD COLUMN IF NOT EXISTS login_count integer NOT NULL DEFAULT 0
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure users columns");
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -157,6 +240,16 @@ async function runBootstrap(): Promise<void> {
     await ensureTermsColumns();
   } catch (err) {
     logger.error({ err }, "ensureTermsColumns failed");
+  }
+  try {
+    await ensureUserColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureUserColumns failed");
+  }
+  try {
+    await ensureReelAndDemoDayColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureReelAndDemoDayColumns failed");
   }
   try {
     await bootstrapCanonicalCampuses();
