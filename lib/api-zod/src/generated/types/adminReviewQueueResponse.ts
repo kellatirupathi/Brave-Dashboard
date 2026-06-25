@@ -11,4 +11,7 @@ export interface AdminReviewQueueResponse {
   items: AdminReviewQueueItem[];
   overdueCount: number;
   totalCount: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
 }

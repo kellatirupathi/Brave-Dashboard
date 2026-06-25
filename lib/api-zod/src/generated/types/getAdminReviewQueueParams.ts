@@ -16,4 +16,15 @@ export type GetAdminReviewQueueParams = {
   status?: GetAdminReviewQueueStatus;
   campusId?: number;
   search?: string;
+  /**
+   * 1-based page number. Defaults to 1.
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Number of items per page. Defaults to 20, max 100.
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };

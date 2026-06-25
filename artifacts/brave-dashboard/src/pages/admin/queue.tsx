@@ -43,6 +43,8 @@ import {
   Bot,
   Loader2,
   Hourglass,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Popover,
@@ -179,6 +181,8 @@ export default function AdminQueue() {
   );
 }
 
+const QUEUE_PAGE_SIZE = 20;
+
 function QueueList({
   status,
   search,
@@ -187,11 +191,28 @@ function QueueList({
   search: string;
 }) {
   const type = "revenue" as const;
+  const [page, setPage] = useState(1);
+
+  // Reset to the first page whenever the search term changes.
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
   const { data: queue, isLoading } = useGetAdminReviewQueue({
     type,
-    status: status as "submitted" | "verified",
+    status,
     search: search || undefined,
+    page,
+    pageSize: QUEUE_PAGE_SIZE,
   });
+
+  const pageCount = Math.max(1, queue?.pageCount ?? 1);
+
+  // If entries were removed (e.g. after verifying) and the current page no
+  // longer exists, fall back to the last valid page.
+  useEffect(() => {
+    if (queue && page > pageCount) setPage(pageCount);
+  }, [queue, page, pageCount]);
 
   if (isLoading) {
     return (
@@ -204,6 +225,8 @@ function QueueList({
   const items = (queue?.items ?? []) as QueueItem[];
   const totalCount = queue?.totalCount ?? items.length;
   const overdueCount = queue?.overdueCount ?? 0;
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * QUEUE_PAGE_SIZE + 1;
+  const rangeEnd = (page - 1) * QUEUE_PAGE_SIZE + items.length;
 
   return (
     <div className="space-y-3">
@@ -219,11 +242,50 @@ function QueueList({
       {items.length === 0 ? (
         <EmptyState status={status} />
       ) : (
-        <div className="flex flex-col gap-3">
-          {items.map((item) => (
-            <QueueRow key={item.id} item={item} status={status} />
-          ))}
-        </div>
+        <>
+          <div className="flex flex-col gap-3">
+            {items.map((item) => (
+              <QueueRow key={item.id} item={item} status={status} />
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <span
+              className="text-sm text-muted-foreground"
+              data-testid="text-queue-range"
+            >
+              Showing {rangeStart}–{rangeEnd} of {totalCount}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                data-testid="button-queue-prev"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </Button>
+              <span
+                className="text-sm text-muted-foreground tabular-nums"
+                data-testid="text-queue-page"
+              >
+                Page {page} of {pageCount}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= pageCount}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                data-testid="button-queue-next"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

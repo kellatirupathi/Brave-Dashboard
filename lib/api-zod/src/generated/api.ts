@@ -2113,6 +2113,9 @@ export const UnverifyOrderBookEntryResponse = zod.object({
 /**
  * @summary Get financial entries for review (pending or approved)
  */
+
+export const getAdminReviewQueueQueryPageSizeMax = 100;
+
 export const GetAdminReviewQueueQueryParams = zod.object({
   type: zod.enum(["revenue"]).optional(),
   status: zod
@@ -2121,6 +2124,17 @@ export const GetAdminReviewQueueQueryParams = zod.object({
     .describe('Filter by status. Defaults to \"submitted\" (pending review).'),
   campusId: zod.coerce.number().optional(),
   search: zod.coerce.string().optional(),
+  page: zod.coerce
+    .number()
+    .min(1)
+    .optional()
+    .describe("1-based page number. Defaults to 1."),
+  pageSize: zod.coerce
+    .number()
+    .min(1)
+    .max(getAdminReviewQueueQueryPageSizeMax)
+    .optional()
+    .describe("Number of items per page. Defaults to 20, max 100."),
 });
 
 export const GetAdminReviewQueueResponse = zod.object({
@@ -2146,6 +2160,9 @@ export const GetAdminReviewQueueResponse = zod.object({
   ),
   overdueCount: zod.number(),
   totalCount: zod.number(),
+  page: zod.number(),
+  pageSize: zod.number(),
+  pageCount: zod.number(),
 });
 
 /**

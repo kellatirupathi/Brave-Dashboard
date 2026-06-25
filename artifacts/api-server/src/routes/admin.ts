@@ -69,10 +69,6 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  if (isCoordinator && req.user.campusId == null) {
-    res.json({ items: [], overdueCount: 0, totalCount: 0 });
-    return;
-  }
   const type = req.query.type as string | undefined;
   const statusParam = req.query.status as string | undefined;
   const status: "submitted" | "verified" | "rejected" =
@@ -92,124 +88,142 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
   const searchLower = search.toLowerCase();
   const searchAmount = search && /^\d+$/.test(search) ? Number(search) : null;
 
-  const items: Array<{
-    id: number;
-    type: "revenue";
-    teamId: number;
-    teamName: string;
-    campusName: string;
-    projectTitle: string;
-    clientName: string;
-    amount: number;
-    submittedAt: Date;
-    isOverdue: boolean;
-    supportingDocUrl: string | null;
-    brdUrl: string | null;
-    status: "submitted" | "verified" | "rejected";
-    verifiedAmount: number | null;
-    verifiedAt: Date | null;
-    adminNotes: string | null;
-    brdScore: number | null;
-    uniquenessScore: number | null;
-    aiAnalysedAt: Date | null;
-    aiAnalysisDetail: unknown;
-  }> = [];
+  // Pagination: 1-based page, bounded page size.
+  const pageRaw = Number(req.query.page);
+  const page =
+    Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
+  const pageSizeRaw = Number(req.query.pageSize);
+  const pageSize =
+    Number.isFinite(pageSizeRaw) && pageSizeRaw >= 1
+      ? Math.min(Math.floor(pageSizeRaw), 100)
+      : 20;
 
-  if (!type || type === "revenue") {
-    const revEntries = await db
-      .select()
-      .from(revenueEntriesTable)
-      .where(eq(revenueEntriesTable.status, status))
-      .orderBy(
-        status === "verified"
-          ? desc(revenueEntriesTable.verifiedAt)
-          : desc(revenueEntriesTable.submittedAt),
-      );
-    for (const e of revEntries) {
-      const [team] = await db
-        .select()
-        .from(teamsTable)
-        .where(eq(teamsTable.id, e.teamId));
-      if (campusId && team?.campusId !== campusId) continue;
-      const [campus] = team
-        ? await db
-            .select()
-            .from(campusesTable)
-            .where(eq(campusesTable.id, team.campusId))
-        : [null];
-      const [project] = await db
-        .select()
-        .from(projectsTable)
-        .where(eq(projectsTable.id, e.projectId));
-      // submitter: prefer the team leader as the submitter context
-      const [submitter] = team
-        ? await db
-            .select()
-            .from(usersTable)
-            .where(eq(usersTable.id, team.leaderId))
-        : [null];
-      const submitterName = submitter
-        ? `${submitter.firstName ?? ""} ${submitter.lastName ?? ""}`.trim()
-        : "";
-      if (search) {
-        const haystack = [
-          team?.name ?? "",
-          campus?.name ?? "",
-          project?.title ?? "",
-          e.clientName ?? "",
-          submitterName,
-          submitter?.email ?? "",
-        ]
-          .join(" \u0001 ")
-          .toLowerCase();
-        const textMatch = haystack.includes(searchLower);
-        const amountMatch =
-          searchAmount !== null &&
-          (e.amount === searchAmount || e.verifiedAmount === searchAmount);
-        if (!textMatch && !amountMatch) continue;
-      }
-      items.push({
-        id: e.id,
-        type: "revenue",
-        teamId: e.teamId,
-        teamName: team?.name ?? "",
-        campusName: campus?.name ?? "",
-        projectTitle: project?.title ?? "",
-        clientName: e.clientName,
-        amount: e.amount,
-        submittedAt: e.submittedAt ?? new Date(),
-        isOverdue:
-          status === "submitted" && (e.submittedAt ?? new Date()) < cutoff,
-        supportingDocUrl: null,
-        brdUrl: e.brdUrl ?? null,
-        status: e.status as "submitted" | "verified" | "rejected",
-        verifiedAmount: e.verifiedAmount ?? null,
-        verifiedAt: e.verifiedAt ?? null,
-        adminNotes: e.adminNotes ?? null,
-        brdScore: e.brdScore ?? null,
-        uniquenessScore: e.uniquenessScore ?? null,
-        aiAnalysedAt: e.aiAnalysedAt ?? null,
-        aiAnalysisDetail: e.aiAnalysisDetail ?? null,
-      });
+  const emptyResponse = {
+    items: [],
+    overdueCount: 0,
+    totalCount: 0,
+    page,
+    pageSize,
+    pageCount: 0,
+  };
+
+  // Coordinators without a campus, or any non-revenue type filter, have nothing.
+  if (isCoordinator && req.user.campusId == null) {
+    res.json(emptyResponse);
+    return;
+  }
+  if (type && type !== "revenue") {
+    res.json(emptyResponse);
+    return;
+  }
+
+  // Build the shared WHERE used by the page, count, and overdue-count queries.
+  // The team leader is treated as the submitter context (joined via leaderId).
+  const conditions = [eq(revenueEntriesTable.status, status)];
+  if (campusId) conditions.push(eq(teamsTable.campusId, campusId));
+  if (search) {
+    const like = `%${searchLower}%`;
+    const searchConds = [
+      ilike(teamsTable.name, like),
+      ilike(campusesTable.name, like),
+      ilike(projectsTable.title, like),
+      ilike(revenueEntriesTable.clientName, like),
+      ilike(usersTable.email, like),
+      sql`lower(coalesce(${usersTable.firstName}, '') || ' ' || coalesce(${usersTable.lastName}, '')) like ${like}`,
+    ];
+    if (searchAmount !== null) {
+      searchConds.push(eq(revenueEntriesTable.amount, searchAmount));
+      searchConds.push(eq(revenueEntriesTable.verifiedAmount, searchAmount));
     }
+    const searchOr = or(...searchConds);
+    if (searchOr) conditions.push(searchOr);
+  }
+  const whereClause = and(...conditions);
+
+  // Each query joins revenue → team → campus → project → leader (submitter).
+  const orderExpr =
+    status === "verified"
+      ? sql`${revenueEntriesTable.verifiedAt} desc nulls last`
+      : sql`${revenueEntriesTable.submittedAt} desc nulls last`;
+
+  const rows = await db
+    .select({
+      e: revenueEntriesTable,
+      teamName: teamsTable.name,
+      campusName: campusesTable.name,
+      projectTitle: projectsTable.title,
+    })
+    .from(revenueEntriesTable)
+    .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
+    .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+    .leftJoin(projectsTable, eq(projectsTable.id, revenueEntriesTable.projectId))
+    .leftJoin(usersTable, eq(usersTable.id, teamsTable.leaderId))
+    .where(whereClause)
+    .orderBy(orderExpr)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+
+  const [{ count: totalCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(revenueEntriesTable)
+    .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
+    .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+    .leftJoin(projectsTable, eq(projectsTable.id, revenueEntriesTable.projectId))
+    .leftJoin(usersTable, eq(usersTable.id, teamsTable.leaderId))
+    .where(whereClause);
+
+  let overdueCount = 0;
+  if (status === "submitted") {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(revenueEntriesTable)
+      .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
+      .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+      .leftJoin(
+        projectsTable,
+        eq(projectsTable.id, revenueEntriesTable.projectId),
+      )
+      .leftJoin(usersTable, eq(usersTable.id, teamsTable.leaderId))
+      .where(
+        and(whereClause, sql`${revenueEntriesTable.submittedAt} < ${cutoff}`),
+      );
+    overdueCount = count;
   }
 
-  if (status === "verified") {
-    items.sort((a, b) => {
-      const av = a.verifiedAt ? new Date(a.verifiedAt).getTime() : 0;
-      const bv = b.verifiedAt ? new Date(b.verifiedAt).getTime() : 0;
-      return bv - av;
-    });
-  } else {
-    items.sort(
-      (a, b) =>
-        new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
-    );
-  }
+  const items = rows.map((r) => {
+    const e = r.e;
+    const submittedAt = e.submittedAt ?? new Date();
+    return {
+      id: e.id,
+      type: "revenue" as const,
+      teamId: e.teamId,
+      teamName: r.teamName ?? "",
+      campusName: r.campusName ?? "",
+      projectTitle: r.projectTitle ?? "",
+      clientName: e.clientName,
+      amount: e.amount,
+      submittedAt,
+      isOverdue: status === "submitted" && submittedAt < cutoff,
+      supportingDocUrl: null,
+      brdUrl: e.brdUrl ?? null,
+      status: e.status as "submitted" | "verified" | "rejected",
+      verifiedAmount: e.verifiedAmount ?? null,
+      verifiedAt: e.verifiedAt ?? null,
+      adminNotes: e.adminNotes ?? null,
+      brdScore: e.brdScore ?? null,
+      uniquenessScore: e.uniquenessScore ?? null,
+      aiAnalysedAt: e.aiAnalysedAt ?? null,
+      aiAnalysisDetail: e.aiAnalysisDetail ?? null,
+    };
+  });
+
   res.json({
     items,
-    overdueCount: items.filter((i) => i.isOverdue).length,
-    totalCount: items.length,
+    overdueCount,
+    totalCount,
+    page,
+    pageSize,
+    pageCount: Math.ceil(totalCount / pageSize),
   });
 });
 
