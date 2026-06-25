@@ -1,14 +1,19 @@
+import { useMemo, useState } from "react";
 import { useSearch, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeft, Bot, MessageSquare } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Bot, MessageSquare, Search, Download } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import {
   listChatbotHistory,
   getChatbotHistoryForUser,
+  exportChatbotHistory,
+  type ChatbotHistoryExportItem,
 } from "@/lib/chatbot-history-api";
 
 function roleBadgeClass(role: string | null): string {
@@ -24,12 +29,150 @@ function roleBadgeClass(role: string | null): string {
   }
 }
 
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// RFC-4180 cell escaping: wrap in quotes, double any inner quotes. Also guards
+// against CSV formula injection — chat messages are user-controlled free text,
+// so a leading =, +, -, @, tab or CR could execute as a formula when an admin
+// opens the file in a spreadsheet. Prefix those with a single quote to neutralise.
+function csvCell(value: unknown): string {
+  let s = value == null ? "" : String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+// Builds one CSV with the table columns repeated per message row, so each row
+// carries both the user's directory info and a single chat message. Users with
+// no messages still get one row so they aren't lost from the export.
+function buildExportCsv(items: ChatbotHistoryExportItem[]): string {
+  const header = [
+    "User",
+    "Email",
+    "NIAT ID",
+    "Campus",
+    "Role",
+    "Questions",
+    "Total messages",
+    "Last chatted",
+    "Message #",
+    "Sender",
+    "Message",
+    "Message time",
+  ];
+  const lines = [header.map(csvCell).join(",")];
+
+  for (const it of items) {
+    const base = [
+      it.name,
+      it.email ?? "",
+      it.niatId ?? "",
+      it.campusName ?? "",
+      it.role ?? "",
+      it.questions,
+      it.totalMessages,
+      it.lastChattedAt ? formatDateTime(it.lastChattedAt) : "",
+    ];
+    if (it.messages.length === 0) {
+      lines.push([...base, "", "", "", ""].map(csvCell).join(","));
+      continue;
+    }
+    it.messages.forEach((m, idx) => {
+      lines.push(
+        [
+          ...base,
+          idx + 1,
+          m.role === "user" ? "Student" : "Assistant",
+          m.message,
+          formatDateTime(m.createdAt),
+        ]
+          .map(csvCell)
+          .join(","),
+      );
+    });
+  }
+
+  return lines.join("\n");
+}
+
 // ─── List: one row per student who has chatted ──────────────────────────────
 function ListView() {
+  const { toast } = useToast();
+  const [query, setQuery] = useState("");
+  const [exporting, setExporting] = useState(false);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["chatbot-history-list"],
     queryFn: listChatbotHistory,
   });
+
+  const allItems = data?.items ?? [];
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allItems;
+    return allItems.filter((it) =>
+      [it.name, it.email, it.niatId, it.campusName, it.role]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(q)),
+    );
+  }, [allItems, query]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await exportChatbotHistory();
+      const csv = buildExportCsv(res.items);
+      downloadCsv(
+        `chatbot-history-${new Date().toISOString().slice(0, 10)}.csv`,
+        csv,
+      );
+    } catch {
+      toast({
+        title: "Export failed",
+        description: "Could not download chatbot history. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const toolbar = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative w-full sm:max-w-xs">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, NIAT ID, campus, email…"
+          className="pl-8"
+          data-testid="input-chatbot-search"
+        />
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleExport}
+        disabled={exporting || allItems.length === 0}
+        data-testid="button-export-chatbot-history"
+      >
+        {exporting ? (
+          <Spinner className="mr-2 size-4" />
+        ) : (
+          <Download className="mr-2 h-4 w-4" />
+        )}
+        Export
+      </Button>
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -45,8 +188,7 @@ function ListView() {
       </Card>
     );
   }
-  const items = data?.items ?? [];
-  if (items.length === 0) {
+  if (allItems.length === 0) {
     return (
       <Card className="p-6 text-sm text-muted-foreground italic">
         No chatbot conversations recorded yet.
@@ -55,9 +197,16 @@ function ListView() {
   }
 
   return (
-    <Card className="p-0 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+    <div className="space-y-4">
+      {toolbar}
+      {filtered.length === 0 ? (
+        <Card className="p-6 text-sm text-muted-foreground italic">
+          No conversations match “{query}”.
+        </Card>
+      ) : (
+        <Card className="p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr className="text-left">
               <th className="p-3 font-medium">Student</th>
@@ -69,7 +218,7 @@ function ListView() {
             </tr>
           </thead>
           <tbody>
-            {items.map((it) => (
+            {filtered.map((it) => (
               <tr
                 key={it.userId}
                 className="border-t hover:bg-muted/30"
@@ -108,9 +257,11 @@ function ListView() {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
-    </Card>
+            </table>
+          </div>
+        </Card>
+      )}
+    </div>
   );
 }
 

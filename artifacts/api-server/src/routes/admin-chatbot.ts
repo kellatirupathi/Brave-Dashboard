@@ -81,6 +81,104 @@ router.get("/admin/chatbot-history", async (req, res): Promise<void> => {
   }
 });
 
+// GET /admin/chatbot-history/export — every user who has chatted, each with
+// their full message thread, for a single bulk CSV/JSON download. Registered
+// BEFORE the ":userId" route so "export" is not captured as a user id.
+router.get(
+  "/admin/chatbot-history/export",
+  async (req, res): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const userRows = await db
+        .select({
+          userId: chatbotHistoryTable.userId,
+          questions: sql<number>`count(*) filter (where ${chatbotHistoryTable.role} = 'user')`,
+          totalMessages: sql<number>`count(*)`,
+          lastChattedAt: sql<string>`max(${chatbotHistoryTable.createdAt})`,
+          firstName: usersTable.firstName,
+          lastName: usersTable.lastName,
+          email: usersTable.email,
+          niatId: usersTable.niatId,
+          role: usersTable.role,
+          campusName: campusesTable.name,
+        })
+        .from(chatbotHistoryTable)
+        .leftJoin(usersTable, eq(usersTable.id, chatbotHistoryTable.userId))
+        .leftJoin(campusesTable, eq(campusesTable.id, usersTable.campusId))
+        .where(isNotNull(chatbotHistoryTable.userId))
+        .groupBy(
+          chatbotHistoryTable.userId,
+          usersTable.firstName,
+          usersTable.lastName,
+          usersTable.email,
+          usersTable.niatId,
+          usersTable.role,
+          campusesTable.name,
+        )
+        .orderBy(desc(sql`max(${chatbotHistoryTable.createdAt})`));
+
+      const allMessages = await db
+        .select({
+          id: chatbotHistoryTable.id,
+          userId: chatbotHistoryTable.userId,
+          role: chatbotHistoryTable.role,
+          message: chatbotHistoryTable.message,
+          conversationId: chatbotHistoryTable.conversationId,
+          createdAt: chatbotHistoryTable.createdAt,
+        })
+        .from(chatbotHistoryTable)
+        .where(isNotNull(chatbotHistoryTable.userId))
+        .orderBy(asc(chatbotHistoryTable.createdAt));
+
+      const messagesByUser = new Map<
+        string,
+        {
+          id: number;
+          role: string;
+          message: string;
+          conversationId: string | null;
+          createdAt: string;
+        }[]
+      >();
+      for (const m of allMessages) {
+        if (!m.userId) continue;
+        const bucket = messagesByUser.get(m.userId) ?? [];
+        bucket.push({
+          id: m.id,
+          role: m.role,
+          message: m.message,
+          conversationId: m.conversationId,
+          createdAt: m.createdAt.toISOString(),
+        });
+        messagesByUser.set(m.userId, bucket);
+      }
+
+      res.json({
+        items: userRows.map((r) => ({
+          userId: r.userId,
+          name:
+            `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() ||
+            r.email ||
+            "Unknown user",
+          email: r.email ?? null,
+          niatId: r.niatId ?? null,
+          role: r.role ?? null,
+          campusName: r.campusName ?? null,
+          questions: Number(r.questions ?? 0),
+          totalMessages: Number(r.totalMessages ?? 0),
+          lastChattedAt: r.lastChattedAt
+            ? new Date(r.lastChattedAt).toISOString()
+            : null,
+          messages: r.userId ? (messagesByUser.get(r.userId) ?? []) : [],
+        })),
+      });
+    } catch (err) {
+      req.log.error({ err }, "[admin/chatbot-history] export failed");
+      res.status(500).json({ error: "Failed to export chatbot history" });
+    }
+  },
+);
+
 // GET /admin/chatbot-history/:userId — that user's full message thread, oldest
 // first, plus their header (name / niat id / campus / role).
 router.get(

@@ -51,3 +51,17 @@ export function getChatbotHistoryForUser(
     `/api/admin/chatbot-history/${encodeURIComponent(userId)}`,
   );
 }
+
+export type ChatbotHistoryExportItem = ChatbotHistoryListItem & {
+  messages: ChatbotMessage[];
+};
+
+// Every user who has chatted, each with their full message thread, for a
+// single bulk download (table columns + every chat message).
+export function exportChatbotHistory(): Promise<{
+  items: ChatbotHistoryExportItem[];
+}> {
+  return customFetch<{ items: ChatbotHistoryExportItem[] }>(
+    "/api/admin/chatbot-history/export",
+  );
+}
