@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { motion } from "framer-motion";
 import { CheckCircle2, Circle, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getWeekTracker } from "@/lib/progress-api";
@@ -69,13 +70,21 @@ export function JournalWeekTracker({ className }: { className?: string }) {
                   : "text-muted-foreground/50";
             return (
               <div key={w.weekId} className="flex items-start">
-                {/* Connector segment between the previous dot and this one. */}
+                {/* Connector segment between the previous dot and this one.
+                    Fills left → right on mount, staggered per segment. */}
                 {i > 0 && (
-                  <div
+                  <motion.div
                     aria-hidden
                     data-testid={`week-connector-${w.weekNumber}`}
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{
+                      duration: 0.35,
+                      delay: (i - 1) * 0.07,
+                      ease: "easeOut",
+                    }}
                     className={cn(
-                      "mt-3.5 h-1 w-6 shrink-0 rounded-full sm:w-9",
+                      "mt-3.5 h-1 w-3 origin-left shrink-0 rounded-full sm:w-4",
                       connectorTone(i - 1),
                     )}
                   />
