@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
 import { formatINR, formatDate } from "@/lib/format";
+import { normalizeError } from "@/lib/api-error";
 import { VerificationTimelineNote } from "@/components/verification-timeline-note";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,10 +106,18 @@ export default function ProjectDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
   const { data: project, isLoading } = useGetProject(id);
-  const { data: myTeam } = useGetMyTeam({
+  const {
+    data: myTeam,
+    isError: teamIsError,
+    error: teamError,
+  } = useGetMyTeam({
     query: { queryKey: getGetMyTeamQueryKey(), retry: false },
   });
   const { user } = useAuth();
+  // A 404 from /teams/my means a genuine "no team"; any other error is
+  // transient and must not demote a real leader to a false read-only banner.
+  const teamLoadFailed =
+    teamIsError && normalizeError(teamError).status !== 404;
   const isLeader =
     !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
 
@@ -584,14 +593,24 @@ export default function ProjectDetail() {
         )}
       </div>
 
-      {!isLeader && (
+      {teamLoadFailed ? (
         <div
-          className="rounded-md border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
-          data-testid="banner-project-readonly"
+          className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          data-testid="banner-team-load-failed"
         >
-          Only the team leader can add or edit entries — ask your leader to
-          update this page.
+          We couldn't load your team right now, so editing is temporarily
+          unavailable. Please refresh the page to try again.
         </div>
+      ) : (
+        !isLeader && (
+          <div
+            className="rounded-md border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+            data-testid="banner-project-readonly"
+          >
+            Only the team leader can add or edit entries — ask your leader to
+            update this page.
+          </div>
+        )
       )}
 
       <div className="grid gap-6 md:grid-cols-3">

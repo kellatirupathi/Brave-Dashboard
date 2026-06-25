@@ -25,6 +25,15 @@ import {
 
 const PANEL = "rounded-xl border bg-card";
 
+// Allowed reel buckets (mirrors REEL_BUCKETS on the server). Imports outside
+// this set are rejected so the bucket dropdown can't be polluted.
+const ALLOWED_BUCKETS = [
+  "STORY",
+  "INFORMATIVE",
+  "PAIN POINT",
+  "STUDENT QUESTION",
+] as const;
+
 // Colour-code the common buckets; anything else falls back to muted.
 function bucketTone(bucket: string): string {
   switch (bucket.toUpperCase()) {
@@ -42,7 +51,7 @@ function bucketTone(bucket: string): string {
 }
 
 export default function AdminReelsScripts() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["reels-scripts"],
     queryFn: listReelScripts,
   });
@@ -83,7 +92,9 @@ export default function AdminReelsScripts() {
         ].join(","),
       );
     }
-    const blob = new Blob([lines.join("\n")], {
+    // Prepend a UTF-8 BOM and use CRLF line endings so Excel opens the file
+    // cleanly with the rupee symbol and non-ASCII names intact.
+    const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
@@ -113,19 +124,38 @@ export default function AdminReelsScripts() {
         });
 
         const rows: { bucket: string; script: string }[] = [];
+        const invalidBuckets = new Set<string>();
         for (let i = 0; i < matrix.length; i++) {
-          const bucket = String(matrix[i]?.[0] ?? "").trim();
+          const rawBucket = String(matrix[i]?.[0] ?? "").trim();
           const script = String(matrix[i]?.[1] ?? "").trim();
-          // Skip a header row ("bucket" / "script") and blank rows.
+          // Skip ONLY a real header row (exact "bucket" + "script" match) and
+          // blank rows — a genuine first data row containing the word "script"
+          // must not be dropped.
           if (
             i === 0 &&
-            (bucket.toLowerCase() === "bucket" ||
-              script.toLowerCase().includes("script"))
+            rawBucket.toLowerCase() === "bucket" &&
+            script.toLowerCase() === "script"
           ) {
             continue;
           }
-          if (!bucket || !script) continue;
+          if (!rawBucket || !script) continue;
+          // Normalise case and reject buckets outside the allowed set so the
+          // dropdown can't be polluted with arbitrary strings.
+          const bucket = rawBucket.toUpperCase();
+          if (!ALLOWED_BUCKETS.includes(bucket as (typeof ALLOWED_BUCKETS)[number])) {
+            invalidBuckets.add(rawBucket);
+            continue;
+          }
           rows.push({ bucket, script: script.slice(0, 5000) });
+        }
+
+        if (invalidBuckets.size > 0) {
+          toast({
+            title: "Unknown bucket value(s)",
+            description: `Not allowed: ${[...invalidBuckets].join(", ")}. Use one of: ${ALLOWED_BUCKETS.join(", ")}.`,
+            variant: "destructive",
+          });
+          return;
         }
 
         if (rows.length === 0) {
@@ -240,6 +270,18 @@ export default function AdminReelsScripts() {
       {isLoading ? (
         <div className="flex h-64 items-center justify-center">
           <Spinner size="lg" />
+        </div>
+      ) : isError ? (
+        <div
+          className="text-center py-20 bg-card border rounded-xl border-dashed"
+          data-testid="reels-error-state"
+        >
+          <Clapperboard className="w-12 h-12 text-destructive mx-auto mb-4 opacity-60" />
+          <h3 className="text-lg font-semibold">Couldn't load reel scripts</h3>
+          <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+            Something went wrong fetching the scripts. Please refresh the page
+            to try again.
+          </p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-card border rounded-xl border-dashed">

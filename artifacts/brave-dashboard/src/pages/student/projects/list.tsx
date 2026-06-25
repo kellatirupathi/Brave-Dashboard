@@ -61,7 +61,12 @@ const projectSchema = z.object({
 export default function ProjectsList() {
   const { data: projectsResponse, isLoading } = useListProjects();
   const projects = projectsResponse?.items ?? [];
-  const { data: myTeam, isLoading: teamLoading } = useGetMyTeam({
+  const {
+    data: myTeam,
+    isLoading: teamLoading,
+    isError: teamIsError,
+    error: teamError,
+  } = useGetMyTeam({
     query: { queryKey: getGetMyTeamQueryKey(), retry: false },
   });
   const createProject = useCreateProject();
@@ -69,6 +74,11 @@ export default function ProjectsList() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  // The /teams/my endpoint returns 404 for a genuine "no team". Any other
+  // error (network blip, 5xx) is transient — don't demote a real leader to
+  // read-only on a transient failure; show an error affordance instead.
+  const teamLoadFailed =
+    teamIsError && normalizeError(teamError).status !== 404;
   const hasTeam = !!myTeam;
   const isLeader =
     !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
@@ -132,7 +142,7 @@ export default function ProjectsList() {
                 New Project
               </Button>
             </DialogTrigger>
-          ) : !hasTeam ? (
+          ) : teamLoadFailed ? null : !hasTeam ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -201,6 +211,16 @@ export default function ProjectsList() {
         </Dialog>
       </div>
 
+      {teamLoadFailed && (
+        <div
+          className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          data-testid="banner-team-load-failed"
+        >
+          We couldn't load your team right now, so project actions are
+          temporarily unavailable. Please refresh the page to try again.
+        </div>
+      )}
+
       {hasTeam && !isLeader && (
         <div
           className="rounded-md border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
@@ -240,6 +260,15 @@ export default function ProjectsList() {
                   Your team leader hasn't added any projects yet.
                 </p>
               )}
+            </>
+          ) : teamLoadFailed ? (
+            <>
+              <Users className="w-12 h-12 text-destructive mx-auto mb-4 opacity-60" />
+              <h3 className="text-lg font-semibold">Couldn't load your team</h3>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                We couldn't check your team membership just now. Please refresh
+                the page to try again.
+              </p>
             </>
           ) : (
             <>

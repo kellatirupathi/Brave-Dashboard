@@ -9,11 +9,13 @@ export function formatINR(amount: number | null | undefined): string {
 
 export function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return "";
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(new Date(dateString));
+  }).format(d);
 }
 
 export function formatDateTime(

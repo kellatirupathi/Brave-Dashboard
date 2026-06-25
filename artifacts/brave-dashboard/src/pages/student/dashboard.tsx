@@ -118,7 +118,7 @@ function RadialProgress({
 
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
-  const { data: progress } = useQuery({
+  const { data: progress, isError: progressError } = useQuery({
     queryKey: ["progress-summary"],
     queryFn: getProgressSummary,
   });
@@ -159,16 +159,23 @@ export default function TeamDashboard() {
     : 100;
 
   const submittedThisWeek = !!progress?.journal?.submittedThisWeek;
-  const journalTone: Tone = submittedThisWeek
-    ? "good"
-    : progress?.lastJournalAt
-      ? "warn"
-      : "bad";
-  const journalLabel = submittedThisWeek
-    ? "Submitted"
-    : progress?.lastJournalAt
-      ? "Pending"
-      : "Not started";
+  // When the progress fetch fails, don't fall back to a false "Not started" —
+  // surface a neutral "Unavailable" so a student isn't wrongly told they
+  // haven't journaled.
+  const journalTone: Tone = progressError
+    ? "muted"
+    : submittedThisWeek
+      ? "good"
+      : progress?.lastJournalAt
+        ? "warn"
+        : "bad";
+  const journalLabel = progressError
+    ? "Unavailable"
+    : submittedThisWeek
+      ? "Submitted"
+      : progress?.lastJournalAt
+        ? "Pending"
+        : "Not started";
 
   const pending = summary.pendingSubmissions ?? 0;
 

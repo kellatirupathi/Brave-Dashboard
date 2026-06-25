@@ -33,8 +33,12 @@ export function ProgramCountdown({ className }: { className?: string }) {
   if (!endOfDay) return null;
 
   const now = new Date();
-  const daysLeft = Math.ceil((endOfDay.getTime() - now.getTime()) / 86_400_000);
-  const ended = daysLeft < 0;
+  const rawDaysLeft = Math.ceil(
+    (endOfDay.getTime() - now.getTime()) / 86_400_000,
+  );
+  // Never surface a negative count: today/past reads as ended (0 days).
+  const ended = rawDaysLeft <= 0;
+  const daysLeft = Math.max(0, rawDaysLeft);
   const endLabel = endOfDay.toLocaleDateString("en-IN", {
     day: "numeric",
     month: "long",

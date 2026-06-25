@@ -13,6 +13,9 @@ import { db, reelScriptsTable } from "@workspace/db";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { reelDedupeKey } from "../lib/ai/generate-reels";
+import { REEL_BUCKETS } from "../lib/ai/reels-prompt";
+
+const ALLOWED_BUCKETS = new Set<string>(REEL_BUCKETS);
 
 const router: IRouter = Router();
 
@@ -78,7 +81,17 @@ const ImportBody = z.object({
   rows: z
     .array(
       z.object({
-        bucket: z.string().trim().min(1).max(120),
+        // Normalise case and reject buckets outside the allowed set so the
+        // bucket dropdown can't be polluted with arbitrary strings.
+        bucket: z
+          .string()
+          .trim()
+          .min(1)
+          .max(120)
+          .transform((b) => b.toUpperCase())
+          .refine((b) => ALLOWED_BUCKETS.has(b), {
+            message: "Unknown bucket",
+          }),
         script: z.string().trim().min(1).max(5000),
       }),
     )
