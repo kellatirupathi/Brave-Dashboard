@@ -1,0 +1,31 @@
+1. Bugs
+🔴 High
+B1. formatDate crashes the page on a bad/empty date — lib/format.ts:10
+Unlike formatDateTime, formatDate has no validity guard, so new Date("") → .format() throws RangeError. It's used in render paths in projects list, project detail, and our new reels page (createdAt). With no error boundary in App.tsx, one malformed date white-screens the whole route.
+Repro: any row whose date field is ""/null-coalesced server-side.
+Fix: const d = new Date(s); if (Number.isNaN(d.getTime())) return ""; before formatting (mirror formatDateTime).
+
+B2. Admin escalation can double-send — routes/cron-journal-escalation.ts:206-266
+Admin dedup relies on a non-atomic SELECT-then-INSERT, and the onConflictDoNothing is a no-op because the unique key is (campusId, weekId, level) and campusId is NULL for admin (Postgres treats NULLs as distinct). Two near-simultaneous triggers both send the full admin blast.
+Fix: unique partial index WHERE campus_id IS NULL on (week_id, level) (or store sentinel campusId=0), then rely on onConflictDoNothing; or wrap check+send+log in a txn with pg_advisory_lock(week|level).
+
+B3. 🆕 Reel dedup only checks the newest 500 rows — lib/ai/generate-reels.ts:110
+existingKeys is built from .limit(500) and reel_scripts.dedupeKey has no DB unique constraint. Once the library exceeds 500, the daily cron can re-insert a byte-identical older script.
+Fix: add unique("reel_scripts_dedupe_unique").on(t.dedupeKey) and use .onConflictDoNothing({ target: reelScriptsTable.dedupeKey }). The 500-row prompt seed can stay.
+
+B4. Fire-and-forget crons die on Replit autoscale + per-instance guards — cron-reels.ts, cron.ts, cron-backup-supabase.ts
+202-then-background means the instance can be recycled mid-run (lost work), and the inFlight booleans only guard one process — with >1 replica, two runs overlap. Most dangerous for the Supabase backup (overlapping TRUNCATE…CASCADE).
+Fix: durable lock (pg_try_advisory_lock/cron_locks row); for reels, add a catch-up sweep or run synchronously before responding (cron-job.org tolerates long requests).
+
+🟠 Medium
+B5. /admin/review-queue N+1 — routes/admin.ts:118-194: 4 sequential queries per revenue entry, unbounded, campus filter applied after loading everything. Replace with joins + WHERE filter + LIMIT (the journals route already shows the join pattern).
+B6. 🆕 Transient useGetMyTeam failure demotes a real leader to read-only — projects/list.tsx:64, detail.tsx:108: on a flaky network isLeader=false, blocking project/revenue editing. Distinguish error from "no team."
+B7. Queries swallow errors as empty states — reels, reports, and the student dashboard (dashboard.tsx:161): a failed progress fetch can falsely tell a student they haven't journaled. Surface isError.
+B8. 🆕 Reels CSV: no UTF-8 BOM + \n joins + export can throw — reels-scripts.tsx:78: rupee symbol/non-ASCII names → mojibake in Excel; export loop calls formatDate (see B1). Prepend "\uFEFF", join with \r\n.
+B9. levelForToday() / todayIso() use UTC weekday — cron-journal-escalation.ts:65, cron.ts:48: correct only because of the current fixed IST schedule; a latent off-by-one / wrong-level bug if run times change. Compute weekday in Asia/Kolkata.
+B10. Inconsistent cron-secret status — cron.ts:375 returns 401; all others return 403. Standardize on 403 (breaks status-based monitoring otherwise).
+🟡 Low
+B11. 🆕 Reels import header heuristic (reels-scripts.tsx:126): drops a real first row if its script text contains the word "script". Use exact-match === "script"/=== "bucket".
+B12. 🆕 Reels import accepts arbitrary bucket strings (reels-scripts.ts:77): pollutes the bucket dropdown. Use z.enum(REEL_BUCKETS).
+B13. 🆕 ProgramCountdown "0 days left" (program-countdown.tsx:57): treat daysLeft <= 0 as ended / "ends today."
+B14. Reels page renders up to 5000 full scripts unvirtualized, filtered on every keystroke — fine now, janky at scale.
