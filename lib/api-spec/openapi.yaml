@@ -1713,6 +1713,55 @@ paths:
             type: integer
             minimum: 1
             maximum: 10000
+        - name: status
+          in: query
+          description: Filter by active state.
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: niatId
+          in: query
+          description: Case-insensitive contains match on the user's Campus ID (niatId).
+          schema:
+            type: string
+        - name: minLogins
+          in: query
+          description: Minimum login count (inclusive).
+          schema:
+            type: integer
+            minimum: 0
+        - name: maxLogins
+          in: query
+          description: Maximum login count (inclusive).
+          schema:
+            type: integer
+            minimum: 0
+        - name: terms
+          in: query
+          description: Filter by Terms & Conditions acceptance.
+          schema:
+            type: string
+            enum: [accepted, not_accepted]
+        - name: lastLoginFrom
+          in: query
+          description: Earliest last-login date (YYYY-MM-DD, inclusive).
+          schema:
+            type: string
+        - name: lastLoginTo
+          in: query
+          description: Latest last-login date (YYYY-MM-DD, inclusive).
+          schema:
+            type: string
+        - name: lastSeenFrom
+          in: query
+          description: Earliest last-seen date (YYYY-MM-DD, inclusive).
+          schema:
+            type: string
+        - name: lastSeenTo
+          in: query
+          description: Latest last-seen date (YYYY-MM-DD, inclusive).
+          schema:
+            type: string
       responses:
         "200":
           description: Users list (paginated)

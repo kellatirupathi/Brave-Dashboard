@@ -2656,6 +2656,10 @@ export const ListFeedbackResponse = zod.array(ListFeedbackResponseItem);
 
 export const listUsersQueryPageSizeMax = 10000;
 
+export const listUsersQueryMinLoginsMin = 0;
+
+export const listUsersQueryMaxLoginsMin = 0;
+
 export const ListUsersQueryParams = zod.object({
   role: zod.enum(["student", "coordinator", "admin"]).optional(),
   campusId: zod.coerce.number().optional(),
@@ -2669,6 +2673,46 @@ export const ListUsersQueryParams = zod.object({
     .min(1)
     .max(listUsersQueryPageSizeMax)
     .optional(),
+  status: zod
+    .enum(["active", "inactive"])
+    .optional()
+    .describe("Filter by active state."),
+  niatId: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Case-insensitive contains match on the user's Campus ID (niatId).",
+    ),
+  minLogins: zod.coerce
+    .number()
+    .min(listUsersQueryMinLoginsMin)
+    .optional()
+    .describe("Minimum login count (inclusive)."),
+  maxLogins: zod.coerce
+    .number()
+    .min(listUsersQueryMaxLoginsMin)
+    .optional()
+    .describe("Maximum login count (inclusive)."),
+  terms: zod
+    .enum(["accepted", "not_accepted"])
+    .optional()
+    .describe("Filter by Terms & Conditions acceptance."),
+  lastLoginFrom: zod.coerce
+    .string()
+    .optional()
+    .describe("Earliest last-login date (YYYY-MM-DD, inclusive)."),
+  lastLoginTo: zod.coerce
+    .string()
+    .optional()
+    .describe("Latest last-login date (YYYY-MM-DD, inclusive)."),
+  lastSeenFrom: zod.coerce
+    .string()
+    .optional()
+    .describe("Earliest last-seen date (YYYY-MM-DD, inclusive)."),
+  lastSeenTo: zod.coerce
+    .string()
+    .optional()
+    .describe("Latest last-seen date (YYYY-MM-DD, inclusive)."),
 });
 
 export const ListUsersResponse = zod.object({

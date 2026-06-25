@@ -1,5 +1,18 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, or, sql, desc, inArray } from "drizzle-orm";
+import {
+  eq,
+  ilike,
+  and,
+  or,
+  sql,
+  desc,
+  inArray,
+  gte,
+  lte,
+  lt,
+  isNull,
+  isNotNull,
+} from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -238,8 +251,23 @@ router.get("/admin/users", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { role, campusId, search, provisionedVia, page, pageSize } =
-    queryParams.data;
+  const {
+    role,
+    campusId,
+    search,
+    provisionedVia,
+    page,
+    pageSize,
+    status,
+    niatId,
+    minLogins,
+    maxLogins,
+    terms,
+    lastLoginFrom,
+    lastLoginTo,
+    lastSeenFrom,
+    lastSeenTo,
+  } = queryParams.data;
   const effectivePage = page && page >= 1 ? page : 1;
   const effectivePageSize =
     pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
@@ -262,6 +290,39 @@ router.get("/admin/users", async (req, res): Promise<void> => {
       ),
     );
     if (orFilter) conditions.push(orFilter);
+  }
+  // Active / inactive state.
+  if (status === "active") conditions.push(eq(usersTable.isActive, true));
+  if (status === "inactive") conditions.push(eq(usersTable.isActive, false));
+  // Campus ID (niatId) — case-insensitive contains.
+  if (niatId && niatId.trim())
+    conditions.push(ilike(usersTable.niatId, `%${niatId.trim()}%`));
+  // Login-count range (inclusive).
+  if (minLogins !== undefined)
+    conditions.push(gte(usersTable.loginCount, minLogins));
+  if (maxLogins !== undefined)
+    conditions.push(lte(usersTable.loginCount, maxLogins));
+  // Terms & Conditions acceptance.
+  if (terms === "accepted")
+    conditions.push(isNotNull(usersTable.termsAcceptedAt));
+  if (terms === "not_accepted")
+    conditions.push(isNull(usersTable.termsAcceptedAt));
+  // Last-login date range. The `To` bound is the start of the next day with a
+  // strict `<` so a YYYY-MM-DD bound includes the entire selected day.
+  if (lastLoginFrom)
+    conditions.push(gte(usersTable.lastLoginAt, new Date(lastLoginFrom)));
+  if (lastLoginTo) {
+    const to = new Date(lastLoginTo);
+    to.setDate(to.getDate() + 1);
+    conditions.push(lt(usersTable.lastLoginAt, to));
+  }
+  // Last-seen date range (same inclusive-day handling).
+  if (lastSeenFrom)
+    conditions.push(gte(usersTable.lastSeenAt, new Date(lastSeenFrom)));
+  if (lastSeenTo) {
+    const to = new Date(lastSeenTo);
+    to.setDate(to.getDate() + 1);
+    conditions.push(lt(usersTable.lastSeenAt, to));
   }
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 

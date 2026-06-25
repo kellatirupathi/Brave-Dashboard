@@ -1593,6 +1593,44 @@ export type ListUsersParams = {
    * @maximum 10000
    */
   pageSize?: number;
+  /**
+   * Filter by active state.
+   */
+  status?: ListUsersStatus;
+  /**
+   * Case-insensitive contains match on the user's Campus ID (niatId).
+   */
+  niatId?: string;
+  /**
+   * Minimum login count (inclusive).
+   * @minimum 0
+   */
+  minLogins?: number;
+  /**
+   * Maximum login count (inclusive).
+   * @minimum 0
+   */
+  maxLogins?: number;
+  /**
+   * Filter by Terms & Conditions acceptance.
+   */
+  terms?: ListUsersTerms;
+  /**
+   * Earliest last-login date (YYYY-MM-DD, inclusive).
+   */
+  lastLoginFrom?: string;
+  /**
+   * Latest last-login date (YYYY-MM-DD, inclusive).
+   */
+  lastLoginTo?: string;
+  /**
+   * Earliest last-seen date (YYYY-MM-DD, inclusive).
+   */
+  lastSeenFrom?: string;
+  /**
+   * Latest last-seen date (YYYY-MM-DD, inclusive).
+   */
+  lastSeenTo?: string;
 };
 
 export type ListUsersRole = (typeof ListUsersRole)[keyof typeof ListUsersRole];
@@ -1611,6 +1649,22 @@ export const ListUsersProvisionedVia = {
   csv_import: "csv_import",
   manual: "manual",
   auto_forms_sso: "auto_forms_sso",
+} as const;
+
+export type ListUsersStatus =
+  (typeof ListUsersStatus)[keyof typeof ListUsersStatus];
+
+export const ListUsersStatus = {
+  active: "active",
+  inactive: "inactive",
+} as const;
+
+export type ListUsersTerms =
+  (typeof ListUsersTerms)[keyof typeof ListUsersTerms];
+
+export const ListUsersTerms = {
+  accepted: "accepted",
+  not_accepted: "not_accepted",
 } as const;
 
 export type GetAuditLogParams = {

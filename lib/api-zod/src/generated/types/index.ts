@@ -103,6 +103,8 @@ export * from "./listUsersParams";
 export * from "./listUsersProvisionedVia";
 export * from "./listUsersResponse";
 export * from "./listUsersRole";
+export * from "./listUsersStatus";
+export * from "./listUsersTerms";
 export * from "./milestone";
 export * from "./milestoneType";
 export * from "./notification";

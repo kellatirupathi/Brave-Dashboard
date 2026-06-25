@@ -7,6 +7,8 @@
  */
 import type { ListUsersProvisionedVia } from "./listUsersProvisionedVia";
 import type { ListUsersRole } from "./listUsersRole";
+import type { ListUsersStatus } from "./listUsersStatus";
+import type { ListUsersTerms } from "./listUsersTerms";
 
 export type ListUsersParams = {
   role?: ListUsersRole;
@@ -22,4 +24,42 @@ export type ListUsersParams = {
    * @maximum 10000
    */
   pageSize?: number;
+  /**
+   * Filter by active state.
+   */
+  status?: ListUsersStatus;
+  /**
+   * Case-insensitive contains match on the user's Campus ID (niatId).
+   */
+  niatId?: string;
+  /**
+   * Minimum login count (inclusive).
+   * @minimum 0
+   */
+  minLogins?: number;
+  /**
+   * Maximum login count (inclusive).
+   * @minimum 0
+   */
+  maxLogins?: number;
+  /**
+   * Filter by Terms & Conditions acceptance.
+   */
+  terms?: ListUsersTerms;
+  /**
+   * Earliest last-login date (YYYY-MM-DD, inclusive).
+   */
+  lastLoginFrom?: string;
+  /**
+   * Latest last-login date (YYYY-MM-DD, inclusive).
+   */
+  lastLoginTo?: string;
+  /**
+   * Earliest last-seen date (YYYY-MM-DD, inclusive).
+   */
+  lastSeenFrom?: string;
+  /**
+   * Latest last-seen date (YYYY-MM-DD, inclusive).
+   */
+  lastSeenTo?: string;
 };

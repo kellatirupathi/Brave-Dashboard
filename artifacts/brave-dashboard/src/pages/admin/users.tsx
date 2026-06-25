@@ -32,6 +32,8 @@ import {
   Eye,
   EyeOff,
   Tags,
+  Filter,
+  X,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import {
@@ -71,6 +73,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { Label } from "@/components/ui/label";
 import { PageSizeSelect } from "@/components/page-size-select";
 import { CampusCombobox } from "@/components/campus-combobox";
 import { useForm } from "react-hook-form";
@@ -135,6 +146,8 @@ type AnyUser = {
 
 type RoleFilter = "all" | "admin" | "coordinator" | "student";
 type SourceFilter = "all" | ProvisionedVia;
+type StatusFilter = "all" | "active" | "inactive";
+type TermsFilter = "all" | "accepted" | "not_accepted";
 
 const SOURCE_LABEL: Record<ProvisionedVia, string> = {
   roster: "Roster",
@@ -221,8 +234,50 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [campusFilter, setCampusFilter] = useState<string>("all");
+  // New server-side filters (surfaced via the right-side Filters panel).
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [niatIdFilter, setNiatIdFilter] = useState<string>("");
+  const [minLogins, setMinLogins] = useState<string>("");
+  const [maxLogins, setMaxLogins] = useState<string>("");
+  const [termsFilter, setTermsFilter] = useState<TermsFilter>("all");
+  const [lastLoginFrom, setLastLoginFrom] = useState<string>("");
+  const [lastLoginTo, setLastLoginTo] = useState<string>("");
+  const [lastSeenFrom, setLastSeenFrom] = useState<string>("");
+  const [lastSeenTo, setLastSeenTo] = useState<string>("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
+
+  // Trimmed / numeric forms reused by the query, export builder and chips so
+  // the three stay in lock-step.
+  const niatIdParam = niatIdFilter.trim() || undefined;
+  const minLoginsParam =
+    minLogins.trim() !== "" && Number.isFinite(Number(minLogins))
+      ? Number(minLogins)
+      : undefined;
+  const maxLoginsParam =
+    maxLogins.trim() !== "" && Number.isFinite(Number(maxLogins))
+      ? Number(maxLogins)
+      : undefined;
+
+  // Bump back to the first page whenever any filter changes so the user never
+  // lands on an out-of-range page.
+  useEffect(() => {
+    setPage(1);
+  }, [
+    roleFilter,
+    sourceFilter,
+    campusFilter,
+    statusFilter,
+    niatIdParam,
+    minLoginsParam,
+    maxLoginsParam,
+    termsFilter,
+    lastLoginFrom,
+    lastLoginTo,
+    lastSeenFrom,
+    lastSeenTo,
+  ]);
 
   // Debounce search so we aren't firing a request on every keystroke.
   useEffect(() => {
@@ -238,6 +293,15 @@ export default function AdminUsers() {
     role: roleFilter === "all" ? undefined : roleFilter,
     provisionedVia: sourceFilter === "all" ? undefined : sourceFilter,
     campusId: campusFilter === "all" ? undefined : Number(campusFilter),
+    status: statusFilter === "all" ? undefined : statusFilter,
+    niatId: niatIdParam,
+    minLogins: minLoginsParam,
+    maxLogins: maxLoginsParam,
+    terms: termsFilter === "all" ? undefined : termsFilter,
+    lastLoginFrom: lastLoginFrom || undefined,
+    lastLoginTo: lastLoginTo || undefined,
+    lastSeenFrom: lastSeenFrom || undefined,
+    lastSeenTo: lastSeenTo || undefined,
     page,
     pageSize,
   });
@@ -611,6 +675,18 @@ export default function AdminUsers() {
         if (search) params.set("search", search);
         if (roleFilter !== "all") params.set("role", roleFilter);
         if (sourceFilter !== "all") params.set("provisionedVia", sourceFilter);
+        if (campusFilter !== "all") params.set("campusId", campusFilter);
+        if (statusFilter !== "all") params.set("status", statusFilter);
+        if (niatIdParam) params.set("niatId", niatIdParam);
+        if (minLoginsParam !== undefined)
+          params.set("minLogins", String(minLoginsParam));
+        if (maxLoginsParam !== undefined)
+          params.set("maxLogins", String(maxLoginsParam));
+        if (termsFilter !== "all") params.set("terms", termsFilter);
+        if (lastLoginFrom) params.set("lastLoginFrom", lastLoginFrom);
+        if (lastLoginTo) params.set("lastLoginTo", lastLoginTo);
+        if (lastSeenFrom) params.set("lastSeenFrom", lastSeenFrom);
+        if (lastSeenTo) params.set("lastSeenTo", lastSeenTo);
         params.set("page", String(exportPage));
         params.set("pageSize", String(exportPageSize));
         const res = await fetch(`/api/admin/users?${params.toString()}`, {
@@ -672,6 +748,105 @@ export default function AdminUsers() {
     student: allUsers.filter((u) => u.role === "student").length,
   };
 
+  // Descriptors for the applied-filter chips. Search is intentionally excluded —
+  // it lives in its own dedicated input, not the Filters panel. Each entry knows
+  // how to clear just itself. `count` drives the toolbar badge.
+  const campusLabel =
+    campusFilter === "all"
+      ? null
+      : (campuses?.find((c) => String(c.id) === campusFilter)?.name ??
+        `Campus #${campusFilter}`);
+  const activeFilterChips: { key: string; label: string; clear: () => void }[] =
+    [];
+  if (roleFilter !== "all")
+    activeFilterChips.push({
+      key: "role",
+      label: `Role: ${roleFilter === "admin" ? "Admins" : roleFilter === "coordinator" ? "Coordinators" : "Students"}`,
+      clear: () => setRoleFilter("all"),
+    });
+  if (sourceFilter !== "all")
+    activeFilterChips.push({
+      key: "source",
+      label: `Source: ${SOURCE_LABEL[sourceFilter]}`,
+      clear: () => setSourceFilter("all"),
+    });
+  if (campusLabel)
+    activeFilterChips.push({
+      key: "campus",
+      label: `Campus: ${campusLabel}`,
+      clear: () => setCampusFilter("all"),
+    });
+  if (statusFilter !== "all")
+    activeFilterChips.push({
+      key: "status",
+      label: `Status: ${statusFilter === "active" ? "Active" : "Inactive"}`,
+      clear: () => setStatusFilter("all"),
+    });
+  if (niatIdParam)
+    activeFilterChips.push({
+      key: "niatId",
+      label: `Campus ID: ${niatIdParam}`,
+      clear: () => setNiatIdFilter(""),
+    });
+  if (minLoginsParam !== undefined)
+    activeFilterChips.push({
+      key: "minLogins",
+      label: `Logins ≥ ${minLoginsParam}`,
+      clear: () => setMinLogins(""),
+    });
+  if (maxLoginsParam !== undefined)
+    activeFilterChips.push({
+      key: "maxLogins",
+      label: `Logins ≤ ${maxLoginsParam}`,
+      clear: () => setMaxLogins(""),
+    });
+  if (termsFilter !== "all")
+    activeFilterChips.push({
+      key: "terms",
+      label: `Terms: ${termsFilter === "accepted" ? "Accepted" : "Not accepted"}`,
+      clear: () => setTermsFilter("all"),
+    });
+  if (lastLoginFrom)
+    activeFilterChips.push({
+      key: "lastLoginFrom",
+      label: `Last login ≥ ${lastLoginFrom}`,
+      clear: () => setLastLoginFrom(""),
+    });
+  if (lastLoginTo)
+    activeFilterChips.push({
+      key: "lastLoginTo",
+      label: `Last login ≤ ${lastLoginTo}`,
+      clear: () => setLastLoginTo(""),
+    });
+  if (lastSeenFrom)
+    activeFilterChips.push({
+      key: "lastSeenFrom",
+      label: `Last seen ≥ ${lastSeenFrom}`,
+      clear: () => setLastSeenFrom(""),
+    });
+  if (lastSeenTo)
+    activeFilterChips.push({
+      key: "lastSeenTo",
+      label: `Last seen ≤ ${lastSeenTo}`,
+      clear: () => setLastSeenTo(""),
+    });
+  const activeFilterCount = activeFilterChips.length;
+
+  const clearAllFilters = () => {
+    setRoleFilter("all");
+    setSourceFilter("all");
+    setCampusFilter("all");
+    setStatusFilter("all");
+    setNiatIdFilter("");
+    setMinLogins("");
+    setMaxLogins("");
+    setTermsFilter("all");
+    setLastLoginFrom("");
+    setLastLoginTo("");
+    setLastSeenFrom("");
+    setLastSeenTo("");
+  };
+
   const renderRoleBadge = (r: AnyUser["role"]) => {
     if (r === "admin")
       return (
@@ -714,58 +889,23 @@ export default function AdminUsers() {
             />
           </div>
 
-          <Select
-            value={roleFilter}
-            onValueChange={(v) => {
-              setRoleFilter(v as RoleFilter);
-              setPage(1);
-            }}
+          <Button
+            variant="outline"
+            onClick={() => setFiltersOpen(true)}
+            className="relative"
+            data-testid="button-open-filters"
           >
-            <SelectTrigger
-              className="w-[160px]"
-              data-testid="select-role-filter"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All roles</SelectItem>
-              <SelectItem value="admin">Admins</SelectItem>
-              <SelectItem value="coordinator">Coordinators</SelectItem>
-              <SelectItem value="student">Students</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={sourceFilter}
-            onValueChange={(v) => {
-              setSourceFilter(v as SourceFilter);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger
-              className="w-[180px]"
-              data-testid="select-source-filter"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All sources</SelectItem>
-              <SelectItem value="roster">Roster</SelectItem>
-              <SelectItem value="csv_import">CSV import</SelectItem>
-              <SelectItem value="manual">Manual</SelectItem>
-              <SelectItem value="auto_forms_sso">Auto (Forms SSO)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <CampusCombobox
-            campuses={campuses ?? []}
-            value={campusFilter}
-            onChange={(v) => {
-              setCampusFilter(v);
-              setPage(1);
-            }}
-            testId="select-campus-filter"
-          />
+            <Filter className="w-4 h-4 mr-2" />
+            Filters
+            {activeFilterCount > 0 && (
+              <Badge
+                className="ml-2 h-5 min-w-[1.25rem] justify-center rounded-full px-1.5 bg-red-600 text-white hover:bg-red-600 border-none"
+                data-testid="badge-filter-count"
+              >
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
 
           <input
             ref={fileInputRef}
@@ -1111,6 +1251,230 @@ export default function AdminUsers() {
           </Dialog>
         </div>
       </div>
+
+      {activeFilterCount > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2"
+          data-testid="active-filter-chips"
+        >
+          {activeFilterChips.map((chip) => (
+            <span
+              key={chip.key}
+              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600"
+              data-testid={`chip-${chip.key}`}
+            >
+              {chip.label}
+              <button
+                type="button"
+                onClick={chip.clear}
+                className="ml-0.5 rounded-full hover:bg-red-100"
+                aria-label={`Remove ${chip.label} filter`}
+                data-testid={`chip-clear-${chip.key}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="text-xs font-medium text-red-600 underline-offset-2 hover:underline"
+            data-testid="button-clear-all-filters"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent
+          side="right"
+          className="flex w-full flex-col sm:max-w-md"
+          data-testid="sheet-filters"
+        >
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+            <SheetDescription>
+              Narrow the user list. Filters apply instantly and combine with the
+              search box.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 space-y-5 overflow-y-auto py-4">
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select
+                value={roleFilter}
+                onValueChange={(v) => setRoleFilter(v as RoleFilter)}
+              >
+                <SelectTrigger data-testid="select-role-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All roles</SelectItem>
+                  <SelectItem value="admin">Admins</SelectItem>
+                  <SelectItem value="coordinator">Coordinators</SelectItem>
+                  <SelectItem value="student">Students</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Source</Label>
+              <Select
+                value={sourceFilter}
+                onValueChange={(v) => setSourceFilter(v as SourceFilter)}
+              >
+                <SelectTrigger data-testid="select-source-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All sources</SelectItem>
+                  <SelectItem value="roster">Roster</SelectItem>
+                  <SelectItem value="csv_import">CSV import</SelectItem>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="auto_forms_sso">
+                    Auto (Forms SSO)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Campus</Label>
+              <CampusCombobox
+                campuses={campuses ?? []}
+                value={campusFilter}
+                onChange={(v) => setCampusFilter(v)}
+                testId="select-campus-filter"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={statusFilter}
+                onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+              >
+                <SelectTrigger data-testid="select-status-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="filter-niat-id">Campus ID</Label>
+              <Input
+                id="filter-niat-id"
+                placeholder="Contains…"
+                value={niatIdFilter}
+                onChange={(e) => setNiatIdFilter(e.target.value)}
+                data-testid="input-niat-id-filter"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Logins</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  value={minLogins}
+                  onChange={(e) => setMinLogins(e.target.value)}
+                  data-testid="input-min-logins"
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  value={maxLogins}
+                  onChange={(e) => setMaxLogins(e.target.value)}
+                  data-testid="input-max-logins"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Terms &amp; Conditions</Label>
+              <Select
+                value={termsFilter}
+                onValueChange={(v) => setTermsFilter(v as TermsFilter)}
+              >
+                <SelectTrigger data-testid="select-terms-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any</SelectItem>
+                  <SelectItem value="accepted">Accepted</SelectItem>
+                  <SelectItem value="not_accepted">Not accepted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Last login</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  value={lastLoginFrom}
+                  onChange={(e) => setLastLoginFrom(e.target.value)}
+                  data-testid="input-last-login-from"
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="date"
+                  value={lastLoginTo}
+                  onChange={(e) => setLastLoginTo(e.target.value)}
+                  data-testid="input-last-login-to"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Last seen</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  value={lastSeenFrom}
+                  onChange={(e) => setLastSeenFrom(e.target.value)}
+                  data-testid="input-last-seen-from"
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="date"
+                  value={lastSeenTo}
+                  onChange={(e) => setLastSeenTo(e.target.value)}
+                  data-testid="input-last-seen-to"
+                />
+              </div>
+            </div>
+          </div>
+
+          <SheetFooter className="flex-row justify-between gap-2 sm:justify-between">
+            <Button
+              variant="ghost"
+              onClick={clearAllFilters}
+              disabled={activeFilterCount === 0}
+              data-testid="button-reset-filters"
+            >
+              Reset
+            </Button>
+            <Button
+              onClick={() => setFiltersOpen(false)}
+              data-testid="button-apply-filters"
+            >
+              Done
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <Card>
         {isLoading ? (
