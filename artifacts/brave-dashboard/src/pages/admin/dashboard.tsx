@@ -19,7 +19,6 @@ import {
 import {
   Trophy,
   Users,
-  CheckCircle,
   AlertCircle,
   BookOpenCheck,
   Activity,
@@ -30,7 +29,6 @@ import {
   AlertTriangle,
   X,
   Briefcase,
-  ChevronRight,
   ListChecks,
   Clock,
   History,
@@ -48,10 +46,9 @@ import {
 } from "@/lib/progress-api";
 
 // ── Design system (shared language with the Coordinator console) ─────────────
-// Admin = the NATIONAL COMMAND CENTER. Same calm, dense, action-first console
-// as the coordinator view but program-wide: a work column for monitoring +
-// triage and a sticky command rail for quick actions, pending work, and the
-// live audit feed.
+// Admin = the NATIONAL COMMAND CENTER. Calm, dense, low-colour. A single
+// hairline-divided metric band up top (no floating cards / wasted space), then
+// a work column for monitoring + triage and a sticky command rail.
 const PANEL = "rounded-xl border bg-card";
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -84,11 +81,9 @@ function truncate(s: string, n: number): string {
   return s.slice(0, n - 1).trimEnd() + "…";
 }
 
-// Turn an audit action key ("verify_revenue", "update_journal_blocker") into a
-// human sentence ("Verify revenue", "Update journal blocker").
+// Turn an audit action key ("verify_revenue") into a readable phrase.
 function humanizeAction(action: string): string {
-  const s = action.replace(/_/g, " ").trim();
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return action.replace(/_/g, " ").trim().toLowerCase();
 }
 
 // Top-of-dashboard reminder banner that surfaces pending verifications so an
@@ -117,7 +112,6 @@ function PendingReviewBanner({
   const isUrgent = overdueReviewCount > 0;
   const oldestLabel = oldestPendingAt ? relativeTime(oldestPendingAt) : null;
 
-  // Build a compact human-readable list of what's pending.
   const parts: string[] = [];
   if (pendingReviewCount > 0) {
     parts.push(
@@ -136,7 +130,6 @@ function PendingReviewBanner({
   }
   const summaryLine = parts.join(" · ");
 
-  // Pick the most relevant deep-link target for the "Review now" CTA.
   const reviewHref =
     pendingReviewCount > 0
       ? "/admin/queue"
@@ -149,16 +142,16 @@ function PendingReviewBanner({
       role="alert"
       data-testid="admin-pending-banner"
       className={cn(
-        "relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border p-4 sm:p-5 shadow-sm",
+        "relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border p-4 sm:px-5",
         isUrgent
-          ? "border-destructive/40 bg-destructive/[0.06]"
+          ? "border-destructive/40 bg-destructive/[0.05]"
           : "border-amber-400/50 bg-amber-50 dark:bg-amber-950/20",
       )}
     >
       <div className="flex items-start gap-3 pr-8 sm:pr-10">
         <div
           className={cn(
-            "shrink-0 mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center",
+            "shrink-0 mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center",
             isUrgent
               ? "bg-destructive/15 text-destructive"
               : "bg-amber-200/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
@@ -204,7 +197,6 @@ function PendingReviewBanner({
         </Link>
       </div>
 
-      {/* Close — top-right; component state only, so reload re-shows it. */}
       <button
         type="button"
         onClick={() => setDismissed(true)}
@@ -226,13 +218,11 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const { data: summary, isLoading } = useGetDashboardSummary();
 
-  // National heatmap (all campuses).
   const { data: heatmap } = useQuery({
     queryKey: ["admin-heatmap-national", 8],
     queryFn: () => getHeatmap({ weeksBack: 8 }),
   });
 
-  // Recent journals across the country.
   const { data: journals } = useQuery({
     queryKey: ["admin-recent-journals-national"],
     queryFn: () => listAdminJournals(),
@@ -295,7 +285,6 @@ export default function AdminDashboard() {
     };
   }, [heatmap]);
 
-  // Teams flagged silent or never logged — bulk-remind target.
   const silentTeams = useMemo(() => {
     if (!heatmap) return [];
     return heatmap.teams.filter(
@@ -303,7 +292,6 @@ export default function AdminDashboard() {
     );
   }, [heatmap]);
 
-  // Worst-performing campuses by current-week coverage %.
   const worstCampuses = useMemo(() => {
     if (!heatmap || heatmap.weeks.length === 0) return [];
     const currentWeek = heatmap.weeks[heatmap.weeks.length - 1];
@@ -335,12 +323,11 @@ export default function AdminDashboard() {
         ...c,
         pct: c.total === 0 ? 0 : Math.round((c.submitted / c.total) * 100),
       }))
-      .filter((c) => c.total >= 1) // require at least 1 team to rank
+      .filter((c) => c.total >= 1)
       .sort((a, b) => a.pct - b.pct || b.silent - a.silent)
-      .slice(0, 3);
+      .slice(0, 4);
   }, [heatmap]);
 
-  // Latest 4 journals nationally.
   const recentJournals = useMemo(() => {
     if (!journals) return [];
     return [...journals]
@@ -359,7 +346,6 @@ export default function AdminDashboard() {
     );
   if (!summary) return <div>Failed to load dashboard</div>;
 
-  // Coverage health → colour + label (shared scale with coordinator console).
   const pct = coverage?.pct ?? 0;
   const health =
     pct >= 80
@@ -384,42 +370,54 @@ export default function AdminDashboard() {
           };
   const pendingCoverage = coverage ? coverage.total - coverage.submitted : 0;
 
-  // ── Primary KPI tiles (horizontal, icon-left) ──────────────────────────────
-  const kpis: {
+  const hasPending =
+    summary.pendingReviewCount +
+      summary.pendingDemoDayCount +
+      summary.pendingAccessRequestCount >
+    0;
+
+  // ── Unified metric band (one hairline-divided grid, no floating cards) ──────
+  const metrics: {
     label: string;
     value: React.ReactNode;
-    sub: React.ReactNode;
+    sub?: React.ReactNode;
     icon: React.ComponentType<{ className?: string }>;
-    accent: string;
     href: string;
     testid: string;
+    valueClass?: string;
   }[] = [
     {
       label: "Verified revenue",
       value: formatINR(summary.totalVerifiedRevenue),
-      sub: `+ ${formatINR(summary.totalOrderBook)} order book`,
+      sub: "Counts toward leaderboard",
       icon: Trophy,
-      accent: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950",
       href: "/admin/leaderboard",
-      testid: "link-card-revenue",
+      testid: "metric-revenue",
+      valueClass: "text-primary",
+    },
+    {
+      label: "Order book",
+      value: formatINR(summary.totalOrderBook),
+      sub: "Committed pipeline",
+      icon: Briefcase,
+      href: "/admin/projects",
+      testid: "metric-order-book",
     },
     {
       label: "Active teams",
       value: summary.activeTeams.toLocaleString(),
       sub: `Across ${summary.totalCampuses} campuses`,
       icon: Users,
-      accent: "bg-violet-50 text-violet-600 dark:bg-violet-950",
       href: "/admin/teams",
-      testid: "link-card-teams",
+      testid: "metric-teams",
     },
     {
       label: "Demo Day eligible",
       value: summary.demoEligibleTeams.toLocaleString(),
       sub: "Teams crossing ₹2L",
       icon: Rocket,
-      accent: "bg-blue-50 text-blue-600 dark:bg-blue-950",
       href: "/admin/demo-day-submissions",
-      testid: "link-card-demo-day",
+      testid: "metric-demo-day",
     },
     {
       label: "Pending reviews",
@@ -433,57 +431,42 @@ export default function AdminDashboard() {
           "Nothing overdue"
         ),
       icon: AlertCircle,
-      accent: "bg-amber-50 text-amber-600 dark:bg-amber-950",
       href: "/admin/queue",
-      testid: "link-card-pending-reviews",
-    },
-  ];
-
-  // ── Secondary national stats strip ─────────────────────────────────────────
-  const stats: {
-    label: string;
-    value: React.ReactNode;
-    icon: React.ComponentType<{ className?: string }>;
-    href: string;
-    testid: string;
-  }[] = [
-    {
-      label: "Order book",
-      value: formatINR(summary.totalOrderBook),
-      icon: Briefcase,
-      href: "/admin/projects",
-      testid: "stat-order-book",
+      testid: "metric-pending-reviews",
     },
     {
       label: "Campuses",
       value: summary.totalCampuses.toLocaleString(),
+      sub: "Program-wide",
       icon: Building2,
       href: "/admin/campuses",
-      testid: "stat-campuses",
+      testid: "metric-campuses",
     },
     {
       label: "Teams awaiting approval",
       value: summary.pendingTeams.toLocaleString(),
+      sub: "Team requests",
       icon: ListChecks,
       href: "/admin/team-requests",
-      testid: "stat-pending-teams",
+      testid: "metric-pending-teams",
     },
     {
       label: "Roster requests",
       value: summary.pendingAccessRequestCount.toLocaleString(),
+      sub: "New-user access",
       icon: UserPlus,
       href: "/admin/new-users-requests",
-      testid: "stat-roster-requests",
+      testid: "metric-roster-requests",
     },
   ];
 
   return (
     <>
       <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* ===================== TOOLBAR HEADER ===================== */}
+        {/* ===================== HEADER ===================== */}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="h-7 w-1 rounded-full bg-primary" />
+            <span className="h-8 w-1 rounded-full bg-primary" />
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
                 National Command Center
@@ -505,7 +488,6 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* Pending-verification reminder banner. */}
         <PendingReviewBanner
           pendingReviewCount={summary.pendingReviewCount}
           overdueReviewCount={summary.overdueReviewCount}
@@ -514,68 +496,39 @@ export default function AdminDashboard() {
           oldestPendingAt={summary.pendingReviewOldestAt}
         />
 
-        {/* ============ PRIMARY KPI TILES — horizontal, icon-left ============ */}
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {kpis.map((k) => {
-            const Icon = k.icon;
+        {/* ============ METRIC BAND — one panel, hairline dividers ============ */}
+        <section
+          className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border md:grid-cols-4"
+          data-testid="admin-metric-band"
+        >
+          {metrics.map((m) => {
+            const Icon = m.icon;
             return (
               <Link
-                key={k.testid}
-                href={k.href}
-                className={cn(
-                  PANEL,
-                  "group flex items-center gap-3.5 p-4 transition-colors hover:border-primary/30 hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                )}
-                data-testid={k.testid}
+                key={m.testid}
+                href={m.href}
+                data-testid={m.testid}
+                className="group bg-card p-4 transition-colors hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
-                <span
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate text-[11px] font-medium uppercase tracking-wide">
+                    {m.label}
+                  </span>
+                </div>
+                <div
                   className={cn(
-                    "grid h-11 w-11 shrink-0 place-items-center rounded-xl",
-                    k.accent,
+                    "mt-2 text-2xl font-bold leading-none tabular-nums tracking-tight",
+                    m.valueClass,
                   )}
                 >
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xl font-bold leading-tight tabular-nums tracking-tight">
-                    {k.value}
-                  </div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {k.label}
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground/80">
-                    {k.sub}
-                  </div>
+                  {m.value}
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-              </Link>
-            );
-          })}
-        </section>
-
-        {/* ============ SECONDARY STATS STRIP ============ */}
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {stats.map((s) => {
-            const Icon = s.icon;
-            return (
-              <Link
-                key={s.testid}
-                href={s.href}
-                className={cn(
-                  PANEL,
-                  "flex items-center gap-3 px-4 py-3 transition-colors hover:border-primary/30 hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                {m.sub && (
+                  <div className="mt-1.5 truncate text-xs text-muted-foreground">
+                    {m.sub}
+                  </div>
                 )}
-                data-testid={s.testid}
-              >
-                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <div className="text-base font-bold leading-none tabular-nums">
-                    {s.value}
-                  </div>
-                  <div className="mt-1 truncate text-[11px] uppercase tracking-wide text-muted-foreground">
-                    {s.label}
-                  </div>
-                </div>
               </Link>
             );
           })}
@@ -585,7 +538,7 @@ export default function AdminDashboard() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           {/* ---------- WORK COLUMN ---------- */}
           <div className="min-w-0 space-y-5">
-            {/* NATIONAL JOURNAL COVERAGE — horizontal meter */}
+            {/* NATIONAL JOURNAL COVERAGE */}
             <section className={cn(PANEL, "overflow-hidden")}>
               <div className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-2">
@@ -646,7 +599,6 @@ export default function AdminDashboard() {
                     />
                   </div>
 
-                  {/* Breakdown legend */}
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {(
                       [
@@ -716,7 +668,7 @@ export default function AdminDashboard() {
               )}
             </section>
 
-            {/* CAMPUSES NEEDING ATTENTION — triage worklist */}
+            {/* CAMPUSES NEEDING ATTENTION */}
             <section className={cn(PANEL, "overflow-hidden")}>
               <div className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-2">
@@ -776,7 +728,7 @@ export default function AdminDashboard() {
               </div>
             </section>
 
-            {/* RECENT JOURNAL SUBMISSIONS — activity feed */}
+            {/* RECENT JOURNAL SUBMISSIONS */}
             <section className={cn(PANEL, "overflow-hidden")}>
               <div className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-2">
@@ -842,37 +794,39 @@ export default function AdminDashboard() {
 
           {/* ---------- COMMAND RAIL ---------- */}
           <aside className="space-y-5 self-start lg:sticky lg:top-4">
-            {/* Pending work action center */}
-            <ActionCenter
-              items={[
-                {
-                  key: "revenue",
-                  label: "Revenue entries to verify",
-                  count: summary.pendingReviewCount,
-                  oldestAt: summary.pendingReviewOldestAt,
-                  href: "/admin/queue",
-                  color: "orange",
-                },
-                {
-                  key: "demoday",
-                  label: "Demo Day applications",
-                  count: summary.pendingDemoDayCount,
-                  oldestAt: summary.pendingDemoDayOldestAt,
-                  href: "/admin/demo-day-submissions",
-                  color: "violet",
-                },
-                {
-                  key: "roster",
-                  label: "Roster join requests",
-                  count: summary.pendingAccessRequestCount,
-                  oldestAt: summary.pendingAccessRequestOldestAt,
-                  href: "/admin/roster",
-                  color: "rose",
-                },
-              ]}
-            />
+            {/* Pending work — only when there IS pending work (no empty box) */}
+            {hasPending && (
+              <ActionCenter
+                items={[
+                  {
+                    key: "revenue",
+                    label: "Revenue entries to verify",
+                    count: summary.pendingReviewCount,
+                    oldestAt: summary.pendingReviewOldestAt,
+                    href: "/admin/queue",
+                    color: "orange",
+                  },
+                  {
+                    key: "demoday",
+                    label: "Demo Day applications",
+                    count: summary.pendingDemoDayCount,
+                    oldestAt: summary.pendingDemoDayOldestAt,
+                    href: "/admin/demo-day-submissions",
+                    color: "violet",
+                  },
+                  {
+                    key: "roster",
+                    label: "Roster join requests",
+                    count: summary.pendingAccessRequestCount,
+                    oldestAt: summary.pendingAccessRequestOldestAt,
+                    href: "/admin/roster",
+                    color: "rose",
+                  },
+                ]}
+              />
+            )}
 
-            {/* Top campuses (compact leaderboard) */}
+            {/* Top campuses */}
             <section className={cn(PANEL, "overflow-hidden")}>
               <div className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-2">
@@ -934,7 +888,7 @@ export default function AdminDashboard() {
               </div>
             </section>
 
-            {/* Recent activity — live audit feed (NEW) */}
+            {/* Recent activity — live audit feed */}
             <section className={cn(PANEL, "overflow-hidden")}>
               <div className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-2">
@@ -963,7 +917,7 @@ export default function AdminDashboard() {
                         className="flex gap-3 px-5 py-2.5"
                         data-testid={`activity-${a.id}`}
                       >
-                        <span className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+                        <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
                           <Clock className="h-3 w-3" />
                         </span>
                         <div className="min-w-0 flex-1">
@@ -975,7 +929,7 @@ export default function AdminDashboard() {
                                 : "System"}
                             </span>{" "}
                             <span className="text-muted-foreground">
-                              {humanizeAction(a.action).toLowerCase()}
+                              {humanizeAction(a.action)}
                             </span>{" "}
                             <span className="text-muted-foreground">
                               {a.targetType}
