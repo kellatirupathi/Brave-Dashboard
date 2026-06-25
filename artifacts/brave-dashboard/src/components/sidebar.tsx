@@ -44,6 +44,7 @@ const STUDENT_DOCS_URL =
   "https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?tab=t.0";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
+import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { cn } from "@/lib/utils";
 import { BraveLogo } from "./brave-logo";
 import {
@@ -251,6 +252,18 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const resourcesVisibleForStudent =
     resourcesSettings?.enabledForStudents ?? true;
 
+  // Admin-controlled visibility for the student Demo Day menu item. Reuses the
+  // shared student-grit-config cache. Defaults to true while loading so the
+  // item doesn't flicker out for students who already had access.
+  const { data: studentGritConfig } = useQuery({
+    queryKey: ["student-grit-config"],
+    queryFn: getStudentGritConfig,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  const demoDayMenuVisibleForStudent =
+    studentGritConfig?.demoDayMenuEnabled ?? true;
+
   // Per-page admin permissions (default-allow). Enabled only for admins; the
   // query is cached and shared with ProtectedRoute. Restricted admins have
   // hidden pages filtered out of the nav below.
@@ -273,12 +286,16 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             icon: Award,
             isNew: true,
           },
-          {
-            name: "Demo Day",
-            href: "/demo-day",
-            icon: Rocket,
-            isNew: true,
-          },
+          ...(demoDayMenuVisibleForStudent
+            ? [
+                {
+                  name: "Demo Day",
+                  href: "/demo-day",
+                  icon: Rocket,
+                  isNew: true,
+                },
+              ]
+            : []),
           { name: "My Team", href: "/team", icon: Users },
           // Resources entry is gated by the admin-controlled visibility flag.
           ...(resourcesVisibleForStudent

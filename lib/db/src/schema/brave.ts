@@ -838,6 +838,11 @@ export const programmeConfigTable = pgTable("programme_config", {
   gritMilesDashboardEnabled: boolean("grit_miles_dashboard_enabled")
     .notNull()
     .default(false),
+  // When true (default), the "Demo Day" entry is visible in the student
+  // sidebar and the /demo-day route is reachable. When false, both are hidden
+  // for students. Independent of the GRIT Miles flags above and of the admin
+  // "Demo Day Submissions" item, which is never affected.
+  demoDayMenuEnabled: boolean("demo_day_menu_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

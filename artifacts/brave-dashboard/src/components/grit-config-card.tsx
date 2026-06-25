@@ -35,6 +35,9 @@ export function GritConfigCard() {
     useState<boolean>(false);
   const [gritMilesDashboardEnabled, setGritMilesDashboardEnabled] =
     useState<boolean>(false);
+  // Independent of the GRIT flags above — controls the student Demo Day menu
+  // item + /demo-day route visibility. Default true = visible.
+  const [demoDayMenuEnabled, setDemoDayMenuEnabled] = useState<boolean>(true);
 
   useEffect(() => {
     if (!data) return;
@@ -43,6 +46,7 @@ export function GritConfigCard() {
     setEscalationEnabled(data.escalationEnabled);
     setGritMilesMenuEnabled(data.gritMilesMenuEnabled);
     setGritMilesDashboardEnabled(data.gritMilesDashboardEnabled);
+    setDemoDayMenuEnabled(data.demoDayMenuEnabled);
   }, [data]);
 
   const saveMut = useMutation({
@@ -58,6 +62,7 @@ export function GritConfigCard() {
         escalationEnabled,
         gritMilesMenuEnabled,
         gritMilesDashboardEnabled,
+        demoDayMenuEnabled,
       }),
     onSuccess: (res) => {
       toast({ title: "GRIT settings saved" });
@@ -235,6 +240,21 @@ export function GritConfigCard() {
                 checked={gritMilesDashboardEnabled}
                 onCheckedChange={setGritMilesDashboardEnabled}
                 data-testid="switch-grit-dashboard-enabled"
+              />
+            </div>
+
+            {/* Demo Day sidebar visibility (independent of GRIT flags). */}
+            <div className="flex items-center justify-between border p-4 rounded-lg">
+              <div>
+                <p className="font-medium">Show Demo Day in student sidebar</p>
+                <p className="text-sm text-muted-foreground">
+                  When off, students won't see the Demo Day menu item.
+                </p>
+              </div>
+              <Switch
+                checked={demoDayMenuEnabled}
+                onCheckedChange={setDemoDayMenuEnabled}
+                data-testid="switch-demo-day-menu-enabled"
               />
             </div>
 

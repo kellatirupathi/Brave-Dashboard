@@ -253,6 +253,30 @@ function StudentDashboardOrGetStarted() {
   );
 }
 
+// Gates the student Demo Day page behind the admin-controlled demoDayMenuEnabled
+// flag so a student can't reach /demo-day by typing the URL when it's hidden.
+// Admins/coordinators are unaffected (they reach this route via different nav).
+function StudentDemoDayGuard() {
+  const { user } = useAuth();
+  const { data: gritConfig, isLoading } = useQuery({
+    queryKey: ["student-grit-config"],
+    queryFn: getStudentGritConfig,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  if (user?.role === "student" && isLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <Spinner className="size-10" />
+      </div>
+    );
+  }
+  if (user?.role === "student" && gritConfig?.demoDayMenuEnabled === false) {
+    return <Redirect to="/" />;
+  }
+  return <DemoDayUpload />;
+}
+
 function RootRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -370,7 +394,7 @@ function Router() {
         </Route>
         <Route path="/demo-day">
           <ProtectedRoute
-            component={DemoDayUpload}
+            component={StudentDemoDayGuard}
             allowedRoles={["student"]}
           />
         </Route>

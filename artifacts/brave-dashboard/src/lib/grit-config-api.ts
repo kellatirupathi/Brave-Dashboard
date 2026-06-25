@@ -22,6 +22,9 @@ export type StudentGritConfig = {
   // student home dashboard UI. Independent of each other.
   gritMilesMenuEnabled: boolean;
   gritMilesDashboardEnabled: boolean;
+  // When true (default), the "Demo Day" sidebar entry + /demo-day route are
+  // visible to students. Independent of the GRIT Miles flags above.
+  demoDayMenuEnabled: boolean;
 };
 
 export type AdminGritConfig = StudentGritConfig & {
@@ -53,6 +56,7 @@ export function updateAdminGritConfig(
     escalationEnabled: boolean;
     gritMilesMenuEnabled: boolean;
     gritMilesDashboardEnabled: boolean;
+    demoDayMenuEnabled: boolean;
   }>,
 ): Promise<AdminGritConfig> {
   return customFetch<AdminGritConfig>("/api/admin/grit-config", {

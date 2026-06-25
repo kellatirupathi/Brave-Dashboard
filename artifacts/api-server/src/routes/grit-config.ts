@@ -47,6 +47,7 @@ const UpdateBody = z.object({
   escalationEnabled: z.boolean().optional(),
   gritMilesMenuEnabled: z.boolean().optional(),
   gritMilesDashboardEnabled: z.boolean().optional(),
+  demoDayMenuEnabled: z.boolean().optional(),
 });
 
 // Read/seed the singleton row, normalising the GRIT ladder to defaults when
@@ -84,6 +85,7 @@ router.get(
       endDate: (row.endDate ?? "").slice(0, 10),
       gritMilesMenuEnabled: row.gritMilesMenuEnabled,
       gritMilesDashboardEnabled: row.gritMilesDashboardEnabled,
+      demoDayMenuEnabled: row.demoDayMenuEnabled,
     });
   },
 );
@@ -103,6 +105,7 @@ router.get(
       escalationEnabled: row.escalationEnabled,
       gritMilesMenuEnabled: row.gritMilesMenuEnabled,
       gritMilesDashboardEnabled: row.gritMilesDashboardEnabled,
+      demoDayMenuEnabled: row.demoDayMenuEnabled,
     });
   },
 );
@@ -139,6 +142,9 @@ router.put(
     if (parsed.data.gritMilesDashboardEnabled !== undefined) {
       patch.gritMilesDashboardEnabled = parsed.data.gritMilesDashboardEnabled;
     }
+    if (parsed.data.demoDayMenuEnabled !== undefined) {
+      patch.demoDayMenuEnabled = parsed.data.demoDayMenuEnabled;
+    }
     const [updated] = await db
       .update(programmeConfigTable)
       .set(patch)
@@ -150,6 +156,7 @@ router.put(
       escalationEnabled: updated.escalationEnabled,
       gritMilesMenuEnabled: updated.gritMilesMenuEnabled,
       gritMilesDashboardEnabled: updated.gritMilesDashboardEnabled,
+      demoDayMenuEnabled: updated.demoDayMenuEnabled,
     });
   },
 );
