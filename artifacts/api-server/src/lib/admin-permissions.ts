@@ -36,6 +36,7 @@ export const ADMIN_PAGES: readonly AdminPage[] = [
   { href: "/admin/heatmap", label: "Heatmap" },
   { href: "/admin/journals", label: "Journals" },
   { href: "/admin/demo-day", label: "Demo Day" },
+  { href: "/admin/demo-day-submissions", label: "Demo Day Submissions" },
   { href: "/admin/campuses", label: "Campuses" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/new-users-requests", label: "New User Requests" },

@@ -8,7 +8,11 @@ import {
   AlertTriangle,
   Pencil,
   Trash2,
+  ImageIcon,
+  Upload,
+  X,
 } from "lucide-react";
+import { useRequestUploadUrl } from "@workspace/api-client-react";
 import {
   Card,
   CardContent,
@@ -64,6 +68,10 @@ export default function Journal() {
   const [activeConversations, setActiveConversations] = useState<string>("0");
   const [projectsStarted, setProjectsStarted] = useState<string>("0");
   const [projectsClosed, setProjectsClosed] = useState<string>("0");
+  // Optional images attached to this week's journal (object-storage URLs).
+  const [images, setImages] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const requestUpload = useRequestUploadUrl();
 
   // Default to "current week" status (server picks the right open week).
   const { data: currentStatus, isLoading: loadingCurrent } = useQuery({
@@ -154,6 +162,7 @@ export default function Journal() {
       setActiveConversations(String(weekData.journal.activeConversations ?? 0));
       setProjectsStarted(String(weekData.journal.projectsStarted ?? 0));
       setProjectsClosed(String(weekData.journal.projectsClosed ?? 0));
+      setImages(weekData.journal.images ?? []);
     } else if (weekData && !weekData.journal) {
       // New week — clear the form.
       setWhatWeDid("");
@@ -163,6 +172,7 @@ export default function Journal() {
       setActiveConversations("0");
       setProjectsStarted("0");
       setProjectsClosed("0");
+      setImages([]);
     }
   }, [weekData?.journal, weekData?.weekId]);
 
@@ -181,6 +191,54 @@ export default function Journal() {
       });
     },
   });
+
+  const isImageFile = (file: File): boolean =>
+    /^image\//.test(file.type) ||
+    /\.(jpe?g|png|gif|webp|heic)$/i.test(file.name);
+
+  const handleImageUpload = async (file: File | undefined) => {
+    if (!file) return;
+    if (!isImageFile(file)) {
+      toast({
+        title: "Images only",
+        description: "Please upload a JPG, PNG, GIF, or WEBP image.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (images.length >= 10) {
+      toast({
+        title: "Limit reached",
+        description: "You can attach up to 10 images per journal.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const presigned = await requestUpload.mutateAsync({
+        data: { name: file.name, size: file.size, contentType: file.type },
+      });
+      const putRes = await fetch(presigned.uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("Upload failed");
+      setImages((prev) => [...prev, presigned.objectPath]);
+    } catch {
+      toast({
+        title: "Upload failed",
+        description: "Could not upload the image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = (url: string) =>
+    setImages((prev) => prev.filter((u) => u !== url));
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,6 +266,7 @@ export default function Journal() {
       activeConversations: toCount(activeConversations),
       projectsStarted: toCount(projectsStarted),
       projectsClosed: toCount(projectsClosed),
+      images: images.length > 0 ? images : undefined,
     });
   };
 
@@ -394,10 +453,65 @@ export default function Journal() {
                   </div>
                 ))}
               </div>
+
+              {/* Optional images — e.g. a client / facility visit. Used when
+                  shooting reels. JPG / PNG / GIF / WEBP, up to 10. */}
+              <div>
+                <label className="text-xs font-medium mb-1 flex items-center gap-1.5 text-muted-foreground">
+                  <ImageIcon className="h-3.5 w-3.5" /> Photos (optional)
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {images.map((url) => (
+                    <div key={url} className="relative">
+                      <img
+                        src={url}
+                        alt="Journal attachment"
+                        className="h-20 w-20 rounded-md border object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(url)}
+                        className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-destructive-foreground shadow"
+                        aria-label="Remove image"
+                        data-testid="journal-remove-image"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {images.length < 10 && (
+                    <label
+                      className={`flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed text-xs text-muted-foreground hover:bg-accent ${
+                        uploadingImage ? "pointer-events-none opacity-60" : ""
+                      }`}
+                      data-testid="journal-add-image"
+                    >
+                      {uploadingImage ? (
+                        <Spinner className="h-4 w-4" />
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4" />
+                          Add
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          void handleImageUpload(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  disabled={submitMut.isPending}
+                  disabled={submitMut.isPending || uploadingImage}
                   data-testid="journal-submit"
                 >
                   {submitMut.isPending
@@ -485,6 +599,24 @@ export default function Journal() {
                         </span>
                         {j.nextWeekPlan}
                       </p>
+                    )}
+                    {j.images && j.images.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {j.images.map((url, i) => (
+                          <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <img
+                              src={url}
+                              alt={`Attachment ${i + 1}`}
+                              className="h-16 w-16 rounded-md border object-cover hover:opacity-80"
+                            />
+                          </a>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>

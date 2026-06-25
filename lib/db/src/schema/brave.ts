@@ -648,6 +648,60 @@ export type InsertDemoDayApplication = z.infer<
 >;
 export type DemoDayApplication = typeof demoDayApplicationsTable.$inferSelect;
 
+// --- New Demo Day "best project" submissions (additive, isolated) ----------
+// A separate, simpler flow from demo_day_applications: ANY team can submit
+// their best project to be considered for a Demo Day presentation in front of
+// investors / NxtWave founders. Submitting does NOT guarantee a slot — admins
+// shortlist. Kept in its own table so the legacy Demo Day application flow and
+// admin page are completely untouched.
+export const demoDaySubmissionStatusEnum = pgEnum(
+  "demo_day_submission_status",
+  ["submitted", "shortlisted", "rejected"],
+);
+
+export const demoDaySubmissionsTable = pgTable(
+  "demo_day_submissions",
+  {
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id").notNull(),
+    // Optional link to an existing project the team picked as their best work.
+    projectId: integer("project_id"),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    // Optional external link (pitch deck / live demo / video walkthrough).
+    link: text("link"),
+    // Optional uploaded file (deck/one-pager PDF) via object storage.
+    fileUrl: text("file_url"),
+    status: demoDaySubmissionStatusEnum("status")
+      .notNull()
+      .default("submitted"),
+    // Who created/last edited (user id) — informational.
+    submittedBy: text("submitted_by").notNull(),
+    // Admin review note (e.g. why shortlisted/rejected). Optional.
+    reviewNote: text("review_note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // One active submission per team — re-submitting edits the same row.
+    unique("demo_day_submissions_team_unique").on(t.teamId),
+    index("demo_day_submissions_status_idx").on(t.status),
+  ],
+);
+
+export const insertDemoDaySubmissionSchema = createInsertSchema(
+  demoDaySubmissionsTable,
+).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDemoDaySubmission = z.infer<
+  typeof insertDemoDaySubmissionSchema
+>;
+export type DemoDaySubmission = typeof demoDaySubmissionsTable.$inferSelect;
+
 // Notifications
 export const notificationsTable = pgTable(
   "notifications",
@@ -907,6 +961,21 @@ export const weeklyJournalsTable = pgTable(
     blockerNote: text("blocker_note"),
     blockerUpdatedBy: text("blocker_updated_by"),
     blockerUpdatedAt: timestamp("blocker_updated_at", { withTimezone: true }),
+    // --- Optional images attached to this journal entry (additive, nullable).
+    // Array of uploaded image URLs (object storage). Used by students to add
+    // photos (e.g. a client/facility visit) and surfaced to admins; also fed
+    // to the reel generator. Old rows stay null. JPG/PNG/etc., optional.
+    images: jsonb("images"), // string[] of image URLs
+    // --- Per-journal reel scan (additive, all nullable; populated by the
+    // Gemini reel auditor — see lib/ai/analyse-journal-reel.ts). Decides, using
+    // this team's previous journals as context, whether THIS entry is worthy of
+    // an Instagram-reel and, if so, stores a single ready-to-shoot script.
+    // Nothing legacy reads these, so existing journal flows are untouched.
+    reelWorthy: boolean("reel_worthy"), // null = not yet scanned
+    reelBucket: text("reel_bucket"), // 'STORY' | 'INFORMATIVE' | 'PAIN POINT' | 'STUDENT QUESTION'
+    reelScript: text("reel_script"), // the generated script (null when not worthy)
+    reelReason: text("reel_reason"), // short rationale for the worthy/not decision
+    reelAnalysedAt: timestamp("reel_analysed_at", { withTimezone: true }),
   },
   (t) => [
     unique("weekly_journals_team_week_unique").on(t.teamId, t.weekStartDate),

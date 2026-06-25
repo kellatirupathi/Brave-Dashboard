@@ -38,8 +38,8 @@ import ProjectDetail from "@/pages/student/projects/detail";
 import Leaderboard from "@/pages/student/leaderboard";
 import TeamProfile from "@/pages/student/team";
 import GetStarted from "@/pages/student/get-started";
-import DemoDay from "@/pages/student/demo-day";
-import DemoDayLegacy from "@/pages/student/demo-day-legacy";
+import GritMilesPage from "@/pages/student/demo-day";
+import DemoDayUpload from "@/pages/student/demo-day-upload";
 import TeamDashboardLegacy from "@/pages/student/dashboard-legacy";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
 import Notifications from "@/pages/student/notifications";
@@ -65,6 +65,7 @@ import AdminProjects from "@/pages/admin/projects";
 import AdminProjectDetail from "@/pages/admin/project-detail";
 import AdminLeaderboard from "@/pages/admin/leaderboard";
 import AdminDemoDay from "@/pages/admin/demo-day";
+import AdminDemoDaySubmissions from "@/pages/admin/demo-day-submissions";
 import AdminUsers from "@/pages/admin/users";
 import AdminUserNew from "@/pages/admin/user-new";
 import AdminUserPermissions from "@/pages/admin/user-permissions";
@@ -109,6 +110,7 @@ import { Layout } from "@/components/layout";
 import { Spinner } from "@/components/ui/spinner";
 import { AccessGate } from "@/components/access-gate";
 import { TermsGate } from "@/components/terms-gate";
+import { GritIntroDialog } from "@/components/grit-intro-dialog";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -251,27 +253,6 @@ function StudentDashboardOrGetStarted() {
   );
 }
 
-// /demo-day page version switch. gritMilesMenuEnabled=false (default) renders
-// the previous 3-level Demo Day page; true renders the new GRIT Miles ladder.
-function StudentDemoDayPage() {
-  const { user } = useAuth();
-  const { data: gritConfig, isLoading: gritLoading } = useQuery({
-    queryKey: ["student-grit-config"],
-    queryFn: getStudentGritConfig,
-    staleTime: 60_000,
-    enabled: user?.role === "student",
-  });
-  // Wait for the flag so a flag-ON student never sees the legacy page flash.
-  if (gritLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Spinner className="size-10" />
-      </div>
-    );
-  }
-  return gritConfig?.gritMilesMenuEnabled ? <DemoDay /> : <DemoDayLegacy />;
-}
-
 function RootRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -381,9 +362,15 @@ function Router() {
         <Route path="/browse-teams">
           <ProtectedRoute component={BrowseTeams} allowedRoles={["student"]} />
         </Route>
+        <Route path="/grit-miles">
+          <ProtectedRoute
+            component={GritMilesPage}
+            allowedRoles={["student"]}
+          />
+        </Route>
         <Route path="/demo-day">
           <ProtectedRoute
-            component={StudentDemoDayPage}
+            component={DemoDayUpload}
             allowedRoles={["student"]}
           />
         </Route>
@@ -549,6 +536,12 @@ function Router() {
         <Route path="/admin/demo-day">
           <ProtectedRoute component={AdminDemoDay} allowedRoles={["admin"]} />
         </Route>
+        <Route path="/admin/demo-day-submissions">
+          <ProtectedRoute
+            component={AdminDemoDaySubmissions}
+            allowedRoles={["admin"]}
+          />
+        </Route>
         <Route path="/admin/users/new">
           <ProtectedRoute component={AdminUserNew} allowedRoles={["admin"]} />
         </Route>
@@ -680,6 +673,9 @@ function App() {
           {/* Blocking student Terms & Conditions consent gate. Self-gates on
               role + acceptance; covers the whole app via a portalled overlay. */}
           <TermsGate />
+          {/* One-time GRIT Miles intro pop-up. Self-gates on role + terms +
+              dashboard route + a localStorage "seen" flag. Never blocking. */}
+          <GritIntroDialog />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

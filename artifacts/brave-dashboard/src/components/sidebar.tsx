@@ -36,6 +36,8 @@ import {
   UserPlus,
   GraduationCap,
   ExternalLink,
+  Rocket,
+  Sparkles,
 } from "lucide-react";
 
 // Student documentation guide (opens in a new tab from the sidebar bottom).
@@ -44,7 +46,6 @@ const STUDENT_DOCS_URL =
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { cn } from "@/lib/utils";
-import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { BraveLogo } from "./brave-logo";
 import {
   AlertDialog,
@@ -72,6 +73,9 @@ type NavLeaf = {
   // When true, the link opens in a new browser tab (full page load) instead of
   // an in-app route — used for the standalone Guidebook page.
   newTab?: boolean;
+  // When true, render a small shining "NEW" badge to draw attention to a newly
+  // launched section (e.g. GRIT Miles, Demo Day).
+  isNew?: boolean;
 };
 type NavGroup = {
   name: string;
@@ -248,19 +252,6 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const resourcesVisibleForStudent =
     resourcesSettings?.enabledForStudents ?? true;
 
-  // Demo Day → GRIT Miles version flag (admin-controlled, default false =
-  // previous "Demo Day" experience). Drives the student menu label + which
-  // page the /demo-day route renders. Reuses the same query key/cache as the
-  // student dashboard so there is no extra request. Defaults to false while
-  // loading so the menu reads "Demo Day" until the admin switches it on.
-  const { data: studentGritConfig } = useQuery({
-    queryKey: ["student-grit-config"],
-    queryFn: getStudentGritConfig,
-    staleTime: 60_000,
-    enabled: user?.role === "student",
-  });
-  const gritMilesMenuEnabled = studentGritConfig?.gritMilesMenuEnabled ?? false;
-
   // Per-page admin permissions (default-allow). Enabled only for admins; the
   // query is cached and shared with ProtectedRoute. Restricted admins have
   // hidden pages filtered out of the nav below.
@@ -278,9 +269,16 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           { name: "Projects", href: "/projects", icon: FolderKanban },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
           {
-            name: gritMilesMenuEnabled ? "GRIT Miles" : "Demo Day",
-            href: "/demo-day",
+            name: "GRIT Miles",
+            href: "/grit-miles",
             icon: Award,
+            isNew: true,
+          },
+          {
+            name: "Demo Day",
+            href: "/demo-day",
+            icon: Rocket,
+            isNew: true,
           },
           { name: "My Team", href: "/team", icon: Users },
           // Resources entry is gated by the admin-controlled visibility flag.
@@ -368,6 +366,12 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         ],
       },
       { name: "Demo Day", href: "/admin/demo-day", icon: FileText },
+      {
+        name: "Demo Day Submissions",
+        href: "/admin/demo-day-submissions",
+        icon: Rocket,
+        isNew: true,
+      },
       {
         name: "Setup",
         icon: Building2,
@@ -526,7 +530,16 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                   )}
                 >
                   <Icon className="w-4 h-4" />
-                  {leaf.name}
+                  <span className="flex-1">{leaf.name}</span>
+                  {leaf.isNew && (
+                    <span
+                      className="inline-flex items-center gap-0.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-amber-950 shadow-sm animate-pulse"
+                      data-testid={`sidebar-new-badge-${leaf.name}`}
+                    >
+                      <Sparkles className="h-2.5 w-2.5" />
+                      New
+                    </span>
+                  )}
                 </span>
               </Link>
             );

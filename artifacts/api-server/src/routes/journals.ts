@@ -17,11 +17,19 @@ import {
   scheduleJournalAnalysis,
   runJournalAnalysisNow,
 } from "../lib/ai/journal-scheduler";
+import {
+  scheduleJournalReelScan,
+  runJournalReelScanNow,
+} from "../lib/ai/journal-reel-scheduler";
 import { requireAdminPage } from "../lib/require-admin-page";
 
 const router: IRouter = Router();
 
 const counterField = z.number().int().min(0).max(100000).optional();
+
+// Optional images attached to a journal entry (object-storage URLs). Bounded so
+// a journal can't carry an unreasonable number of attachments.
+const imagesField = z.array(z.string().url().max(2000)).max(10).optional();
 
 const SubmitJournalBody = z.object({
   weekId: z.number().int().positive().optional(),
@@ -32,6 +40,7 @@ const SubmitJournalBody = z.object({
   activeConversations: counterField,
   projectsStarted: counterField,
   projectsClosed: counterField,
+  images: imagesField,
 });
 
 function todayIso(): string {
@@ -384,6 +393,7 @@ router.post("/journals", async (req, res): Promise<void> => {
       projectsClosed: parsed.data.projectsClosed ?? 0,
       submittedBy: req.user.id,
       submittedByRole: req.user.role,
+      images: parsed.data.images ?? null,
     })
     .onConflictDoUpdate({
       target: [weeklyJournalsTable.teamId, weeklyJournalsTable.weekStartDate],
@@ -398,13 +408,17 @@ router.post("/journals", async (req, res): Promise<void> => {
         submittedBy: req.user.id,
         submittedByRole: req.user.role,
         submittedAt: new Date(),
+        images: parsed.data.images ?? null,
       },
     })
     .returning();
   // Fire-and-forget AI analysis of the submitted/updated journal. Re-submitting
   // re-schedules so the analysis reflects the latest content. Never blocks the
   // response; no-ops without a Gemini key.
-  if (created) scheduleJournalAnalysis(created.id);
+  if (created) {
+    scheduleJournalAnalysis(created.id);
+    scheduleJournalReelScan(created.id);
+  }
   res.status(201).json(created);
 });
 
@@ -578,7 +592,10 @@ router.post("/coordinator/journals", async (req, res): Promise<void> => {
       },
     })
     .returning();
-  if (created) scheduleJournalAnalysis(created.id);
+  if (created) {
+    scheduleJournalAnalysis(created.id);
+    scheduleJournalReelScan(created.id);
+  }
   res.status(201).json(created);
 });
 
@@ -665,7 +682,10 @@ router.post("/coordinator/journals/bulk", async (req, res): Promise<void> => {
       },
     })
     .returning({ id: weeklyJournalsTable.id });
-  for (const row of inserted) scheduleJournalAnalysis(row.id);
+  for (const row of inserted) {
+    scheduleJournalAnalysis(row.id);
+    scheduleJournalReelScan(row.id);
+  }
   res.json({ ok: true, filled: inserted.length });
 });
 
@@ -783,6 +803,13 @@ router.get("/admin/journals", async (req, res): Promise<void> => {
       blockerStatus: weeklyJournalsTable.blockerStatus,
       blockerNote: weeklyJournalsTable.blockerNote,
       blockerUpdatedAt: weeklyJournalsTable.blockerUpdatedAt,
+      // Optional student-attached images + per-journal reel scan (additive).
+      images: weeklyJournalsTable.images,
+      reelWorthy: weeklyJournalsTable.reelWorthy,
+      reelBucket: weeklyJournalsTable.reelBucket,
+      reelScript: weeklyJournalsTable.reelScript,
+      reelReason: weeklyJournalsTable.reelReason,
+      reelAnalysedAt: weeklyJournalsTable.reelAnalysedAt,
       teamName: teamsTable.name,
       campusName: campusesTable.name,
       submittedByName: sql<string>`coalesce(${usersTable.firstName}, '') || ' ' || coalesce(${usersTable.lastName}, '')`,
@@ -895,6 +922,7 @@ const UpdateJournalBody = z.object({
   activeConversations: counterField,
   projectsStarted: counterField,
   projectsClosed: counterField,
+  images: imagesField,
 });
 
 // Decide whether the actor is allowed to update/delete a given journal.
@@ -1018,6 +1046,7 @@ router.patch("/journals/:id", async (req, res): Promise<void> => {
     update.projectsStarted = parsed.data.projectsStarted;
   if (parsed.data.projectsClosed !== undefined)
     update.projectsClosed = parsed.data.projectsClosed;
+  if (parsed.data.images !== undefined) update.images = parsed.data.images;
   if (Object.keys(update).length === 0) {
     res.status(400).json({ error: "No fields to update" });
     return;
@@ -1038,6 +1067,8 @@ router.patch("/journals/:id", async (req, res): Promise<void> => {
       parsed.data.nextWeekPlan !== undefined)
   ) {
     scheduleJournalAnalysis(updated.id);
+    // Content changed → re-decide reel-worthiness against the new text.
+    scheduleJournalReelScan(updated.id);
   }
 
   // Audit log for staff edits (not student self-edits).
@@ -1179,6 +1210,69 @@ router.post(
       res.status(502).json({
         error:
           "Analysis did not complete. Check that GEMINI_API_KEY is configured.",
+        journal: updated ?? null,
+      });
+      return;
+    }
+    res.json({ ok, journal: updated ?? null });
+  },
+);
+
+// Run / re-run the per-journal REEL SCAN on ONE journal immediately. Decides
+// (using this team's previous journals as context) whether the entry is worthy
+// of a reel and, if so, generates a script. Returns the refreshed reel fields.
+router.post(
+  "/admin/journals/:id/reel-scan",
+  requireAdminPage("/admin/journals", "edit"),
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (req.user.role !== "admin" && req.user.role !== "coordinator") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(weeklyJournalsTable)
+      .where(eq(weeklyJournalsTable.id, id))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Journal not found" });
+      return;
+    }
+    // Coordinators may only scan journals in their own campus.
+    const denial = await authorizeJournalMutation(req.user, existing);
+    if (denial) {
+      res.status(denial.status).json({ error: denial.error });
+      return;
+    }
+
+    const ok = await runJournalReelScanNow(id);
+
+    const [updated] = await db
+      .select({
+        id: weeklyJournalsTable.id,
+        reelWorthy: weeklyJournalsTable.reelWorthy,
+        reelBucket: weeklyJournalsTable.reelBucket,
+        reelScript: weeklyJournalsTable.reelScript,
+        reelReason: weeklyJournalsTable.reelReason,
+        reelAnalysedAt: weeklyJournalsTable.reelAnalysedAt,
+      })
+      .from(weeklyJournalsTable)
+      .where(eq(weeklyJournalsTable.id, id))
+      .limit(1);
+
+    if (!ok && !updated?.reelAnalysedAt) {
+      res.status(502).json({
+        error:
+          "Reel scan did not complete. Check that GEMINI_API_KEY is configured.",
         journal: updated ?? null,
       });
       return;

@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -48,11 +49,26 @@ export function TermsGate() {
   const { user, refresh } = useAuth();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  // One checkbox per statement; all three must be checked before the student
+  // can accept. Index 0/1/2 map to the three list items below.
+  const [checked, setChecked] = useState<[boolean, boolean, boolean]>([
+    false,
+    false,
+    false,
+  ]);
+  const allChecked = checked.every(Boolean);
+  const setCheckedAt = (i: number, v: boolean) =>
+    setChecked((prev) => {
+      const next = [...prev] as [boolean, boolean, boolean];
+      next[i] = v;
+      return next;
+    });
 
   const shouldShow = user?.role === "student" && !user.termsAcceptedAt;
   if (!shouldShow) return null;
 
   const handleAgree = async () => {
+    if (!allChecked) return;
     setSubmitting(true);
     try {
       await acceptTerms();
@@ -78,7 +94,7 @@ export function TermsGate() {
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
           className={cn(
-            "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
+            "fixed left-[50%] top-[50%] z-50 grid w-full max-w-2xl translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
             "max-h-[90vh] overflow-y-auto",
           )}
           data-testid="dialog-terms-gate"
@@ -90,36 +106,61 @@ export function TermsGate() {
             </DialogDescription>
           </DialogHeader>
 
-          <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-foreground">
-            <li>
-              I acknowledge that NxtWave bears no responsibility or liability for
-              any commercial, financial, or contractual arrangements, payments,
-              or disputes arising from my client engagements under this program.
-            </li>
-            <li>
-              I agree not to misrepresent NxtWave, including its brand, programs,
-              or offerings, to any client or third party. I understand that any
-              such misrepresentation may result in immediate termination from
-              this program and may attract further legal or disciplinary action
-              as deemed appropriate by NxtWave.
-            </li>
-            <li>
-              I have read, understood, and unconditionally agree to the{" "}
-              <TermsLink href={TERMS_URL}>
-                NIAT Program Terms &amp; Conditions
-              </TermsLink>
-              , <TermsLink href={PRIVACY_URL}>Privacy Policy</TermsLink>, and{" "}
-              <TermsLink href={CODE_OF_CONDUCT_URL}>
-                NIAT Code of Conduct
-              </TermsLink>
-              .
-            </li>
-          </ol>
+          <div className="space-y-3 text-sm leading-relaxed text-foreground">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={checked[0]}
+                onCheckedChange={(v) => setCheckedAt(0, v === true)}
+                className="mt-0.5 shrink-0"
+                data-testid="checkbox-terms-0"
+              />
+              <span>
+                I acknowledge that NxtWave bears no responsibility or liability
+                for any commercial, financial, or contractual arrangements,
+                payments, or disputes arising from my client engagements under
+                this program.
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={checked[1]}
+                onCheckedChange={(v) => setCheckedAt(1, v === true)}
+                className="mt-0.5 shrink-0"
+                data-testid="checkbox-terms-1"
+              />
+              <span>
+                I agree not to misrepresent NxtWave, including its brand,
+                programs, or offerings, to any client or third party. I
+                understand that any such misrepresentation may result in
+                immediate termination from this program and may attract further
+                legal or disciplinary action as deemed appropriate by NxtWave.
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={checked[2]}
+                onCheckedChange={(v) => setCheckedAt(2, v === true)}
+                className="mt-0.5 shrink-0"
+                data-testid="checkbox-terms-2"
+              />
+              <span>
+                I have read, understood, and unconditionally agree to the{" "}
+                <TermsLink href={TERMS_URL}>
+                  NIAT Program Terms &amp; Conditions
+                </TermsLink>
+                , <TermsLink href={PRIVACY_URL}>Privacy Policy</TermsLink>, and{" "}
+                <TermsLink href={CODE_OF_CONDUCT_URL}>
+                  NIAT Code of Conduct
+                </TermsLink>
+                .
+              </span>
+            </label>
+          </div>
 
           <DialogFooter>
             <Button
               onClick={handleAgree}
-              disabled={submitting}
+              disabled={submitting || !allChecked}
               data-testid="button-accept-terms"
             >
               {submitting ? (

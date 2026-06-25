@@ -31,6 +31,27 @@ export function analyseJournalNow(
   );
 }
 
+// Subset of reel-scan fields returned after a reel-scan call.
+export type JournalReelFields = {
+  id: number;
+  reelWorthy?: boolean | null;
+  reelBucket?: string | null;
+  reelScript?: string | null;
+  reelReason?: string | null;
+  reelAnalysedAt?: string | null;
+};
+
+// Run / re-run the per-journal reel scan. Resolves once it has completed
+// server-side, returning the refreshed reel fields.
+export function runJournalReelScan(
+  id: number,
+): Promise<{ ok: boolean; journal: JournalReelFields | null }> {
+  return customFetch<{ ok: boolean; journal: JournalReelFields | null }>(
+    `/api/admin/journals/${id}/reel-scan`,
+    { method: "POST" },
+  );
+}
+
 // Update blocker triage (manual priority override / status / note).
 export function updateJournalBlocker(
   id: number,

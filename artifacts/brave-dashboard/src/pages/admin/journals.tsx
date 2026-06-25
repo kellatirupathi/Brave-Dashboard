@@ -16,6 +16,8 @@ import {
   CircleDot,
   UserCog,
   Download,
+  Clapperboard,
+  ImageIcon,
 } from "lucide-react";
 import {
   Card,
@@ -88,7 +90,11 @@ import {
   type BlockerPriority,
   type BlockerStatus,
 } from "@/lib/progress-api";
-import { analyseJournalNow, updateJournalBlocker } from "@/lib/journals-ai-api";
+import {
+  analyseJournalNow,
+  updateJournalBlocker,
+  runJournalReelScan,
+} from "@/lib/journals-ai-api";
 
 type Props = {
   scope?: "admin" | "coordinator";
@@ -1312,6 +1318,173 @@ export function JournalDetailCard({
           </button>
         )}
       </div>
+
+      {/* Student-attached images (optional). Surfaced for the reel shoot. */}
+      <JournalImagesStrip images={journal.images ?? null} />
+
+      {/* Per-journal reel scan: worthy/not verdict + script for THIS entry. */}
+      <JournalReelCard journal={journal} />
+    </div>
+  );
+}
+
+// Shows any images the student attached to this journal entry.
+function JournalImagesStrip({ images }: { images: string[] | null }) {
+  if (!images || images.length === 0) return null;
+  return (
+    <div className="mt-3 border-t pt-3">
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground">
+        <ImageIcon className="h-3.5 w-3.5" /> Attached images ({images.length})
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {images.map((src, i) => (
+          <a
+            key={i}
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block"
+          >
+            <img
+              src={src}
+              alt={`Journal attachment ${i + 1}`}
+              className="h-20 w-20 rounded-md border object-cover transition-opacity hover:opacity-80"
+            />
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Per-journal reel scan card. Self-contained: shows the AI's worthy/not verdict
+// and, when worthy, the generated reel script for THIS journal entry. The
+// "Scan" / "Re-scan" button runs the scan on demand and patches the cache.
+function JournalReelCard({ journal }: { journal: JournalRow }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [scanning, setScanning] = useState(false);
+
+  const scanned = !!journal.reelAnalysedAt;
+  const worthy = journal.reelWorthy === true;
+
+  const runScan = async () => {
+    setScanning(true);
+    try {
+      const res = await runJournalReelScan(journal.id);
+      if (res.journal) {
+        const r = res.journal;
+        queryClient.setQueryData<JournalRow[]>(["admin-journals"], (old) =>
+          (old ?? []).map((j) =>
+            j.id === journal.id
+              ? {
+                  ...j,
+                  reelWorthy: r.reelWorthy,
+                  reelBucket: r.reelBucket,
+                  reelScript: r.reelScript,
+                  reelReason: r.reelReason,
+                  reelAnalysedAt: r.reelAnalysedAt,
+                }
+              : j,
+          ),
+        );
+      }
+      if (!res.ok && !res.journal?.reelAnalysedAt) {
+        toast({
+          title: "Reel scan didn't complete",
+          description: "Check that GEMINI_API_KEY is configured.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Reel scan failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const copyScript = () => {
+    if (journal.reelScript) {
+      void navigator.clipboard?.writeText(journal.reelScript);
+      toast({ title: "Reel script copied" });
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-md border border-dashed bg-muted/20 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase text-muted-foreground">
+          <Clapperboard className="h-3.5 w-3.5" /> Reel script
+          {scanned &&
+            (worthy ? (
+              <Badge className="bg-purple-500 hover:bg-purple-600 text-[10px]">
+                Reel-worthy
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-[10px]">
+                Not reel-worthy
+              </Badge>
+            ))}
+          {journal.reelBucket && worthy && (
+            <Badge variant="outline" className="text-[10px]">
+              {journal.reelBucket}
+            </Badge>
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1 text-xs"
+          onClick={runScan}
+          disabled={scanning}
+          data-testid={`reel-scan-${journal.id}`}
+        >
+          {scanning ? (
+            <Spinner className="size-3" />
+          ) : scanned ? (
+            <RefreshCw className="h-3 w-3" />
+          ) : (
+            <Clapperboard className="h-3 w-3" />
+          )}
+          {scanned ? "Re-scan" : "Scan"}
+        </Button>
+      </div>
+
+      {!scanned ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Not scanned yet. It runs automatically a few seconds after a journal
+          is submitted, or click Scan.
+        </p>
+      ) : worthy && journal.reelScript ? (
+        <div className="mt-2 space-y-1.5">
+          <p className="whitespace-pre-wrap rounded bg-background p-2.5 text-sm">
+            {journal.reelScript}
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            {journal.reelReason && (
+              <p className="text-[11px] italic text-muted-foreground">
+                {journal.reelReason}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={copyScript}
+              className="shrink-0 text-xs text-muted-foreground underline"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {journal.reelReason ||
+            "This entry isn't a strong fit for a reel this week."}
+        </p>
+      )}
     </div>
   );
 }

@@ -50,6 +50,14 @@ export type WeeklyJournal = {
   blockerStatus?: BlockerStatus;
   blockerNote?: string | null;
   blockerUpdatedAt?: string | null;
+  // Optional images attached by the student (object-storage URLs).
+  images?: string[] | null;
+  // Per-journal reel scan (additive — null/absent until scanned).
+  reelWorthy?: boolean | null;
+  reelBucket?: string | null;
+  reelScript?: string | null;
+  reelReason?: string | null;
+  reelAnalysedAt?: string | null;
 };
 
 export type JournalStatus = {
@@ -92,6 +100,7 @@ export function submitJournal(body: {
   activeConversations?: number;
   projectsStarted?: number;
   projectsClosed?: number;
+  images?: string[];
 }): Promise<WeeklyJournal> {
   return customFetch<WeeklyJournal>("/api/journals", {
     method: "POST",

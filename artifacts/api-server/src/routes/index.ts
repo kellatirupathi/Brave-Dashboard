@@ -37,8 +37,8 @@ import gritConfigRouter from "./grit-config";
 import reportsRouter from "./reports";
 import cronJournalEscalationRouter from "./cron-journal-escalation";
 import reelsScriptsRouter from "./reels-scripts";
-import cronReelsRouter from "./cron-reels";
 import termsRouter from "./terms";
+import demoDaySubmissionsRouter from "./demoday-submissions";
 
 const router: IRouter = Router();
 
@@ -97,10 +97,12 @@ router.use(gritConfigRouter);
 router.use(reportsRouter);
 // Journal escalation chain + weekly report crons (additive, isolated)
 router.use(cronJournalEscalationRouter);
-// Reel Scripts library (admin list/import) + daily generation cron (additive)
+// Reel Scripts library (admin list/import). NOTE: daily reel-generation cron
+// removed — reels are now decided per-journal on submit (see journals scan).
 router.use(reelsScriptsRouter);
-router.use(cronReelsRouter);
 // Student Terms & Conditions consent gate (additive, isolated)
 router.use(termsRouter);
+// New Demo Day "best project" submissions + admin shortlist (additive)
+router.use(demoDaySubmissionsRouter);
 
 export default router;
