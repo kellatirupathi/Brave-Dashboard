@@ -2,13 +2,6 @@ import { useMemo, useState } from "react";
 import { useGetDashboardSummary } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatINR } from "@/lib/format";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +29,13 @@ import {
   ArrowRight,
   AlertTriangle,
   X,
+  Briefcase,
+  ChevronRight,
+  ListChecks,
+  Clock,
+  History,
+  UserPlus,
+  Rocket,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +46,21 @@ import {
   listAdminJournals,
   sendBulkHeatmapReminders,
 } from "@/lib/progress-api";
+
+// ── Design system (shared language with the Coordinator console) ─────────────
+// Admin = the NATIONAL COMMAND CENTER. Same calm, dense, action-first console
+// as the coordinator view but program-wide: a work column for monitoring +
+// triage and a sticky command rail for quick actions, pending work, and the
+// live audit feed.
+const PANEL = "rounded-xl border bg-card";
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      {children}
+    </h2>
+  );
+}
 
 function relativeTime(iso: string): string {
   const d = new Date(iso).getTime();
@@ -67,6 +82,13 @@ function relativeTime(iso: string): string {
 function truncate(s: string, n: number): string {
   if (s.length <= n) return s;
   return s.slice(0, n - 1).trimEnd() + "…";
+}
+
+// Turn an audit action key ("verify_revenue", "update_journal_blocker") into a
+// human sentence ("Verify revenue", "Update journal blocker").
+function humanizeAction(action: string): string {
+  const s = action.replace(/_/g, " ").trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // Top-of-dashboard reminder banner that surfaces pending verifications so an
@@ -119,7 +141,7 @@ function PendingReviewBanner({
     pendingReviewCount > 0
       ? "/admin/queue"
       : pendingDemoDayCount > 0
-        ? "/admin/demo-day"
+        ? "/admin/demo-day-submissions"
         : "/admin/roster";
 
   return (
@@ -318,7 +340,7 @@ export default function AdminDashboard() {
       .slice(0, 3);
   }, [heatmap]);
 
-  // Latest 3 journals nationally.
+  // Latest 4 journals nationally.
   const recentJournals = useMemo(() => {
     if (!journals) return [];
     return [...journals]
@@ -326,7 +348,7 @@ export default function AdminDashboard() {
         (a, b) =>
           new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
       )
-      .slice(0, 3);
+      .slice(0, 4);
   }, [journals]);
 
   if (isLoading)
@@ -337,35 +359,153 @@ export default function AdminDashboard() {
     );
   if (!summary) return <div>Failed to load dashboard</div>;
 
-  const cardLinkClass =
-    "block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  // Coverage health → colour + label (shared scale with coordinator console).
+  const pct = coverage?.pct ?? 0;
+  const health =
+    pct >= 80
+      ? {
+          label: "Healthy",
+          dot: "bg-emerald-500",
+          text: "text-emerald-600",
+          bar: "bg-emerald-500",
+        }
+      : pct >= 50
+        ? {
+            label: "At risk",
+            dot: "bg-amber-500",
+            text: "text-amber-600",
+            bar: "bg-amber-500",
+          }
+        : {
+            label: "Critical",
+            dot: "bg-red-500",
+            text: "text-red-600",
+            bar: "bg-red-500",
+          };
+  const pendingCoverage = coverage ? coverage.total - coverage.submitted : 0;
 
-  const coverageColor = !coverage
-    ? "bg-muted"
-    : coverage.pct >= 80
-      ? "bg-emerald-500"
-      : coverage.pct >= 50
-        ? "bg-amber-500"
-        : "bg-red-500";
+  // ── Primary KPI tiles (horizontal, icon-left) ──────────────────────────────
+  const kpis: {
+    label: string;
+    value: React.ReactNode;
+    sub: React.ReactNode;
+    icon: React.ComponentType<{ className?: string }>;
+    accent: string;
+    href: string;
+    testid: string;
+  }[] = [
+    {
+      label: "Verified revenue",
+      value: formatINR(summary.totalVerifiedRevenue),
+      sub: `+ ${formatINR(summary.totalOrderBook)} order book`,
+      icon: Trophy,
+      accent: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950",
+      href: "/admin/leaderboard",
+      testid: "link-card-revenue",
+    },
+    {
+      label: "Active teams",
+      value: summary.activeTeams.toLocaleString(),
+      sub: `Across ${summary.totalCampuses} campuses`,
+      icon: Users,
+      accent: "bg-violet-50 text-violet-600 dark:bg-violet-950",
+      href: "/admin/teams",
+      testid: "link-card-teams",
+    },
+    {
+      label: "Demo Day eligible",
+      value: summary.demoEligibleTeams.toLocaleString(),
+      sub: "Teams crossing ₹2L",
+      icon: Rocket,
+      accent: "bg-blue-50 text-blue-600 dark:bg-blue-950",
+      href: "/admin/demo-day-submissions",
+      testid: "link-card-demo-day",
+    },
+    {
+      label: "Pending reviews",
+      value: summary.pendingReviewCount.toLocaleString(),
+      sub:
+        summary.overdueReviewCount > 0 ? (
+          <span className="font-medium text-destructive">
+            {summary.overdueReviewCount} overdue
+          </span>
+        ) : (
+          "Nothing overdue"
+        ),
+      icon: AlertCircle,
+      accent: "bg-amber-50 text-amber-600 dark:bg-amber-950",
+      href: "/admin/queue",
+      testid: "link-card-pending-reviews",
+    },
+  ];
+
+  // ── Secondary national stats strip ─────────────────────────────────────────
+  const stats: {
+    label: string;
+    value: React.ReactNode;
+    icon: React.ComponentType<{ className?: string }>;
+    href: string;
+    testid: string;
+  }[] = [
+    {
+      label: "Order book",
+      value: formatINR(summary.totalOrderBook),
+      icon: Briefcase,
+      href: "/admin/projects",
+      testid: "stat-order-book",
+    },
+    {
+      label: "Campuses",
+      value: summary.totalCampuses.toLocaleString(),
+      icon: Building2,
+      href: "/admin/campuses",
+      testid: "stat-campuses",
+    },
+    {
+      label: "Teams awaiting approval",
+      value: summary.pendingTeams.toLocaleString(),
+      icon: ListChecks,
+      href: "/admin/team-requests",
+      testid: "stat-pending-teams",
+    },
+    {
+      label: "Roster requests",
+      value: summary.pendingAccessRequestCount.toLocaleString(),
+      icon: UserPlus,
+      href: "/admin/new-users-requests",
+      testid: "stat-roster-requests",
+    },
+  ];
 
   return (
     <>
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              National Dashboard
-            </h1>
-            <p className="text-muted-foreground">High-level program overview</p>
+      <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {/* ===================== TOOLBAR HEADER ===================== */}
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="h-7 w-1 rounded-full bg-primary" />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                National Command Center
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                Program-wide health, pending work, and live activity at a
+                glance.
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            {coverage && (
+              <Badge variant="outline" className="gap-1.5 text-xs font-normal">
+                <Calendar className="h-3 w-3" />
+                Week of {coverage.currentWeek}
+              </Badge>
+            )}
             <HelpMenu inline />
           </div>
-        </div>
+        </header>
 
-        {/* Pending-verification reminder banner — sits at the top so admin
-            can't miss it. Closeable via X (component state only — reload
-            brings it back). Hidden when there's nothing pending. */}
+        {/* Pending-verification reminder banner. */}
         <PendingReviewBanner
           pendingReviewCount={summary.pendingReviewCount}
           overdueReviewCount={summary.overdueReviewCount}
@@ -374,375 +514,485 @@ export default function AdminDashboard() {
           oldestPendingAt={summary.pendingReviewOldestAt}
         />
 
-        {/* Row 1 — KPI Cards (UNCHANGED) */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Link
-            href="/admin/leaderboard"
-            className={cardLinkClass}
-            data-testid="link-card-revenue"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all border-primary shadow-sm bg-primary/5 cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Total Verified Revenue
-                </CardTitle>
-                <Trophy className="w-4 h-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-extrabold text-primary">
-                  {formatINR(summary.totalVerifiedRevenue)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  + {formatINR(summary.totalOrderBook)} pending
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link
-            href="/admin/teams"
-            className={cardLinkClass}
-            data-testid="link-card-teams"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Active Teams
-                </CardTitle>
-                <Users className="w-4 h-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{summary.activeTeams}</div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Across {summary.totalCampuses} campuses
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link
-            href="/admin/demo-day"
-            className={cardLinkClass}
-            data-testid="link-card-demo-day"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Demo Day Eligible
-                </CardTitle>
-                <CheckCircle className="w-4 h-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {summary.demoEligibleTeams}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Teams crossing ₹2L mark
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link
-            href="/admin/queue"
-            className={cardLinkClass}
-            data-testid="link-card-pending-reviews"
-          >
-            <Card className="hover-elevate active-elevate-2 transition-all cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Pending Reviews
-                </CardTitle>
-                <AlertCircle className="w-4 h-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {summary.pendingReviewCount}
-                </div>
-                <p className="text-xs text-destructive mt-2 font-medium">
-                  {summary.overdueReviewCount} overdue
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-
-        {/* Row 2 — Top Campuses + Action Center (UNCHANGED) */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle>Top Campuses</CardTitle>
+        {/* ============ PRIMARY KPI TILES — horizontal, icon-left ============ */}
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {kpis.map((k) => {
+            const Icon = k.icon;
+            return (
               <Link
-                href="/admin/campus-leaderboard"
-                className="text-sm font-medium text-primary hover:underline"
-                data-testid="link-campus-leaderboard"
+                key={k.testid}
+                href={k.href}
+                className={cn(
+                  PANEL,
+                  "group flex items-center gap-3.5 p-4 transition-colors hover:border-primary/30 hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                )}
+                data-testid={k.testid}
               >
-                View all →
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {summary.topCampuses.map((campus, i) => (
-                  <Link
-                    key={campus.id}
-                    href={`/admin/campuses/${campus.id}`}
-                    className="flex items-center justify-between rounded-md p-2 -mx-2 hover-elevate active-elevate-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    data-testid={`link-top-campus-${campus.id}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-muted flex items-center justify-center font-bold text-muted-foreground text-sm">
-                        #{i + 1}
-                      </div>
-                      <div>
-                        <p className="font-semibold">{campus.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {campus.activeTeams} Teams
-                        </p>
-                      </div>
-                    </div>
-                    <div className="font-bold">
-                      {formatINR(campus.totalRevenue)}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <ActionCenter
-            items={[
-              {
-                key: "revenue",
-                label: "Revenue entries to verify",
-                count: summary.pendingReviewCount,
-                oldestAt: summary.pendingReviewOldestAt,
-                href: "/admin/queue",
-                color: "orange",
-              },
-              {
-                key: "demoday",
-                label: "Demo Day applications",
-                count: summary.pendingDemoDayCount,
-                oldestAt: summary.pendingDemoDayOldestAt,
-                href: "/admin/demo-day",
-                color: "violet",
-              },
-              {
-                key: "roster",
-                label: "Roster join requests",
-                count: summary.pendingAccessRequestCount,
-                oldestAt: summary.pendingAccessRequestOldestAt,
-                href: "/admin/roster",
-                color: "rose",
-              },
-            ]}
-          />
-        </div>
-
-        {/* Row 3 — National Journal Coverage (NEW, full width) */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <BookOpenCheck className="w-5 h-5 text-primary" />
-                This Week's Journal Coverage
-              </CardTitle>
-              {coverage && (
-                <Badge
-                  variant="outline"
-                  className="text-xs flex items-center gap-1"
+                <span
+                  className={cn(
+                    "grid h-11 w-11 shrink-0 place-items-center rounded-xl",
+                    k.accent,
+                  )}
                 >
-                  <Calendar className="w-3 h-3" />
-                  {coverage.currentWeek}
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {!coverage ? (
-              <p className="text-sm text-muted-foreground py-4">
-                No programme weeks generated yet, or no active teams.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                  <div className="text-2xl font-bold">
-                    {coverage.submitted.toLocaleString()} /{" "}
-                    {coverage.total.toLocaleString()}
-                    <span className="text-base font-normal text-muted-foreground ml-2">
-                      teams submitted ({coverage.pct}%)
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xl font-bold leading-tight tabular-nums tracking-tight">
+                    {k.value}
+                  </div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {k.label}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground/80">
+                    {k.sub}
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+              </Link>
+            );
+          })}
+        </section>
+
+        {/* ============ SECONDARY STATS STRIP ============ */}
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {stats.map((s) => {
+            const Icon = s.icon;
+            return (
+              <Link
+                key={s.testid}
+                href={s.href}
+                className={cn(
+                  PANEL,
+                  "flex items-center gap-3 px-4 py-3 transition-colors hover:border-primary/30 hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                )}
+                data-testid={s.testid}
+              >
+                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <div className="text-base font-bold leading-none tabular-nums">
+                    {s.value}
+                  </div>
+                  <div className="mt-1 truncate text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {s.label}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </section>
+
+        {/* ============ MAIN CONSOLE: work column + command rail ============ */}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          {/* ---------- WORK COLUMN ---------- */}
+          <div className="min-w-0 space-y-5">
+            {/* NATIONAL JOURNAL COVERAGE — horizontal meter */}
+            <section className={cn(PANEL, "overflow-hidden")}>
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <BookOpenCheck className="h-4 w-4 text-primary" />
+                  <SectionLabel>This week's journal coverage</SectionLabel>
+                </div>
+                {coverage && (
+                  <span
+                    className={cn(
+                      "flex items-center gap-1.5 text-xs font-semibold",
+                      health.text,
+                    )}
+                  >
+                    <span
+                      className={cn("h-1.5 w-1.5 rounded-full", health.dot)}
+                    />
+                    {health.label}
+                  </span>
+                )}
+              </div>
+
+              {!coverage ? (
+                <p className="border-t px-5 py-8 text-sm text-muted-foreground">
+                  No programme weeks generated yet, or no active teams.
+                </p>
+              ) : (
+                <div className="border-t px-5 py-5">
+                  <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+                    <span
+                      className={cn(
+                        "text-5xl font-bold leading-none tabular-nums tracking-tight",
+                        health.text,
+                      )}
+                    >
+                      {coverage.pct}
+                      <span className="text-2xl">%</span>
+                    </span>
+                    <span className="pb-1 text-sm text-muted-foreground">
+                      <span className="font-semibold text-foreground tabular-nums">
+                        {coverage.submitted.toLocaleString()}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-foreground tabular-nums">
+                        {coverage.total.toLocaleString()}
+                      </span>{" "}
+                      teams across {coverage.campusCount} campus
+                      {coverage.campusCount === 1 ? "" : "es"}
                     </span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Across {coverage.campusCount} campus
-                    {coverage.campusCount === 1 ? "" : "es"} ·{" "}
-                    {coverage.silentCount} silent (&gt; 14d) ·{" "}
-                    {coverage.neverCount} never logged
+
+                  <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all",
+                        health.bar,
+                      )}
+                      style={{ width: `${coverage.pct}%` }}
+                    />
+                  </div>
+
+                  {/* Breakdown legend */}
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {(
+                      [
+                        {
+                          label: "Submitted",
+                          value: coverage.submitted,
+                          dot: "bg-emerald-500",
+                        },
+                        {
+                          label: "Pending",
+                          value: pendingCoverage,
+                          dot: "bg-muted-foreground/40",
+                        },
+                        {
+                          label: "Silent",
+                          value: coverage.silentCount,
+                          dot: "bg-red-500",
+                        },
+                        {
+                          label: "Never logged",
+                          value: coverage.neverCount,
+                          dot: "bg-zinc-400",
+                        },
+                      ] as const
+                    ).map((s) => (
+                      <div
+                        key={s.label}
+                        className="flex items-center gap-2.5 rounded-lg border bg-muted/20 px-3 py-2.5"
+                      >
+                        <span className={cn("h-2 w-2 rounded-full", s.dot)} />
+                        <div>
+                          <div className="text-base font-bold leading-none tabular-nums">
+                            {s.value.toLocaleString()}
+                          </div>
+                          <div className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                            {s.label}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link
+                        href="/admin/heatmap"
+                        data-testid="link-coverage-heatmap"
+                      >
+                        <Activity className="mr-1 h-4 w-4" />
+                        View heatmap
+                      </Link>
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={
+                        silentTeams.length === 0 || bulkRemindMut.isPending
+                      }
+                      onClick={() => setBulkOpen(true)}
+                      data-testid="button-bulk-remind-silent"
+                    >
+                      <Bell className="mr-1 h-4 w-4" />
+                      Bulk-remind {silentTeams.length} silent team
+                      {silentTeams.length === 1 ? "" : "s"}
+                    </Button>
                   </div>
                 </div>
-                <div className="h-3 w-full bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={cn("h-full transition-all", coverageColor)}
-                    style={{ width: `${coverage.pct}%` }}
-                  />
+              )}
+            </section>
+
+            {/* CAMPUSES NEEDING ATTENTION — triage worklist */}
+            <section className={cn(PANEL, "overflow-hidden")}>
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-orange-500" />
+                  <SectionLabel>Campuses needing attention</SectionLabel>
                 </div>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button asChild variant="outline" size="sm">
-                    <Link
-                      href="/admin/heatmap"
-                      data-testid="link-coverage-heatmap"
-                    >
-                      <Activity className="w-4 h-4 mr-1" />
-                      View heatmap
-                    </Link>
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={
-                      silentTeams.length === 0 || bulkRemindMut.isPending
-                    }
-                    onClick={() => setBulkOpen(true)}
-                    data-testid="button-bulk-remind-silent"
-                  >
-                    <Bell className="w-4 h-4 mr-1" />
-                    Bulk-remind {silentTeams.length} silent team
-                    {silentTeams.length === 1 ? "" : "s"}
-                  </Button>
-                </div>
+                <Link
+                  href="/admin/campuses"
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  data-testid="link-view-all-campuses"
+                >
+                  View all
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Row 4 — Worst-Performing Campuses + Recent Journals (national) */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Worst-performing campuses */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-orange-500" />
-                Campuses Needing Attention
-              </CardTitle>
-              <CardDescription>
-                Lowest journal coverage this week
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {worstCampuses.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
-                  Coverage data not available yet.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {worstCampuses.map((c, idx) => (
-                    <div
-                      key={c.campusId}
-                      className="flex items-center justify-between p-3 border rounded-md hover:bg-accent/30"
-                      data-testid={`worst-campus-${c.campusId}`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <span className="text-sm font-mono text-muted-foreground tabular-nums w-6">
-                          #{idx + 1}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">
-                            {c.campusName}
-                          </div>
-                          <div className="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3" />
-                            {c.pct}% coverage · {c.silent} silent team
-                            {c.silent === 1 ? "" : "s"}
+              <div className="border-t">
+                {worstCampuses.length === 0 ? (
+                  <div className="flex items-center gap-2 px-5 py-8 text-sm text-muted-foreground">
+                    <ListChecks className="h-4 w-4 text-emerald-500" />
+                    Coverage data not available yet.
+                  </div>
+                ) : (
+                  <ul className="divide-y">
+                    {worstCampuses.map((c, idx) => (
+                      <li
+                        key={c.campusId}
+                        className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
+                        data-testid={`worst-campus-${c.campusId}`}
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-orange-100 text-xs font-bold tabular-nums text-orange-700 dark:bg-orange-950 dark:text-orange-300">
+                            {idx + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">
+                              {c.campusName}
+                            </div>
+                            <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                              <AlertCircle className="h-3 w-3" />
+                              {c.pct}% coverage · {c.silent} silent team
+                              {c.silent === 1 ? "" : "s"}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <Button asChild size="sm" variant="outline">
+                        <Button asChild size="sm" variant="outline">
+                          <Link
+                            href={`/admin/heatmap?campusId=${c.campusId}`}
+                            data-testid={`link-campus-heatmap-${c.campusId}`}
+                          >
+                            View
+                          </Link>
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            {/* RECENT JOURNAL SUBMISSIONS — activity feed */}
+            <section className={cn(PANEL, "overflow-hidden")}>
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <BookOpenCheck className="h-4 w-4 text-primary" />
+                  <SectionLabel>Recent journal submissions</SectionLabel>
+                </div>
+                {recentJournals.length > 0 && (
+                  <Link
+                    href="/admin/journals"
+                    className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    data-testid="link-view-all-journals"
+                  >
+                    View all
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
+              </div>
+              <div className="border-t">
+                {recentJournals.length === 0 ? (
+                  <p className="px-5 py-8 text-sm text-muted-foreground">
+                    No journal submissions yet.
+                  </p>
+                ) : (
+                  <ul className="divide-y">
+                    {recentJournals.map((j) => (
+                      <li key={j.id}>
                         <Link
-                          href={`/admin/heatmap?campusId=${c.campusId}`}
-                          data-testid={`link-campus-heatmap-${c.campusId}`}
+                          href="/admin/journals"
+                          className="flex gap-3 px-5 py-3 transition-colors hover:bg-muted/30"
+                          data-testid={`recent-journal-${j.id}`}
                         >
-                          View
+                          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                            {(j.teamName ?? `T${j.teamId}`)
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <div className="truncate text-sm font-medium">
+                                {j.teamName ?? `Team #${j.teamId}`}
+                                {j.campusName ? (
+                                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                    · {j.campusName}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                                {relativeTime(j.submittedAt)}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                              {truncate(j.whatWeDid, 120)}
+                            </p>
+                          </div>
                         </Link>
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-2"
-                  >
-                    <Link
-                      href="/admin/campuses"
-                      data-testid="link-view-all-campuses"
-                    >
-                      View all campuses
-                      <ArrowRight className="w-4 h-4 ml-1" />
-                    </Link>
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+          </div>
 
-          {/* Recent journals (national) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpenCheck className="w-5 h-5 text-primary" />
-                Recent Journal Submissions
-              </CardTitle>
-              <CardDescription>Latest entries from any campus</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {recentJournals.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
-                  No journal submissions yet.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {recentJournals.map((j) => (
-                    <Link
-                      key={j.id}
-                      href="/admin/journals"
-                      className="block p-3 border rounded-md hover:bg-accent/30 transition-colors"
-                      data-testid={`recent-journal-${j.id}`}
-                    >
-                      <div className="flex items-baseline justify-between gap-2 mb-1">
-                        <div className="text-sm font-medium truncate">
-                          {j.teamName ?? `Team #${j.teamId}`}
-                          {j.campusName ? (
-                            <span className="text-xs text-muted-foreground font-normal ml-1">
-                              · {j.campusName}
-                            </span>
-                          ) : null}
-                        </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {relativeTime(j.submittedAt)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {truncate(j.whatWeDid, 120)}
-                      </p>
-                    </Link>
-                  ))}
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-2"
-                  >
-                    <Link
-                      href="/admin/journals"
-                      data-testid="link-view-all-journals"
-                    >
-                      View all journals
-                      <ArrowRight className="w-4 h-4 ml-1" />
-                    </Link>
-                  </Button>
+          {/* ---------- COMMAND RAIL ---------- */}
+          <aside className="space-y-5 self-start lg:sticky lg:top-4">
+            {/* Pending work action center */}
+            <ActionCenter
+              items={[
+                {
+                  key: "revenue",
+                  label: "Revenue entries to verify",
+                  count: summary.pendingReviewCount,
+                  oldestAt: summary.pendingReviewOldestAt,
+                  href: "/admin/queue",
+                  color: "orange",
+                },
+                {
+                  key: "demoday",
+                  label: "Demo Day applications",
+                  count: summary.pendingDemoDayCount,
+                  oldestAt: summary.pendingDemoDayOldestAt,
+                  href: "/admin/demo-day-submissions",
+                  color: "violet",
+                },
+                {
+                  key: "roster",
+                  label: "Roster join requests",
+                  count: summary.pendingAccessRequestCount,
+                  oldestAt: summary.pendingAccessRequestOldestAt,
+                  href: "/admin/roster",
+                  color: "rose",
+                },
+              ]}
+            />
+
+            {/* Top campuses (compact leaderboard) */}
+            <section className={cn(PANEL, "overflow-hidden")}>
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <SectionLabel>Top campuses</SectionLabel>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <Link
+                  href="/admin/campus-leaderboard"
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  data-testid="link-campus-leaderboard"
+                >
+                  All
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+              <div className="border-t">
+                {summary.topCampuses.length === 0 ? (
+                  <p className="px-5 py-8 text-sm text-muted-foreground">
+                    No campus data yet.
+                  </p>
+                ) : (
+                  <ul className="divide-y">
+                    {summary.topCampuses.slice(0, 5).map((campus, i) => (
+                      <li key={campus.id}>
+                        <Link
+                          href={`/admin/campuses/${campus.id}`}
+                          className="flex items-center justify-between gap-3 px-5 py-2.5 transition-colors hover:bg-muted/30"
+                          data-testid={`link-top-campus-${campus.id}`}
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span
+                              className={cn(
+                                "grid h-7 w-7 shrink-0 place-items-center rounded-md text-xs font-bold tabular-nums",
+                                i === 0
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                                  : "bg-muted text-muted-foreground",
+                              )}
+                            >
+                              {i + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {campus.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {campus.activeTeams} team
+                                {campus.activeTeams === 1 ? "" : "s"}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-sm font-bold tabular-nums">
+                            {formatINR(campus.totalRevenue)}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            {/* Recent activity — live audit feed (NEW) */}
+            <section className={cn(PANEL, "overflow-hidden")}>
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary" />
+                  <SectionLabel>Recent activity</SectionLabel>
+                </div>
+                <Link
+                  href="/admin/audit-log"
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  data-testid="link-audit-log"
+                >
+                  Log
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+              <div className="border-t">
+                {summary.recentActivity.length === 0 ? (
+                  <p className="px-5 py-8 text-sm text-muted-foreground">
+                    No activity recorded yet.
+                  </p>
+                ) : (
+                  <ul className="divide-y">
+                    {summary.recentActivity.slice(0, 6).map((a) => (
+                      <li
+                        key={a.id}
+                        className="flex gap-3 px-5 py-2.5"
+                        data-testid={`activity-${a.id}`}
+                      >
+                        <span className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm leading-snug">
+                            <span className="font-medium">
+                              {a.actorName?.trim() &&
+                              a.actorName !== "null null"
+                                ? a.actorName
+                                : "System"}
+                            </span>{" "}
+                            <span className="text-muted-foreground">
+                              {humanizeAction(a.action).toLowerCase()}
+                            </span>{" "}
+                            <span className="text-muted-foreground">
+                              {a.targetType}
+                              {a.targetId != null ? ` #${a.targetId}` : ""}
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {relativeTime(a.createdAt)}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
 
