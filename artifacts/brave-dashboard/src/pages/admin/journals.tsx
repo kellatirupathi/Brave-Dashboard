@@ -521,80 +521,62 @@ export default function AdminJournals({ scope = "admin" }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <BookOpenCheck className="h-6 w-6 text-primary" />
-            Weekly Journals
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            AI-structured weekly check-ins — activity, categories, and blocker
-            triage across every team.
-          </p>
-        </div>
-        <Button
-          onClick={() => setConfirmAnalyseAll(true)}
-          disabled={analyseProgress?.running}
-          className="gap-2"
-          data-testid="journals-analyse-all"
-        >
-          {analyseProgress?.running ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
-          {analyseProgress?.running
-            ? `Analysing ${analyseProgress.done}/${analyseProgress.total}…`
-            : "Analyse all"}
-        </Button>
-      </div>
-
-      {analyseProgress && (
-        <div className="space-y-1">
-          <Progress
-            value={
-              analyseProgress.total
-                ? (analyseProgress.done / analyseProgress.total) * 100
-                : 0
-            }
-          />
-          <div className="text-xs text-muted-foreground">
-            {analyseProgress.running
-              ? `Analysing journals one by one — ${analyseProgress.done} of ${analyseProgress.total}`
-              : `Done — analysed ${analyseProgress.done} of ${analyseProgress.total}`}
-          </div>
-        </div>
-      )}
-
-      {/* Filters + tabs */}
-      <div className="flex flex-col gap-3">
-        {/* Search (left, reduced width) + export (right) */}
-        <div className="flex items-center gap-2">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by team, campus, member name, or content"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-9"
-              data-testid="journals-search"
-            />
+      <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.07] via-background to-background">
+        <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+              <BookOpenCheck className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">
+                Weekly Journals
+              </h1>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                AI-structured weekly check-ins — activity, categories, and
+                blocker triage across every team.
+              </p>
+            </div>
           </div>
           <Button
-            variant="outline"
-            className="ml-auto gap-2"
-            onClick={() => exportJournalsToCsv(journals ?? [])}
-            disabled={!journals || journals.length === 0}
-            data-testid="journals-export"
+            onClick={() => setConfirmAnalyseAll(true)}
+            disabled={analyseProgress?.running}
+            className="gap-2"
+            data-testid="journals-analyse-all"
           >
-            <Download className="h-4 w-4" />
-            Export CSV
+            {analyseProgress?.running ? (
+              <Spinner className="size-4" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {analyseProgress?.running
+              ? `Analysing ${analyseProgress.done}/${analyseProgress.total}…`
+              : "Analyse all"}
           </Button>
         </div>
 
-        {/* Tabs (left) + week/campus filters (right) — one row */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-1">
+        {analyseProgress && (
+          <div className="space-y-1 border-t bg-background/60 px-5 py-3 sm:px-6">
+            <Progress
+              value={
+                analyseProgress.total
+                  ? (analyseProgress.done / analyseProgress.total) * 100
+                  : 0
+              }
+            />
+            <div className="text-xs text-muted-foreground">
+              {analyseProgress.running
+                ? `Analysing journals one by one — ${analyseProgress.done} of ${analyseProgress.total}`
+                : `Done — analysed ${analyseProgress.done} of ${analyseProgress.total}`}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Filters + tabs */}
+      <div className="flex flex-col gap-3">
+        {/* Segmented tabs (left) + export (right) */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="inline-flex rounded-lg border bg-muted/40 p-1">
             {(
               [
                 { v: "overview", label: "Overview" },
@@ -607,10 +589,10 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                 type="button"
                 onClick={() => setTab(b.v)}
                 className={cn(
-                  "px-3 py-1.5 text-xs rounded-md border transition-colors",
+                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                   tab === b.v
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "hover:bg-accent",
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 data-testid={`journals-tab-${b.v}`}
               >
@@ -618,11 +600,35 @@ export default function AdminJournals({ scope = "admin" }: Props) {
               </button>
             ))}
           </div>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => exportJournalsToCsv(journals ?? [])}
+            disabled={!journals || journals.length === 0}
+            data-testid="journals-export"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+        {/* Search (grow) + week/campus filters */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by team, campus, member name, or content"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="pl-9"
+              data-testid="journals-search"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row sm:items-center sm:justify-end">
             <Select value={weekFilter} onValueChange={setWeekFilter}>
               <SelectTrigger
-                className="sm:w-72"
+                className="sm:w-60"
                 data-testid="journals-week-filter"
               >
                 <SelectValue placeholder="All weeks" />
@@ -737,7 +743,7 @@ export default function AdminJournals({ scope = "admin" }: Props) {
               team to see week-by-week detail
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-0">
             {isLoading ? (
               <div className="flex justify-center py-12">
                 <Spinner className="size-8" />
@@ -750,30 +756,51 @@ export default function AdminJournals({ scope = "admin" }: Props) {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Team</TableHead>
-                      <TableHead>Campus</TableHead>
-                      <TableHead className="text-center">Journals</TableHead>
-                      <TableHead>Latest</TableHead>
-                      <TableHead className="text-center">Clients</TableHead>
-                      <TableHead className="text-center">Convos</TableHead>
-                      <TableHead>Open blockers</TableHead>
-                      <TableHead className="text-center">AI</TableHead>
-                      <TableHead />
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="pl-6 text-xs uppercase tracking-wide">
+                        Team
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide">
+                        Campus
+                      </TableHead>
+                      <TableHead className="text-center text-xs uppercase tracking-wide">
+                        Journals
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide">
+                        Latest
+                      </TableHead>
+                      <TableHead className="text-center text-xs uppercase tracking-wide">
+                        Clients
+                      </TableHead>
+                      <TableHead className="text-center text-xs uppercase tracking-wide">
+                        Convos
+                      </TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide">
+                        Open blockers
+                      </TableHead>
+                      <TableHead className="text-center text-xs uppercase tracking-wide">
+                        AI
+                      </TableHead>
+                      <TableHead className="pr-6" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {teamGroups.map((g) => (
                       <TableRow
                         key={g.teamId}
-                        className="cursor-pointer"
+                        className="group cursor-pointer"
                         onClick={() =>
                           setLocation(`${teamDetailBase}/team/${g.teamId}`)
                         }
                         data-testid={`journal-team-row-${g.teamId}`}
                       >
-                        <TableCell className="font-medium">
-                          {g.teamName}
+                        <TableCell className="pl-6 font-medium">
+                          <div className="flex items-center gap-2.5">
+                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold uppercase text-primary">
+                              {g.teamName.slice(0, 2)}
+                            </span>
+                            <span className="truncate">{g.teamName}</span>
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {g.campusName ?? "—"}
@@ -807,17 +834,17 @@ export default function AdminJournals({ scope = "admin" }: Props) {
                         <TableCell className="text-center">
                           <span
                             className={cn(
-                              "text-xs tabular-nums",
+                              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium tabular-nums",
                               g.analysed === g.journals.length
-                                ? "text-emerald-600"
-                                : "text-amber-600",
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-amber-100 text-amber-700",
                             )}
                           >
                             {g.analysed}/{g.journals.length}
                           </span>
                         </TableCell>
-                        <TableCell>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <TableCell className="pr-6">
+                          <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -955,23 +982,19 @@ function OverviewTab({
   const maxCat = analytics.categories[0]?.count ?? 1;
   return (
     <div className="space-y-4">
-      {/* Compact summary line */}
-      <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
-            <Metric label="Journals" value={analytics.total} />
-            <Metric label="Clients visited" value={analytics.sums.clients} />
-            <Metric label="Active convos" value={analytics.sums.convos} />
-            <Metric label="Projects started" value={analytics.sums.started} />
-            <Metric label="Projects closed" value={analytics.sums.closed} />
-            <Metric
-              label="AI analysed"
-              value={`${analytics.analysed}/${analytics.total}`}
-              accent={analytics.pending > 0 ? "amber" : "emerald"}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Summary metric cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Metric label="Journals" value={analytics.total} />
+        <Metric label="Clients visited" value={analytics.sums.clients} />
+        <Metric label="Active convos" value={analytics.sums.convos} />
+        <Metric label="Projects started" value={analytics.sums.started} />
+        <Metric label="Projects closed" value={analytics.sums.closed} />
+        <Metric
+          label="AI analysed"
+          value={`${analytics.analysed}/${analytics.total}`}
+          accent={analytics.pending > 0 ? "amber" : "emerald"}
+        />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* Blocker triage */}
@@ -1069,20 +1092,22 @@ function Metric({
   accent?: "amber" | "emerald";
 }) {
   return (
-    <div>
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div
-        className={cn(
-          "text-xl font-bold tabular-nums",
-          accent === "amber" && "text-amber-600",
-          accent === "emerald" && "text-emerald-600",
-        )}
-      >
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </div>
-    </div>
+    <Card>
+      <CardContent className="p-4">
+        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {label}
+        </div>
+        <div
+          className={cn(
+            "mt-1 text-2xl font-bold tabular-nums",
+            accent === "amber" && "text-amber-600",
+            accent === "emerald" && "text-emerald-600",
+          )}
+        >
+          {typeof value === "number" ? value.toLocaleString() : value}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
