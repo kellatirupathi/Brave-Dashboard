@@ -189,6 +189,11 @@ export const usersTable = pgTable(
     profileCompletedAt: timestamp("profile_completed_at", {
       withTimezone: true,
     }),
+    // Student Terms & Conditions consent gate (additive). Null = not accepted
+    // yet; old rows stay null and are treated as "not accepted". termsVersion
+    // records which version string the user agreed to (e.g. "2026-v1").
+    termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
+    termsVersion: text("terms_version"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     // Login tracking (additive). lastLoginAt is set + loginCount incremented
     // each time a new session is created (any login method). Distinct from

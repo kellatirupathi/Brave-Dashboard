@@ -186,6 +186,11 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
     profileCompletedAt: dbUser.profileCompletedAt
       ? dbUser.profileCompletedAt.toISOString()
       : null,
+    // Terms & Conditions consent. Null until the student accepts; drives the
+    // blocking consent gate on the frontend.
+    termsAcceptedAt: dbUser.termsAcceptedAt
+      ? dbUser.termsAcceptedAt.toISOString()
+      : null,
     // Whether this account has a password set. Drives the "Change password"
     // option in the profile dropdown — SSO-only accounts never see it.
     hasPassword: !!dbUser.passwordHash,

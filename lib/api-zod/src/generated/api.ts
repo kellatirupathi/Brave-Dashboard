@@ -38,6 +38,12 @@ export const GetCurrentAuthUserResponse = zod.object({
         .describe(
           "ISO timestamp of the first time the user successfully saved their profile. Null until completed.",
         ),
+      termsAcceptedAt: zod
+        .string()
+        .nullish()
+        .describe(
+          "ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.",
+        ),
     }),
     zod.null(),
   ]),
@@ -87,6 +93,12 @@ export const UpdateCurrentAuthUserResponse = zod.object({
         .nullish()
         .describe(
           "ISO timestamp of the first time the user successfully saved their profile. Null until completed.",
+        ),
+      termsAcceptedAt: zod
+        .string()
+        .nullish()
+        .describe(
+          "ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.",
         ),
     }),
     zod.null(),
@@ -2680,6 +2692,12 @@ export const ListUsersResponse = zod.object({
         "auto_forms_sso",
       ]),
       createdAt: zod.coerce.date(),
+      termsAcceptedAt: zod
+        .string()
+        .nullish()
+        .describe(
+          "ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.",
+        ),
     }),
   ),
   total: zod.number(),
@@ -2740,6 +2758,12 @@ export const UpdateUserResponse = zod.object({
     "auto_forms_sso",
   ]),
   createdAt: zod.coerce.date(),
+  termsAcceptedAt: zod
+    .string()
+    .nullish()
+    .describe(
+      "ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.",
+    ),
 });
 
 /**

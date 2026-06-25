@@ -108,6 +108,7 @@ import Guidebook from "@/pages/guidebook";
 import { Layout } from "@/components/layout";
 import { Spinner } from "@/components/ui/spinner";
 import { AccessGate } from "@/components/access-gate";
+import { TermsGate } from "@/components/terms-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -676,6 +677,9 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
+          {/* Blocking student Terms & Conditions consent gate. Self-gates on
+              role + acceptance; covers the whole app via a portalled overlay. */}
+          <TermsGate />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

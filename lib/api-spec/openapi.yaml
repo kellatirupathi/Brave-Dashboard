@@ -2306,6 +2306,9 @@ components:
         profileCompletedAt:
           type: ["string", "null"]
           description: ISO timestamp of the first time the user successfully saved their profile. Null until completed.
+        termsAcceptedAt:
+          type: ["string", "null"]
+          description: ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.
       required:
         - id
         - replitId
@@ -2350,6 +2353,9 @@ components:
         createdAt:
           type: string
           format: date-time
+        termsAcceptedAt:
+          type: ["string", "null"]
+          description: ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.
       required:
         - id
         - email

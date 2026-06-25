@@ -40,6 +40,11 @@ export interface AuthUser {
    * @nullable
    */
   profileCompletedAt?: string | null;
+  /**
+   * ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.
+   * @nullable
+   */
+  termsAcceptedAt?: string | null;
 }
 
 export interface GetCurrentAuthUserResponse {
@@ -97,6 +102,11 @@ export interface User {
   isActive: boolean;
   provisionedVia: UserProvisionedVia;
   createdAt: string;
+  /**
+   * ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.
+   * @nullable
+   */
+  termsAcceptedAt?: string | null;
 }
 
 export type CreateUserBodyRole =

@@ -129,6 +129,8 @@ type AnyUser = {
   // Last activity on any authenticated request (bumped on every request). A
   // non-null value = the user has logged in / used the platform at least once.
   lastSeenAt?: string | null;
+  // Terms & Conditions consent. Non-null = the user has accepted.
+  termsAcceptedAt?: string | null;
 };
 
 type RoleFilter = "all" | "admin" | "coordinator" | "student";
@@ -1133,6 +1135,7 @@ export default function AdminUsers() {
                   <TableHead>Last login</TableHead>
                   <TableHead>Last seen</TableHead>
                   <TableHead className="text-center">Logins</TableHead>
+                  <TableHead className="text-center">Terms</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1251,6 +1254,16 @@ export default function AdminUsers() {
                       data-testid={`login-count-${user.id}`}
                     >
                       {user.loginCount ?? 0}
+                    </TableCell>
+                    <TableCell
+                      className="text-center text-sm font-medium"
+                      data-testid={`terms-${user.id}`}
+                    >
+                      {user.termsAcceptedAt ? (
+                        <span className="text-green-600">Yes</span>
+                      ) : (
+                        <span className="text-muted-foreground">No</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

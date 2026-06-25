@@ -27,4 +27,9 @@ export interface User {
   isActive: boolean;
   provisionedVia: UserProvisionedVia;
   createdAt: Date;
+  /**
+   * ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.
+   * @nullable
+   */
+  termsAcceptedAt?: string | null;
 }

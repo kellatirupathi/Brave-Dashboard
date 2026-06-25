@@ -30,4 +30,9 @@ export interface AuthUser {
    * @nullable
    */
   profileCompletedAt?: string | null;
+  /**
+   * ISO timestamp of when the user accepted the Terms & Conditions. Null until accepted.
+   * @nullable
+   */
+  termsAcceptedAt?: string | null;
 }

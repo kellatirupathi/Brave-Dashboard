@@ -38,6 +38,7 @@ import reportsRouter from "./reports";
 import cronJournalEscalationRouter from "./cron-journal-escalation";
 import reelsScriptsRouter from "./reels-scripts";
 import cronReelsRouter from "./cron-reels";
+import termsRouter from "./terms";
 
 const router: IRouter = Router();
 
@@ -99,5 +100,7 @@ router.use(cronJournalEscalationRouter);
 // Reel Scripts library (admin list/import) + daily generation cron (additive)
 router.use(reelsScriptsRouter);
 router.use(cronReelsRouter);
+// Student Terms & Conditions consent gate (additive, isolated)
+router.use(termsRouter);
 
 export default router;

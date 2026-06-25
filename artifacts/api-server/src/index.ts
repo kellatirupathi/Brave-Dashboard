@@ -99,6 +99,23 @@ async function ensureReelScriptUniqueness(): Promise<void> {
   }
 }
 
+// Adds the Terms & Conditions consent columns to the users table. Runs at
+// startup because the production deploy does not run `drizzle-kit push`, so this
+// is what applies the columns there. Without it, `buildAuthUser` and the admin
+// user list would crash in prod with "column does not exist". Idempotent and
+// safe to run on every boot.
+async function ensureTermsColumns(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS terms_accepted_at timestamptz,
+        ADD COLUMN IF NOT EXISTS terms_version text
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure terms columns");
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -133,6 +150,13 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function runBootstrap(): Promise<void> {
+  // Run schema-ensuring steps FIRST so the most critical read paths (auth/user
+  // reads terms_accepted_at) never hit a missing column on a fresh deploy.
+  try {
+    await ensureTermsColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureTermsColumns failed");
+  }
   try {
     await bootstrapCanonicalCampuses();
   } catch (err) {
