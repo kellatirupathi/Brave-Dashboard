@@ -40,6 +40,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Pool, type PoolClient } from "pg";
 import { logger } from "../lib/logger";
+import { tryAcquireCronLock } from "../lib/cron-lock";
 
 const router: IRouter = Router();
 
@@ -47,7 +48,10 @@ const QUERY_PAGE_SIZE = 1000;
 const INSERT_BATCH_SIZE = 500;
 const STATEMENT_TIMEOUT_MS = 5 * 60 * 1000;
 
-let backupInFlight = false;
+// Cross-instance guard: a Supabase backup that overlaps with itself would have
+// two writers truncating/repopulating the mirror at once. A Postgres advisory
+// lock coordinates across every running instance, not just this process.
+const BACKUP_LOCK = "cron:backup-supabase";
 
 function verifyCronSecret(req: Request, res: Response): boolean {
   const expected = process.env["CRON_SECRET"];
@@ -285,12 +289,12 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     if (!verifyCronSecret(req, res)) return;
 
-    if (backupInFlight) {
+    const lock = await tryAcquireCronLock(BACKUP_LOCK);
+    if (!lock) {
       res.status(202).json({ ok: false, reason: "backup_already_in_flight" });
       return;
     }
 
-    backupInFlight = true;
     const startedAt = new Date().toISOString();
 
     // Reply immediately so cron-job.org's 30s timeout never fires. The
@@ -319,7 +323,7 @@ router.post(
         );
       })
       .finally(() => {
-        backupInFlight = false;
+        void lock.release();
       });
   },
 );

@@ -4,3 +4,5 @@
 - [BRD uniqueness scoring](brd-uniqueness-scoring.md) — ONE rule-based uniqueness score from stored brd_summary (no LLM, no PDF re-upload); compares vs ALL approved BRDs prefiltered by amount+date; don't touch brd_score relevancy.
 - [Admin permissions system](admin-permissions-system.md) — super admin = admin + is_super_admin; per-page perms default-ALLOW; gating is UI-only (no route guards); don't leak the 2 new columns outside /admin/access endpoints.
 - [GRIT/Demo Day rollout toggles](grit-demoday-rollout-toggles.md) — 2 independent programme_config flags (default false=legacy Demo Day) swap student sidebar/page + dashboard to new GRIT; legacy *-legacy.tsx pages are the OFF branch, keep them.
+- [Prod applies no schema via push](prod-schema-no-push.md) — prod deploy never runs drizzle-kit push; schema/index changes prod needs must be applied via idempotent CREATE IF NOT EXISTS bootstrap in api-server index.ts (keep in schema too).
+- [Cron locking](cron-locking.md) — multi-instance cron guards use pg advisory locks (cron-lock.ts), NOT in-process booleans; for sync handlers release in try/finally, never on res finish/close (disconnect frees lock early).

@@ -11,17 +11,18 @@
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { generateReelsForWindow } from "../lib/ai/generate-reels";
+import { tryAcquireCronLock } from "../lib/cron-lock";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-// Guards against overlapping runs if cron-job.org retries while a (slow) Gemini
-// generation pass is still in flight.
-let reelsRunInFlight = false;
+// Cross-instance guard against overlapping runs if cron-job.org retries while a
+// (slow) Gemini generation pass is still in flight — works across instances.
+const REELS_LOCK = "cron:generate-reels";
 
 router.post(
   "/internal/cron/generate-reels",
-  (req: Request, res: Response): void => {
+  async (req: Request, res: Response): Promise<void> => {
     const expected = process.env.CRON_SECRET;
     if (!expected) {
       logger.error("[cron-reels] CRON_SECRET not configured");
@@ -33,14 +34,14 @@ router.post(
       return;
     }
 
-    if (reelsRunInFlight) {
+    const lock = await tryAcquireCronLock(REELS_LOCK);
+    if (!lock) {
       logger.warn("[cron-reels] run already in flight — skipping this trigger");
       res.status(202).json({ ok: true, alreadyRunning: true });
       return;
     }
 
     // Fire-and-forget: respond immediately, then run in the background.
-    reelsRunInFlight = true;
     res.status(202).json({ ok: true, queued: true });
 
     logger.info("[cron-reels] generation run starting (background)");
@@ -52,7 +53,7 @@ router.post(
         logger.error({ err }, "[cron-reels] generation run failed");
       })
       .finally(() => {
-        reelsRunInFlight = false;
+        void lock.release();
       });
   },
 );

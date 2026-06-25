@@ -140,7 +140,10 @@ router.post(
     for (let i = 0; i < toInsert.length; i += CHUNK) {
       const chunk = toInsert.slice(i, i + CHUNK);
       if (chunk.length === 0) continue;
-      await db.insert(reelScriptsTable).values(chunk);
+      await db
+        .insert(reelScriptsTable)
+        .values(chunk)
+        .onConflictDoNothing({ target: reelScriptsTable.dedupeKey });
       inserted += chunk.length;
     }
 

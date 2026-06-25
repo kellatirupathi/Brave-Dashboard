@@ -38,6 +38,7 @@ import {
 } from "@workspace/db";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import { logger } from "../lib/logger";
+import { tryAcquireCronLock } from "../lib/cron-lock";
 import { autoOpenDueWeeks, getReminderSettings } from "./programme-weeks";
 
 const router: IRouter = Router();
@@ -353,11 +354,12 @@ async function runReminders(): Promise<{
   };
 }
 
-// Guards against overlapping runs: if cron-job.org retries while the
-// previous invocation is still iterating teams + sending Brevo emails,
-// we'd double-send. The dedup logic in reminder_log would catch most of
-// it, but the second loop would still hammer the DB unnecessarily.
-let reminderRunInFlight = false;
+// Cross-instance guard against overlapping runs: if cron-job.org retries while
+// the previous invocation is still iterating teams + sending Brevo emails, we'd
+// double-send. The dedup logic in reminder_log would catch most of it, but the
+// second loop would still hammer the DB unnecessarily. A Postgres advisory lock
+// coordinates across every running instance, not just this process.
+const REMINDERS_LOCK = "cron:reminders";
 
 router.post("/internal/cron/reminders", async (req: Request, res: Response) => {
   const expected = process.env.CRON_SECRET;
@@ -372,13 +374,14 @@ router.post("/internal/cron/reminders", async (req: Request, res: Response) => {
       { providedHeaderPresent: !!provided },
       "[cron] rejected request with bad secret",
     );
-    res.status(401).json({ error: "unauthorized" });
+    res.status(403).json({ error: "Invalid cron secret" });
     return;
   }
 
   // If a previous invocation is still working, return immediately — don't
   // start a second concurrent run.
-  if (reminderRunInFlight) {
+  const lock = await tryAcquireCronLock(REMINDERS_LOCK);
+  if (!lock) {
     logger.warn(
       "[cron] reminders run already in flight — skipping this trigger",
     );
@@ -391,7 +394,6 @@ router.post("/internal/cron/reminders", async (req: Request, res: Response) => {
   // does N team iterations × M member iterations × 1 Brevo HTTP call per
   // 7-day email — easily >30s on busy days. cron-job.org's job timeout is
   // a transport-level cap, not a deadline for our actual work.
-  reminderRunInFlight = true;
   res.status(202).json({ ok: true, queued: true });
 
   logger.info("[cron] reminders run starting (background)");
@@ -403,7 +405,7 @@ router.post("/internal/cron/reminders", async (req: Request, res: Response) => {
       logger.error({ err }, "[cron] reminders run failed");
     })
     .finally(() => {
-      reminderRunInFlight = false;
+      void lock.release();
     });
 });
 

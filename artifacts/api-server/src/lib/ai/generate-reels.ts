@@ -189,7 +189,13 @@ export async function generateReelsForWindow(end: Date): Promise<GenResult> {
   }
 
   if (toInsert.length > 0) {
-    await db.insert(reelScriptsTable).values(toInsert);
+    // DB-level dedup: even though we filtered against existingKeys above, that
+    // set only covers the newest 500 rows and a concurrent run could race us.
+    // The unique index on dedupe_key makes duplicate rows a no-op insert.
+    await db
+      .insert(reelScriptsTable)
+      .values(toInsert)
+      .onConflictDoNothing({ target: reelScriptsTable.dedupeKey });
   }
 
   logger.info(

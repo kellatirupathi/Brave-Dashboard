@@ -23,6 +23,7 @@ import {
 } from "@workspace/db";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import { logger } from "../lib/logger";
+import { tryAcquireCronLock } from "../lib/cron-lock";
 import {
   resolveReportWeek,
   computeCampusWeekReports,
@@ -33,6 +34,14 @@ import {
 } from "../lib/journal-reports";
 
 const router: IRouter = Router();
+
+// Cross-instance guard: the admin-level blast sends one campus-wide email to
+// every notification subscriber. Two near-simultaneous triggers (a cron-job.org
+// retry, or two running instances) could both pass the "already sent?" check
+// before either writes its log row and double-send. The campusId is NULL for
+// admin rows, so the existing unique constraint cannot dedup them. A Postgres
+// advisory lock serialises the whole escalation run across every instance.
+const ESCALATION_LOCK = "cron:journal-escalation";
 
 function verifyCronSecret(req: Request, res: Response): boolean {
   const expected = process.env.CRON_SECRET;
@@ -61,12 +70,18 @@ const LEVEL_LABEL: Record<Level, string> = {
   admin: "Admin",
 };
 
-// Map weekday → escalation level (server local time). Wed=3, Thu=4, Fri=5.
+// Map weekday → escalation level, computed in Asia/Kolkata (the programme's
+// timezone) rather than the server's UTC clock. Without this, a job scheduled
+// late in the IST evening lands on the next UTC day and resolves the wrong
+// level. Wed → Success Coach, Thu → COS, Fri → Admin.
 function levelForToday(): Level | null {
-  const day = new Date().getDay();
-  if (day === 3) return "success_coach";
-  if (day === 4) return "cos";
-  if (day === 5) return "admin";
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    weekday: "short",
+  }).format(new Date());
+  if (weekday === "Wed") return "success_coach";
+  if (weekday === "Thu") return "cos";
+  if (weekday === "Fri") return "admin";
   return null;
 }
 
@@ -173,167 +188,190 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     if (!verifyCronSecret(req, res)) return;
 
-    const [cfg] = await db
-      .select({ enabled: programmeConfigTable.escalationEnabled })
-      .from(programmeConfigTable)
-      .limit(1);
-    if (cfg && cfg.enabled === false) {
-      res.status(202).json({ ok: true, reason: "escalation_disabled" });
+    // Serialise the whole run across instances with a Postgres advisory lock so
+    // two near-simultaneous triggers (a cron-job.org retry, or two running
+    // instances) can never both pass the "already sent?" check and double-send.
+    // Released in `finally` so the lock lifetime tracks actual execution — a
+    // client/proxy disconnect must not free it while work is still running.
+    const lock = await tryAcquireCronLock(ESCALATION_LOCK);
+    if (!lock) {
+      logger.warn("[cron-escalation] run already in flight — skipping trigger");
+      res.status(202).json({ ok: true, alreadyRunning: true });
       return;
     }
-
-    const bodyLevel = (req.body?.level ?? req.query.level) as Level | undefined;
-    const level: Level | null = bodyLevel ?? levelForToday();
-    if (!level) {
-      res
-        .status(202)
-        .json({ ok: true, reason: "no_escalation_scheduled_today" });
-      return;
+    try {
+      await runJournalEscalation(req, res);
+    } finally {
+      await lock.release();
     }
-
-    const week = await resolveReportWeek();
-    if (!week) {
-      res.status(202).json({ ok: true, reason: "no_programme_week" });
-      return;
-    }
-
-    const appUrl = getAppUrl();
-    const reports = await computeCampusWeekReports(week);
-
-    // ── Admin level: one campus-wide report to notification subscribers ──────
-    if (level === "admin") {
-      const already = await db
-        .select({ id: journalEscalationLogTable.id })
-        .from(journalEscalationLogTable)
-        .where(
-          and(
-            eq(journalEscalationLogTable.weekId, week.id),
-            eq(journalEscalationLogTable.level, "admin"),
-          ),
-        );
-      if (already.length > 0) {
-        res.status(202).json({ ok: true, reason: "admin_already_sent" });
-        return;
-      }
-      const subs = await db
-        .select({
-          email: overdueNotificationSubscribersTable.email,
-          name: overdueNotificationSubscribersTable.name,
-        })
-        .from(overdueNotificationSubscribersTable)
-        .where(eq(overdueNotificationSubscribersTable.isActive, true));
-
-      const token = await persistReportLink({
-        scope: "admin",
-        kind: "escalation_admin",
-        campusId: null,
-        campusName: null,
-        week,
-        title: `Campus-wise journal report — ${weekLabel(week)}`,
-        payload: { week, campuses: reports },
-      });
-      const link = `${appUrl}/reports/view/${token}`;
-      const summary = reports
-        .map(
-          (r) =>
-            `  • ${r.campusName}: ${r.submittedCount}/${r.totalTeams} submitted, ${r.notSubmittedCount} pending`,
-        )
-        .join("\n");
-      const text = `Weekly journal escalation — ${weekLabel(week)}\n\nCampus-wise submission status:\n${summary}\n\nFull report: ${link}\n`;
-      const html = renderAdminEscalationHtml(week, reports, link);
-
-      let sent = 0;
-      for (const s of subs) {
-        const ok = await sendEmail({
-          to: { email: s.email, name: s.name ?? undefined },
-          subject: `[BRAVE] Journal report — ${weekLabel(week)}`,
-          text,
-          html,
-        });
-        if (ok) sent += 1;
-      }
-      await db
-        .insert(journalEscalationLogTable)
-        .values({
-          campusId: null,
-          weekId: week.id,
-          level: "admin",
-          recipientCount: sent,
-          reportToken: token,
-        })
-        .onConflictDoNothing();
-      res.status(202).json({ ok: true, level, campuses: reports.length, sent });
-      return;
-    }
-
-    // ── Success Coach / COS level: per-campus to tagged coordinators ─────────
-    const tagName = TAG_FOR_LEVEL[level];
-    let campusesMailed = 0;
-    let totalRecipients = 0;
-    for (const report of reports) {
-      if (report.notSubmittedCount === 0) continue; // nothing to escalate
-
-      // Skip if already sent for this campus + week + level.
-      const already = await db
-        .select({ id: journalEscalationLogTable.id })
-        .from(journalEscalationLogTable)
-        .where(
-          and(
-            eq(journalEscalationLogTable.campusId, report.campusId),
-            eq(journalEscalationLogTable.weekId, week.id),
-            eq(journalEscalationLogTable.level, level),
-          ),
-        );
-      if (already.length > 0) continue;
-
-      const recipients = await resolveCampusTagRecipients(
-        report.campusId,
-        tagName,
-      );
-      const token = await persistReportLink({
-        scope: "campus",
-        kind: `escalation_${level}`,
-        campusId: report.campusId,
-        campusName: report.campusName,
-        week,
-        title: `${report.campusName} — ${LEVEL_LABEL[level]} escalation — ${weekLabel(week)}`,
-        payload: { week, campus: report },
-      });
-      const link = `${appUrl}/reports/view/${token}`;
-      const text = `Journal escalation (${LEVEL_LABEL[level]}) — ${report.campusName}\n${weekLabel(week)}\n\nSubmitted: ${report.submittedCount}/${report.totalTeams}\nPending teams (${report.notSubmittedCount}):\n${missingTeamsText(report)}\n\nFull report: ${link}\n`;
-
-      let sent = 0;
-      for (const r of recipients) {
-        const ok = await sendEmail({
-          to: { email: r.email, name: r.firstName ?? undefined },
-          subject: `[BRAVE] ${LEVEL_LABEL[level]} — ${report.campusName} journals pending (${weekLabel(week)})`,
-          text,
-        });
-        if (ok) sent += 1;
-      }
-      await db
-        .insert(journalEscalationLogTable)
-        .values({
-          campusId: report.campusId,
-          weekId: week.id,
-          level,
-          recipientCount: sent,
-          reportToken: token,
-        })
-        .onConflictDoNothing();
-      campusesMailed += 1;
-      totalRecipients += sent;
-    }
-
-    res.status(202).json({
-      ok: true,
-      level,
-      week: week.weekNumber,
-      campusesMailed,
-      totalRecipients,
-    });
   },
 );
+
+// Body of the journal-escalation run, extracted so the route handler can hold
+// the advisory lock across the entire execution via try/finally. Every early
+// `return` below just ends the run; the caller always releases the lock.
+async function runJournalEscalation(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const [cfg] = await db
+    .select({ enabled: programmeConfigTable.escalationEnabled })
+    .from(programmeConfigTable)
+    .limit(1);
+  if (cfg && cfg.enabled === false) {
+    res.status(202).json({ ok: true, reason: "escalation_disabled" });
+    return;
+  }
+
+  const bodyLevel = (req.body?.level ?? req.query.level) as Level | undefined;
+  const level: Level | null = bodyLevel ?? levelForToday();
+  if (!level) {
+    res.status(202).json({ ok: true, reason: "no_escalation_scheduled_today" });
+    return;
+  }
+
+  const week = await resolveReportWeek();
+  if (!week) {
+    res.status(202).json({ ok: true, reason: "no_programme_week" });
+    return;
+  }
+
+  const appUrl = getAppUrl();
+  const reports = await computeCampusWeekReports(week);
+
+  // ── Admin level: one campus-wide report to notification subscribers ──────
+  if (level === "admin") {
+    const already = await db
+      .select({ id: journalEscalationLogTable.id })
+      .from(journalEscalationLogTable)
+      .where(
+        and(
+          eq(journalEscalationLogTable.weekId, week.id),
+          eq(journalEscalationLogTable.level, "admin"),
+        ),
+      );
+    if (already.length > 0) {
+      res.status(202).json({ ok: true, reason: "admin_already_sent" });
+      return;
+    }
+    const subs = await db
+      .select({
+        email: overdueNotificationSubscribersTable.email,
+        name: overdueNotificationSubscribersTable.name,
+      })
+      .from(overdueNotificationSubscribersTable)
+      .where(eq(overdueNotificationSubscribersTable.isActive, true));
+
+    const token = await persistReportLink({
+      scope: "admin",
+      kind: "escalation_admin",
+      campusId: null,
+      campusName: null,
+      week,
+      title: `Campus-wise journal report — ${weekLabel(week)}`,
+      payload: { week, campuses: reports },
+    });
+    const link = `${appUrl}/reports/view/${token}`;
+    const summary = reports
+      .map(
+        (r) =>
+          `  • ${r.campusName}: ${r.submittedCount}/${r.totalTeams} submitted, ${r.notSubmittedCount} pending`,
+      )
+      .join("\n");
+    const text = `Weekly journal escalation — ${weekLabel(week)}\n\nCampus-wise submission status:\n${summary}\n\nFull report: ${link}\n`;
+    const html = renderAdminEscalationHtml(week, reports, link);
+
+    let sent = 0;
+    for (const s of subs) {
+      const ok = await sendEmail({
+        to: { email: s.email, name: s.name ?? undefined },
+        subject: `[BRAVE] Journal report — ${weekLabel(week)}`,
+        text,
+        html,
+      });
+      if (ok) sent += 1;
+    }
+    await db
+      .insert(journalEscalationLogTable)
+      .values({
+        campusId: null,
+        weekId: week.id,
+        level: "admin",
+        recipientCount: sent,
+        reportToken: token,
+      })
+      .onConflictDoNothing();
+    res.status(202).json({ ok: true, level, campuses: reports.length, sent });
+    return;
+  }
+
+  // ── Success Coach / COS level: per-campus to tagged coordinators ─────────
+  const tagName = TAG_FOR_LEVEL[level];
+  let campusesMailed = 0;
+  let totalRecipients = 0;
+  for (const report of reports) {
+    if (report.notSubmittedCount === 0) continue; // nothing to escalate
+
+    // Skip if already sent for this campus + week + level.
+    const already = await db
+      .select({ id: journalEscalationLogTable.id })
+      .from(journalEscalationLogTable)
+      .where(
+        and(
+          eq(journalEscalationLogTable.campusId, report.campusId),
+          eq(journalEscalationLogTable.weekId, week.id),
+          eq(journalEscalationLogTable.level, level),
+        ),
+      );
+    if (already.length > 0) continue;
+
+    const recipients = await resolveCampusTagRecipients(
+      report.campusId,
+      tagName,
+    );
+    const token = await persistReportLink({
+      scope: "campus",
+      kind: `escalation_${level}`,
+      campusId: report.campusId,
+      campusName: report.campusName,
+      week,
+      title: `${report.campusName} — ${LEVEL_LABEL[level]} escalation — ${weekLabel(week)}`,
+      payload: { week, campus: report },
+    });
+    const link = `${appUrl}/reports/view/${token}`;
+    const text = `Journal escalation (${LEVEL_LABEL[level]}) — ${report.campusName}\n${weekLabel(week)}\n\nSubmitted: ${report.submittedCount}/${report.totalTeams}\nPending teams (${report.notSubmittedCount}):\n${missingTeamsText(report)}\n\nFull report: ${link}\n`;
+
+    let sent = 0;
+    for (const r of recipients) {
+      const ok = await sendEmail({
+        to: { email: r.email, name: r.firstName ?? undefined },
+        subject: `[BRAVE] ${LEVEL_LABEL[level]} — ${report.campusName} journals pending (${weekLabel(week)})`,
+        text,
+      });
+      if (ok) sent += 1;
+    }
+    await db
+      .insert(journalEscalationLogTable)
+      .values({
+        campusId: report.campusId,
+        weekId: week.id,
+        level,
+        recipientCount: sent,
+        reportToken: token,
+      })
+      .onConflictDoNothing();
+    campusesMailed += 1;
+    totalRecipients += sent;
+  }
+
+  res.status(202).json({
+    ok: true,
+    level,
+    week: week.weekNumber,
+    campusesMailed,
+    totalRecipients,
+  });
+}
 
 // Weekly Friday report — full week grid + campus summary, emailed (as a link)
 // to admin notification subscribers.

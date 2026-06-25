@@ -8,6 +8,7 @@ import {
   pgEnum,
   unique,
   index,
+  uniqueIndex,
   primaryKey,
   jsonb,
 } from "drizzle-orm/pg-core";
@@ -1196,7 +1197,12 @@ export const reelScriptsTable = pgTable(
   (t) => [
     index("reel_scripts_created_idx").on(t.createdAt),
     index("reel_scripts_bucket_idx").on(t.bucket),
-    index("reel_scripts_dedupe_idx").on(t.dedupeKey),
+    // Unique on the normalized dedupe key so duplicates are rejected at the DB
+    // level — the in-memory scan only looked at the newest 500 rows, so an old
+    // duplicate could slip back in once the library grew past that. dedupeKey is
+    // nullable; Postgres treats NULLs as distinct, so imported/legacy rows that
+    // never set a key are unaffected.
+    uniqueIndex("reel_scripts_dedupe_key_unique").on(t.dedupeKey),
   ],
 );
 

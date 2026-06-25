@@ -71,6 +71,34 @@ async function backfillSyntheticUserEmails(): Promise<void> {
   }
 }
 
+// Reel-script DB-level dedup. The reel library could accumulate duplicate
+// scripts because the in-memory guard only scanned the newest 500 rows. This
+// removes existing duplicates (keeping the lowest id per dedupe_key) and then
+// creates the unique index that prevents new ones. Runs at startup because the
+// production deploy does not run `drizzle-kit push`, so this is what applies the
+// constraint there. Idempotent and safe to run on every boot.
+async function ensureReelScriptUniqueness(): Promise<void> {
+  try {
+    const deleted = await db.execute(sql`
+      DELETE FROM reel_scripts a
+      USING reel_scripts b
+      WHERE a.dedupe_key IS NOT NULL
+        AND a.dedupe_key = b.dedupe_key
+        AND a.id > b.id
+    `);
+    const removed = (deleted as { rowCount?: number }).rowCount ?? 0;
+    if (removed > 0) {
+      logger.info({ removed }, "Removed duplicate reel_scripts rows");
+    }
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS reel_scripts_dedupe_key_unique
+        ON reel_scripts (dedupe_key)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure reel_scripts uniqueness");
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -124,6 +152,11 @@ async function runBootstrap(): Promise<void> {
     await bootstrapCoordinatorTags();
   } catch (err) {
     logger.error({ err }, "bootstrapCoordinatorTags failed");
+  }
+  try {
+    await ensureReelScriptUniqueness();
+  } catch (err) {
+    logger.error({ err }, "ensureReelScriptUniqueness failed");
   }
   try {
     await backfillOrderBookEntries();
