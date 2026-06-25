@@ -36,6 +36,8 @@ import coordinatorTagsRouter from "./coordinator-tags";
 import gritConfigRouter from "./grit-config";
 import reportsRouter from "./reports";
 import cronJournalEscalationRouter from "./cron-journal-escalation";
+import reelsScriptsRouter from "./reels-scripts";
+import cronReelsRouter from "./cron-reels";
 
 const router: IRouter = Router();
 
@@ -94,5 +96,8 @@ router.use(gritConfigRouter);
 router.use(reportsRouter);
 // Journal escalation chain + weekly report crons (additive, isolated)
 router.use(cronJournalEscalationRouter);
+// Reel Scripts library (admin list/import) + daily generation cron (additive)
+router.use(reelsScriptsRouter);
+router.use(cronReelsRouter);
 
 export default router;

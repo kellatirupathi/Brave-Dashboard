@@ -30,6 +30,7 @@ import {
   BarChart3,
   FileBarChart,
   MessageSquare,
+  Clapperboard,
   Bell,
   UserCheck,
   UserPlus,
@@ -258,8 +259,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     staleTime: 60_000,
     enabled: user?.role === "student",
   });
-  const gritMilesMenuEnabled =
-    studentGritConfig?.gritMilesMenuEnabled ?? false;
+  const gritMilesMenuEnabled = studentGritConfig?.gritMilesMenuEnabled ?? false;
 
   // Per-page admin permissions (default-allow). Enabled only for admins; the
   // query is cached and shared with ProtectedRoute. Restricted admins have
@@ -412,6 +412,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             name: "Chatbot History",
             href: "/admin/chatbot-history",
             icon: MessageSquare,
+          },
+          {
+            name: "Reels Scripts",
+            href: "/admin/reels-scripts",
+            icon: Clapperboard,
           },
         ],
       },

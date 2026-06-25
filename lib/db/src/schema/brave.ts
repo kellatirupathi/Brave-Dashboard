@@ -1169,4 +1169,35 @@ export const journalEscalationLogTable = pgTable(
   ],
 );
 
-export type JournalEscalationLog = typeof journalEscalationLogTable.$inferSelect;
+export type JournalEscalationLog =
+  typeof journalEscalationLogTable.$inferSelect;
+
+// Reel Script Library (additive, isolated). Holds both the imported reference
+// scripts and the ones generated daily by the Gemini cron from weekly journals.
+// `bucket` is the script category (e.g. STORY | INFORMATIVE | PAIN POINT |
+// STUDENT QUESTION). `dedupeKey` is a normalized form of the script used to
+// avoid storing duplicates. `source` distinguishes 'imported' vs 'generated'.
+export const reelScriptsTable = pgTable(
+  "reel_scripts",
+  {
+    id: serial("id").primaryKey(),
+    bucket: text("bucket").notNull(),
+    script: text("script").notNull(),
+    source: text("source").notNull().default("imported"), // 'imported' | 'generated'
+    dedupeKey: text("dedupe_key"),
+    // Generation provenance (nullable; only set for source = 'generated').
+    sourceJournalId: integer("source_journal_id"),
+    teamId: integer("team_id"),
+    meta: jsonb("meta"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("reel_scripts_created_idx").on(t.createdAt),
+    index("reel_scripts_bucket_idx").on(t.bucket),
+    index("reel_scripts_dedupe_idx").on(t.dedupeKey),
+  ],
+);
+
+export type ReelScript = typeof reelScriptsTable.$inferSelect;

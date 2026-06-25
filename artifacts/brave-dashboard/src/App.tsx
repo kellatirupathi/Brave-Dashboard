@@ -95,6 +95,7 @@ import AdminNotifications from "@/pages/admin/notifications";
 import CoordinatorJournals from "@/pages/coordinator/journals";
 import CoordinatorJournalTracking from "@/pages/coordinator/journal-tracking";
 import AdminReports from "@/pages/admin/reports";
+import AdminReelsScripts from "@/pages/admin/reels-scripts";
 import ReportView from "@/pages/reports/view";
 import CoordinatorJournalTeamDetail from "@/pages/coordinator/journal-team-detail";
 import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
@@ -492,6 +493,12 @@ function Router() {
         </Route>
         <Route path="/admin/reports">
           <ProtectedRoute component={AdminReports} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/reels-scripts">
+          <ProtectedRoute
+            component={AdminReelsScripts}
+            allowedRoles={["admin"]}
+          />
         </Route>
         <Route path="/admin/queue/detailed-analysis">
           <ProtectedRoute
