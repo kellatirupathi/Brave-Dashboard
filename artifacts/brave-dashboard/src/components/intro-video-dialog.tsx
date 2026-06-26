@@ -39,14 +39,21 @@ export function IntroVideoDialog({ open, onClose }: Props) {
       aria-modal="true"
       aria-labelledby="intro-video-title"
       data-testid="dialog-intro-video"
+      // Click anywhere on the backdrop (outside the dialog card) to close. This
+      // is the universal modal escape hatch — without it, a student whose ✕ is
+      // obscured (browser extension, screen-share overlay, render glitch) gets
+      // trapped. onMouseDown so a drag that starts inside doesn't close.
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="relative flex w-full max-w-[720px] max-h-[90vh] flex-col rounded-lg bg-background shadow-xl overflow-hidden">
+      <div
+        className="relative flex w-full max-w-[720px] max-h-[90vh] flex-col rounded-lg bg-background shadow-xl overflow-hidden"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3 border-b border-border">
           <div className="min-w-0">
-            <h2
-              id="intro-video-title"
-              className="text-lg sm:text-xl font-bold"
-            >
+            <h2 id="intro-video-title" className="text-lg sm:text-xl font-bold">
               Welcome to BRAVE Dashboard
             </h2>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -58,9 +65,10 @@ export function IntroVideoDialog({ open, onClose }: Props) {
             onClick={onClose}
             aria-label="Close intro video"
             data-testid="button-close-intro-video"
-            className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative z-10 shrink-0 flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <X className="h-4 w-4" />
+            <span>Close</span>
           </button>
         </div>
 
@@ -77,6 +85,19 @@ export function IntroVideoDialog({ open, onClose }: Props) {
               title="BRAVE intro video"
               data-testid="iframe-intro-video"
             />
+          </div>
+
+          {/* Explicit bottom dismiss — a third, always-visible escape route in
+              case the top ✕ is obscured (screen-share overlay, extension). */}
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              data-testid="button-skip-intro-video"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Skip and continue to dashboard
+            </button>
           </div>
         </div>
       </div>

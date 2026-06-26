@@ -1471,7 +1471,7 @@ function Footer() {
             <Instagram className="h-[18px] w-[18px]" />
           </a>
           <p style={{ color: "rgba(255,243,223,.45)", fontSize: 12.5 }}>
-            © {new Date().getFullYear()} NIAT India. All rights reserved.
+            © {new Date().getFullYear()} NxtWave. All rights reserved.
           </p>
         </div>
       </div>
