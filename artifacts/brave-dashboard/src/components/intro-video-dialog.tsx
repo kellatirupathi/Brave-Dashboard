@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAuth } from "@workspace/replit-auth-web";
 
 export const INTRO_VIDEO_DRIVE_FILE_ID = "1BFDX3obdB-b2Jt2Wcaq3egOozANr6s8B";
 export const INTRO_VIDEO_DISMISSED_KEY = "brave_intro_video_dismissed";
@@ -134,10 +135,19 @@ export function AutoIntroVideo() {
 }
 
 function useStateOpenOnFirstVisit(): [boolean, (v: boolean) => void] {
-  // Default closed; flip open on mount only if not already dismissed. This
-  // avoids a flash of the modal during initial render.
+  const { user } = useAuth();
+  // Default closed; flip open only if not already dismissed. This avoids a
+  // flash of the modal during initial render.
   const [open, setOpen] = useState(false);
   useEffect(() => {
+    // Never stack on top of the Terms & Conditions gate. A student who hasn't
+    // accepted terms yet sees ONLY the terms gate; the intro waits until terms
+    // are accepted (termsAcceptedAt set by acceptTerms() + auth refresh), at
+    // which point this effect re-runs and opens the intro. Non-students have no
+    // terms gate, so they're never blocked. If the student has already seen and
+    // dismissed the intro before (localStorage flag set), it stays closed.
+    const termsPending = user?.role === "student" && !user.termsAcceptedAt;
+    if (termsPending) return;
     try {
       if (localStorage.getItem(INTRO_VIDEO_DISMISSED_KEY) !== "true") {
         setOpen(true);
@@ -145,6 +155,6 @@ function useStateOpenOnFirstVisit(): [boolean, (v: boolean) => void] {
     } catch {
       setOpen(true);
     }
-  }, []);
+  }, [user?.role, user?.termsAcceptedAt]);
   return [open, setOpen];
 }
