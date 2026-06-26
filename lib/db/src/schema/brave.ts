@@ -568,6 +568,16 @@ export const revenueEntriesTable = pgTable(
     uniquenessScore: integer("uniqueness_score"),
     aiAnalysisDetail: jsonb("ai_analysis_detail"),
     aiAnalysedAt: timestamp("ai_analysed_at", { withTimezone: true }),
+    // Google Drive mirror of the BRD file (admin-triggered, manual migration —
+    // see routes/admin-brd-drive.ts). brdDriveFileId != null means "already
+    // migrated" so re-runs skip it. brdDriveMigrationError holds the last
+    // failure so a re-run retries only failed/never-migrated rows.
+    brdDriveUrl: text("brd_drive_url"),
+    brdDriveFileId: text("brd_drive_file_id"),
+    brdDriveMigratedAt: timestamp("brd_drive_migrated_at", {
+      withTimezone: true,
+    }),
+    brdDriveMigrationError: text("brd_drive_migration_error"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

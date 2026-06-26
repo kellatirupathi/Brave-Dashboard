@@ -200,6 +200,25 @@ async function ensureUserColumns(): Promise<void> {
   }
 }
 
+// Adds the Google Drive mirror columns to revenue_entries. Runs at startup for
+// the same reason as the other ensure* helpers: prod does NOT run
+// `drizzle-kit push`, so without this the BRD-to-Drive migration route and the
+// teams export (which read these columns) would crash with "column does not
+// exist". Fully idempotent (IF NOT EXISTS); safe on every boot.
+async function ensureBrdDriveColumns(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE revenue_entries
+        ADD COLUMN IF NOT EXISTS brd_drive_url text,
+        ADD COLUMN IF NOT EXISTS brd_drive_file_id text,
+        ADD COLUMN IF NOT EXISTS brd_drive_migrated_at timestamptz,
+        ADD COLUMN IF NOT EXISTS brd_drive_migration_error text
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure revenue_entries brd_drive columns");
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -250,6 +269,11 @@ async function runBootstrap(): Promise<void> {
     await ensureReelAndDemoDayColumns();
   } catch (err) {
     logger.error({ err }, "ensureReelAndDemoDayColumns failed");
+  }
+  try {
+    await ensureBrdDriveColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureBrdDriveColumns failed");
   }
   try {
     await bootstrapCanonicalCampuses();

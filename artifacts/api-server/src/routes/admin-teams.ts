@@ -9,6 +9,9 @@ import {
   campusesTable,
   milestonesTable,
   rosterTable,
+  projectsTable,
+  revenueEntriesTable,
+  orderBookEntriesTable,
 } from "@workspace/db";
 import {
   AdminCreateTeamBody,
@@ -429,8 +432,8 @@ router.post(
         const leaderUserId = (row.leaderUserId ?? "").trim();
         const universityName = (row.universityName ?? "").trim();
         const memberUserIds = (row.memberUserIds ?? [])
-          .map((m) => m.trim())
-          .filter((m) => m.length > 0);
+          .map((m: string) => m.trim())
+          .filter((m: string) => m.length > 0);
 
         if (!teamName) {
           skipped.push({
@@ -672,6 +675,370 @@ async function fetchExportRows(opts: {
   })) as unknown as ExportRow[];
 }
 
+// =============================================================================
+// "Team Projects" subsheet — team-level (one row per team), with a repeating
+// column group per project. Multiple clients / multiple BRDs for one project
+// are stacked line-by-line WITHIN a single cell, kept row-aligned so line N of
+// the clients cell corresponds to line N of the BRD-link cell. Existing sheets
+// and the CSV are untouched — this is purely additive.
+// =============================================================================
+
+// One BRD (revenue entry) belonging to a project.
+type ProjectBrd = {
+  brdLink: string; // Drive link if migrated, else in-app /objects link
+  status: string; // revenue entry status: draft | submitted | verified | rejected
+  relevancyScore: number | null;
+  relevancySummary: string;
+  uniquenessScore: number | null;
+  uniquenessSummary: string;
+};
+
+type ProjectExport = {
+  name: string;
+  status: string; // "active" | "inactive"
+  hasVerified: boolean;
+  clients: string[]; // distinct, revenue + order book
+  brds: ProjectBrd[];
+  overallSummary: string;
+};
+
+type TeamProjectsRow = {
+  campus_name: string;
+  team_name: string;
+  team_status: string;
+  team_verified_revenue: number;
+  team_verified_order_book: number;
+  team_projects_count: number;
+  team_created_at: Date;
+  projects: ProjectExport[];
+};
+
+function asStr(v: unknown): string {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+// Pull the relevancy summary + uniqueness summary out of the stored Gemini
+// aiAnalysisDetail JSON. Shapes (see lib/ai/analyse-brd.ts):
+//   detail.brd_summary.summary_text  → relevancy summary
+//   detail.uniqueness.summary        → uniqueness summary
+function summariesFromDetail(detail: unknown): {
+  relevancy: string;
+  uniqueness: string;
+} {
+  if (!detail || typeof detail !== "object") {
+    return { relevancy: "", uniqueness: "" };
+  }
+  const d = detail as Record<string, unknown>;
+  const brdSummary = d["brd_summary"];
+  const relevancy =
+    brdSummary && typeof brdSummary === "object"
+      ? asStr((brdSummary as Record<string, unknown>)["summary_text"])
+      : "";
+  const uniq = d["uniqueness"];
+  const uniqueness =
+    uniq && typeof uniq === "object"
+      ? asStr((uniq as Record<string, unknown>)["summary"])
+      : "";
+  return { relevancy, uniqueness };
+}
+
+// Build the absolute in-app link for a BRD object path (the fallback when a
+// file hasn't been mirrored to Drive). Uses the public app origin so the link
+// is clickable from the spreadsheet.
+function inAppBrdLink(objectPath: string, origin: string): string {
+  if (!objectPath) return "";
+  if (/^https?:\/\//i.test(objectPath)) return objectPath; // already absolute
+  const rel = objectPath.startsWith("/objects/")
+    ? `/api/storage${objectPath}`
+    : objectPath;
+  return `${origin}${rel.startsWith("/") ? "" : "/"}${rel}`;
+}
+
+async function fetchTeamProjectsRows(
+  opts: { status?: string; search?: string; campusId?: number },
+  origin: string,
+): Promise<TeamProjectsRow[]> {
+  // Reuse the member-level export to get the exact same team set (same filters,
+  // same empty-team exclusion, same ordering). Collapse to distinct teams.
+  const memberRows = await fetchExportRows(opts);
+  const teamOrder: number[] = [];
+  const teamMeta = new Map<number, TeamProjectsRow & { team_id: number }>();
+  for (const r of memberRows) {
+    if (!teamMeta.has(r.team_id)) {
+      teamOrder.push(r.team_id);
+      teamMeta.set(r.team_id, {
+        team_id: r.team_id,
+        campus_name: r.campus_name,
+        team_name: r.team_name,
+        team_status: r.team_status,
+        team_verified_revenue: r.team_verified_revenue,
+        team_verified_order_book: r.team_verified_order_book,
+        team_projects_count: r.team_projects_count,
+        team_created_at: r.team_created_at,
+        projects: [],
+      });
+    }
+  }
+  if (teamOrder.length === 0) return [];
+
+  // Projects for these teams.
+  const projectRows = await db
+    .select({
+      id: projectsTable.id,
+      teamId: projectsTable.teamId,
+      title: projectsTable.title,
+      status: projectsTable.status,
+    })
+    .from(projectsTable)
+    .where(inArray(projectsTable.teamId, teamOrder))
+    .orderBy(projectsTable.teamId, projectsTable.id);
+
+  const projectsByTeam = new Map<number, typeof projectRows>();
+  const projectIds: number[] = [];
+  for (const p of projectRows) {
+    projectIds.push(p.id);
+    const bucket = projectsByTeam.get(p.teamId) ?? [];
+    bucket.push(p);
+    projectsByTeam.set(p.teamId, bucket);
+  }
+
+  // Revenue entries (BRDs + AI scores + clients) per project.
+  type RevenueRow = {
+    projectId: number;
+    clientName: string;
+    status: string;
+    brdUrl: string | null;
+    brdDriveUrl: string | null;
+    brdScore: number | null;
+    uniquenessScore: number | null;
+    aiAnalysisDetail: unknown;
+    createdAt: Date;
+  };
+  type OrderRow = {
+    projectId: number;
+    clientName: string;
+    status: string;
+  };
+
+  const revenueRows: RevenueRow[] = projectIds.length
+    ? ((await db
+        .select({
+          projectId: revenueEntriesTable.projectId,
+          clientName: revenueEntriesTable.clientName,
+          status: revenueEntriesTable.status,
+          brdUrl: revenueEntriesTable.brdUrl,
+          brdDriveUrl: revenueEntriesTable.brdDriveUrl,
+          brdScore: revenueEntriesTable.brdScore,
+          uniquenessScore: revenueEntriesTable.uniquenessScore,
+          aiAnalysisDetail: revenueEntriesTable.aiAnalysisDetail,
+          createdAt: revenueEntriesTable.createdAt,
+        })
+        .from(revenueEntriesTable)
+        .where(inArray(revenueEntriesTable.projectId, projectIds))
+        .orderBy(
+          revenueEntriesTable.projectId,
+          revenueEntriesTable.id,
+        )) as RevenueRow[])
+    : [];
+
+  // Order-book client names per project (for the de-duplicated client list).
+  const orderRows: OrderRow[] = projectIds.length
+    ? ((await db
+        .select({
+          projectId: orderBookEntriesTable.projectId,
+          clientName: orderBookEntriesTable.clientName,
+          status: orderBookEntriesTable.status,
+        })
+        .from(orderBookEntriesTable)
+        .where(
+          inArray(orderBookEntriesTable.projectId, projectIds),
+        )) as OrderRow[])
+    : [];
+
+  const revenueByProject = new Map<number, RevenueRow[]>();
+  for (const r of revenueRows) {
+    const b = revenueByProject.get(r.projectId) ?? [];
+    b.push(r);
+    revenueByProject.set(r.projectId, b);
+  }
+  const orderByProject = new Map<number, OrderRow[]>();
+  for (const o of orderRows) {
+    const b = orderByProject.get(o.projectId) ?? [];
+    b.push(o);
+    orderByProject.set(o.projectId, b);
+  }
+
+  for (const teamId of teamOrder) {
+    const team = teamMeta.get(teamId)!;
+    const projects = projectsByTeam.get(teamId) ?? [];
+    for (const p of projects) {
+      const revs = revenueByProject.get(p.id) ?? [];
+      const orders = orderByProject.get(p.id) ?? [];
+
+      // Distinct client names (case-insensitive), revenue + order book.
+      const seen = new Set<string>();
+      const clients: string[] = [];
+      for (const c of [...revs, ...orders]) {
+        const name = (c.clientName ?? "").trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        clients.push(name);
+      }
+
+      const brds: ProjectBrd[] = revs
+        .filter((r) => (r.brdUrl ?? "").trim().length > 0)
+        .map((r) => {
+          const { relevancy, uniqueness } = summariesFromDetail(
+            r.aiAnalysisDetail,
+          );
+          const link =
+            r.brdDriveUrl && r.brdDriveUrl.trim().length > 0
+              ? r.brdDriveUrl
+              : inAppBrdLink(r.brdUrl ?? "", origin);
+          return {
+            brdLink: link,
+            status: r.status ?? "",
+            relevancyScore: r.brdScore ?? null,
+            relevancySummary: relevancy,
+            uniquenessScore: r.uniquenessScore ?? null,
+            uniquenessSummary: uniqueness,
+          };
+        });
+
+      const hasVerified =
+        revs.some((r) => r.status === "verified") ||
+        orders.some((o) => o.status === "verified");
+
+      // Overall summary: prefer the most informative relevancy summary text.
+      const overallSummary =
+        brds.find((b) => b.relevancySummary)?.relevancySummary ?? "";
+
+      team.projects.push({
+        name: p.title,
+        status: p.status,
+        hasVerified,
+        clients,
+        brds,
+        overallSummary,
+      });
+    }
+  }
+
+  return teamOrder.map((id) => {
+    const t = teamMeta.get(id)!;
+    // Strip the internal team_id before returning.
+    const { team_id: _omit, ...rest } = t;
+    return rest;
+  });
+}
+
+// Per-project column group, in order. Each becomes "Project N <label>".
+const PROJECT_FIELD_LABELS = [
+  "Name",
+  "Status",
+  "Client Name(s)",
+  "BRD Link(s)",
+  "BRD Verified Status(es)",
+  "BRD Relevancy Score",
+  "BRD Relevancy Summary",
+  "BRD Uniqueness Score",
+  "BRD Uniqueness Summary",
+  "Overall Summary",
+] as const;
+
+const TEAM_PROJECTS_LEAD_HEADERS = [
+  "Campus",
+  "Team Name",
+  "Team Status",
+  "Verified Revenue (INR)",
+  "Verified Order Book (INR)",
+  "Projects Count",
+  "Team Created",
+] as const;
+
+// Join multiple values one-per-line within a single cell (Excel wrap-text).
+function stackCell(values: Array<string | number | null | undefined>): string {
+  return values.map((v) => (v == null || v === "" ? "" : String(v))).join("\n");
+}
+
+// Build the "Team Projects" worksheet as an array-of-arrays so we control the
+// dynamic per-project columns and enable wrap-text on stacked cells.
+function buildTeamProjectsSheet(rows: TeamProjectsRow[]): XLSX.WorkSheet {
+  const maxProjects = rows.reduce((m, r) => Math.max(m, r.projects.length), 0);
+
+  // Header row.
+  const header: string[] = [...TEAM_PROJECTS_LEAD_HEADERS];
+  for (let i = 1; i <= maxProjects; i++) {
+    for (const label of PROJECT_FIELD_LABELS) {
+      header.push(`Project ${i} ${label}`);
+    }
+  }
+
+  const aoa: Array<Array<string | number>> = [header];
+
+  for (const r of rows) {
+    const line: Array<string | number> = [
+      r.campus_name,
+      r.team_name,
+      r.team_status,
+      r.team_verified_revenue,
+      r.team_verified_order_book,
+      r.team_projects_count,
+      fmtCell(r.team_created_at),
+    ];
+    for (let i = 0; i < maxProjects; i++) {
+      const p = r.projects[i];
+      if (!p) {
+        // No project in this slot — fill blanks for the whole group.
+        for (let k = 0; k < PROJECT_FIELD_LABELS.length; k++) line.push("");
+        continue;
+      }
+      const statusCell = `${p.status}${p.hasVerified ? " (has verified)" : ""}`;
+      line.push(p.name);
+      line.push(statusCell);
+      line.push(stackCell(p.clients));
+      line.push(stackCell(p.brds.map((b) => b.brdLink)));
+      line.push(stackCell(p.brds.map((b) => b.status)));
+      line.push(stackCell(p.brds.map((b) => b.relevancyScore)));
+      line.push(stackCell(p.brds.map((b) => b.relevancySummary)));
+      line.push(stackCell(p.brds.map((b) => b.uniquenessScore)));
+      line.push(stackCell(p.brds.map((b) => b.uniquenessSummary)));
+      line.push(p.overallSummary);
+    }
+    aoa.push(line);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Enable wrap-text on every body cell so the stacked (multi-line) cells show
+  // each value on its own line. (SheetJS preserves cell.s style on write.)
+  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      const cell = ws[addr];
+      if (!cell) continue;
+      cell.s = { alignment: { wrapText: true, vertical: "top" } };
+    }
+  }
+
+  // Reasonable column widths: lead columns narrower, project text columns wide.
+  const cols: Array<{ wch: number }> = TEAM_PROJECTS_LEAD_HEADERS.map((h) => ({
+    wch: h === "Team Name" || h === "Campus" ? 22 : 16,
+  }));
+  for (let i = 0; i < maxProjects; i++) {
+    for (const label of PROJECT_FIELD_LABELS) {
+      const wide = label.includes("Summary") || label.includes("Client");
+      cols.push({ wch: wide ? 40 : label.includes("Link") ? 36 : 18 });
+    }
+  }
+  ws["!cols"] = cols;
+
+  return ws;
+}
+
 function fmtCell(v: unknown): string {
   if (v == null) return "";
   if (v instanceof Date) {
@@ -855,6 +1222,38 @@ router.get(
         const safeName =
           campusName.replace(/[\\/?*[\]:]/g, "-").slice(0, 31) || "Campus";
         XLSX.utils.book_append_sheet(workbook, ws, safeName);
+      }
+
+      // Additional subsheet: "Team Projects" — team-level, one row per team,
+      // with a repeating column group per project (name, clients, BRD links +
+      // AI scores/summaries). Existing sheets above are untouched. Best-effort:
+      // a failure here must not break the rest of the export.
+      try {
+        const origin = `${req.protocol}://${req.get("host") ?? ""}`;
+        const teamProjectRows = await fetchTeamProjectsRows(
+          {
+            status:
+              typeof req.query.status === "string"
+                ? req.query.status
+                : undefined,
+            search:
+              typeof req.query.search === "string"
+                ? req.query.search
+                : undefined,
+            campusId:
+              campusIdNum != null && Number.isFinite(campusIdNum)
+                ? campusIdNum
+                : undefined,
+          },
+          origin,
+        );
+        const projectsSheet = buildTeamProjectsSheet(teamProjectRows);
+        XLSX.utils.book_append_sheet(workbook, projectsSheet, "Team Projects");
+      } catch (sheetErr) {
+        req.log.error(
+          { err: sheetErr },
+          "[admin/teams/export-by-campus.xlsx] Team Projects subsheet failed",
+        );
       }
 
       const buffer = XLSX.write(workbook, {

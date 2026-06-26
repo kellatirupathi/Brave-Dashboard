@@ -39,6 +39,7 @@ import cronJournalEscalationRouter from "./cron-journal-escalation";
 import reelsScriptsRouter from "./reels-scripts";
 import termsRouter from "./terms";
 import demoDaySubmissionsRouter from "./demoday-submissions";
+import adminBrdDriveRouter from "./admin-brd-drive";
 
 const router: IRouter = Router();
 
@@ -104,5 +105,7 @@ router.use(reelsScriptsRouter);
 router.use(termsRouter);
 // New Demo Day "best project" submissions + admin shortlist (additive)
 router.use(demoDaySubmissionsRouter);
+// Manual BRD → Google Drive migration (admin Config button, additive/isolated)
+router.use(adminBrdDriveRouter);
 
 export default router;

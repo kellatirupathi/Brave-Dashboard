@@ -42,6 +42,7 @@ import { ReminderSettingsCard } from "@/components/reminder-settings-card";
 import { ResourcesSettingsCard } from "@/components/resources-settings-card";
 import { CoordinatorTagsCard } from "@/components/coordinator-tags-card";
 import { GritConfigCard } from "@/components/grit-config-card";
+import { BrdDriveCard } from "@/components/brd-drive-card";
 import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
@@ -593,6 +594,9 @@ export default function AdminConfig() {
 
           {/* SECTION 5 — Chatbot LLM provider runtime switch. */}
           <ChatbotProviderCard />
+
+          {/* SECTION 6 — Manual BRD → Google Drive migration (click only). */}
+          <BrdDriveCard />
         </div>
       </div>
 
