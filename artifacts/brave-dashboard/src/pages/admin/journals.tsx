@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  BookOpenCheck,
   Search,
   AlertTriangle,
   Pencil,
@@ -521,57 +520,6 @@ export default function AdminJournals({ scope = "admin" }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.07] via-background to-background">
-        <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-              <BookOpenCheck className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                Weekly Journals
-              </h1>
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                AI-structured weekly check-ins — activity, categories, and
-                blocker triage across every team.
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={() => setConfirmAnalyseAll(true)}
-            disabled={analyseProgress?.running}
-            className="gap-2"
-            data-testid="journals-analyse-all"
-          >
-            {analyseProgress?.running ? (
-              <Spinner className="size-4" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            {analyseProgress?.running
-              ? `Analysing ${analyseProgress.done}/${analyseProgress.total}…`
-              : "Analyse all"}
-          </Button>
-        </div>
-
-        {analyseProgress && (
-          <div className="space-y-1 border-t bg-background/60 px-5 py-3 sm:px-6">
-            <Progress
-              value={
-                analyseProgress.total
-                  ? (analyseProgress.done / analyseProgress.total) * 100
-                  : 0
-              }
-            />
-            <div className="text-xs text-muted-foreground">
-              {analyseProgress.running
-                ? `Analysing journals one by one — ${analyseProgress.done} of ${analyseProgress.total}`
-                : `Done — analysed ${analyseProgress.done} of ${analyseProgress.total}`}
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Filters + tabs */}
       <div className="flex flex-col gap-3">
         {/* Segmented tabs (left) + export (right) */}
@@ -600,17 +548,51 @@ export default function AdminJournals({ scope = "admin" }: Props) {
               </button>
             ))}
           </div>
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => exportJournalsToCsv(journals ?? [])}
-            disabled={!journals || journals.length === 0}
-            data-testid="journals-export"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setConfirmAnalyseAll(true)}
+              disabled={analyseProgress?.running}
+              className="gap-2"
+              data-testid="journals-analyse-all"
+            >
+              {analyseProgress?.running ? (
+                <Spinner className="size-4" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {analyseProgress?.running
+                ? `Analysing ${analyseProgress.done}/${analyseProgress.total}…`
+                : "Analyse all"}
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => exportJournalsToCsv(journals ?? [])}
+              disabled={!journals || journals.length === 0}
+              data-testid="journals-export"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
         </div>
+
+        {analyseProgress && (
+          <div className="space-y-1 rounded-lg border bg-muted/30 px-4 py-3">
+            <Progress
+              value={
+                analyseProgress.total
+                  ? (analyseProgress.done / analyseProgress.total) * 100
+                  : 0
+              }
+            />
+            <div className="text-xs text-muted-foreground">
+              {analyseProgress.running
+                ? `Analysing journals one by one — ${analyseProgress.done} of ${analyseProgress.total}`
+                : `Done — analysed ${analyseProgress.done} of ${analyseProgress.total}`}
+            </div>
+          </div>
+        )}
 
         {/* Search (grow) + week/campus filters */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
