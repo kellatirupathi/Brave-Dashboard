@@ -85,6 +85,40 @@ export async function resolveReportWeek(
   return weeks[weeks.length - 1];
 }
 
+// Resolve the week that the escalation / weekly-report crons should target: the
+// most recent programme week that has ALREADY ENDED relative to today (greatest
+// endDate strictly before today).
+//
+// Why this differs from resolveReportWeek: programme weeks run Wed→Tue and the
+// journal deadline is Tuesday EOD. The escalation chain (Wed→Thu→Fri) and the
+// weekly report run the days AFTER that deadline — by which point "today" sits
+// inside the NEXT week, which has only just started and whose own journals are
+// not due yet. resolveReportWeek() returns that current containing week, so the
+// crons were chasing this week's not-yet-due journals instead of last week's.
+// This helper instead reports on the week that just closed on Tuesday — exactly
+// the journals the Wed/Thu/Fri escalation is meant to chase.
+//
+// Falls back to resolveReportWeek() when no week has ended yet (e.g. during the
+// programme's very first week) so the crons still resolve a sensible week.
+export async function resolvePreviousReportWeek(): Promise<WeekRef | null> {
+  const today = todayIso();
+  const weeks = await db
+    .select({
+      id: programmeWeeksTable.id,
+      weekNumber: programmeWeeksTable.weekNumber,
+      startDate: programmeWeeksTable.startDate,
+      endDate: programmeWeeksTable.endDate,
+    })
+    .from(programmeWeeksTable)
+    .orderBy(asc(programmeWeeksTable.weekNumber));
+  if (weeks.length === 0) return null;
+  // Weeks are ordered by weekNumber (so by date too); the last one that ended
+  // before today is the week that just closed.
+  const ended = weeks.filter((w) => w.endDate < today);
+  if (ended.length > 0) return ended[ended.length - 1];
+  return resolveReportWeek();
+}
+
 // All programme weeks (for the report week filter / week grid).
 export async function listAllWeeks(): Promise<WeekRef[]> {
   return db

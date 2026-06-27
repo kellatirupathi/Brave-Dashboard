@@ -25,7 +25,7 @@ import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import { logger } from "../lib/logger";
 import { tryAcquireCronLock } from "../lib/cron-lock";
 import {
-  resolveReportWeek,
+  resolvePreviousReportWeek,
   computeCampusWeekReports,
   resolveCampusTagRecipients,
   computeWeekGrid,
@@ -230,7 +230,9 @@ async function runJournalEscalation(
     return;
   }
 
-  const week = await resolveReportWeek();
+  // Escalation chases the week that just closed on Tuesday, NOT the week that
+  // contains today (which started Wed and isn't due yet).
+  const week = await resolvePreviousReportWeek();
   if (!week) {
     res.status(202).json({ ok: true, reason: "no_programme_week" });
     return;
@@ -380,7 +382,9 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     if (!verifyCronSecret(req, res)) return;
 
-    const week = await resolveReportWeek();
+    // The weekly report covers the week that just closed on Tuesday, matching
+    // the escalation chain (see resolvePreviousReportWeek).
+    const week = await resolvePreviousReportWeek();
     if (!week) {
       res.status(202).json({ ok: true, reason: "no_programme_week" });
       return;
