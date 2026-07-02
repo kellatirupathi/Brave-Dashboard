@@ -17,10 +17,6 @@ import {
   scheduleJournalAnalysis,
   runJournalAnalysisNow,
 } from "../lib/ai/journal-scheduler";
-import {
-  scheduleJournalReelScan,
-  runJournalReelScanNow,
-} from "../lib/ai/journal-reel-scheduler";
 import { requireAdminPage } from "../lib/require-admin-page";
 
 const router: IRouter = Router();
@@ -412,12 +408,12 @@ router.post("/journals", async (req, res): Promise<void> => {
       },
     })
     .returning();
-  // Fire-and-forget AI analysis of the submitted/updated journal. Re-submitting
+  // Fire-and-forget AI analysis of the submitted/updated journal (one merged
+  // Gemini call covers both the analysis and the reel scan). Re-submitting
   // re-schedules so the analysis reflects the latest content. Never blocks the
   // response; no-ops without a Gemini key.
   if (created) {
     scheduleJournalAnalysis(created.id);
-    scheduleJournalReelScan(created.id);
   }
   res.status(201).json(created);
 });
@@ -594,7 +590,6 @@ router.post("/coordinator/journals", async (req, res): Promise<void> => {
     .returning();
   if (created) {
     scheduleJournalAnalysis(created.id);
-    scheduleJournalReelScan(created.id);
   }
   res.status(201).json(created);
 });
@@ -684,7 +679,6 @@ router.post("/coordinator/journals/bulk", async (req, res): Promise<void> => {
     .returning({ id: weeklyJournalsTable.id });
   for (const row of inserted) {
     scheduleJournalAnalysis(row.id);
-    scheduleJournalReelScan(row.id);
   }
   res.json({ ok: true, filled: inserted.length });
 });
@@ -1066,9 +1060,8 @@ router.patch("/journals/:id", async (req, res): Promise<void> => {
       parsed.data.blockers !== undefined ||
       parsed.data.nextWeekPlan !== undefined)
   ) {
+    // The merged analysis also re-decides reel-worthiness against the new text.
     scheduleJournalAnalysis(updated.id);
-    // Content changed → re-decide reel-worthiness against the new text.
-    scheduleJournalReelScan(updated.id);
   }
 
   // Audit log for staff edits (not student self-edits).
@@ -1254,7 +1247,8 @@ router.post(
       return;
     }
 
-    const ok = await runJournalReelScanNow(id);
+    // Re-runs the merged analysis (one Gemini call covers analysis + reel scan).
+    const ok = await runJournalAnalysisNow(id);
 
     const [updated] = await db
       .select({

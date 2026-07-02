@@ -4,16 +4,16 @@
  *   GET  /admin/reels-scripts?search=&bucket=   list (newest first) + buckets
  *   POST /admin/reels-scripts/import            bulk import { rows:[{bucket,script}] }
  *
- * Reads/writes the reel_scripts table. The daily Gemini cron
- * (POST /internal/cron/generate-reels) appends to the same table.
+ * Reads/writes the reel_scripts table. The merged per-journal analysis
+ * (analyse-journal.ts) appends worthy scripts to the same table.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { db, reelScriptsTable } from "@workspace/db";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { reelDedupeKey } from "../lib/ai/generate-reels";
-import { REEL_BUCKETS } from "../lib/ai/reels-prompt";
+import { reelDedupeKey } from "../lib/ai/analyse-journal";
+import { REEL_BUCKETS } from "../lib/ai/journal-prompt";
 
 const ALLOWED_BUCKETS = new Set<string>(REEL_BUCKETS);
 

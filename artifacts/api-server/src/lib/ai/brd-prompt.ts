@@ -35,13 +35,11 @@ MISSING. The score is driven by HOW MANY are properly present, on top of a valid
 1. Business / Team owner details — founder name(s), team name, campus, contact
 2. Problem statement — the specific problem the client had before the solution
 3. Solution description — what was built, key features, how the client uses it
-4. How AI is used — which AI / tool / API and what it actually does (the programme
-   REQUIRES AI as the working mechanism; a missing or vague AI explanation is a serious gap)
-5. Scope of work / deliverables — what was delivered (and what is not included)
-6. Pricing / commercial terms — the amount agreed and the payment structure
-7. Customer / client details — client name, contact, location
-8. Client sign-off / acceptance — the client confirming they received it and agree to pay
-9. Team members & roles — who built what
+4. Scope of work / deliverables — what was delivered (and what is not included)
+5. Pricing / commercial terms — the amount agreed and the payment structure
+6. Customer / client details — client name, contact, location
+7. Client sign-off / acceptance — the client confirming they received it and agree to pay
+8. Team members & roles — who built what
 
 Each MISSING or thin section meaningfully lowers the score. A BRD missing most of these
 sections CANNOT score high even with a perfect payment proof.
@@ -52,17 +50,23 @@ the scope of this audit: their absence must cost ZERO points and must NEVER appe
 finding. The only money evidence that matters is the PAYMENT / TRANSACTION PROOF showing
 the funds were actually received.
 
+Likewise, DO NOT check for, require, or comment on a "How AI is used" section. AI usage
+is OPTIONAL and OUTSIDE the scored sections: its absence must cost ZERO points, must NOT
+be counted as a missing section, and must NEVER appear as a finding. If the BRD does
+clearly describe how AI is used, you MAY note it positively (✅) — but never penalise or
+mention its absence.
+
 SCORING RUBRIC (apply strictly — proof is the GATE, completeness drives the rest):
 - 90–100 = genuine payment proof (amount + date match) AND the BRD is COMPLETE — almost
-  all of the 9 written sections above are clearly present and well-structured.
+  all of the 8 written sections above are clearly present and well-structured.
 - 70–89  = genuine payment proof AND MOST written sections present, with only a few
   thin or missing.
 - 45–69  = genuine payment proof but the document is SPARSE — only a few written
-  sections present; several key ones (owner, solution, AI usage, client details,
+  sections present; several key ones (owner, solution, client details,
   sign-off) are missing.
 - 25–44  = genuine payment proof but essentially NO written BRD — just a bare payment
   screenshot with none (or almost none) of the written sections. (e.g. a lone PhonePe /
-  UPI screenshot with no owner, solution, AI, client, or sign-off details belongs HERE.)
+  UPI screenshot with no owner, solution, client, or sign-off details belongs HERE.)
 - 10–24  = payment proof is weak, partial, low-quality, or you cannot be confident money
   was actually received.
 - 0–9    = NO payment proof at all, OR blank / corrupted / irrelevant / fake file,
@@ -71,14 +75,14 @@ SCORING RUBRIC (apply strictly — proof is the GATE, completeness drives the re
 HARD RULES — these MUST be enforced:
 - Payment proof is a GATE, not the whole score: a genuine proof whose amount matches is
   REQUIRED to score above 24, but it does NOT by itself earn a high score.
-- A BRD that is ONLY a payment screenshot, with none (or almost none) of the 9 written
+- A BRD that is ONLY a payment screenshot, with none (or almost none) of the 8 written
   sections, MUST score 25–44 — NEVER 70+. Only the written sections lift the score into
   the 70s, 80s and 90s.
-- Each missing or thin written section (owner details, problem, solution, AI usage,
+- Each missing or thin written section (owner details, problem, solution,
   deliverables, pricing, client details, sign-off, team) meaningfully lowers the score.
-  Count how many are properly present and score accordingly. A missing or vague AI
-  explanation is a serious gap. (An INVOICE is NOT one of these sections — its absence
-  still costs ZERO points and must not be mentioned.)
+  Count how many are properly present and score accordingly. (Neither an INVOICE nor a
+  "How AI is used" section is one of these sections — their absence costs ZERO points
+  and must not be mentioned.)
 - If there is NO payment proof, the score MUST be very low (0–24) no matter how complete
   the written sections are.
 - If the amount in the payment proof does not match the claimed revenue → cap at 24.
@@ -120,7 +124,7 @@ POSITIVE signals (increase score):
 - Payment proof is clear and high-resolution, and clearly shows amount, date, and a
   reference / UTR / transaction id
 - Amount and date on the proof match the claimed revenue entry
-- The written sections (owner, problem, solution, AI usage, deliverables, pricing, client
+- The written sections (owner, problem, solution, deliverables, pricing, client
   details, sign-off, team) are present and well-documented — each present section
   meaningfully RAISES the score (this is what separates a high score from a bare proof)
 
@@ -149,11 +153,13 @@ SENDER (payer) is a team member (the team paying itself) or that moves between t
 members. Do NOT mark ❌ just because the RECEIVER (payee) is a team member — for a
 "payment received" screenshot that is the team's own account receiving the client's
 money, which is correct and valid.
-Then report which of the written BRD sections (owner details, problem, solution, how AI
-is used, deliverables, pricing, client details, client sign-off, team members) are present
+Then report which of the written BRD sections (owner details, problem, solution,
+deliverables, pricing, client details, client sign-off, team members) are present
 or missing — these significantly affect the score, so cover the important ones and use ❌
 for a clearly missing section. NEVER mention an invoice, transaction-invoice, or purchase
-order in any finding.
+order in any finding. NEVER mention a missing or absent "How AI is used" / AI explanation
+in any finding — AI usage may only appear as a POSITIVE (✅) note when it is clearly
+described in the BRD.
 Each line MUST start with exactly one of these:
 ✅  — present and clear
 ⚠️  — partially present / unclear

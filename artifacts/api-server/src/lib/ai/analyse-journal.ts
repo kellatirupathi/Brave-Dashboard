@@ -1,14 +1,35 @@
-import { db, weeklyJournalsTable, teamsTable } from "@workspace/db";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import {
+  db,
+  weeklyJournalsTable,
+  teamsTable,
+  reelScriptsTable,
+} from "@workspace/db";
+import { and, eq, isNull, lt, ne, or, desc, sql } from "drizzle-orm";
 import { logger } from "../logger";
 import { generateBrdAnalysis, getGeminiApiKey } from "./gemini-client";
 import {
-  buildJournalAnalysisPrompt,
+  buildJournalMergedPrompt,
   JOURNAL_CATEGORIES,
-  type JournalAnalysisInput,
+  REEL_BUCKETS,
+  type JournalMergedInput,
+  type ReelContextJournal,
 } from "./journal-prompt";
 
 type Priority = "high" | "medium" | "low" | "none";
+
+const MAX_PREVIOUS = 8; // bound the prompt size with this team's history
+
+// Normalized form of a script used to detect duplicates in reel_scripts, same
+// scheme as the old standalone reel scan / batch generator so old + new rows
+// dedupe alike. Also imported by routes/reels-scripts.ts for bulk import.
+export function reelDedupeKey(script: string): string {
+  return script
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+}
 
 function normPriority(v: unknown): Priority {
   const s = typeof v === "string" ? v.trim().toLowerCase() : "";
@@ -27,9 +48,9 @@ function asString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-// Coerce the raw model output into a stable, fully-shaped blob so the frontend
-// can read it defensively without guarding every field. Unknown categories are
-// dropped back to the fixed set.
+// Coerce the raw analysis half into a stable, fully-shaped blob so the
+// frontend can read it defensively without guarding every field. Unknown
+// categories are dropped back to the fixed set.
 function normaliseAnalysis(raw: unknown): {
   blob: Record<string, unknown>;
   priority: Priority;
@@ -71,10 +92,78 @@ function normaliseAnalysis(raw: unknown): {
   return { blob, priority };
 }
 
+// Coerce the reel half into the exact field set stored on the journal row.
+// Behaviour matches the old standalone reel scan: worthy without a script is
+// downgraded to not-worthy, unknown buckets fall back to INFORMATIVE.
+function normaliseReel(raw: unknown): {
+  reelWorthy: boolean;
+  reelBucket: string | null;
+  reelScript: string | null;
+  reelReason: string | null;
+} {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const worthy = r["worthy"] === true;
+  const reason =
+    typeof r["reason"] === "string"
+      ? (r["reason"] as string).trim().slice(0, 500)
+      : null;
+
+  if (!worthy) {
+    return {
+      reelWorthy: false,
+      reelBucket: null,
+      reelScript: null,
+      reelReason: reason,
+    };
+  }
+
+  const script = typeof r["script"] === "string" ? r["script"].trim() : "";
+  if (!script) {
+    // Model said worthy but gave no script — treat as not worthy.
+    return {
+      reelWorthy: false,
+      reelBucket: null,
+      reelScript: null,
+      reelReason: reason ?? "No script produced.",
+    };
+  }
+
+  const bucketRaw =
+    typeof r["bucket"] === "string" ? r["bucket"].trim().toUpperCase() : "";
+  const bucket = (REEL_BUCKETS as readonly string[]).includes(bucketRaw)
+    ? bucketRaw
+    : "INFORMATIVE";
+
+  return {
+    reelWorthy: true,
+    reelBucket: bucket,
+    reelScript: script,
+    reelReason: reason,
+  };
+}
+
+function toReelContext(
+  j: typeof weeklyJournalsTable.$inferSelect,
+): ReelContextJournal {
+  return {
+    weekStartDate: j.weekStartDate,
+    weekEndDate: j.weekEndDate,
+    whatWeDid: (j.whatWeDid ?? "").slice(0, 1500),
+    blockers: j.blockers ? j.blockers.slice(0, 800) : null,
+    nextWeekPlan: j.nextWeekPlan ? j.nextWeekPlan.slice(0, 600) : null,
+    clientsVisited: j.clientsVisited,
+    activeConversations: j.activeConversations,
+    projectsStarted: j.projectsStarted,
+    projectsClosed: j.projectsClosed,
+  };
+}
+
 /**
- * Run the AI auditor on a single weekly journal by id. Idempotent and safe to
- * call even with no Gemini key (silent no-op). Never throws — all failures are
- * logged so a single bad row can't break a batch or a request handler.
+ * Run the AI auditor on a single weekly journal by id — ONE Gemini call that
+ * produces BOTH the journal analysis and the reel-scan verdict. Idempotent and
+ * safe to call even with no Gemini key (silent no-op). Never throws — all
+ * failures are logged so a single bad row can't break a batch or a request
+ * handler.
  *
  * Respects admin triage:
  *  - blockerPriority is only overwritten when the admin has NOT manually set it
@@ -82,7 +171,7 @@ function normaliseAnalysis(raw: unknown): {
  *  - blockerStatus / blockerNote (the admin's assign/resolve state) are never
  *    touched here.
  *
- * Returns true if analysis was stored, false otherwise.
+ * Returns true if the results were stored, false otherwise.
  */
 export async function analyseJournal(journalId: number): Promise<boolean> {
   const apiKey = getGeminiApiKey();
@@ -113,7 +202,22 @@ export async function analyseJournal(journalId: number): Promise<boolean> {
       .from(teamsTable)
       .where(eq(teamsTable.id, journal.teamId));
 
-    const input: JournalAnalysisInput = {
+    // This team's EARLIER journals only (strictly before this one), newest
+    // first — reel-worthiness context.
+    const previousRows = await db
+      .select()
+      .from(weeklyJournalsTable)
+      .where(
+        and(
+          eq(weeklyJournalsTable.teamId, journal.teamId),
+          ne(weeklyJournalsTable.id, journal.id),
+          lt(weeklyJournalsTable.weekStartDate, journal.weekStartDate),
+        ),
+      )
+      .orderBy(desc(weeklyJournalsTable.weekStartDate))
+      .limit(MAX_PREVIOUS);
+
+    const input: JournalMergedInput = {
       teamName: team?.name ?? `Team #${journal.teamId}`,
       weekStartDate: journal.weekStartDate,
       weekEndDate: journal.weekEndDate,
@@ -124,18 +228,33 @@ export async function analyseJournal(journalId: number): Promise<boolean> {
       activeConversations: journal.activeConversations,
       projectsStarted: journal.projectsStarted,
       projectsClosed: journal.projectsClosed,
+      previous: previousRows.map(toReelContext),
     };
 
-    const prompt = buildJournalAnalysisPrompt(input);
-    // Text-only Gemini 2.5 Flash call (no PDF files attached).
-    const raw = await generateBrdAnalysis(apiKey, [], prompt);
-    const { blob, priority } = normaliseAnalysis(raw);
+    const prompt = buildJournalMergedPrompt(input);
+    // Text-only Gemini 2.5 Flash call (no PDF files attached). ONE call for
+    // both halves — analysis + reel scan.
+    const raw = (await generateBrdAnalysis(apiKey, [], prompt)) as
+      | Record<string, unknown>
+      | null
+      | undefined;
 
-    // Only update the denormalized priority column when the admin hasn't pinned
-    // it manually. blockerStatus / note are left exactly as the admin set them.
+    const { blob, priority } = normaliseAnalysis(raw?.["analysis"]);
+    const reel = normaliseReel(raw?.["reel"]);
+
+    // ONE guarded UPDATE writes both the analysis fields and the reel verdict.
+    // Only update the denormalized priority column when the admin hasn't
+    // pinned it manually. blockerStatus / note are left exactly as the admin
+    // set them.
+    const now = new Date();
     const setFields: Partial<typeof weeklyJournalsTable.$inferInsert> = {
       aiAnalysis: blob,
-      aiAnalysedAt: new Date(),
+      aiAnalysedAt: now,
+      reelWorthy: reel.reelWorthy,
+      reelBucket: reel.reelBucket,
+      reelScript: reel.reelScript,
+      reelReason: reel.reelReason,
+      reelAnalysedAt: now,
     };
     if (!journal.blockerPriorityManual) {
       setFields.blockerPriority = priority;
@@ -160,7 +279,34 @@ export async function analyseJournal(journalId: number): Promise<boolean> {
       return false;
     }
 
-    logger.info({ journalId, priority }, "[journal-ai] analysis stored");
+    // Mirror worthy scripts into the reels library (additive, dedup-safe).
+    if (reel.reelWorthy && reel.reelScript && reel.reelBucket) {
+      try {
+        await db
+          .insert(reelScriptsTable)
+          .values({
+            bucket: reel.reelBucket,
+            script: reel.reelScript,
+            source: "generated",
+            dedupeKey: reelDedupeKey(reel.reelScript),
+            sourceJournalId: journal.id,
+            teamId: journal.teamId,
+            meta: { via: "journal-reel-scan" },
+          })
+          .onConflictDoNothing({ target: reelScriptsTable.dedupeKey });
+      } catch (err) {
+        // Library mirroring is best-effort — never fail the analysis over it.
+        logger.warn(
+          { err, journalId: journal.id },
+          "[journal-ai] reel_scripts mirror insert failed (non-fatal)",
+        );
+      }
+    }
+
+    logger.info(
+      { journalId, priority, reelWorthy: reel.reelWorthy },
+      "[journal-ai] analysis + reel verdict stored",
+    );
     return true;
   } catch (err) {
     logger.error({ err, journalId }, "[journal-ai] analysis failed");
@@ -169,10 +315,13 @@ export async function analyseJournal(journalId: number): Promise<boolean> {
 }
 
 /**
- * Analyse every journal that has not yet been analysed (aiAnalysedAt IS NULL),
- * serially with a small pause so we don't hammer Gemini on the backlog.
+ * Analyse every journal that is missing either half of the merged result —
+ * analysis (aiAnalysedAt IS NULL) OR reel verdict (reelAnalysedAt IS NULL) —
+ * serially so we don't hammer Gemini on the backlog.
  * Used by the admin "Analyse all" action and the startup catch-up sweep.
- * Returns counts. Never throws.
+ * The merged call covers the reel scan too, so this single sweep replaces the
+ * old separate reel-scan sweep (and back-fills rows the old reel scanner
+ * never completed). Returns counts. Never throws.
  */
 export async function analyseAllPendingJournals(
   limit = 1000,
@@ -187,7 +336,12 @@ export async function analyseAllPendingJournals(
     const rows = await db
       .select({ id: weeklyJournalsTable.id })
       .from(weeklyJournalsTable)
-      .where(isNull(weeklyJournalsTable.aiAnalysedAt))
+      .where(
+        or(
+          isNull(weeklyJournalsTable.aiAnalysedAt),
+          isNull(weeklyJournalsTable.reelAnalysedAt),
+        ),
+      )
       .orderBy(sql`${weeklyJournalsTable.submittedAt} desc`)
       .limit(limit);
     for (const r of rows) {

@@ -8,7 +8,6 @@ import { bootstrapSuperAdmins } from "./bootstrap-superadmins";
 import { bootstrapCoordinatorTags } from "./bootstrap-coordinator-tags";
 import { catchUpPendingBrdAnalyses } from "./lib/ai/analyse-brd";
 import { catchUpPendingJournalAnalyses } from "./lib/ai/journal-scheduler";
-import { catchUpPendingJournalReelScans } from "./lib/ai/journal-reel-scheduler";
 import { sweepAutoApprovePendingRequests } from "./lib/membership-requests";
 
 async function reportUsersWithoutCampus(): Promise<void> {
@@ -324,19 +323,12 @@ async function runBootstrap(): Promise<void> {
   }
   // One-shot sweep: analyse any weekly journals not yet processed by the AI
   // auditor (submitted while no Gemini key was set, or a setTimeout lost across
-  // a redeploy). Throttled inside the helper; runs once at boot.
+  // a redeploy). The merged call covers the reel scan too, so no separate reel
+  // sweep is needed. Throttled inside the helper; runs once at boot.
   try {
     await catchUpPendingJournalAnalyses();
   } catch (err) {
     logger.error({ err }, "catchUpPendingJournalAnalyses failed");
-  }
-  // One-shot sweep: reel-scan any weekly journals not yet processed (submitted
-  // before the per-journal reel scan existed, or a setTimeout lost across a
-  // redeploy). Throttled inside the helper; runs once at boot.
-  try {
-    await catchUpPendingJournalReelScans();
-  } catch (err) {
-    logger.error({ err }, "catchUpPendingJournalReelScans failed");
   }
   // One-shot sweep: auto-approve any already-pending membership requests that
   // are no longer gated under the current rule (only verified-revenue

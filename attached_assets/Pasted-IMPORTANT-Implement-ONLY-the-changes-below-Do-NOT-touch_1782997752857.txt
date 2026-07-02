@@ -1,0 +1,35 @@
+IMPORTANT: Implement ONLY the changes below. Do NOT touch, refactor, or alter any other file, feature, route, page, or behaviour. Leave BRD relevancy scoring logic (other than the one item noted), BRD uniqueness, and every student/coordinator/admin feature exactly as-is. No database/schema changes. All edits are inside artifacts/api-server/.
+
+CHANGE 1 — File artifacts/api-server/src/lib/ai/brd-prompt.ts: make "How AI is used" OPTIONAL (prompt-only).
+
+In the BRD auditor prompt, the "How AI is used" section is currently mandatory and lowers the relevancy score + produces a ❌ missing AI explanation finding. Change it so:
+
+Its absence does NOT reduce the score.
+It is NOT counted as a missing section.
+It NEVER appears as a finding (treat it exactly like invoices — zero point cost, never mentioned).
+If AI usage IS described, it may still be noted positively — only stop penalising its absence.
+Remove "AI usage" from the scored-sections list, the scoring rubric examples, the "serious gap" hard rule, the positive-signals list, and the findings-reporting instruction. Every other written section (owner details, problem, solution, deliverables, pricing, client details, sign-off, team) must still count and be reported exactly as before.
+CHANGE 2 — Merge journal ANALYSIS + journal REEL SCAN into ONE Gemini call.
+
+Today each weekly journal fires TWO Gemini calls: analyse-journal.ts (analysis, ~30s after submit) and analyse-journal-reel.ts (reel scan, ~35s after submit). They read the same content — merge into ONE call to halve journal Gemini usage.
+
+Edit artifacts/api-server/src/lib/ai/journal-prompt.ts:
+
+Add a merged prompt builder returning one combined JSON: { "analysis": { what_we_did, blockers(with priority triage), next_week, primary_category, overall_summary }, "reel": { worthy, bucket, reason, script } }. Analysis half = identical behaviour to the current journal analysis. Reel half = identical behaviour to the current reel scan (judge worthy strictly using this team's last 8 previous journals as context; write a script only if worthy). Export the reel-buckets constant here.
+Edit artifacts/api-server/src/lib/ai/analyse-journal.ts:
+
+analyseJournal(id) makes ONE generateBrdAnalysis call using the merged prompt, parses both halves, and in ONE guarded UPDATE writes BOTH the analysis fields (aiAnalysis, blockerPriority) AND the reel fields (reelWorthy, reelBucket, reelScript, reelReason, reelAnalysedAt). Keep the stale-run guard (submittedAt snapshot), the manual-priority override (blockerPriorityManual), and never touch blockerStatus/blockerNote. Keep mirroring worthy scripts into the reel_scripts table (dedup-safe onConflictDoNothing). Export a reelDedupeKey helper from here.
+Edit artifacts/api-server/src/routes/journals.ts:
+
+Remove all scheduleJournalReelScan(...) calls (keep the paired scheduleJournalAnalysis(...)).
+Remove the journal-reel-scheduler import.
+The /admin/journals/:id/reel-scan endpoint must keep working but call runJournalAnalysisNow (re-runs the merged call).
+Edit artifacts/api-server/src/index.ts:
+
+Remove the separate reel catch-up sweep + its catchUpPendingJournalReelScans import (the single journal-analysis catch-up now covers both).
+Edit artifacts/api-server/src/routes/reels-scripts.ts:
+
+It currently imports reelDedupeKey from generate-reels.ts and REEL_BUCKETS from reels-prompt.ts. Repoint: get reelDedupeKey from analyse-journal.ts and the reel-buckets constant from journal-prompt.ts. Do NOT change the reels library UI or behaviour.
+DELETE these now-unused files (after repointing the imports above): artifacts/api-server/src/lib/ai/analyse-journal-reel.ts, artifacts/api-server/src/lib/ai/journal-reel-scheduler.ts, artifacts/api-server/src/lib/ai/journal-reel-prompt.ts, artifacts/api-server/src/lib/ai/generate-reels.ts (dormant batch reel generator — nothing schedules it), artifacts/api-server/src/lib/ai/reels-prompt.ts.
+
+Both changes are prompt/logic only, no schema changes; they apply to newly submitted or re-analysed items. After implementing, ensure pnpm --filter @workspace/api-server run typecheck passes. Do not modify anything outside what is listed above.
