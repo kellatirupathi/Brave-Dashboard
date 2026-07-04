@@ -42,6 +42,10 @@ export const entryStatusEnum = pgEnum("entry_status", [
   "draft",
   "submitted",
   "verified",
+  // "revoked" applies to revenue entries only: a previously verified entry a
+  // team leader has revoked. It stays visible (rendered struck-through) but is
+  // excluded from every revenue total because those filter on 'verified'.
+  "revoked",
   "rejected",
 ]);
 export const enteredByEnum = pgEnum("entered_by", ["student", "admin"]);

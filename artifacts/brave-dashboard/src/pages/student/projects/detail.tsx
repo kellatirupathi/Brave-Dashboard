@@ -18,6 +18,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
 import { formatINR, formatDate } from "@/lib/format";
 import { normalizeError } from "@/lib/api-error";
+import { revokeRevenueEntry } from "@/lib/revenue-api";
 import { VerificationTimelineNote } from "@/components/verification-timeline-note";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ import {
   Upload,
   Pencil,
   Trash2,
+  Ban,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 import { Link } from "wouter";
@@ -65,7 +67,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 type UploadField = "supportingDoc" | "brd";
 
@@ -127,6 +129,9 @@ export default function ProjectDetail() {
   const createRevenue = useCreateRevenueEntry();
   const submitRevenue = useSubmitRevenueEntry();
   const updateRevenue = useUpdateRevenueEntry();
+  const revokeRevenue = useMutation({
+    mutationFn: (entryId: number) => revokeRevenueEntry(entryId),
+  });
   const requestUpload = useRequestUploadUrl();
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
@@ -139,6 +144,9 @@ export default function ProjectDetail() {
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
   const [editingRevenueId, setEditingRevenueId] = useState<number | null>(null);
+  const [revokingRevenueId, setRevokingRevenueId] = useState<number | null>(
+    null,
+  );
   const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
   const [isDeleteProjectOpen, setIsDeleteProjectOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -181,6 +189,15 @@ export default function ProjectDetail() {
             className="bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100 border-none"
           >
             <Clock className="w-3 h-3 mr-1" /> Pending Review
+          </Badge>
+        );
+      case "revoked":
+        return (
+          <Badge
+            variant="outline"
+            className="border-muted-foreground/40 text-muted-foreground"
+          >
+            <Ban className="w-3 h-3 mr-1" /> Revoked
           </Badge>
         );
       case "rejected":
@@ -370,6 +387,34 @@ export default function ProjectDetail() {
           }),
       },
     );
+  };
+
+  // Revoke a verified revenue entry — offered for verified entries so a team
+  // leader can undo a mistaken verified revenue. The entry is NOT deleted: it
+  // stays on the project shown struck-through, but its amount drops out of the
+  // team's verified revenue, leaderboard rank and Demo Day progress.
+  const handleRevokeRevenue = () => {
+    if (revokingRevenueId == null) return;
+    const idToRevoke = revokingRevenueId;
+    revokeRevenue.mutate(idToRevoke, {
+      onSuccess: () => {
+        toast({
+          title: "Revenue revoked",
+          description: "This amount no longer counts toward your totals.",
+        });
+        refresh();
+        queryClient.invalidateQueries({ queryKey: getGetMyTeamQueryKey() });
+        setRevokingRevenueId(null);
+      },
+      onError: (err: unknown) => {
+        const e = err as { data?: { error?: string }; message?: string };
+        toast({
+          title: "Could not revoke",
+          description: e?.data?.error ?? e?.message ?? "Try again",
+          variant: "destructive",
+        });
+      },
+    });
   };
 
   // Prefill the edit form from an existing revenue entry. Only offered for
@@ -816,6 +861,7 @@ export default function ProjectDetail() {
               ) : (
                 project.revenueEntries.map((entry) => {
                   const isDraft = entry.status === "draft";
+                  const isRevoked = entry.status === "revoked";
                   return (
                     <div
                       key={entry.id}
@@ -827,19 +873,40 @@ export default function ProjectDetail() {
                       data-testid={`revenue-entry-${entry.id}`}
                     >
                       <div className="space-y-1 w-full sm:w-auto">
-                        <div className="font-semibold text-lg">
+                        <div
+                          className={
+                            isRevoked
+                              ? "font-semibold text-lg line-through text-muted-foreground"
+                              : "font-semibold text-lg"
+                          }
+                        >
                           {entry.clientName}
                         </div>
                         <div className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
                           <span>
                             Amount:{" "}
-                            <strong className="text-foreground">
+                            <strong
+                              className={
+                                isRevoked
+                                  ? "line-through text-muted-foreground"
+                                  : "text-foreground"
+                              }
+                            >
                               {formatINR(entry.amount)}
                             </strong>
                           </span>
                           <span>•</span>
                           <span>Paid: {formatDate(entry.paymentDate)}</span>
                         </div>
+                        {isRevoked && (
+                          <p
+                            className="text-xs text-muted-foreground pt-1"
+                            data-testid={`revoked-hint-${entry.id}`}
+                          >
+                            Revoked — this amount no longer counts toward your
+                            team revenue, leaderboard rank or Demo Day progress.
+                          </p>
+                        )}
                         <div className="flex flex-wrap gap-3 pt-1">
                           {docLink(entry.brdUrl, "BRD")}
                           {docLink(entry.testimonialUrl, "Testimonial")}
@@ -916,6 +983,17 @@ export default function ProjectDetail() {
                               verification
                             </Button>
                           </div>
+                        )}
+                        {isLeader && entry.status === "verified" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setRevokingRevenueId(entry.id)}
+                            data-testid={`button-revoke-revenue-${entry.id}`}
+                          >
+                            <Ban className="w-3 h-3 mr-1" /> Revoke Revenue
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -1247,6 +1325,53 @@ export default function ProjectDetail() {
                 <Spinner className="w-4 h-4 mr-2" />
               )}{" "}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Strict confirmation for revoking a VERIFIED revenue entry. Revoking
+          does NOT delete the entry — it stays on the project shown
+          struck-through — but its amount stops counting toward the team's
+          revenue, the leaderboard and Demo Day, so this warns clearly. */}
+      <AlertDialog
+        open={revokingRevenueId !== null}
+        onOpenChange={(open) => {
+          if (!open) setRevokingRevenueId(null);
+        }}
+      >
+        <AlertDialogContent data-testid="dialog-confirm-revoke-revenue">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">
+              Revoke this verified revenue?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The entry will stay on this project but is marked{" "}
+              <strong className="text-foreground">Revoked</strong> and shown
+              struck-through. Its amount will no longer count toward your team's
+              verified revenue, leaderboard rank or Demo Day progress.
+              <br />
+              <br />
+              <strong className="text-foreground">
+                This does not delete the entry, but it can't be undone.
+              </strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-revoke-revenue">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleRevokeRevenue();
+              }}
+              disabled={revokeRevenue.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90"
+              data-testid="button-confirm-revoke-revenue"
+            >
+              {revokeRevenue.isPending && <Spinner className="w-4 h-4 mr-2" />}
+              Revoke Revenue
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

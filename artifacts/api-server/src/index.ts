@@ -218,6 +218,22 @@ async function ensureBrdDriveColumns(): Promise<void> {
   }
 }
 
+// Adds the 'revoked' value to the entry_status enum. Runs at startup for the
+// same reason as the other ensure* helpers: prod does NOT run `drizzle-kit
+// push`, so without this the "revoke revenue" endpoint would crash with
+// "invalid input value for enum entry_status: 'revoked'". ADD VALUE IF NOT
+// EXISTS is idempotent and safe to run on every boot; it runs outside an
+// explicit transaction so Postgres accepts the enum extension.
+async function ensureRevokedEntryStatus(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TYPE entry_status ADD VALUE IF NOT EXISTS 'revoked'
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure entry_status 'revoked' value");
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -273,6 +289,11 @@ async function runBootstrap(): Promise<void> {
     await ensureBrdDriveColumns();
   } catch (err) {
     logger.error({ err }, "ensureBrdDriveColumns failed");
+  }
+  try {
+    await ensureRevokedEntryStatus();
+  } catch (err) {
+    logger.error({ err }, "ensureRevokedEntryStatus failed");
   }
   try {
     await bootstrapCanonicalCampuses();

@@ -476,6 +476,72 @@ router.patch("/revenue-entries/:id", async (req, res): Promise<void> => {
   res.json(await enrichRevEntry(entry));
 });
 
+// Revoke a verified revenue entry. This does NOT delete the row — the entry
+// stays on the project (the frontend renders it struck-through) but its amount
+// stops counting toward the team's verified revenue, the leaderboard and Demo
+// Day eligibility. Every revenue aggregation filters on status = 'verified',
+// so moving the row to status = 'revoked' drops it out of all of those totals
+// automatically. Available to the team leader (or an admin override); only a
+// currently verified entry can be revoked.
+router.post("/revenue-entries/:id/revoke", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const params = GetRevenueEntryParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [existing] = await db
+    .select()
+    .from(revenueEntriesTable)
+    .where(eq(revenueEntriesTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  // Only the team leader (or an admin override) may revoke revenue entries.
+  if (!(await requireTeamLeader(req, res, existing.teamId))) {
+    return;
+  }
+  // Lock the row and re-check status under the lock so two concurrent revoke
+  // requests can't both succeed (the second must see "revoked" and 409).
+  const result = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select()
+      .from(revenueEntriesTable)
+      .where(eq(revenueEntriesTable.id, params.data.id))
+      .for("update");
+    if (!locked) return { kind: "not_found" as const };
+    if (locked.status !== "verified") return { kind: "conflict" as const };
+    const [updated] = await tx
+      .update(revenueEntriesTable)
+      .set({ status: "revoked" })
+      .where(eq(revenueEntriesTable.id, params.data.id))
+      .returning();
+    return { kind: "ok" as const, entry: updated };
+  });
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Entry not found" });
+    return;
+  }
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: "Only verified entries can be revoked." });
+    return;
+  }
+  await logAudit(
+    req.user.id,
+    "revoke_revenue_entry",
+    "revenue_entry",
+    result.entry.id,
+    `Revoked by ${req.user.role} (was verified ₹${
+      existing.verifiedAmount ?? existing.amount
+    })`,
+  );
+  res.json(await enrichRevEntry(result.entry));
+});
+
 router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });

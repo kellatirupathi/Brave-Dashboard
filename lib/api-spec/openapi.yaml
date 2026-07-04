@@ -1015,7 +1015,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [draft, submitted, verified, rejected]
+            enum: [draft, submitted, verified, revoked, rejected]
       responses:
         "200":
           description: List of revenue entries
@@ -1084,6 +1084,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RevenueEntry"
+
+  /revenue-entries/{id}/revoke:
+    post:
+      operationId: revokeRevenueEntry
+      tags: [financials]
+      summary: Revoke a verified revenue entry (team leader or admin). Keeps the row (shown struck-through) but excludes its amount from all revenue totals.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueEntry"
+        "409":
+          description: Only verified entries can be revoked.
 
   /revenue-entries/{id}/submit:
     post:
@@ -3185,7 +3206,7 @@ components:
           format: date
         status:
           type: string
-          enum: [draft, submitted, verified, rejected]
+          enum: [draft, submitted, verified, revoked, rejected]
         brdUrl:
           type: ["string", "null"]
         testimonialUrl:
