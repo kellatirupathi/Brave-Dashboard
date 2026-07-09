@@ -33,18 +33,22 @@ Four AI capabilities run live in production:
 ### BRD AI Analysis (revenue verification)
 Every revenue entry's BRD document is analysed by Gemini before human review — scored for **relevancy** (does the document actually evidence the claimed revenue?) and **uniqueness** (is it a duplicate/re-submission of an already-approved BRD?).
 **Impact:** admins review a pre-scored queue instead of reading every PDF cold; duplicate or weak submissions are flagged automatically.
+**In production:** 551 AI analyses run across 428 revenue entries submitted; 293 entries verified after AI pre-screening.
 
 ### Weekly Journal AI Analysis (early-warning system)
 Each weekly team journal is analysed in a single AI call: summarised, categorised, and **blockers extracted and prioritised** (high/medium/low). High-priority blockers feed the Success Coach → COS → Admin escalation chain.
 **Impact:** at-risk teams surface automatically instead of depending on someone reading ~1,000 journals a week.
+**In production:** 2,394 weekly journals submitted; 837 AI-analysed so far, surfacing 270 medium/high-priority blockers (68 high) and 92 logged escalations.
 
 ### AI-Generated Instagram Reel Scripts (marketing)
 The same journal analysis call also spots strong, story-worthy moments and generates ready-to-shoot Instagram reel scripts, bucketed by theme, into a reels library.
 **Impact:** the marketing team gets a continuous pipeline of authentic student-story content with zero extra data collection.
+**In production:** 501 ready-to-shoot reel scripts generated from 486 reel-worthy journal moments.
 
 ### In-Product AI Chatbot (student support)
 A chatbot answers student questions over a BRAVE knowledge base, available directly inside the dashboard.
 **Impact:** first-line support is instant and 24/7, reducing repetitive questions to coordinators.
+**In production:** 1,324 questions answered for 265 distinct students.
 
 ## 3. AI / Technology Stack
 
