@@ -6,3 +6,9 @@ id = "xemq6RZbAft_qsT6RsPJB"
 uri = "file://.local/qa-report.md"
 type = "text"
 title = "BRAVE Dashboard – Full Platform QA Report"
+
+[[outputs]]
+id = "injRu6GXhX6Pz4SNT88t8"
+uri = "file://AI_IN_BRAVE_PROGRAM.md"
+type = "text"
+title = "AI in the BRAVE Program"
