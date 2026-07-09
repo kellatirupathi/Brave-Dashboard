@@ -74,17 +74,12 @@ type UploadField = "supportingDoc" | "brd";
 const sanitizeAmount = (raw: string): string =>
   raw.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
 
-const BRD_ACCEPT =
-  ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const BRD_ACCEPT = ".pdf,application/pdf";
 
 const isAllowedBrdFile = (file: File): boolean => {
   const name = file.name.toLowerCase();
-  const okExt = name.endsWith(".pdf") || name.endsWith(".docx");
-  const okMime =
-    file.type === "application/pdf" ||
-    file.type ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    file.type === "";
+  const okExt = name.endsWith(".pdf");
+  const okMime = file.type === "application/pdf" || file.type === "";
   return okExt && okMime;
 };
 
@@ -222,9 +217,9 @@ export default function ProjectDetail() {
     if (!file) return;
     if (field === "brd" && !isAllowedBrdFile(file)) {
       toast({
-        title: "Invalid file type",
+        title: "Only PDF files are supported",
         description:
-          "BRD must be a PDF or DOCX file. Images and other formats are not allowed.",
+          "The BRD must be a PDF file. Please upload a PDF — other formats are not allowed.",
         variant: "destructive",
       });
       return;
@@ -452,7 +447,7 @@ export default function ProjectDetail() {
         onSuccess: () => {
           toast({
             title: "Revenue entry updated",
-            description: "Resubmit it for verification when you're ready.",
+            description: "Your changes have been saved.",
           });
           refresh();
           setEditingRevenueId(null);
@@ -819,7 +814,14 @@ export default function ProjectDetail() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <FilePicker field="brd" currentUrl={brdUrl} />
+                    <FilePicker
+                      field="brd"
+                      currentUrl={brdUrl}
+                      accept={BRD_ACCEPT}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Only PDF files are supported — please upload a PDF.
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       Your BRD is private and visible only to your team and the
                       coordinator/admin reviewing this entry.{" "}
@@ -984,16 +986,36 @@ export default function ProjectDetail() {
                             </Button>
                           </div>
                         )}
-                        {isLeader && entry.status === "verified" && (
+                        {isLeader && entry.status === "submitted" && (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setRevokingRevenueId(entry.id)}
-                            data-testid={`button-revoke-revenue-${entry.id}`}
+                            onClick={() => startEditRevenue(entry)}
+                            data-testid={`button-edit-revenue-${entry.id}`}
                           >
-                            <Ban className="w-3 h-3 mr-1" /> Revoke Revenue
+                            <Pencil className="w-3 h-3 mr-1" /> Edit
                           </Button>
+                        )}
+                        {isLeader && entry.status === "verified" && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEditRevenue(entry)}
+                              data-testid={`button-edit-revenue-${entry.id}`}
+                            >
+                              <Pencil className="w-3 h-3 mr-1" /> Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setRevokingRevenueId(entry.id)}
+                              data-testid={`button-revoke-revenue-${entry.id}`}
+                            >
+                              <Ban className="w-3 h-3 mr-1" /> Revoke Revenue
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1273,8 +1295,8 @@ export default function ProjectDetail() {
               </label>
               <FilePicker field="brd" currentUrl={brdUrl} accept={BRD_ACCEPT} />
               <p className="text-xs text-muted-foreground">
-                Upload a new BRD to replace the previous one, or keep the
-                existing file.
+                Only PDF files are supported — please upload a PDF. Upload a new
+                BRD to replace the previous one, or keep the existing file.
               </p>
             </div>
             <div className="flex justify-end pt-4">

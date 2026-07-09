@@ -234,6 +234,50 @@ async function ensureRevokedEntryStatus(): Promise<void> {
   }
 }
 
+// Creates the admin-managed student popup tables. Runs at startup for the same
+// reason as the other ensure* helpers: prod does NOT run `drizzle-kit push`, so
+// without this the popup admin/student routes would crash with "relation does
+// not exist". Fully idempotent (IF NOT EXISTS); safe on every boot. Entirely
+// separate from the Terms & Conditions tables/columns.
+async function ensurePopupTables(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS popup_templates (
+        id serial PRIMARY KEY,
+        name text NOT NULL,
+        message text NOT NULL,
+        require_checkbox boolean NOT NULL DEFAULT false,
+        checkbox_label text,
+        enabled boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS popup_templates_enabled_idx
+        ON popup_templates (enabled)
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS popup_acknowledgements (
+        id serial PRIMARY KEY,
+        popup_id integer NOT NULL,
+        user_id text NOT NULL,
+        confirmed_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS popup_ack_user_popup_unique
+        ON popup_acknowledgements (popup_id, user_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS popup_ack_user_idx
+        ON popup_acknowledgements (user_id)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure popup tables");
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -294,6 +338,11 @@ async function runBootstrap(): Promise<void> {
     await ensureRevokedEntryStatus();
   } catch (err) {
     logger.error({ err }, "ensureRevokedEntryStatus failed");
+  }
+  try {
+    await ensurePopupTables();
+  } catch (err) {
+    logger.error({ err }, "ensurePopupTables failed");
   }
   try {
     await bootstrapCanonicalCampuses();

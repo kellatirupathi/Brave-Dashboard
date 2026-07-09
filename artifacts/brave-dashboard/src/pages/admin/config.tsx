@@ -43,6 +43,7 @@ import { ResourcesSettingsCard } from "@/components/resources-settings-card";
 import { CoordinatorTagsCard } from "@/components/coordinator-tags-card";
 import { GritConfigCard } from "@/components/grit-config-card";
 import { BrdDriveCard } from "@/components/brd-drive-card";
+import { PopupsAdminCard } from "@/components/popups-admin-card";
 import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
@@ -597,6 +598,9 @@ export default function AdminConfig() {
 
           {/* SECTION 6 — Manual BRD → Google Drive migration (click only). */}
           <BrdDriveCard />
+
+          {/* SECTION 7 — Admin-managed student pop-ups (CRUD, additive). */}
+          <PopupsAdminCard />
         </div>
       </div>
 

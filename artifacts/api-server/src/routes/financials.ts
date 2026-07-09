@@ -11,6 +11,7 @@ import {
   milestonesTable,
   programmeConfigTable,
   usersTable,
+  uploadedFilesTable,
 } from "@workspace/db";
 import {
   ListOrderBookEntriesQueryParams,
@@ -44,6 +45,32 @@ import {
 } from "../lib/ai/brd-scheduler";
 
 const router: IRouter = Router();
+
+// Returns true only when we can POSITIVELY confirm the uploaded BRD is not a
+// PDF, using the content type / filename recorded in uploaded_files at upload
+// time. If no metadata row exists we fail open (the upload picker already
+// restricts BRDs to PDF client-side) so a missing best-effort metadata insert
+// never blocks a legitimate entry. Used to enforce "BRD must be a PDF" on the
+// server so the client-side restriction can't be bypassed.
+async function brdIsConfirmedNonPdf(brdUrl: string): Promise<boolean> {
+  const [meta] = await db
+    .select({
+      contentType: uploadedFilesTable.contentType,
+      filename: uploadedFilesTable.filename,
+    })
+    .from(uploadedFilesTable)
+    .where(eq(uploadedFilesTable.objectPath, brdUrl));
+  if (!meta) return false;
+  const contentType = (meta.contentType ?? "").trim().toLowerCase();
+  const filename = (meta.filename ?? "").trim().toLowerCase();
+  const looksPdf =
+    contentType === "application/pdf" ||
+    (contentType === "" && filename.endsWith(".pdf"));
+  return !looksPdf;
+}
+
+const BRD_PDF_ONLY_ERROR =
+  "Only PDF files are supported for the BRD. Please upload a PDF.";
 
 async function enrichOBEntry(entry: typeof orderBookEntriesTable.$inferSelect) {
   const [project] = await db
@@ -355,6 +382,10 @@ router.post("/revenue-entries", async (req, res): Promise<void> => {
       .json({ error: "BRD document is required for every revenue entry." });
     return;
   }
+  if (await brdIsConfirmedNonPdf(parsed.data.brdUrl)) {
+    res.status(400).json({ error: BRD_PDF_ONLY_ERROR });
+    return;
+  }
   const [project] = await db
     .select()
     .from(projectsTable)
@@ -437,17 +468,18 @@ router.patch("/revenue-entries/:id", async (req, res): Promise<void> => {
   if (!(await requireTeamLeader(req, res, existingRev.teamId))) {
     return;
   }
-  // Lock down which statuses a team can edit. Drafts (not yet submitted) and
-  // rejected entries (sent back to be fixed) are editable; submitted and
-  // verified entries are read-only. Admins bypass this guard.
+  // A team leader may edit their own revenue entries in any status (draft,
+  // submitted, verified, rejected) — clientName, amount, paymentDate and the
+  // BRD file are all editable and re-saved. Ownership is already enforced by
+  // requireTeamLeader above. Note: status is left unchanged and, for a verified
+  // entry, verifiedAmount is preserved (edits never alter the admin-verified
+  // amount that counts toward the leaderboard).
   if (
-    req.user.role !== "admin" &&
-    existingRev.status !== "draft" &&
-    existingRev.status !== "rejected"
+    parsed.data.brdUrl &&
+    parsed.data.brdUrl.trim() !== "" &&
+    (await brdIsConfirmedNonPdf(parsed.data.brdUrl))
   ) {
-    res
-      .status(409)
-      .json({ error: "Only draft or rejected entries can be edited." });
+    res.status(400).json({ error: BRD_PDF_ONLY_ERROR });
     return;
   }
   const updateData: Record<string, unknown> = { ...parsed.data };

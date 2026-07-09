@@ -8,7 +8,12 @@ import {
 } from "@workspace/api-client-react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchTeamNameDuplicates,
+  normaliseTeamName,
+  type DuplicateNameGroup,
+} from "@/lib/team-duplicates-api";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR, formatDateTime } from "@/lib/format";
 import { Card } from "@/components/ui/card";
@@ -81,6 +86,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const PAGE_SIZE = 100;
 const ALL_CAMPUSES = "__all__";
@@ -235,6 +246,19 @@ export default function AdminTeams() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const deleteTeam = useDeleteTeam();
+
+  // Team-name uniqueness: fetch the set of duplicated names (across ALL
+  // campuses) so each row can show Unique / Duplicate. Read-only; admin-only.
+  const { data: dupData } = useQuery({
+    queryKey: ["team-name-duplicates"],
+    queryFn: fetchTeamNameDuplicates,
+    enabled: isAdmin,
+    staleTime: 60_000,
+  });
+  const dupGroupByKey = new Map<string, DuplicateNameGroup>(
+    (dupData?.groups ?? []).map((g) => [g.nameKey, g]),
+  );
+  const [dupModal, setDupModal] = useState<DuplicateNameGroup | null>(null);
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
@@ -449,6 +473,7 @@ export default function AdminTeams() {
                 <TableRow>
                   <TableHead>Team</TableHead>
                   <TableHead>Campus</TableHead>
+                  <TableHead>Name uniqueness</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Revenue</TableHead>
                   <TableHead className="text-right">Members</TableHead>
@@ -472,6 +497,36 @@ export default function AdminTeams() {
                         </div>
                       </TableCell>
                       <TableCell>{team.campusName}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const group = dupGroupByKey.get(
+                            normaliseTeamName(team.name),
+                          );
+                          if (group) {
+                            return (
+                              <button
+                                type="button"
+                                className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive hover:underline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDupModal(group);
+                                }}
+                                data-testid={`badge-duplicate-${team.id}`}
+                              >
+                                Duplicate
+                              </button>
+                            );
+                          }
+                          return (
+                            <span
+                              className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                              data-testid={`badge-unique-${team.id}`}
+                            >
+                              Unique
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant={
@@ -544,7 +599,7 @@ export default function AdminTeams() {
                 {teamItems.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No teams found matching your criteria.
@@ -651,6 +706,73 @@ export default function AdminTeams() {
 
       <AddTeamDialog open={addOpen} onOpenChange={setAddOpen} />
       <ImportTeamsDialog open={importOpen} onOpenChange={setImportOpen} />
+
+      <Dialog
+        open={dupModal != null}
+        onOpenChange={(open) => {
+          if (!open) setDupModal(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Teams sharing this name</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {dupModal?.teams.length ?? 0} teams use the same name across
+            campuses. Team names must be unique — review the rosters below and
+            rename all but one.
+          </p>
+          <div className="space-y-4">
+            {dupModal?.teams.map((t) => (
+              <div
+                key={t.id}
+                className="rounded-lg border p-3"
+                data-testid={`dup-team-${t.id}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-semibold">{t.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {t.campusName || "—"}
+                  </div>
+                </div>
+                <div className="mt-2 divide-y">
+                  {t.members.length === 0 ? (
+                    <div className="py-1 text-sm text-muted-foreground">
+                      No members.
+                    </div>
+                  ) : (
+                    t.members.map((m, i) => (
+                      <div
+                        key={`${t.id}-${i}`}
+                        className="flex items-center justify-between gap-2 py-1.5"
+                      >
+                        <div className="text-sm">
+                          <span className="font-medium">
+                            {m.name || "Unnamed"}
+                          </span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            NIAT ID: {m.niatId || "—"}
+                          </span>
+                        </div>
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[11px] font-medium",
+                            m.isLeader
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {m.isLeader ? "Leader" : "Member"}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

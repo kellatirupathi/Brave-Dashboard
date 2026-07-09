@@ -616,6 +616,8 @@ export type CampusInsightsCampusRow = {
   verifiedRevenueCount: number;
   rejectedRevenueCount: number;
   totalVerifiedAmount: number;
+  totalPendingAmount: number;
+  totalRejectedAmount: number;
   clientsVisited: number;
   activeConversations: number;
   projectsStarted: number;
@@ -647,6 +649,8 @@ export type CampusInsightsTeamRow = {
   verifiedRevenueCount: number;
   rejectedRevenueCount: number;
   totalVerifiedAmount: number;
+  totalPendingAmount: number;
+  totalRejectedAmount: number;
   clientsVisited: number;
   activeConversations: number;
   projectsStarted: number;

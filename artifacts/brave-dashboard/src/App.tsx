@@ -110,6 +110,7 @@ import { Layout } from "@/components/layout";
 import { Spinner } from "@/components/ui/spinner";
 import { AccessGate } from "@/components/access-gate";
 import { TermsGate } from "@/components/terms-gate";
+import { PopupGate } from "@/components/popup-gate";
 import { GritIntroDialog } from "@/components/grit-intro-dialog";
 
 const queryClient = new QueryClient({
@@ -697,6 +698,9 @@ function App() {
           {/* Blocking student Terms & Conditions consent gate. Self-gates on
               role + acceptance; covers the whole app via a portalled overlay. */}
           <TermsGate />
+          {/* Admin-managed student pop-ups, shown one at a time after T&C.
+              Self-gates on role + terms + pending list. Separate from T&C. */}
+          <PopupGate />
           {/* One-time GRIT Miles intro pop-up. Self-gates on role + terms +
               dashboard route + a localStorage "seen" flag. Never blocking. */}
           <GritIntroDialog />

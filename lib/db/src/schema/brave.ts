@@ -1300,3 +1300,54 @@ export const reelScriptsTable = pgTable(
 );
 
 export type ReelScript = typeof reelScriptsTable.$inferSelect;
+
+// Admin-managed student pop-ups (additive, isolated). Admins create templates
+// on the Config page; enabled templates are shown to students one at a time
+// until acknowledged. This is entirely separate from the live Terms &
+// Conditions gate (users.terms_accepted_at) — it neither reads nor writes it.
+export const popupTemplatesTable = pgTable(
+  "popup_templates",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    message: text("message").notNull(),
+    // require_checkbox = true → a confirmation checkbox must be ticked before
+    // the Confirm button enables. false → just the message + Confirm button.
+    requireCheckbox: boolean("require_checkbox").notNull().default(false),
+    // Optional custom label for the checkbox (falls back to a default in UI).
+    checkboxLabel: text("checkbox_label"),
+    // enabled = shown to all students until each acknowledges it.
+    enabled: boolean("enabled").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("popup_templates_enabled_idx").on(t.enabled)],
+);
+
+export type PopupTemplate = typeof popupTemplatesTable.$inferSelect;
+
+// One row per (student, popup) written when the student confirms. Its presence
+// means the student has acknowledged that popup, so it is never shown again.
+export const popupAcknowledgementsTable = pgTable(
+  "popup_acknowledgements",
+  {
+    id: serial("id").primaryKey(),
+    popupId: integer("popup_id").notNull(),
+    userId: text("user_id").notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("popup_ack_user_popup_unique").on(t.popupId, t.userId),
+    index("popup_ack_user_idx").on(t.userId),
+  ],
+);
+
+export type PopupAcknowledgement =
+  typeof popupAcknowledgementsTable.$inferSelect;

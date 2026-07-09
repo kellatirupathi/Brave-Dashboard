@@ -1092,6 +1092,96 @@ function timestampForFilename(): string {
 }
 
 // ---------- Export 1: single flat CSV ----------
+// Team-name uniqueness report. A team name is considered a duplicate when the
+// same normalised name (trimmed, lower-cased, inner whitespace collapsed) is
+// used by more than one team across ALL campuses. Returns one group per
+// duplicated name, each listing the colliding teams with their campus and full
+// roster (member name + NIAT id + leader/member tag) so an admin can decide who
+// renames. Read-only — nothing is mutated or blocked.
+router.get(
+  "/admin/teams/name-duplicates",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const normalise = (s: string): string =>
+      s.trim().toLowerCase().replace(/\s+/g, " ");
+
+    const allTeams = await db
+      .select({
+        id: teamsTable.id,
+        name: teamsTable.name,
+        campusId: teamsTable.campusId,
+        leaderId: teamsTable.leaderId,
+      })
+      .from(teamsTable);
+
+    const byKey = new Map<string, typeof allTeams>();
+    for (const t of allTeams) {
+      const key = normalise(t.name);
+      if (!key) continue;
+      const arr = byKey.get(key);
+      if (arr) arr.push(t);
+      else byKey.set(key, [t]);
+    }
+    const dupEntries = [...byKey.entries()].filter(([, arr]) => arr.length > 1);
+    if (dupEntries.length === 0) {
+      res.json({ groups: [] });
+      return;
+    }
+
+    const campuses = await db
+      .select({ id: campusesTable.id, name: campusesTable.name })
+      .from(campusesTable);
+    const campusNameById = new Map<number, string>();
+    for (const c of campuses) campusNameById.set(c.id, c.name);
+
+    const dupTeamIds = dupEntries.flatMap(([, arr]) => arr.map((t) => t.id));
+    const memberRows = await db
+      .select({
+        teamId: teamMembersTable.teamId,
+        userId: teamMembersTable.userId,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+        niatId: usersTable.niatId,
+      })
+      .from(teamMembersTable)
+      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+      .where(inArray(teamMembersTable.teamId, dupTeamIds));
+    const membersByTeam = new Map<number, typeof memberRows>();
+    for (const m of memberRows) {
+      const arr = membersByTeam.get(m.teamId);
+      if (arr) arr.push(m);
+      else membersByTeam.set(m.teamId, [m]);
+    }
+
+    const groups = dupEntries
+      .map(([nameKey, arr]) => ({
+        nameKey,
+        teams: arr
+          .map((t) => ({
+            id: t.id,
+            name: t.name,
+            campusName: campusNameById.get(t.campusId) ?? "",
+            members: (membersByTeam.get(t.id) ?? [])
+              .map((m) => ({
+                name: `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim(),
+                niatId: m.niatId ?? null,
+                isLeader: m.userId === t.leaderId,
+              }))
+              .sort((a, b) =>
+                a.isLeader === b.isLeader ? 0 : a.isLeader ? -1 : 1,
+              ),
+          }))
+          .sort((a, b) => a.campusName.localeCompare(b.campusName)),
+      }))
+      .sort((a, b) => a.nameKey.localeCompare(b.nameKey));
+
+    res.json({ groups });
+  },
+);
+
 router.get(
   "/admin/teams/export-all.csv",
   async (req: Request, res: Response): Promise<void> => {

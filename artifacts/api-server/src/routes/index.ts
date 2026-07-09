@@ -40,6 +40,7 @@ import reelsScriptsRouter from "./reels-scripts";
 import termsRouter from "./terms";
 import demoDaySubmissionsRouter from "./demoday-submissions";
 import adminBrdDriveRouter from "./admin-brd-drive";
+import popupsRouter from "./popups";
 
 const router: IRouter = Router();
 
@@ -107,5 +108,7 @@ router.use(termsRouter);
 router.use(demoDaySubmissionsRouter);
 // Manual BRD → Google Drive migration (admin Config button, additive/isolated)
 router.use(adminBrdDriveRouter);
+// Admin-managed student pop-ups: CRUD + student pending/ack (additive, isolated)
+router.use(popupsRouter);
 
 export default router;

@@ -91,6 +91,11 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
   const revRejectedRange = week
     ? sql`${revenueEntriesTable.updatedAt} >= ${startOfDay(week.startDate)} AND ${revenueEntriesTable.updatedAt} <= ${endOfDay(week.endDate)}`
     : sql`true`;
+  // Pending = draft or submitted (not yet reviewed). Scope by createdAt when a
+  // week is selected.
+  const revPendingRange = week
+    ? sql`${revenueEntriesTable.createdAt} >= ${startOfDay(week.startDate)} AND ${revenueEntriesTable.createdAt} <= ${endOfDay(week.endDate)}`
+    : sql`true`;
   const obRange = week
     ? sql`${orderBookEntriesTable.createdAt} >= ${startOfDay(week.startDate)} AND ${orderBookEntriesTable.createdAt} <= ${endOfDay(week.endDate)}`
     : sql`true`;
@@ -135,6 +140,8 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
         verifiedCount: sql<number>`count(*) filter (where ${revenueEntriesTable.status} = 'verified' AND ${revVerifiedRange})::int`,
         rejectedCount: sql<number>`count(*) filter (where ${revenueEntriesTable.status} = 'rejected' AND ${revRejectedRange})::int`,
         verifiedAmount: sql<number>`coalesce(sum(${revenueEntriesTable.verifiedAmount}) filter (where ${revenueEntriesTable.status} = 'verified' AND ${revVerifiedRange}), 0)::bigint`,
+        pendingAmount: sql<number>`coalesce(sum(${revenueEntriesTable.amount}) filter (where ${revenueEntriesTable.status} in ('draft','submitted') AND ${revPendingRange}), 0)::bigint`,
+        rejectedAmount: sql<number>`coalesce(sum(${revenueEntriesTable.amount}) filter (where ${revenueEntriesTable.status} = 'rejected' AND ${revRejectedRange}), 0)::bigint`,
       })
       .from(revenueEntriesTable)
       .innerJoin(teamsTable, eq(revenueEntriesTable.teamId, teamsTable.id))
@@ -178,7 +185,13 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
   }
   const revByCampus = new Map<
     number,
-    { verifiedCount: number; rejectedCount: number; verifiedAmount: number }
+    {
+      verifiedCount: number;
+      rejectedCount: number;
+      verifiedAmount: number;
+      pendingAmount: number;
+      rejectedAmount: number;
+    }
   >();
   for (const r of revenueAgg) {
     if (r.campusId != null)
@@ -186,6 +199,8 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
         verifiedCount: r.verifiedCount,
         rejectedCount: r.rejectedCount,
         verifiedAmount: Number(r.verifiedAmount ?? 0),
+        pendingAmount: Number(r.pendingAmount ?? 0),
+        rejectedAmount: Number(r.rejectedAmount ?? 0),
       });
   }
   const obByCampus = new Map<number, number>();
@@ -200,6 +215,8 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
         verifiedCount: 0,
         rejectedCount: 0,
         verifiedAmount: 0,
+        pendingAmount: 0,
+        rejectedAmount: 0,
       };
       const jrn = journalsByCampus.get(c.id) ?? {
         journalsSubmitted: 0,
@@ -221,6 +238,8 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
         verifiedRevenueCount: rev.verifiedCount,
         rejectedRevenueCount: rev.rejectedCount,
         totalVerifiedAmount: rev.verifiedAmount,
+        totalPendingAmount: rev.pendingAmount,
+        totalRejectedAmount: rev.rejectedAmount,
       };
     })
     .sort((a, b) => a.campusName.localeCompare(b.campusName));
@@ -232,6 +251,8 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
       acc.totalVerifiedRevenue += r.totalVerifiedAmount;
       acc.totalVerifiedCount += r.verifiedRevenueCount;
       acc.totalRejectedCount += r.rejectedRevenueCount;
+      acc.totalPendingRevenue += r.totalPendingAmount;
+      acc.totalRejectedRevenue += r.totalRejectedAmount;
       return acc;
     },
     {
@@ -240,6 +261,8 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
       totalVerifiedRevenue: 0,
       totalVerifiedCount: 0,
       totalRejectedCount: 0,
+      totalPendingRevenue: 0,
+      totalRejectedRevenue: 0,
     },
   );
 
@@ -292,6 +315,9 @@ router.get(
     const revRejectedRange = week
       ? sql`${revenueEntriesTable.updatedAt} >= ${startOfDay(week.startDate)} AND ${revenueEntriesTable.updatedAt} <= ${endOfDay(week.endDate)}`
       : sql`true`;
+    const revPendingRange = week
+      ? sql`${revenueEntriesTable.createdAt} >= ${startOfDay(week.startDate)} AND ${revenueEntriesTable.createdAt} <= ${endOfDay(week.endDate)}`
+      : sql`true`;
     const obConds = [eq(teamsTable.campusId, campusId)];
     if (week)
       obConds.push(
@@ -333,6 +359,8 @@ router.get(
           verifiedCount: sql<number>`count(*) filter (where ${revenueEntriesTable.status} = 'verified' AND ${revVerifiedRange})::int`,
           rejectedCount: sql<number>`count(*) filter (where ${revenueEntriesTable.status} = 'rejected' AND ${revRejectedRange})::int`,
           verifiedAmount: sql<number>`coalesce(sum(${revenueEntriesTable.verifiedAmount}) filter (where ${revenueEntriesTable.status} = 'verified' AND ${revVerifiedRange}), 0)::bigint`,
+          pendingAmount: sql<number>`coalesce(sum(${revenueEntriesTable.amount}) filter (where ${revenueEntriesTable.status} in ('draft','submitted') AND ${revPendingRange}), 0)::bigint`,
+          rejectedAmount: sql<number>`coalesce(sum(${revenueEntriesTable.amount}) filter (where ${revenueEntriesTable.status} = 'rejected' AND ${revRejectedRange}), 0)::bigint`,
         })
         .from(revenueEntriesTable)
         .innerJoin(teamsTable, eq(revenueEntriesTable.teamId, teamsTable.id))
@@ -372,13 +400,21 @@ router.get(
       });
     const revByTeam = new Map<
       number,
-      { verifiedCount: number; rejectedCount: number; verifiedAmount: number }
+      {
+        verifiedCount: number;
+        rejectedCount: number;
+        verifiedAmount: number;
+        pendingAmount: number;
+        rejectedAmount: number;
+      }
     >();
     for (const r of revenueAgg)
       revByTeam.set(r.teamId, {
         verifiedCount: r.verifiedCount,
         rejectedCount: r.rejectedCount,
         verifiedAmount: Number(r.verifiedAmount ?? 0),
+        pendingAmount: Number(r.pendingAmount ?? 0),
+        rejectedAmount: Number(r.rejectedAmount ?? 0),
       });
     const obByTeam = new Map<number, number>();
     for (const r of orderBookAgg) obByTeam.set(r.teamId, r.submittedCount);
@@ -389,6 +425,8 @@ router.get(
           verifiedCount: 0,
           rejectedCount: 0,
           verifiedAmount: 0,
+          pendingAmount: 0,
+          rejectedAmount: 0,
         };
         const jrn = journalsByTeam.get(t.id) ?? {
           weeks: 0,
@@ -409,6 +447,8 @@ router.get(
           verifiedRevenueCount: rev.verifiedCount,
           rejectedRevenueCount: rev.rejectedCount,
           totalVerifiedAmount: rev.verifiedAmount,
+          totalPendingAmount: rev.pendingAmount,
+          totalRejectedAmount: rev.rejectedAmount,
         };
       })
       .sort((a, b) => a.teamName.localeCompare(b.teamName));

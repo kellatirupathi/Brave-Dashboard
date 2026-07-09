@@ -292,6 +292,8 @@ export default function AdminCampusInsights() {
     "Verified revenue (count)",
     "Rejected revenue (count)",
     "Total verified amount (INR)",
+    "Pending amount (INR)",
+    "Rejected amount (INR)",
     "Clients visited",
     "Active conversations",
     "Projects started",
@@ -304,6 +306,8 @@ export default function AdminCampusInsights() {
     "Verified revenue (count)",
     "Rejected revenue (count)",
     "Total verified amount (INR)",
+    "Pending amount (INR)",
+    "Rejected amount (INR)",
     "Clients visited",
     "Active conversations",
     "Projects started",
@@ -327,6 +331,8 @@ export default function AdminCampusInsights() {
       r.verifiedRevenueCount,
       r.rejectedRevenueCount,
       r.totalVerifiedAmount,
+      r.totalPendingAmount,
+      r.totalRejectedAmount,
       r.clientsVisited,
       r.activeConversations,
       r.projectsStarted,
@@ -342,6 +348,8 @@ export default function AdminCampusInsights() {
       r.verifiedRevenueCount,
       r.rejectedRevenueCount,
       r.totalVerifiedAmount,
+      r.totalPendingAmount,
+      r.totalRejectedAmount,
       r.clientsVisited,
       r.activeConversations,
       r.projectsStarted,
@@ -609,6 +617,26 @@ export default function AdminCampusInsights() {
                   </TableHead>
                   <TableHead
                     className="text-right cursor-pointer select-none"
+                    onClick={() => toggleCampusSort("totalPendingAmount")}
+                  >
+                    Pending amount
+                    <SortIcon
+                      active={campusSort.key === "totalPendingAmount"}
+                      dir={campusSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleCampusSort("totalRejectedAmount")}
+                  >
+                    Rejected amount
+                    <SortIcon
+                      active={campusSort.key === "totalRejectedAmount"}
+                      dir={campusSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
                     onClick={() => toggleCampusSort("clientsVisited")}
                   >
                     Clients visited
@@ -653,7 +681,7 @@ export default function AdminCampusInsights() {
                 {campusRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={12}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No campuses match this filter.
@@ -684,6 +712,12 @@ export default function AdminCampusInsights() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
                         {formatINR(r.totalVerifiedAmount)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatINR(r.totalPendingAmount)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatINR(r.totalRejectedAmount)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.clientsVisited.toLocaleString()}
@@ -770,6 +804,26 @@ export default function AdminCampusInsights() {
                   </TableHead>
                   <TableHead
                     className="text-right cursor-pointer select-none"
+                    onClick={() => toggleTeamSort("totalPendingAmount")}
+                  >
+                    Pending amount
+                    <SortIcon
+                      active={teamSort.key === "totalPendingAmount"}
+                      dir={teamSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleTeamSort("totalRejectedAmount")}
+                  >
+                    Rejected amount
+                    <SortIcon
+                      active={teamSort.key === "totalRejectedAmount"}
+                      dir={teamSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
                     onClick={() => toggleTeamSort("clientsVisited")}
                   >
                     Clients visited
@@ -814,7 +868,7 @@ export default function AdminCampusInsights() {
                 {teamRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={12}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No teams match this filter.
@@ -844,6 +898,12 @@ export default function AdminCampusInsights() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
                         {formatINR(r.totalVerifiedAmount)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatINR(r.totalPendingAmount)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatINR(r.totalRejectedAmount)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.clientsVisited.toLocaleString()}
