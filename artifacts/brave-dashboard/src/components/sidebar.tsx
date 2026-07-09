@@ -159,7 +159,12 @@ function GroupFlyout({
         onMouseLeave={scheduleClose}
         // Don't grab focus when the panel opens — focus stealing causes the
         // trigger to lose its hover state, which closes/re-opens the panel.
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        // onOpenAutoFocus is supported by the underlying Radix Menu content
+        // at runtime but is not in DropdownMenuContent's public prop types,
+        // so it's passed via a typed-as-any spread.
+        {...({
+          onOpenAutoFocus: (e: Event) => e.preventDefault(),
+        } as Record<string, unknown>)}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {group.children.map((child) => {
@@ -490,7 +495,6 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 <GroupFlyout
                   key={item.name}
                   group={item}
-                  isActive={false}
                   childActive={childActive}
                   currentLocation={location}
                   onNavigate={onNavigate}

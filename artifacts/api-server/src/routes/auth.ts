@@ -692,16 +692,12 @@ router.get("/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
 
   // Grab the id_token BEFORE we delete the session — it's the id_token_hint
-  // the IdP needs to know which session to end. Also note whether this was a
-  // Forms-SSO (token-exchange) session, which has NO id_token and cannot be
-  // ended via OIDC end-session at all.
+  // the IdP needs to know which session to end.
   let idToken: string | undefined;
-  let isFormsSsoSession = false;
   if (sid) {
     try {
       const session = await getSession(sid);
       idToken = session?.id_token;
-      isFormsSsoSession = session?.access_token === "forms-sso";
     } catch {
       // best-effort — never block logout on a session read
     }
@@ -709,34 +705,43 @@ router.get("/logout", async (req: Request, res: Response) => {
 
   await clearSession(res, sid);
 
-  // Forms-SSO sessions live on forms.ccbp.in's own domain — we cannot clear
-  // that cookie from here. If the Forms/NxtWave team provides an upstream
-  // logout URL, set FORMS_LOGOUT_URL and we bounce the browser through it so
-  // the next login asks for mobile+OTP again. Unset = current behaviour.
+  // OIDC logins (Replit staff / the mobile-auth OIDC flow) carry an id_token —
+  // terminate that IdP session via RP-initiated end-session.
+  if (idToken) {
+    try {
+      const postLogoutRedirectUri = `${getOrigin(req)}/api/callback-logout`;
+      const idpLogoutUrl = await buildIdpLogoutUrl(
+        idToken,
+        postLogoutRedirectUri,
+      );
+      if (idpLogoutUrl) {
+        res.redirect(idpLogoutUrl);
+        return;
+      }
+    } catch (err) {
+      req.log?.warn?.({ err }, "IdP end-session failed; falling back");
+    }
+  }
+
+  // Forms-CCBP SSO logins (the auth_token / validate-token flow) carry NO
+  // id_token, so clearing our own cookie leaves the forms.ccbp.in session
+  // alive — the next sign-in then silently re-authenticates without asking for
+  // mobile number + OTP. Redirect the browser to the Forms logout endpoint so
+  // the upstream Forms session is terminated too, forcing mobile+OTP next time.
+  // FORMS_LOGOUT_URL is the forms.ccbp.in logout URL; an optional {RETURN_TO}
+  // placeholder is replaced with where to land afterwards (back on the
+  // dashboard, so the user sees the login screen).
   const formsLogoutUrl = process.env.FORMS_LOGOUT_URL;
-  if (isFormsSsoSession && formsLogoutUrl) {
-    res.redirect(formsLogoutUrl);
+  if (formsLogoutUrl) {
+    const returnTo = `${getOrigin(req)}/`;
+    const target = formsLogoutUrl.includes("{RETURN_TO}")
+      ? formsLogoutUrl.replace("{RETURN_TO}", encodeURIComponent(returnTo))
+      : formsLogoutUrl;
+    res.redirect(target);
     return;
   }
 
-  try {
-    const postLogoutRedirectUri = `${getOrigin(req)}/api/callback-logout`;
-    const idpLogoutUrl = await buildIdpLogoutUrl(
-      idToken,
-      postLogoutRedirectUri,
-    );
-    if (idpLogoutUrl) {
-      res.redirect(idpLogoutUrl);
-      return;
-    }
-  } catch (err) {
-    req.log?.warn?.(
-      { err },
-      "IdP end-session failed; falling back to local logout",
-    );
-  }
-
-  // IdP has no end-session endpoint (or it errored) — local logout only.
+  // No id_token and no Forms logout URL configured — local logout only.
   res.redirect(PUBLIC_SITE_URL);
 });
 
