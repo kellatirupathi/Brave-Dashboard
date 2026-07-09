@@ -692,18 +692,32 @@ router.get("/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
 
   // Grab the id_token BEFORE we delete the session — it's the id_token_hint
-  // the IdP needs to know which session to end.
+  // the IdP needs to know which session to end. Also note whether this was a
+  // Forms-SSO (token-exchange) session, which has NO id_token and cannot be
+  // ended via OIDC end-session at all.
   let idToken: string | undefined;
+  let isFormsSsoSession = false;
   if (sid) {
     try {
       const session = await getSession(sid);
       idToken = session?.id_token;
+      isFormsSsoSession = session?.access_token === "forms-sso";
     } catch {
       // best-effort — never block logout on a session read
     }
   }
 
   await clearSession(res, sid);
+
+  // Forms-SSO sessions live on forms.ccbp.in's own domain — we cannot clear
+  // that cookie from here. If the Forms/NxtWave team provides an upstream
+  // logout URL, set FORMS_LOGOUT_URL and we bounce the browser through it so
+  // the next login asks for mobile+OTP again. Unset = current behaviour.
+  const formsLogoutUrl = process.env.FORMS_LOGOUT_URL;
+  if (isFormsSsoSession && formsLogoutUrl) {
+    res.redirect(formsLogoutUrl);
+    return;
+  }
 
   try {
     const postLogoutRedirectUri = `${getOrigin(req)}/api/callback-logout`;
