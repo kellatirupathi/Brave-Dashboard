@@ -266,7 +266,11 @@ export async function analyseJournal(journalId: number): Promise<boolean> {
       .where(
         and(
           eq(weeklyJournalsTable.id, journal.id),
-          eq(weeklyJournalsTable.submittedAt, submittedAtSnapshot),
+          // Microsecond-safe staleness guard: Postgres stores submitted_at
+          // with µs precision but a JS Date only carries ms, so a strict
+          // equality comparison wrongly fails for rows whose timestamp has
+          // non-zero microseconds (e.g. defaultNow()). Compare within 1ms.
+          sql`abs(extract(epoch from ${weeklyJournalsTable.submittedAt}) - ${submittedAtSnapshot.getTime() / 1000}) < 0.001`,
         ),
       )
       .returning({ id: weeklyJournalsTable.id });

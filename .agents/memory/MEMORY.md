@@ -6,3 +6,4 @@
 - [GRIT/Demo Day rollout toggles](grit-demoday-rollout-toggles.md) — 2 independent programme_config flags (default false=legacy Demo Day) swap student sidebar/page + dashboard to new GRIT; legacy *-legacy.tsx pages are the OFF branch, keep them.
 - [Prod applies no schema via push](prod-schema-no-push.md) — prod deploy never runs drizzle-kit push; schema/index changes prod needs must be applied via idempotent CREATE IF NOT EXISTS bootstrap in api-server index.ts (keep in schema too).
 - [Cron locking](cron-locking.md) — multi-instance cron guards use pg advisory locks (cron-lock.ts), NOT in-process booleans; for sync handlers release in try/finally, never on res finish/close (disconnect frees lock early).
+- [Timestamp staleness guards](timestamp-staleness-guards.md) — never eq() a timestamptz to a JS Date snapshot (µs vs ms); use ±1ms epoch compare or the guard discards every result (paid-API leak).
