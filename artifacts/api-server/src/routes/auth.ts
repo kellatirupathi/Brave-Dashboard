@@ -21,9 +21,11 @@ import { eq, and, or } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
+  getSession,
   getSessionId,
   createSession,
   deleteSession,
+  buildIdpLogoutUrl,
   SESSION_COOKIE,
   SESSION_TTL,
   ISSUER_URL,
@@ -667,6 +669,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
     expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
+    id_token: tokens.id_token,
   };
 
   const sid = await createSession(sessionData);
@@ -675,18 +678,58 @@ router.get("/callback", async (req: Request, res: Response) => {
 });
 
 router.get("/logout", async (req: Request, res: Response) => {
-  // Clear our local session (cookie + DB row) and bounce the user to the
-  // public marketing site, off the dashboard subdomain entirely.
+  // Clear our local session (cookie + DB row) AND terminate the upstream
+  // Forms-CCBP / Replit SSO session via the IdP's RP-initiated end-session
+  // endpoint. Clearing only the local session left the IdP session alive, so
+  // the next sign-in silently re-authenticated without asking for mobile+OTP
+  // — and users on a no-access screen could never truly switch accounts.
   //
-  // We intentionally do NOT call Replit's OIDC end-session endpoint here.
-  // That endpoint requires post_logout_redirect_uri to be pre-registered
-  // with the OAuth client, and only the dashboard origin is registered —
-  // sending users to www.brave.niatindia.com from there returns
-  // invalid_request. The user's Replit IdP session lingers, but that is
-  // harmless: /api/login passes prompt="login consent" which forces full
-  // re-authentication on the next sign-in.
+  // The post-logout redirect target must be pre-registered with the OAuth
+  // client. We send the browser back to /api/callback-logout on THIS origin
+  // (the dashboard origin, which is registered), which then bounces to the
+  // public marketing site — avoiding the invalid_request the marketing origin
+  // would trigger.
   const sid = getSessionId(req);
+
+  // Grab the id_token BEFORE we delete the session — it's the id_token_hint
+  // the IdP needs to know which session to end.
+  let idToken: string | undefined;
+  if (sid) {
+    try {
+      const session = await getSession(sid);
+      idToken = session?.id_token;
+    } catch {
+      // best-effort — never block logout on a session read
+    }
+  }
+
   await clearSession(res, sid);
+
+  try {
+    const postLogoutRedirectUri = `${getOrigin(req)}/api/callback-logout`;
+    const idpLogoutUrl = await buildIdpLogoutUrl(
+      idToken,
+      postLogoutRedirectUri,
+    );
+    if (idpLogoutUrl) {
+      res.redirect(idpLogoutUrl);
+      return;
+    }
+  } catch (err) {
+    req.log?.warn?.(
+      { err },
+      "IdP end-session failed; falling back to local logout",
+    );
+  }
+
+  // IdP has no end-session endpoint (or it errored) — local logout only.
+  res.redirect(PUBLIC_SITE_URL);
+});
+
+// Landing spot after the IdP has ended the SSO session. The IdP redirects the
+// browser here (this origin is registered as a post_logout_redirect_uri); we
+// then send the user on to the public marketing site.
+router.get("/callback-logout", (_req: Request, res: Response) => {
   res.redirect(PUBLIC_SITE_URL);
 });
 
@@ -785,6 +828,7 @@ router.post(
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
+        id_token: tokens.id_token,
       };
 
       const sid = await createSession(sessionData);

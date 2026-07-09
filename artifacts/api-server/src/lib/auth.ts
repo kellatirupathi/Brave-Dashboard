@@ -14,6 +14,30 @@ export interface SessionData {
   access_token: string;
   refresh_token?: string;
   expires_at?: number;
+  // Raw OIDC ID token from the IdP (Replit / Forms-CCBP SSO). Kept so logout
+  // can pass it as id_token_hint to the RP-initiated end-session endpoint,
+  // which terminates the upstream SSO session (forcing mobile+OTP on next
+  // login). Absent for non-OIDC logins (password / dev).
+  id_token?: string;
+}
+
+// Builds the IdP RP-initiated logout (end-session) URL so the upstream SSO
+// session — not just our local cookie — is terminated. Returns null if the
+// IdP does not advertise an end_session_endpoint, so callers can fall back to
+// a plain local logout. `postLogoutRedirectUri` must be pre-registered with
+// the OAuth client or the IdP will reject it.
+export async function buildIdpLogoutUrl(
+  idToken: string | undefined,
+  postLogoutRedirectUri: string,
+): Promise<string | null> {
+  const config = await getOidcConfig();
+  const meta = config.serverMetadata();
+  if (!meta.end_session_endpoint) return null;
+  const params: Record<string, string> = {
+    post_logout_redirect_uri: postLogoutRedirectUri,
+  };
+  if (idToken) params.id_token_hint = idToken;
+  return client.buildEndSessionUrl(config, params).href;
 }
 
 let oidcConfig: client.Configuration | null = null;
