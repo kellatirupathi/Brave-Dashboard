@@ -202,6 +202,27 @@ export const ListTeamsQueryParams = zod.object({
     .min(1)
     .max(listTeamsQueryPageSizeMax)
     .optional(),
+  sortBy: zod
+    .enum([
+      "name",
+      "campus",
+      "status",
+      "verifiedRevenue",
+      "pendingRevenue",
+      "rejectedRevenue",
+      "members",
+      "projects",
+      "updated",
+      "created",
+    ])
+    .optional()
+    .describe(
+      "Column to sort by (global, across all pages). Omit to keep default creation order.",
+    ),
+  sortDir: zod
+    .enum(["asc", "desc"])
+    .optional()
+    .describe("Sort direction. Defaults to asc when sortBy is provided."),
 });
 
 export const ListTeamsResponse = zod.object({
@@ -224,8 +245,19 @@ export const ListTeamsResponse = zod.object({
       memberCount: zod.number(),
       projectCount: zod.number(),
       totalRevenue: zod.number(),
+      pendingRevenue: zod
+        .number()
+        .optional()
+        .describe(
+          "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+        ),
+      rejectedRevenue: zod
+        .number()
+        .optional()
+        .describe("Sum of claimed amount for rejected revenue entries."),
       totalOrderBook: zod.number(),
       nationalRank: zod.number().nullish(),
+      updatedAt: zod.coerce.date().optional(),
       createdAt: zod.coerce.date(),
     }),
   ),
@@ -295,8 +327,19 @@ export const GetMyTeamResponse = zod
     memberCount: zod.number(),
     projectCount: zod.number(),
     totalRevenue: zod.number(),
+    pendingRevenue: zod
+      .number()
+      .optional()
+      .describe(
+        "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+      ),
+    rejectedRevenue: zod
+      .number()
+      .optional()
+      .describe("Sum of claimed amount for rejected revenue entries."),
     totalOrderBook: zod.number(),
     nationalRank: zod.number().nullish(),
+    updatedAt: zod.coerce.date().optional(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -323,6 +366,12 @@ export const GetMyTeamResponse = zod
           status: zod.enum(["active", "inactive"]),
           verifiedOrderBook: zod.number(),
           verifiedRevenue: zod.number(),
+          revenueStatus: zod
+            .enum(["verified", "pending", "rejected", "none"])
+            .optional()
+            .describe(
+              "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+            ),
           clientCount: zod.number(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
@@ -357,8 +406,19 @@ export const GetTeamResponse = zod
     memberCount: zod.number(),
     projectCount: zod.number(),
     totalRevenue: zod.number(),
+    pendingRevenue: zod
+      .number()
+      .optional()
+      .describe(
+        "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+      ),
+    rejectedRevenue: zod
+      .number()
+      .optional()
+      .describe("Sum of claimed amount for rejected revenue entries."),
     totalOrderBook: zod.number(),
     nationalRank: zod.number().nullish(),
+    updatedAt: zod.coerce.date().optional(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -385,6 +445,12 @@ export const GetTeamResponse = zod
           status: zod.enum(["active", "inactive"]),
           verifiedOrderBook: zod.number(),
           verifiedRevenue: zod.number(),
+          revenueStatus: zod
+            .enum(["verified", "pending", "rejected", "none"])
+            .optional()
+            .describe(
+              "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+            ),
           clientCount: zod.number(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
@@ -426,8 +492,19 @@ export const UpdateTeamResponse = zod.object({
   memberCount: zod.number(),
   projectCount: zod.number(),
   totalRevenue: zod.number(),
+  pendingRevenue: zod
+    .number()
+    .optional()
+    .describe(
+      "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+    ),
+  rejectedRevenue: zod
+    .number()
+    .optional()
+    .describe("Sum of claimed amount for rejected revenue entries."),
   totalOrderBook: zod.number(),
   nationalRank: zod.number().nullish(),
+  updatedAt: zod.coerce.date().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -467,8 +544,19 @@ export const RejectTeamResponse = zod.object({
   memberCount: zod.number(),
   projectCount: zod.number(),
   totalRevenue: zod.number(),
+  pendingRevenue: zod
+    .number()
+    .optional()
+    .describe(
+      "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+    ),
+  rejectedRevenue: zod
+    .number()
+    .optional()
+    .describe("Sum of claimed amount for rejected revenue entries."),
   totalOrderBook: zod.number(),
   nationalRank: zod.number().nullish(),
+  updatedAt: zod.coerce.date().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -501,8 +589,19 @@ export const RequestTeamChangesResponse = zod.object({
   memberCount: zod.number(),
   projectCount: zod.number(),
   totalRevenue: zod.number(),
+  pendingRevenue: zod
+    .number()
+    .optional()
+    .describe(
+      "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+    ),
+  rejectedRevenue: zod
+    .number()
+    .optional()
+    .describe("Sum of claimed amount for rejected revenue entries."),
   totalOrderBook: zod.number(),
   nationalRank: zod.number().nullish(),
+  updatedAt: zod.coerce.date().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -544,8 +643,19 @@ export const RemoveTeamMemberResponse = zod
     memberCount: zod.number(),
     projectCount: zod.number(),
     totalRevenue: zod.number(),
+    pendingRevenue: zod
+      .number()
+      .optional()
+      .describe(
+        "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+      ),
+    rejectedRevenue: zod
+      .number()
+      .optional()
+      .describe("Sum of claimed amount for rejected revenue entries."),
     totalOrderBook: zod.number(),
     nationalRank: zod.number().nullish(),
+    updatedAt: zod.coerce.date().optional(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -572,6 +682,12 @@ export const RemoveTeamMemberResponse = zod
           status: zod.enum(["active", "inactive"]),
           verifiedOrderBook: zod.number(),
           verifiedRevenue: zod.number(),
+          revenueStatus: zod
+            .enum(["verified", "pending", "rejected", "none"])
+            .optional()
+            .describe(
+              "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+            ),
           clientCount: zod.number(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
@@ -610,8 +726,19 @@ export const TransferTeamLeadershipResponse = zod
     memberCount: zod.number(),
     projectCount: zod.number(),
     totalRevenue: zod.number(),
+    pendingRevenue: zod
+      .number()
+      .optional()
+      .describe(
+        "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+      ),
+    rejectedRevenue: zod
+      .number()
+      .optional()
+      .describe("Sum of claimed amount for rejected revenue entries."),
     totalOrderBook: zod.number(),
     nationalRank: zod.number().nullish(),
+    updatedAt: zod.coerce.date().optional(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -638,6 +765,12 @@ export const TransferTeamLeadershipResponse = zod
           status: zod.enum(["active", "inactive"]),
           verifiedOrderBook: zod.number(),
           verifiedRevenue: zod.number(),
+          revenueStatus: zod
+            .enum(["verified", "pending", "rejected", "none"])
+            .optional()
+            .describe(
+              "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+            ),
           clientCount: zod.number(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
@@ -667,8 +800,19 @@ export const BrowseCampusTeamsResponseItem = zod.object({
   memberCount: zod.number(),
   projectCount: zod.number(),
   totalRevenue: zod.number(),
+  pendingRevenue: zod
+    .number()
+    .optional()
+    .describe(
+      "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+    ),
+  rejectedRevenue: zod
+    .number()
+    .optional()
+    .describe("Sum of claimed amount for rejected revenue entries."),
   totalOrderBook: zod.number(),
   nationalRank: zod.number().nullish(),
+  updatedAt: zod.coerce.date().optional(),
   createdAt: zod.coerce.date(),
 });
 export const BrowseCampusTeamsResponse = zod.array(
@@ -736,8 +880,19 @@ export const JoinTeamByCodeResponse = zod
     memberCount: zod.number(),
     projectCount: zod.number(),
     totalRevenue: zod.number(),
+    pendingRevenue: zod
+      .number()
+      .optional()
+      .describe(
+        "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+      ),
+    rejectedRevenue: zod
+      .number()
+      .optional()
+      .describe("Sum of claimed amount for rejected revenue entries."),
     totalOrderBook: zod.number(),
     nationalRank: zod.number().nullish(),
+    updatedAt: zod.coerce.date().optional(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -764,6 +919,12 @@ export const JoinTeamByCodeResponse = zod
           status: zod.enum(["active", "inactive"]),
           verifiedOrderBook: zod.number(),
           verifiedRevenue: zod.number(),
+          revenueStatus: zod
+            .enum(["verified", "pending", "rejected", "none"])
+            .optional()
+            .describe(
+              "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+            ),
           clientCount: zod.number(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
@@ -862,8 +1023,19 @@ export const AcceptInvitationResponse = zod
     memberCount: zod.number(),
     projectCount: zod.number(),
     totalRevenue: zod.number(),
+    pendingRevenue: zod
+      .number()
+      .optional()
+      .describe(
+        "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+      ),
+    rejectedRevenue: zod
+      .number()
+      .optional()
+      .describe("Sum of claimed amount for rejected revenue entries."),
     totalOrderBook: zod.number(),
     nationalRank: zod.number().nullish(),
+    updatedAt: zod.coerce.date().optional(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -890,6 +1062,12 @@ export const AcceptInvitationResponse = zod
           status: zod.enum(["active", "inactive"]),
           verifiedOrderBook: zod.number(),
           verifiedRevenue: zod.number(),
+          revenueStatus: zod
+            .enum(["verified", "pending", "rejected", "none"])
+            .optional()
+            .describe(
+              "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+            ),
           clientCount: zod.number(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
@@ -981,8 +1159,19 @@ export const ApproveJoinRequestResponse = zod
     memberCount: zod.number(),
     projectCount: zod.number(),
     totalRevenue: zod.number(),
+    pendingRevenue: zod
+      .number()
+      .optional()
+      .describe(
+        "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+      ),
+    rejectedRevenue: zod
+      .number()
+      .optional()
+      .describe("Sum of claimed amount for rejected revenue entries."),
     totalOrderBook: zod.number(),
     nationalRank: zod.number().nullish(),
+    updatedAt: zod.coerce.date().optional(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -1009,6 +1198,12 @@ export const ApproveJoinRequestResponse = zod
           status: zod.enum(["active", "inactive"]),
           verifiedOrderBook: zod.number(),
           verifiedRevenue: zod.number(),
+          revenueStatus: zod
+            .enum(["verified", "pending", "rejected", "none"])
+            .optional()
+            .describe(
+              "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+            ),
           clientCount: zod.number(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
@@ -1095,6 +1290,25 @@ export const ListProjectsQueryParams = zod.object({
   search: zod.coerce.string().optional(),
   page: zod.coerce.number().min(1).optional(),
   pageSize: zod.coerce.number().min(1).optional(),
+  sortBy: zod
+    .enum([
+      "title",
+      "team",
+      "status",
+      "revenueStatus",
+      "revenue",
+      "orderBook",
+      "updated",
+      "created",
+    ])
+    .optional()
+    .describe(
+      "Column to sort by (global, across all pages). Omit to keep default creation order.",
+    ),
+  sortDir: zod
+    .enum(["asc", "desc"])
+    .optional()
+    .describe("Sort direction. Defaults to asc when sortBy is provided."),
 });
 
 export const ListProjectsResponse = zod.object({
@@ -1108,6 +1322,12 @@ export const ListProjectsResponse = zod.object({
       status: zod.enum(["active", "inactive"]),
       verifiedOrderBook: zod.number(),
       verifiedRevenue: zod.number(),
+      revenueStatus: zod
+        .enum(["verified", "pending", "rejected", "none"])
+        .optional()
+        .describe(
+          "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+        ),
       clientCount: zod.number(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
@@ -1148,6 +1368,12 @@ export const GetProjectResponse = zod
     status: zod.enum(["active", "inactive"]),
     verifiedOrderBook: zod.number(),
     verifiedRevenue: zod.number(),
+    revenueStatus: zod
+      .enum(["verified", "pending", "rejected", "none"])
+      .optional()
+      .describe(
+        "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+      ),
     clientCount: zod.number(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -1187,7 +1413,13 @@ export const GetProjectResponse = zod
           amount: zod.number(),
           verifiedAmount: zod.number().nullish(),
           paymentDate: zod.coerce.date(),
-          status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+          status: zod.enum([
+            "draft",
+            "submitted",
+            "verified",
+            "revoked",
+            "rejected",
+          ]),
           brdUrl: zod.string().nullish(),
           testimonialUrl: zod.string().nullish(),
           adminNotes: zod.string().nullish(),
@@ -1278,6 +1510,12 @@ export const UpdateProjectResponse = zod.object({
   status: zod.enum(["active", "inactive"]),
   verifiedOrderBook: zod.number(),
   verifiedRevenue: zod.number(),
+  revenueStatus: zod
+    .enum(["verified", "pending", "rejected", "none"])
+    .optional()
+    .describe(
+      "Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.",
+    ),
   clientCount: zod.number(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -1409,7 +1647,9 @@ export const DeleteOrderBookEntryParams = zod.object({
 export const ListRevenueEntriesQueryParams = zod.object({
   projectId: zod.coerce.number().optional(),
   teamId: zod.coerce.number().optional(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]).optional(),
+  status: zod
+    .enum(["draft", "submitted", "verified", "revoked", "rejected"])
+    .optional(),
 });
 
 export const ListRevenueEntriesResponseItem = zod.object({
@@ -1423,7 +1663,7 @@ export const ListRevenueEntriesResponseItem = zod.object({
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
   paymentDate: zod.coerce.date(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1522,7 +1762,7 @@ export const GetRevenueEntryResponse = zod.object({
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
   paymentDate: zod.coerce.date(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1612,7 +1852,89 @@ export const UpdateRevenueEntryResponse = zod.object({
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
   paymentDate: zod.coerce.date(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
+  brdUrl: zod.string().nullish(),
+  testimonialUrl: zod.string().nullish(),
+  adminNotes: zod.string().nullish(),
+  enteredBy: zod.enum(["student", "admin"]),
+  submittedAt: zod.coerce.date().nullish(),
+  verifiedAt: zod.coerce.date().nullish(),
+  brdScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD relevancy score (0-100); null until analysed."),
+  uniquenessScore: zod
+    .number()
+    .nullish()
+    .describe("AI BRD uniqueness score (0-100) vs prior team BRDs."),
+  aiAnalysedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Timestamp the AI analysis was last completed; null if pending."),
+  aiAnalysisDetail: zod
+    .union([
+      zod.null(),
+      zod
+        .object({
+          brd_score: zod.number().optional(),
+          brd_findings: zod.array(zod.string()).optional(),
+          brd_pdf_summary: zod
+            .object({
+              total_pages: zod.number().optional(),
+              images_detected: zod.number().optional(),
+              amount_match: zod
+                .enum(["yes", "no", "close", "unable to verify"])
+                .optional(),
+            })
+            .optional(),
+          uniqueness_score: zod.number().optional(),
+          uniqueness_summary: zod.string().optional(),
+          uniqueness_findings: zod.array(zod.string()).optional(),
+          uniqueness_comparison: zod
+            .array(
+              zod.object({
+                entry_label: zod.string().optional(),
+                similarity_percent: zod.number().optional(),
+                flag: zod
+                  .enum(["unique", "suspicious", "duplicate"])
+                  .optional(),
+                reason: zod.string().optional(),
+                compared_entry_id: zod.number().nullish(),
+                compared_brd_url: zod.string().nullish(),
+                compared_client_name: zod.string().nullish(),
+              }),
+            )
+            .optional(),
+          analysed_at: zod.string().optional(),
+        })
+        .describe("Gemini AI auditor result for a BRD revenue entry."),
+    ])
+    .optional()
+    .describe(
+      "Full Gemini JSON response with findings, summary, and comparison.",
+    ),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Revoke a verified revenue entry (team leader or admin). Keeps the row (shown struck-through) but excludes its amount from all revenue totals.
+ */
+export const RevokeRevenueEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RevokeRevenueEntryResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  projectTitle: zod.string(),
+  teamId: zod.number(),
+  teamName: zod.string(),
+  campusName: zod.string(),
+  clientName: zod.string(),
+  amount: zod.number(),
+  verifiedAmount: zod.number().nullish(),
+  paymentDate: zod.coerce.date(),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1694,7 +2016,7 @@ export const SubmitRevenueEntryResponse = zod.object({
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
   paymentDate: zod.coerce.date(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1781,7 +2103,7 @@ export const VerifyRevenueEntryResponse = zod.object({
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
   paymentDate: zod.coerce.date(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1867,7 +2189,7 @@ export const RejectRevenueEntryResponse = zod.object({
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
   paymentDate: zod.coerce.date(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -1949,7 +2271,7 @@ export const ReanalyseRevenueEntryResponse = zod.object({
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
   paymentDate: zod.coerce.date(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -2031,7 +2353,7 @@ export const UnverifyRevenueEntryResponse = zod.object({
   amount: zod.number(),
   verifiedAmount: zod.number().nullish(),
   paymentDate: zod.coerce.date(),
-  status: zod.enum(["draft", "submitted", "verified", "rejected"]),
+  status: zod.enum(["draft", "submitted", "verified", "revoked", "rejected"]),
   brdUrl: zod.string().nullish(),
   testimonialUrl: zod.string().nullish(),
   adminNotes: zod.string().nullish(),
@@ -2211,6 +2533,16 @@ export const GetLeaderboardResponse = zod.array(GetLeaderboardResponseItem);
  */
 export const GetDashboardSummaryResponse = zod.object({
   totalVerifiedRevenue: zod.number(),
+  totalPendingRevenue: zod
+    .number()
+    .optional()
+    .describe(
+      "Sum of claimed amount for submitted (awaiting-review) revenue entries.",
+    ),
+  totalRejectedRevenue: zod
+    .number()
+    .optional()
+    .describe("Sum of claimed amount for rejected revenue entries."),
   totalOrderBook: zod.number(),
   activeTeams: zod.number(),
   pendingTeams: zod.number(),
@@ -2275,8 +2607,19 @@ export const GetTeamDashboardSummaryResponse = zod.object({
       memberCount: zod.number(),
       projectCount: zod.number(),
       totalRevenue: zod.number(),
+      pendingRevenue: zod
+        .number()
+        .optional()
+        .describe(
+          "Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.",
+        ),
+      rejectedRevenue: zod
+        .number()
+        .optional()
+        .describe("Sum of claimed amount for rejected revenue entries."),
       totalOrderBook: zod.number(),
       nationalRank: zod.number().nullish(),
+      updatedAt: zod.coerce.date().optional(),
       createdAt: zod.coerce.date(),
     })
     .optional(),

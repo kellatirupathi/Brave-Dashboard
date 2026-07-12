@@ -269,9 +269,14 @@ export interface Team {
   memberCount: number;
   projectCount: number;
   totalRevenue: number;
+  /** Sum of claimed amount for submitted (not-yet-reviewed) revenue entries. */
+  pendingRevenue?: number;
+  /** Sum of claimed amount for rejected revenue entries. */
+  rejectedRevenue?: number;
   totalOrderBook: number;
   /** @nullable */
   nationalRank?: number | null;
+  updatedAt?: string;
   createdAt: string;
 }
 
@@ -296,6 +301,19 @@ export const ProjectStatus = {
   inactive: "inactive",
 } as const;
 
+/**
+ * Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint.
+ */
+export type ProjectRevenueStatus =
+  (typeof ProjectRevenueStatus)[keyof typeof ProjectRevenueStatus];
+
+export const ProjectRevenueStatus = {
+  verified: "verified",
+  pending: "pending",
+  rejected: "rejected",
+  none: "none",
+} as const;
+
 export interface Project {
   id: number;
   teamId: number;
@@ -305,6 +323,8 @@ export interface Project {
   status: ProjectStatus;
   verifiedOrderBook: number;
   verifiedRevenue: number;
+  /** Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint. */
+  revenueStatus?: ProjectRevenueStatus;
   clientCount: number;
   createdAt: string;
   updatedAt: string;
@@ -807,6 +827,10 @@ export interface AuditLogEntry {
 
 export interface DashboardSummary {
   totalVerifiedRevenue: number;
+  /** Sum of claimed amount for submitted (awaiting-review) revenue entries. */
+  totalPendingRevenue?: number;
+  /** Sum of claimed amount for rejected revenue entries. */
+  totalRejectedRevenue?: number;
   totalOrderBook: number;
   activeTeams: number;
   pendingTeams: number;
@@ -1439,6 +1463,14 @@ export type ListTeamsParams = {
    * @maximum 10000
    */
   pageSize?: number;
+  /**
+   * Column to sort by (global, across all pages). Omit to keep default creation order.
+   */
+  sortBy?: ListTeamsSortBy;
+  /**
+   * Sort direction. Defaults to asc when sortBy is provided.
+   */
+  sortDir?: ListTeamsSortDir;
 };
 
 export type ListTeamsStatus =
@@ -1448,6 +1480,30 @@ export const ListTeamsStatus = {
   pending: "pending",
   active: "active",
   rejected: "rejected",
+} as const;
+
+export type ListTeamsSortBy =
+  (typeof ListTeamsSortBy)[keyof typeof ListTeamsSortBy];
+
+export const ListTeamsSortBy = {
+  name: "name",
+  campus: "campus",
+  status: "status",
+  verifiedRevenue: "verifiedRevenue",
+  pendingRevenue: "pendingRevenue",
+  rejectedRevenue: "rejectedRevenue",
+  members: "members",
+  projects: "projects",
+  updated: "updated",
+  created: "created",
+} as const;
+
+export type ListTeamsSortDir =
+  (typeof ListTeamsSortDir)[keyof typeof ListTeamsSortDir];
+
+export const ListTeamsSortDir = {
+  asc: "asc",
+  desc: "desc",
 } as const;
 
 export type SearchCampusStudentsParams = {
@@ -1471,6 +1527,14 @@ export type ListProjectsParams = {
    * @minimum 1
    */
   pageSize?: number;
+  /**
+   * Column to sort by (global, across all pages). Omit to keep default creation order.
+   */
+  sortBy?: ListProjectsSortBy;
+  /**
+   * Sort direction. Defaults to asc when sortBy is provided.
+   */
+  sortDir?: ListProjectsSortDir;
 };
 
 export type ListProjectsStatus =
@@ -1479,6 +1543,28 @@ export type ListProjectsStatus =
 export const ListProjectsStatus = {
   active: "active",
   inactive: "inactive",
+} as const;
+
+export type ListProjectsSortBy =
+  (typeof ListProjectsSortBy)[keyof typeof ListProjectsSortBy];
+
+export const ListProjectsSortBy = {
+  title: "title",
+  team: "team",
+  status: "status",
+  revenueStatus: "revenueStatus",
+  revenue: "revenue",
+  orderBook: "orderBook",
+  updated: "updated",
+  created: "created",
+} as const;
+
+export type ListProjectsSortDir =
+  (typeof ListProjectsSortDir)[keyof typeof ListProjectsSortDir];
+
+export const ListProjectsSortDir = {
+  asc: "asc",
+  desc: "desc",
 } as const;
 
 export type ListOrderBookEntriesParams = {
@@ -1507,6 +1593,7 @@ export const ListRevenueEntriesStatus = {
   draft: "draft",
   submitted: "submitted",
   verified: "verified",
+  revoked: "revoked",
   rejected: "rejected",
 } as const;
 

@@ -4,6 +4,7 @@ import {
   useListCampuses,
   getListProjectsQueryKey,
   type ErrorType,
+  type ProjectRevenueStatus,
 } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -25,6 +26,8 @@ import {
   FileSpreadsheet,
   ChevronsUpDown,
   Check,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -79,6 +82,87 @@ import {
 
 const PAGE_SIZE = 100;
 const ALL_CAMPUSES = "__all__";
+
+// Columns the table can be sorted by. These map 1:1 to the `sortBy` values the
+// list endpoint understands; sorting happens server-side so it spans all pages.
+type SortKey =
+  | "title"
+  | "team"
+  | "status"
+  | "revenueStatus"
+  | "revenue"
+  | "orderBook"
+  | "updated";
+
+// For these, the first click should default to descending (largest / newest /
+// most-progressed first). Text columns default to ascending (A→Z).
+const NUMERIC_SORT_KEYS = new Set<SortKey>([
+  "revenue",
+  "orderBook",
+  "updated",
+  "revenueStatus",
+]);
+
+function SortHeader({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey | null;
+  dir: "asc" | "desc";
+  onSort: (k: SortKey) => void;
+  align?: "left" | "right";
+}) {
+  const active = activeKey === sortKey;
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          "inline-flex items-center gap-1 select-none hover:opacity-80 transition-opacity",
+          active && "font-semibold",
+        )}
+        data-testid={`sort-projects-${sortKey}`}
+        aria-label={`Sort by ${label}`}
+      >
+        {label}
+        {active ? (
+          dir === "asc" ? (
+            <ArrowUp className="w-3.5 h-3.5" />
+          ) : (
+            <ArrowDown className="w-3.5 h-3.5" />
+          )
+        ) : (
+          <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />
+        )}
+      </button>
+    </TableHead>
+  );
+}
+
+function RevenueStatusBadge({ status }: { status?: ProjectRevenueStatus }) {
+  if (status === "verified")
+    return (
+      <Badge className="bg-green-600 hover:bg-green-600 text-white dark:bg-green-500 dark:hover:bg-green-500 dark:text-white">
+        Verified
+      </Badge>
+    );
+  if (status === "pending")
+    return (
+      <Badge className="bg-amber-500 hover:bg-amber-500 text-white dark:bg-amber-500 dark:hover:bg-amber-500 dark:text-white">
+        Pending
+      </Badge>
+    );
+  if (status === "rejected")
+    return <Badge variant="destructive">Rejected</Badge>;
+  return <span className="text-muted-foreground text-sm">—</span>;
+}
 
 function ProjectsCampusFilterPopover({
   value,
@@ -199,7 +283,19 @@ export default function AdminProjects({
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [campusFilter, setCampusFilter] = useState<string>(ALL_CAMPUSES);
+  const [sortBy, setSortBy] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
+
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir(NUMERIC_SORT_KEYS.has(key) ? "desc" : "asc");
+    }
+    setPage(1);
+  };
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
@@ -221,6 +317,8 @@ export default function AdminProjects({
     search: search || undefined,
     status: status !== "all" ? (status as "active" | "inactive") : undefined,
     campusId: campusFilter !== ALL_CAMPUSES ? Number(campusFilter) : undefined,
+    sortBy: sortBy ?? undefined,
+    sortDir: sortBy ? sortDir : undefined,
     page,
     pageSize,
   });
@@ -439,12 +537,59 @@ export default function AdminProjects({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Team</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Order Book</TableHead>
-                  {showLastUpdated && <TableHead>Last updated</TableHead>}
+                  <SortHeader
+                    label="Project"
+                    sortKey="title"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    label="Team"
+                    sortKey="team"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    label="Status"
+                    sortKey="status"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    label="Revenue Status"
+                    sortKey="revenueStatus"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    label="Revenue"
+                    sortKey="revenue"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    label="Order Book"
+                    sortKey="orderBook"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  {showLastUpdated && (
+                    <SortHeader
+                      label="Last updated"
+                      sortKey="updated"
+                      activeKey={sortBy}
+                      dir={sortDir}
+                      onSort={handleSort}
+                    />
+                  )}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -479,6 +624,9 @@ export default function AdminProjects({
                       >
                         {p.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <RevenueStatusBadge status={p.revenueStatus} />
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatINR(p.verifiedRevenue)}
@@ -530,7 +678,7 @@ export default function AdminProjects({
                 {items.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={showLastUpdated ? 7 : 6}
+                      colSpan={showLastUpdated ? 8 : 7}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No projects found matching your criteria.

@@ -30,8 +30,13 @@ export interface Team {
   memberCount: number;
   projectCount: number;
   totalRevenue: number;
+  /** Sum of claimed amount for submitted (not-yet-reviewed) revenue entries. */
+  pendingRevenue?: number;
+  /** Sum of claimed amount for rejected revenue entries. */
+  rejectedRevenue?: number;
   totalOrderBook: number;
   /** @nullable */
   nationalRank?: number | null;
+  updatedAt?: Date;
   createdAt: Date;
 }

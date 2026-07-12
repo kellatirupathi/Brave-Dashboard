@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
@@ -25,7 +25,8 @@ import {
   getSearchCampusStudentsQueryKey,
 } from "@workspace/api-client-react";
 import type { TeamDetail } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { checkTeamNameAvailability } from "@/lib/team-name-uniqueness-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PendingMembershipBanner } from "@/components/pending-membership-banner";
 import { Badge } from "@/components/ui/badge";
@@ -220,6 +221,24 @@ function TeamView({
   const transferLeadership = useTransferTeamLeadership();
   const deleteTeam = useDeleteTeam();
   const updateTeam = useUpdateTeam();
+
+  // Live team-name uniqueness hint while the leader edits the name. Debounced
+  // so we don't hit the API on every keystroke.
+  const [nameDraft, setNameDraft] = useState(team.name);
+  const [debouncedName, setDebouncedName] = useState("");
+  useEffect(() => {
+    const h = window.setTimeout(() => setDebouncedName(nameDraft.trim()), 300);
+    return () => window.clearTimeout(h);
+  }, [nameDraft]);
+  const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  const draftDiffersFromCurrent =
+    normalize(debouncedName) !== normalize(team.name);
+  const { data: nameAvail } = useQuery({
+    queryKey: ["team-name-availability", debouncedName, team.id],
+    queryFn: () => checkTeamNameAvailability(debouncedName, team.id),
+    enabled: isLeader && debouncedName.length >= 2 && draftDiffersFromCurrent,
+  });
+  const nameTaken = isLeader && draftDiffersFromCurrent && !!nameAvail?.taken;
 
   const saveTeamField = async (field: "name" | "tagline", next: string) => {
     try {
@@ -599,6 +618,15 @@ function TeamView({
                   testId="text-team-name"
                   className="text-3xl font-bold tracking-tight md:text-4xl"
                   onSave={(next) => saveTeamField("name", next)}
+                  onDraftChange={setNameDraft}
+                  helper={
+                    nameTaken ? (
+                      <span className="text-destructive">
+                        Other teams are already using this name — please choose
+                        a unique team name.
+                      </span>
+                    ) : null
+                  }
                 />
               </h1>
               {isLeader || team.tagline ? (

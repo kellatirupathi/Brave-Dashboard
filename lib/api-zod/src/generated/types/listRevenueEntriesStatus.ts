@@ -13,5 +13,6 @@ export const ListRevenueEntriesStatus = {
   draft: "draft",
   submitted: "submitted",
   verified: "verified",
+  revoked: "revoked",
   rejected: "rejected",
 } as const;

@@ -31,6 +31,7 @@ import { HelpMenu } from "@/components/help-menu";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
+import { TeamNameDuplicatePopup } from "@/components/team-name-duplicate-popup";
 import { JournalWeekTracker } from "@/components/journal-week-tracker";
 import { ProgramCountdown } from "@/components/program-countdown";
 import { InstagramLink } from "@/components/instagram-link";
@@ -230,6 +231,7 @@ export default function TeamDashboard() {
   return (
     <>
       <AutoIntroVideo />
+      <TeamNameDuplicatePopup />
       <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <PinnedAnnouncementBanner />
 

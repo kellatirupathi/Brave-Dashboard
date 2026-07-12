@@ -5,6 +5,8 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListProjectsSortBy } from "./listProjectsSortBy";
+import type { ListProjectsSortDir } from "./listProjectsSortDir";
 import type { ListProjectsStatus } from "./listProjectsStatus";
 
 export type ListProjectsParams = {
@@ -20,4 +22,12 @@ export type ListProjectsParams = {
    * @minimum 1
    */
   pageSize?: number;
+  /**
+   * Column to sort by (global, across all pages). Omit to keep default creation order.
+   */
+  sortBy?: ListProjectsSortBy;
+  /**
+   * Sort direction. Defaults to asc when sortBy is provided.
+   */
+  sortDir?: ListProjectsSortDir;
 };

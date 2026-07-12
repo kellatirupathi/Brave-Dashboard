@@ -14,6 +14,11 @@ import {
   normaliseTeamName,
   type DuplicateNameGroup,
 } from "@/lib/team-duplicates-api";
+import {
+  getStudentGritConfig,
+  computeGritProgress,
+  DEFAULT_GRIT_LEVELS,
+} from "@/lib/grit-config-api";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR, formatDateTime } from "@/lib/format";
 import { Card } from "@/components/ui/card";
@@ -32,6 +37,8 @@ import {
   FileSpreadsheet,
   ChevronsUpDown,
   Check,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -95,6 +102,74 @@ import {
 
 const PAGE_SIZE = 100;
 const ALL_CAMPUSES = "__all__";
+
+// Columns the teams table can be sorted by. These map 1:1 to the `sortBy`
+// values the list endpoint understands; sorting happens server-side so it
+// spans all pages.
+type SortKey =
+  | "name"
+  | "campus"
+  | "status"
+  | "verifiedRevenue"
+  | "pendingRevenue"
+  | "rejectedRevenue"
+  | "members"
+  | "projects"
+  | "updated";
+
+// These default to descending on first click (largest / newest first). Text
+// columns default to ascending (A→Z).
+const NUMERIC_SORT_KEYS = new Set<SortKey>([
+  "verifiedRevenue",
+  "pendingRevenue",
+  "rejectedRevenue",
+  "members",
+  "projects",
+  "updated",
+]);
+
+function SortHeader({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey | null;
+  dir: "asc" | "desc";
+  onSort: (k: SortKey) => void;
+  align?: "left" | "right";
+}) {
+  const active = activeKey === sortKey;
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          "inline-flex items-center gap-1 select-none hover:opacity-80 transition-opacity",
+          active && "font-semibold",
+        )}
+        data-testid={`sort-teams-${sortKey}`}
+        aria-label={`Sort by ${label}`}
+      >
+        {label}
+        {active ? (
+          dir === "asc" ? (
+            <ArrowUp className="w-3.5 h-3.5" />
+          ) : (
+            <ArrowDown className="w-3.5 h-3.5" />
+          )
+        ) : (
+          <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />
+        )}
+      </button>
+    </TableHead>
+  );
+}
 
 function TeamsCampusFilterPopover({
   value,
@@ -202,6 +277,8 @@ export default function AdminTeams() {
   })();
   const [status, setStatus] = useState<string>(initialStatus);
   const [campusFilter, setCampusFilter] = useState<string>(ALL_CAMPUSES);
+  const [sortBy, setSortBy] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [deleteTarget, setDeleteTarget] = useState<{
     id: number;
     name: string;
@@ -226,9 +303,21 @@ export default function AdminTeams() {
     search: search || undefined,
     status: status !== "all" ? (status as ListTeamsStatus) : undefined,
     campusId: campusFilter !== ALL_CAMPUSES ? Number(campusFilter) : undefined,
+    sortBy: sortBy ?? undefined,
+    sortDir: sortBy ? sortDir : undefined,
     page,
     pageSize,
   });
+
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir(NUMERIC_SORT_KEYS.has(key) ? "desc" : "asc");
+    }
+    setPage(1);
+  };
 
   // Clamp the current page back into range when filters narrow the result set.
   useEffect(() => {
@@ -259,6 +348,19 @@ export default function AdminTeams() {
     (dupData?.groups ?? []).map((g) => [g.nameKey, g]),
   );
   const [dupModal, setDupModal] = useState<DuplicateNameGroup | null>(null);
+
+  // GRIT Miles ladder (admin-configurable). Fetched once; miles per team are
+  // derived client-side from the team's verified revenue.
+  const { data: gritConfig } = useQuery({
+    queryKey: ["grit-config"],
+    queryFn: getStudentGritConfig,
+    staleTime: 5 * 60_000,
+  });
+  const gritLevels = gritConfig?.levels ?? DEFAULT_GRIT_LEVELS;
+  const [gritModal, setGritModal] = useState<{
+    teamName: string;
+    revenue: number;
+  } | null>(null);
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey() });
@@ -471,18 +573,85 @@ export default function AdminTeams() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Team</TableHead>
-                  <TableHead>Campus</TableHead>
+                  <SortHeader
+                    label="Team"
+                    sortKey="name"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    label="Campus"
+                    sortKey="campus"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                   <TableHead>Name uniqueness</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Members</TableHead>
-                  <TableHead>Last updated</TableHead>
+                  <SortHeader
+                    label="Status"
+                    sortKey="status"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    label="Verified Revenue"
+                    sortKey="verifiedRevenue"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    label="Pending Revenue"
+                    sortKey="pendingRevenue"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    label="Rejected Revenue"
+                    sortKey="rejectedRevenue"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    label="Members"
+                    sortKey="members"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    label="Projects"
+                    sortKey="projects"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <TableHead className="text-right">GRIT Miles</TableHead>
+                  <SortHeader
+                    label="Last updated"
+                    sortKey="updated"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {teamItems.map((team) => {
+                  const gritMiles = computeGritProgress(
+                    team.totalRevenue,
+                    gritLevels,
+                  ).milesUnlocked;
                   return (
                     <TableRow
                       key={team.id}
@@ -541,23 +710,43 @@ export default function AdminTeams() {
                           {team.status.replace("_", " ")}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-medium text-green-700 dark:text-green-500">
                         {formatINR(team.totalRevenue)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-amber-600 dark:text-amber-500">
+                        {formatINR(team.pendingRevenue)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-muted-foreground">
+                        {formatINR(team.rejectedRevenue)}
                       </TableCell>
                       <TableCell className="text-right">
                         {team.memberCount}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {team.projectCount}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-sm font-medium text-primary hover:bg-primary/20 tabular-nums"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setGritModal({
+                              teamName: team.name,
+                              revenue: team.totalRevenue,
+                            });
+                          }}
+                          data-testid={`button-grit-${team.id}`}
+                          aria-label={`View GRIT Miles for ${team.name}`}
+                        >
+                          {gritMiles.toLocaleString()} mi
+                        </button>
                       </TableCell>
                       <TableCell
                         className="text-sm text-muted-foreground whitespace-nowrap"
                         data-testid={`text-team-updated-${team.id}`}
                       >
-                        {formatDateTime(
-                          (
-                            team as unknown as {
-                              updatedAt?: string | Date | null;
-                            }
-                          ).updatedAt ?? team.createdAt,
-                        )}
+                        {formatDateTime(team.updatedAt ?? team.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div
@@ -599,7 +788,7 @@ export default function AdminTeams() {
                 {teamItems.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={12}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No teams found matching your criteria.
@@ -771,6 +960,120 @@ export default function AdminTeams() {
               </div>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={gritModal != null}
+        onOpenChange={(open) => {
+          if (!open) setGritModal(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>GRIT Miles — {gritModal?.teamName}</DialogTitle>
+          </DialogHeader>
+          {gritModal &&
+            (() => {
+              const progress = computeGritProgress(
+                gritModal.revenue,
+                gritLevels,
+              );
+              const sorted = [...gritLevels].sort(
+                (a, b) => a.revenueTarget - b.revenueTarget,
+              );
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+                    <div>
+                      <div className="text-xs text-muted-foreground">
+                        Verified revenue
+                      </div>
+                      <div className="font-semibold">
+                        {formatINR(gritModal.revenue)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground">
+                        Total miles
+                      </div>
+                      <div className="text-lg font-bold text-primary tabular-nums">
+                        {progress.milesUnlocked.toLocaleString()} mi
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {sorted.map((lvl) => {
+                      const achieved = gritModal.revenue >= lvl.revenueTarget;
+                      return (
+                        <div
+                          key={lvl.level}
+                          className={cn(
+                            "flex items-center justify-between rounded-md border px-3 py-2",
+                            achieved
+                              ? "border-green-600/30 bg-green-600/5"
+                              : "opacity-70",
+                          )}
+                          data-testid={`grit-level-${lvl.level}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
+                                achieved
+                                  ? "bg-green-600 text-white"
+                                  : "bg-muted text-muted-foreground",
+                              )}
+                            >
+                              {achieved ? (
+                                <Check className="h-3.5 w-3.5" />
+                              ) : (
+                                lvl.level
+                              )}
+                            </span>
+                            <div>
+                              <div className="text-sm font-medium">
+                                Level {lvl.level}
+                                {lvl.reward ? (
+                                  <span className="ml-1 text-xs text-muted-foreground">
+                                    · {lvl.reward}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatINR(lvl.revenueTarget)} target
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold tabular-nums">
+                              {lvl.miles.toLocaleString()} mi
+                            </div>
+                            <div
+                              className={cn(
+                                "text-xs",
+                                achieved
+                                  ? "text-green-600 dark:text-green-500"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {achieved ? "Achieved" : "Locked"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    {progress.nextLevel
+                      ? `${formatINR(progress.revenueToNext)} more to reach Level ${progress.nextLevel.level} (+${progress.nextLevel.miles.toLocaleString()} mi).`
+                      : "All levels unlocked — maximum GRIT Miles reached."}
+                  </div>
+                </div>
+              );
+            })()}
         </DialogContent>
       </Dialog>
     </div>

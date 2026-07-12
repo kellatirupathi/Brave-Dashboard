@@ -17,6 +17,10 @@ type InlineEditFieldProps = {
   testId?: string;
   /** If true, an empty submitted value reverts to the previous value instead of saving. */
   required?: boolean;
+  /** Called with the live draft text whenever it changes (only while editing). */
+  onDraftChange?: (draft: string) => void;
+  /** Optional node rendered directly below the input while editing (e.g. a live validation hint). */
+  helper?: React.ReactNode;
 };
 
 /**
@@ -34,6 +38,8 @@ export function InlineEditField({
   ariaLabel,
   testId,
   required = false,
+  onDraftChange,
+  helper,
 }: InlineEditFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -50,12 +56,15 @@ export function InlineEditField({
     if (!editing) setDraft(value);
   }, [value, editing]);
 
-  // Focus + select all on enter-edit.
+  // Focus + select all on enter-edit. Also surface the initial draft so a
+  // parent live-check (e.g. name uniqueness) can react immediately.
   useEffect(() => {
     if (editing && inputRef.current) {
       inputRef.current.focus();
       inputRef.current.select();
+      onDraftChange?.(draft);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
   if (!editable) {
@@ -112,33 +121,41 @@ export function InlineEditField({
 
   if (editing) {
     return (
-      <span className="inline-flex items-center gap-2 w-full">
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => {
-            if (!saving) void commit();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void commit();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              cancel();
-            }
-          }}
-          maxLength={maxLength}
-          aria-label={ariaLabel}
-          disabled={saving}
-          data-testid={testId ? `${testId}-input` : undefined}
-          className={cn(
-            "bg-transparent border-b border-primary/60 focus:border-primary outline-none w-full px-0 py-0",
-            className,
-          )}
-        />
-        {saving ? <Spinner className="w-4 h-4 shrink-0" /> : null}
+      <span className="inline-flex w-full flex-col gap-1 align-top">
+        <span className="inline-flex items-center gap-2 w-full">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              onDraftChange?.(e.target.value);
+            }}
+            onBlur={() => {
+              if (!saving) void commit();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void commit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                cancel();
+              }
+            }}
+            maxLength={maxLength}
+            aria-label={ariaLabel}
+            disabled={saving}
+            data-testid={testId ? `${testId}-input` : undefined}
+            className={cn(
+              "bg-transparent border-b border-primary/60 focus:border-primary outline-none w-full px-0 py-0",
+              className,
+            )}
+          />
+          {saving ? <Spinner className="w-4 h-4 shrink-0" /> : null}
+        </span>
+        {helper ? (
+          <span className="text-xs font-normal tracking-normal">{helper}</span>
+        ) : null}
       </span>
     );
   }
@@ -152,7 +169,8 @@ export function InlineEditField({
       className={cn(
         "group/inline inline-flex items-center gap-2 max-w-full text-left rounded-md px-1 -mx-1 py-0 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors cursor-text",
         className,
-        isEmpty && (emptyClassName ?? "text-muted-foreground italic font-normal"),
+        isEmpty &&
+          (emptyClassName ?? "text-muted-foreground italic font-normal"),
       )}
     >
       <span className="truncate">{isEmpty ? placeholder : value}</span>

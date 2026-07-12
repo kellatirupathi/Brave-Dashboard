@@ -289,6 +289,7 @@ export default function AdminCampusInsights() {
     "Campus",
     "Teams",
     "Journals submitted",
+    "Projects",
     "Verified revenue (count)",
     "Rejected revenue (count)",
     "Total verified amount (INR)",
@@ -302,6 +303,7 @@ export default function AdminCampusInsights() {
   const teamHeaders = [
     "Team",
     `Journal weeks submitted (of ${programmeWeeksTotal})`,
+    "Projects",
     "Order book submitted (count)",
     "Verified revenue (count)",
     "Rejected revenue (count)",
@@ -328,6 +330,7 @@ export default function AdminCampusInsights() {
       r.campusName,
       r.teamsCount,
       r.journalsSubmitted,
+      r.projectsCount,
       r.verifiedRevenueCount,
       r.rejectedRevenueCount,
       r.totalVerifiedAmount,
@@ -344,6 +347,7 @@ export default function AdminCampusInsights() {
     return [
       r.teamName,
       `${r.journalWeeksSubmitted} / ${programmeWeeksTotal}`,
+      r.projectsCount,
       r.orderBookSubmittedCount,
       r.verifiedRevenueCount,
       r.rejectedRevenueCount,
@@ -587,6 +591,16 @@ export default function AdminCampusInsights() {
                   </TableHead>
                   <TableHead
                     className="text-right cursor-pointer select-none"
+                    onClick={() => toggleCampusSort("projectsCount")}
+                  >
+                    Projects
+                    <SortIcon
+                      active={campusSort.key === "projectsCount"}
+                      dir={campusSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
                     onClick={() => toggleCampusSort("verifiedRevenueCount")}
                   >
                     Verified revenue
@@ -681,7 +695,7 @@ export default function AdminCampusInsights() {
                 {campusRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={12}
+                      colSpan={13}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No campuses match this filter.
@@ -703,6 +717,9 @@ export default function AdminCampusInsights() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.journalsSubmitted.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.projectsCount.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.verifiedRevenueCount.toLocaleString()}
@@ -759,6 +776,16 @@ export default function AdminCampusInsights() {
                     Journal weeks
                     <SortIcon
                       active={teamSort.key === "journalWeeksSubmitted"}
+                      dir={teamSort.dir}
+                    />
+                  </TableHead>
+                  <TableHead
+                    className="text-right cursor-pointer select-none"
+                    onClick={() => toggleTeamSort("projectsCount")}
+                  >
+                    Projects
+                    <SortIcon
+                      active={teamSort.key === "projectsCount"}
                       dir={teamSort.dir}
                     />
                   </TableHead>
@@ -868,7 +895,7 @@ export default function AdminCampusInsights() {
                 {teamRows.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={12}
+                      colSpan={13}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No teams match this filter.
@@ -886,6 +913,9 @@ export default function AdminCampusInsights() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.journalWeeksSubmitted} / {programmeWeeksTotal}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.projectsCount.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.orderBookSubmittedCount.toLocaleString()}

@@ -5,6 +5,7 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { ProjectRevenueStatus } from "./projectRevenueStatus";
 import type { ProjectStatus } from "./projectStatus";
 
 export interface Project {
@@ -16,6 +17,8 @@ export interface Project {
   status: ProjectStatus;
   verifiedOrderBook: number;
   verifiedRevenue: number;
+  /** Derived per-project revenue review status by precedence: verified if any revenue entry is verified, else pending if any is submitted, else rejected if any is rejected, else none. Only set on the list endpoint. */
+  revenueStatus?: ProjectRevenueStatus;
   clientCount: number;
   createdAt: Date;
   updatedAt: Date;

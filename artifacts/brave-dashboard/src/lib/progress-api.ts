@@ -613,6 +613,7 @@ export type CampusInsightsCampusRow = {
   campusName: string;
   teamsCount: number;
   journalsSubmitted: number;
+  projectsCount: number;
   verifiedRevenueCount: number;
   rejectedRevenueCount: number;
   totalVerifiedAmount: number;
@@ -645,6 +646,7 @@ export type CampusInsightsTeamRow = {
   teamId: number;
   teamName: string;
   journalWeeksSubmitted: number;
+  projectsCount: number;
   orderBookSubmittedCount: number;
   verifiedRevenueCount: number;
   rejectedRevenueCount: number;

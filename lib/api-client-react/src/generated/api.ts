@@ -4402,6 +4402,90 @@ export const useUpdateRevenueEntry = <
 };
 
 /**
+ * @summary Revoke a verified revenue entry (team leader or admin). Keeps the row (shown struck-through) but excludes its amount from all revenue totals.
+ */
+export const getRevokeRevenueEntryUrl = (id: number) => {
+  return `/api/revenue-entries/${id}/revoke`;
+};
+
+export const revokeRevenueEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RevenueEntry> => {
+  return customFetch<RevenueEntry>(getRevokeRevenueEntryUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRevokeRevenueEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeRevenueEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeRevenueEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["revokeRevenueEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeRevenueEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return revokeRevenueEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeRevenueEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeRevenueEntry>>
+>;
+
+export type RevokeRevenueEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Revoke a verified revenue entry (team leader or admin). Keeps the row (shown struck-through) but excludes its amount from all revenue totals.
+ */
+export const useRevokeRevenueEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeRevenueEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof revokeRevenueEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRevokeRevenueEntryMutationOptions(options));
+};
+
+/**
  * @summary Submit a revenue entry for review
  */
 export const getSubmitRevenueEntryUrl = (id: number) => {

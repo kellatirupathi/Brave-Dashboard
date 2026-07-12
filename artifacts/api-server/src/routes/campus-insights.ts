@@ -7,6 +7,7 @@ import {
   weeklyJournalsTable,
   revenueEntriesTable,
   orderBookEntriesTable,
+  projectsTable,
   programmeWeeksTable,
 } from "@workspace/db";
 
@@ -106,6 +107,7 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
     journalsAgg,
     revenueAgg,
     orderBookAgg,
+    projectsAgg,
     programmeWeeksTotal,
   ] = await Promise.all([
     db
@@ -154,6 +156,17 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
       })
       .from(orderBookEntriesTable)
       .innerJoin(teamsTable, eq(orderBookEntriesTable.teamId, teamsTable.id))
+      .groupBy(teamsTable.campusId),
+
+    // Total projects (any status) per campus — the real project entities, not
+    // the journal-reported "projects started/complete" self-report numbers.
+    db
+      .select({
+        campusId: teamsTable.campusId,
+        projectsCount: sql<number>`count(*)::int`,
+      })
+      .from(projectsTable)
+      .innerJoin(teamsTable, eq(projectsTable.teamId, teamsTable.id))
       .groupBy(teamsTable.campusId),
 
     getProgrammeWeeksTotal(),
@@ -208,6 +221,10 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
     if (r.campusId != null)
       obByCampus.set(r.campusId, r.orderBookSubmittedCount);
   }
+  const projectsByCampus = new Map<number, number>();
+  for (const r of projectsAgg) {
+    if (r.campusId != null) projectsByCampus.set(r.campusId, r.projectsCount);
+  }
 
   const rows = campusList
     .map((c) => {
@@ -230,6 +247,7 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
         campusName: c.name,
         teamsCount: teamsByCampus.get(c.id) ?? 0,
         journalsSubmitted: jrn.journalsSubmitted,
+        projectsCount: projectsByCampus.get(c.id) ?? 0,
         clientsVisited: jrn.clientsVisited,
         activeConversations: jrn.activeConversations,
         projectsStarted: jrn.projectsStarted,
@@ -332,6 +350,7 @@ router.get(
       journalsAgg,
       revenueAgg,
       orderBookAgg,
+      projectsAgg,
       programmeWeeksTotal,
     ] = await Promise.all([
       db
@@ -377,6 +396,17 @@ router.get(
         .where(and(...obConds))
         .groupBy(orderBookEntriesTable.teamId),
 
+      // Total projects (any status) per team in this campus.
+      db
+        .select({
+          teamId: projectsTable.teamId,
+          projectsCount: sql<number>`count(*)::int`,
+        })
+        .from(projectsTable)
+        .innerJoin(teamsTable, eq(projectsTable.teamId, teamsTable.id))
+        .where(eq(teamsTable.campusId, campusId))
+        .groupBy(projectsTable.teamId),
+
       getProgrammeWeeksTotal(),
     ]);
 
@@ -418,6 +448,8 @@ router.get(
       });
     const obByTeam = new Map<number, number>();
     for (const r of orderBookAgg) obByTeam.set(r.teamId, r.submittedCount);
+    const projectsByTeam = new Map<number, number>();
+    for (const r of projectsAgg) projectsByTeam.set(r.teamId, r.projectsCount);
 
     const rows = teamList
       .map((t) => {
@@ -439,6 +471,7 @@ router.get(
           teamId: t.id,
           teamName: t.name,
           journalWeeksSubmitted: jrn.weeks,
+          projectsCount: projectsByTeam.get(t.id) ?? 0,
           clientsVisited: jrn.clientsVisited,
           activeConversations: jrn.activeConversations,
           projectsStarted: jrn.projectsStarted,

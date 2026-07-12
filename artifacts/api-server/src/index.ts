@@ -218,6 +218,21 @@ async function ensureBrdDriveColumns(): Promise<void> {
   }
 }
 
+// Adds the team-name-uniqueness rename flag column. Runs at startup for the
+// same reason as the other ensure* helpers: prod does NOT run `drizzle-kit
+// push`, so without this the team list / notify-duplicates routes would crash
+// with "column does not exist". Idempotent (IF NOT EXISTS); safe on every boot.
+async function ensureTeamColumns(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE teams
+        ADD COLUMN IF NOT EXISTS name_flagged_for_rename boolean NOT NULL DEFAULT false
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure teams name_flagged_for_rename");
+  }
+}
+
 // Adds the 'revoked' value to the entry_status enum. Runs at startup for the
 // same reason as the other ensure* helpers: prod does NOT run `drizzle-kit
 // push`, so without this the "revoke revenue" endpoint would crash with
@@ -333,6 +348,11 @@ async function runBootstrap(): Promise<void> {
     await ensureBrdDriveColumns();
   } catch (err) {
     logger.error({ err }, "ensureBrdDriveColumns failed");
+  }
+  try {
+    await ensureTeamColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureTeamColumns failed");
   }
   try {
     await ensureRevokedEntryStatus();

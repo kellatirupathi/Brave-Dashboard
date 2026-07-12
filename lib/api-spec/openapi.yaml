@@ -210,6 +210,30 @@ paths:
             type: integer
             minimum: 1
             maximum: 10000
+        - name: sortBy
+          in: query
+          description: Column to sort by (global, across all pages). Omit to keep default creation order.
+          schema:
+            type: string
+            enum:
+              [
+                name,
+                campus,
+                status,
+                verifiedRevenue,
+                pendingRevenue,
+                rejectedRevenue,
+                members,
+                projects,
+                updated,
+                created,
+              ]
+        - name: sortDir
+          in: query
+          description: Sort direction. Defaults to asc when sortBy is provided.
+          schema:
+            type: string
+            enum: [asc, desc]
       responses:
         "200":
           description: List of teams (paginated)
@@ -808,6 +832,18 @@ paths:
           schema:
             type: integer
             minimum: 1
+        - name: sortBy
+          in: query
+          description: Column to sort by (global, across all pages). Omit to keep default creation order.
+          schema:
+            type: string
+            enum: [title, team, status, revenueStatus, revenue, orderBook, updated, created]
+        - name: sortDir
+          in: query
+          description: Sort direction. Defaults to asc when sortBy is provided.
+          schema:
+            type: string
+            enum: [asc, desc]
       responses:
         "200":
           description: Paginated projects
@@ -2677,10 +2713,19 @@ components:
           type: integer
         totalRevenue:
           type: integer
+        pendingRevenue:
+          type: integer
+          description: Sum of claimed amount for submitted (not-yet-reviewed) revenue entries.
+        rejectedRevenue:
+          type: integer
+          description: Sum of claimed amount for rejected revenue entries.
         totalOrderBook:
           type: integer
         nationalRank:
           type: ["integer", "null"]
+        updatedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -3011,6 +3056,13 @@ components:
           type: integer
         verifiedRevenue:
           type: integer
+        revenueStatus:
+          type: string
+          description: >-
+            Derived per-project revenue review status by precedence: verified if
+            any revenue entry is verified, else pending if any is submitted, else
+            rejected if any is rejected, else none. Only set on the list endpoint.
+          enum: [verified, pending, rejected, none]
         clientCount:
           type: integer
         createdAt:
@@ -3495,6 +3547,12 @@ components:
       properties:
         totalVerifiedRevenue:
           type: integer
+        totalPendingRevenue:
+          type: integer
+          description: Sum of claimed amount for submitted (awaiting-review) revenue entries.
+        totalRejectedRevenue:
+          type: integer
+          description: Sum of claimed amount for rejected revenue entries.
         totalOrderBook:
           type: integer
         activeTeams:

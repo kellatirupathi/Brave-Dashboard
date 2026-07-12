@@ -50,6 +50,8 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const countersP = db.execute<{
     threshold: number;
     total_revenue: string;
+    total_pending_revenue: string;
+    total_rejected_revenue: string;
     total_ob: string;
     active_teams: string;
     pending_teams: string;
@@ -66,6 +68,8 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     SELECT
       COALESCE((SELECT demo_eligibility_threshold FROM programme_config LIMIT 1), 200000) AS threshold,
       (SELECT COALESCE(SUM(re.verified_amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'verified' ${teamScope})      AS total_revenue,
+      (SELECT COALESCE(SUM(re.amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${teamScope})              AS total_pending_revenue,
+      (SELECT COALESCE(SUM(re.amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'rejected' ${teamScope})               AS total_rejected_revenue,
       (SELECT COALESCE(SUM(obe.verified_amount), 0) FROM order_book_entries obe JOIN teams t ON t.id = obe.team_id WHERE obe.status = 'verified' ${teamScope})   AS total_ob,
       (SELECT COUNT(*) FROM teams t WHERE t.status = 'active' ${teamScope})                           AS active_teams,
       (SELECT COUNT(*) FROM teams t WHERE t.status = 'pending' ${teamScope})                          AS pending_teams,
@@ -219,6 +223,8 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
 
   res.json({
     totalVerifiedRevenue: Number(counters.total_revenue ?? 0),
+    totalPendingRevenue: Number(counters.total_pending_revenue ?? 0),
+    totalRejectedRevenue: Number(counters.total_rejected_revenue ?? 0),
     totalOrderBook: Number(counters.total_ob ?? 0),
     activeTeams: Number(counters.active_teams ?? 0),
     pendingTeams: Number(counters.pending_teams ?? 0),

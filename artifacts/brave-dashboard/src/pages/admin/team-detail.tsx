@@ -49,6 +49,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function docLink(url: string | null | undefined, label: string, key: string) {
   if (!url) return null;
@@ -449,6 +455,10 @@ function ProjectCard({
   );
 }
 
+function truncateReason(s: string, n = 40): string {
+  return s.length > n ? `${s.slice(0, n).trimEnd()}…` : s;
+}
+
 function EntryTable({
   title,
   entries,
@@ -460,6 +470,12 @@ function EntryTable({
   emptyText: string;
   testIdPrefix: string;
 }) {
+  // Full rejection reason shown in a modal when a truncated reason is clicked.
+  const [reasonModal, setReasonModal] = useState<{
+    client: string;
+    reason: string;
+  } | null>(null);
+
   return (
     <div>
       <h4 className="text-sm font-medium mb-2">{title}</h4>
@@ -472,7 +488,11 @@ function EntryTable({
               <TableRow>
                 <TableHead>Client</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="whitespace-nowrap">
+                  Date &amp; time
+                </TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Rejection reason</TableHead>
                 <TableHead>Attachments</TableHead>
               </TableRow>
             </TableHeader>
@@ -491,6 +511,10 @@ function EntryTable({
                     `${testIdPrefix}-${e.id}-testimonial`,
                   ),
                 ].filter(Boolean);
+                const dateVal = e.submittedAt ?? e.createdAt ?? null;
+                const isRejected =
+                  String(e.status ?? "").toLowerCase() === "rejected";
+                const reason = String(e.adminNotes ?? "").trim();
                 return (
                   <TableRow key={e.id} data-testid={`${testIdPrefix}-${e.id}`}>
                     <TableCell className="text-sm">
@@ -504,8 +528,35 @@ function EntryTable({
                         {e.status}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      {dateVal ? formatDateTime(dateVal) : "—"}
+                    </TableCell>
                     <TableCell className="text-right">
                       {formatINR(e.verifiedAmount ?? e.amount ?? 0)}
+                    </TableCell>
+                    <TableCell className="max-w-[220px]">
+                      {isRejected && reason ? (
+                        <button
+                          type="button"
+                          className="text-left text-xs text-destructive hover:underline"
+                          onClick={() =>
+                            setReasonModal({
+                              client: e.clientName ?? "—",
+                              reason,
+                            })
+                          }
+                          data-testid={`${testIdPrefix}-${e.id}-reason`}
+                          title="Click to view full reason"
+                        >
+                          {truncateReason(reason)}
+                        </button>
+                      ) : isRejected ? (
+                        <span className="text-xs text-muted-foreground italic">
+                          No reason given
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {attachments.length > 0 ? (
@@ -525,6 +576,27 @@ function EntryTable({
           </Table>
         </div>
       )}
+
+      <Dialog
+        open={reasonModal != null}
+        onOpenChange={(open) => {
+          if (!open) setReasonModal(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Rejection reason</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Client: {reasonModal?.client}
+            </p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">
+              {reasonModal?.reason}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

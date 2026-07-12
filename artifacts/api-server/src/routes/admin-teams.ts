@@ -12,6 +12,7 @@ import {
   projectsTable,
   revenueEntriesTable,
   orderBookEntriesTable,
+  weeklyJournalsTable,
 } from "@workspace/db";
 import {
   AdminCreateTeamBody,
@@ -20,6 +21,8 @@ import {
 import { logAudit } from "../lib/audit";
 import { requireAdminPage } from "../lib/require-admin-page";
 import { generateUniqueInviteCode } from "../lib/team-helpers";
+import { sendEmail } from "../lib/email/brevo";
+import { renderTeamNameDuplicateEmail } from "../lib/email/templates/team-name-duplicate";
 
 const router: IRouter = Router();
 
@@ -1179,6 +1182,153 @@ router.get(
       .sort((a, b) => a.nameKey.localeCompare(b.nameKey));
 
     res.json({ groups });
+  },
+);
+
+// Admin action: notify every "losing" team in each duplicate-name group that
+// they must rename, via BOTH an in-app popup (the name_flagged_for_rename flag
+// the student dashboard reads) AND a friendly email to the leader + members.
+// The team that KEEPS the name in each group is chosen by:
+//   highest verified revenue → most journals submitted → oldest team (created).
+// Idempotent: every call fully recomputes the flags (reset all, then re-flag
+// the current losers), so it always reflects the live duplicate situation.
+router.post(
+  "/admin/teams/notify-name-duplicates",
+  requireAdminPage("/admin/teams", "edit"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const normalise = (s: string): string =>
+      s.trim().toLowerCase().replace(/\s+/g, " ");
+    const isRealEmail = (e: string | null | undefined): e is string =>
+      !!e && !/@forms\.local$/i.test(e) && !/^sso_/i.test(e);
+
+    const allTeams = await db
+      .select({
+        id: teamsTable.id,
+        name: teamsTable.name,
+        leaderId: teamsTable.leaderId,
+        createdAt: teamsTable.createdAt,
+      })
+      .from(teamsTable);
+
+    const byKey = new Map<string, typeof allTeams>();
+    for (const t of allTeams) {
+      const key = normalise(t.name);
+      if (!key) continue;
+      const arr = byKey.get(key);
+      if (arr) arr.push(t);
+      else byKey.set(key, [t]);
+    }
+    const dupEntries = [...byKey.entries()].filter(([, arr]) => arr.length > 1);
+
+    // Reset any currently-flagged teams first so the state is fully recomputed.
+    await db
+      .update(teamsTable)
+      .set({ nameFlaggedForRename: false })
+      .where(eq(teamsTable.nameFlaggedForRename, true));
+
+    if (dupEntries.length === 0) {
+      res.json({ duplicateGroups: 0, teamsFlagged: 0, emailsSent: 0 });
+      return;
+    }
+
+    const dupTeamIds = dupEntries.flatMap(([, arr]) => arr.map((t) => t.id));
+
+    // Tie-break inputs: verified revenue + journal count per team.
+    const revRows = await db
+      .select({
+        teamId: revenueEntriesTable.teamId,
+        total: sql<number>`coalesce(sum(case when status = 'verified' then coalesce(verified_amount, 0) else 0 end), 0)`,
+      })
+      .from(revenueEntriesTable)
+      .where(inArray(revenueEntriesTable.teamId, dupTeamIds))
+      .groupBy(revenueEntriesTable.teamId);
+    const revByTeam = new Map(revRows.map((r) => [r.teamId, Number(r.total)]));
+
+    const jrnRows = await db
+      .select({
+        teamId: weeklyJournalsTable.teamId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(weeklyJournalsTable)
+      .where(inArray(weeklyJournalsTable.teamId, dupTeamIds))
+      .groupBy(weeklyJournalsTable.teamId);
+    const jrnByTeam = new Map(jrnRows.map((r) => [r.teamId, Number(r.count)]));
+
+    // Keeper per group = highest revenue → most journals → oldest → lowest id.
+    const loserIds: number[] = [];
+    for (const [, arr] of dupEntries) {
+      const sorted = [...arr].sort((a, b) => {
+        const ra = revByTeam.get(a.id) ?? 0;
+        const rb = revByTeam.get(b.id) ?? 0;
+        if (rb !== ra) return rb - ra;
+        const ja = jrnByTeam.get(a.id) ?? 0;
+        const jb = jrnByTeam.get(b.id) ?? 0;
+        if (jb !== ja) return jb - ja;
+        const ta = new Date(a.createdAt).getTime();
+        const tb = new Date(b.createdAt).getTime();
+        if (ta !== tb) return ta - tb;
+        return a.id - b.id;
+      });
+      for (let i = 1; i < sorted.length; i++) loserIds.push(sorted[i].id);
+    }
+
+    if (loserIds.length > 0) {
+      await db
+        .update(teamsTable)
+        .set({ nameFlaggedForRename: true })
+        .where(inArray(teamsTable.id, loserIds));
+    }
+
+    // Email leader + members of each losing team (best-effort; never blocks).
+    const appUrl = `${req.protocol}://${req.get("host")}`;
+    const memberRows = await db
+      .select({
+        teamId: teamMembersTable.teamId,
+        email: usersTable.email,
+      })
+      .from(teamMembersTable)
+      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+      .where(inArray(teamMembersTable.teamId, loserIds));
+    const emailsByTeam = new Map<number, string[]>();
+    for (const m of memberRows) {
+      if (!isRealEmail(m.email)) continue;
+      const arr = emailsByTeam.get(m.teamId) ?? [];
+      if (!arr.includes(m.email)) arr.push(m.email);
+      emailsByTeam.set(m.teamId, arr);
+    }
+
+    const teamNameById = new Map(allTeams.map((t) => [t.id, t.name]));
+    let emailsSent = 0;
+    for (const teamId of loserIds) {
+      const recipients = (emailsByTeam.get(teamId) ?? [])
+        .slice(0, 50)
+        .map((email) => ({ email }));
+      if (recipients.length === 0) continue;
+      const { subject, text, html } = renderTeamNameDuplicateEmail({
+        teamName: teamNameById.get(teamId) ?? "your team",
+        appUrl,
+      });
+      const ok = await sendEmail({ to: recipients, subject, text, html });
+      if (ok) emailsSent += 1;
+    }
+
+    await logAudit(
+      req.user.id,
+      "notify_team_name_duplicates",
+      "team",
+      0,
+      `Flagged ${loserIds.length} team(s) across ${dupEntries.length} duplicate name(s); ${emailsSent} email(s) sent`,
+    );
+
+    res.json({
+      duplicateGroups: dupEntries.length,
+      teamsFlagged: loserIds.length,
+      emailsSent,
+    });
   },
 );
 

@@ -10,6 +10,10 @@ import type { Campus } from "./campus";
 
 export interface DashboardSummary {
   totalVerifiedRevenue: number;
+  /** Sum of claimed amount for submitted (awaiting-review) revenue entries. */
+  totalPendingRevenue?: number;
+  /** Sum of claimed amount for rejected revenue entries. */
+  totalRejectedRevenue?: number;
   totalOrderBook: number;
   activeTeams: number;
   pendingTeams: number;

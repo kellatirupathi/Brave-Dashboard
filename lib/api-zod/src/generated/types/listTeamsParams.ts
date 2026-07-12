@@ -5,6 +5,8 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListTeamsSortBy } from "./listTeamsSortBy";
+import type { ListTeamsSortDir } from "./listTeamsSortDir";
 import type { ListTeamsStatus } from "./listTeamsStatus";
 
 export type ListTeamsParams = {
@@ -20,4 +22,12 @@ export type ListTeamsParams = {
    * @maximum 10000
    */
   pageSize?: number;
+  /**
+   * Column to sort by (global, across all pages). Omit to keep default creation order.
+   */
+  sortBy?: ListTeamsSortBy;
+  /**
+   * Sort direction. Defaults to asc when sortBy is provided.
+   */
+  sortDir?: ListTeamsSortDir;
 };

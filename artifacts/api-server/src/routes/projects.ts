@@ -127,7 +127,8 @@ router.get("/projects", async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
-  const { teamId, campusId, status, search, page, pageSize } = queryParams.data;
+  const { teamId, campusId, status, search, page, pageSize, sortBy, sortDir } =
+    queryParams.data;
   const effectivePage = page && page >= 1 ? page : 1;
   const effectivePageSize =
     pageSize && pageSize >= 1 ? Math.min(pageSize, 10000) : 100;
@@ -247,42 +248,131 @@ router.get("/projects", async (req, res): Promise<void> => {
           .orderBy(projectsTable.createdAt)
       : await db.select().from(projectsTable).orderBy(projectsTable.createdAt);
 
-  const totalCount = projects.length;
-  const pageSlice = projects.slice(offset, offset + effectivePageSize);
+  // Bulk-load the per-project aggregates (team name, verified revenue / order
+  // book, and the derived revenue review status) for EVERY matching project in
+  // a handful of grouped queries. This lets us sort globally across all pages
+  // rather than only the current page. (Previously this was an N+1 over just the
+  // page slice, which could not support cross-page sorting.)
+  const projectIds = projects.map((p) => p.id);
+  const teamIds = [...new Set(projects.map((p) => p.teamId))];
 
-  const items = await Promise.all(
-    pageSlice.map(async (p) => {
-      const [team] = await db
-        .select()
+  const teamRows = teamIds.length
+    ? await db
+        .select({ id: teamsTable.id, name: teamsTable.name })
         .from(teamsTable)
-        .where(eq(teamsTable.id, p.teamId));
-      const [revStats] = await db
-        .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
+        .where(inArray(teamsTable.id, teamIds))
+    : [];
+  const teamNameById = new Map(teamRows.map((t) => [t.id, t.name]));
+
+  const revRows = projectIds.length
+    ? await db
+        .select({
+          projectId: revenueEntriesTable.projectId,
+          verified: sql<number>`coalesce(sum(case when status = 'verified' then coalesce(verified_amount, 0) else 0 end), 0)`,
+          hasVerified: sql<boolean>`bool_or(status = 'verified')`,
+          hasSubmitted: sql<boolean>`bool_or(status = 'submitted')`,
+          hasRejected: sql<boolean>`bool_or(status = 'rejected')`,
+        })
         .from(revenueEntriesTable)
-        .where(
-          and(
-            eq(revenueEntriesTable.projectId, p.id),
-            sql`status = 'verified'`,
-          ),
-        );
-      const [obStats] = await db
-        .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
+        .where(inArray(revenueEntriesTable.projectId, projectIds))
+        .groupBy(revenueEntriesTable.projectId)
+    : [];
+  const revById = new Map(revRows.map((r) => [r.projectId, r]));
+
+  const obRows = projectIds.length
+    ? await db
+        .select({
+          projectId: orderBookEntriesTable.projectId,
+          verified: sql<number>`coalesce(sum(case when status = 'verified' then coalesce(verified_amount, 0) else 0 end), 0)`,
+        })
         .from(orderBookEntriesTable)
-        .where(
-          and(
-            eq(orderBookEntriesTable.projectId, p.id),
-            sql`status = 'verified'`,
-          ),
-        );
-      const clientCount = await getProjectClientCount(p.id);
-      return {
-        ...p,
-        teamName: team?.name ?? "",
-        verifiedRevenue: Number(revStats?.total ?? 0),
-        verifiedOrderBook: Number(obStats?.total ?? 0),
-        clientCount,
-      };
-    }),
+        .where(inArray(orderBookEntriesTable.projectId, projectIds))
+        .groupBy(orderBookEntriesTable.projectId)
+    : [];
+  const obVerifiedById = new Map(
+    obRows.map((r) => [r.projectId, Number(r.verified)]),
+  );
+
+  // Precedence: verified > pending (submitted) > rejected > none. Draft and
+  // revoked entries do not map to any of the three review states, so a project
+  // with only those (or no revenue at all) reads as "none".
+  const deriveRevenueStatus = (
+    r:
+      | { hasVerified: boolean; hasSubmitted: boolean; hasRejected: boolean }
+      | undefined,
+  ): "verified" | "pending" | "rejected" | "none" => {
+    if (!r) return "none";
+    if (r.hasVerified) return "verified";
+    if (r.hasSubmitted) return "pending";
+    if (r.hasRejected) return "rejected";
+    return "none";
+  };
+
+  const enriched = projects.map((p) => {
+    const r = revById.get(p.id);
+    return {
+      ...p,
+      teamName: teamNameById.get(p.teamId) ?? "",
+      verifiedRevenue: Number(r?.verified ?? 0),
+      verifiedOrderBook: obVerifiedById.get(p.id) ?? 0,
+      revenueStatus: deriveRevenueStatus(r),
+    };
+  });
+
+  // Global sort. Without an explicit sortBy we keep the existing creation order
+  // (projects were fetched ordered by created_at ASC).
+  if (sortBy) {
+    const dir = sortDir === "desc" ? -1 : 1;
+    const statusRank: Record<string, number> = {
+      verified: 3,
+      pending: 2,
+      rejected: 1,
+      none: 0,
+    };
+    enriched.sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case "title":
+          cmp = a.title.localeCompare(b.title);
+          break;
+        case "team":
+          cmp = a.teamName.localeCompare(b.teamName);
+          break;
+        case "status":
+          cmp = a.status.localeCompare(b.status);
+          break;
+        case "revenueStatus":
+          cmp = statusRank[a.revenueStatus] - statusRank[b.revenueStatus];
+          break;
+        case "revenue":
+          cmp = a.verifiedRevenue - b.verifiedRevenue;
+          break;
+        case "orderBook":
+          cmp = a.verifiedOrderBook - b.verifiedOrderBook;
+          break;
+        case "updated":
+          cmp =
+            new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+          break;
+        case "created":
+          cmp =
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+      }
+      if (cmp === 0) cmp = a.id - b.id; // stable tiebreak
+      return cmp * dir;
+    });
+  }
+
+  const totalCount = enriched.length;
+  const pageSlice = enriched.slice(offset, offset + effectivePageSize);
+
+  // clientCount stays a per-row lookup, but only for the visible page slice.
+  const items = await Promise.all(
+    pageSlice.map(async (p) => ({
+      ...p,
+      clientCount: await getProjectClientCount(p.id),
+    })),
   );
 
   res.json({

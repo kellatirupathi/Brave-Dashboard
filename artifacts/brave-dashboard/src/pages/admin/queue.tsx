@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertCircle,
@@ -193,10 +194,21 @@ function QueueList({
   const type = "revenue" as const;
   const [page, setPage] = useState(1);
 
+  // Bulk multi-select is only offered on the pending tab, and only to admins
+  // who may edit the queue. Selection is scoped to the current page.
+  const { canEdit } = useAdminPageAccess("/admin/queue");
+  const selectable = status === "submitted" && canEdit;
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
   // Reset to the first page whenever the search term changes.
   useEffect(() => {
     setPage(1);
   }, [search]);
+
+  // Selection is per-page — clear it whenever the page or search changes.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, search]);
 
   const { data: queue, isLoading } = useGetAdminReviewQueue({
     type,
@@ -228,16 +240,59 @@ function QueueList({
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * QUEUE_PAGE_SIZE + 1;
   const rangeEnd = (page - 1) * QUEUE_PAGE_SIZE + items.length;
 
+  const selectedItems = items.filter((i) => selected.has(i.id));
+  const allOnPageSelected =
+    items.length > 0 && items.every((i) => selected.has(i.id));
+
+  const toggleOne = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleAllOnPage = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (items.every((i) => next.has(i.id))) {
+        for (const i of items) next.delete(i.id);
+      } else {
+        for (const i of items) next.add(i.id);
+      }
+      return next;
+    });
+
   return (
     <div className="space-y-3">
-      <div className="text-sm text-muted-foreground">
-        <span className="mr-2">{totalCount} total</span>
-        {status === "submitted" && overdueCount > 0 ? (
-          <span className="text-destructive font-medium">
-            · {overdueCount} overdue
-          </span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm text-muted-foreground">
+          <span className="mr-2">{totalCount} total</span>
+          {status === "submitted" && overdueCount > 0 ? (
+            <span className="text-destructive font-medium">
+              · {overdueCount} overdue
+            </span>
+          ) : null}
+        </div>
+        {selectable && items.length > 0 ? (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <Checkbox
+              checked={allOnPageSelected}
+              onCheckedChange={toggleAllOnPage}
+              aria-label="Select all on this page"
+              data-testid="checkbox-queue-select-all"
+            />
+            Select all on this page
+          </label>
         ) : null}
       </div>
+
+      {selectable && selectedItems.length > 0 ? (
+        <BulkReviewBar
+          items={selectedItems}
+          onDone={() => setSelected(new Set())}
+        />
+      ) : null}
 
       {items.length === 0 ? (
         <EmptyState status={status} />
@@ -245,7 +300,14 @@ function QueueList({
         <>
           <div className="flex flex-col gap-3">
             {items.map((item) => (
-              <QueueRow key={item.id} item={item} status={status} />
+              <QueueRow
+                key={item.id}
+                item={item}
+                status={status}
+                selectable={selectable}
+                checked={selected.has(item.id)}
+                onToggle={toggleOne}
+              />
             ))}
           </div>
 
@@ -327,9 +389,15 @@ function EmptyState({
 function QueueRow({
   item,
   status,
+  selectable = false,
+  checked = false,
+  onToggle,
 }: {
   item: QueueItem;
   status: "submitted" | "verified" | "rejected";
+  selectable?: boolean;
+  checked?: boolean;
+  onToggle?: (id: number) => void;
 }) {
   // Review-queue verify/reject/unverify are "edit" actions — hidden for an
   // admin without edit on /admin/queue (default-allow for everyone else).
@@ -338,7 +406,7 @@ function QueueRow({
     <Card
       className={`group relative transition-shadow hover:shadow-md hover:border-primary/40 ${
         item.isOverdue ? "border-destructive/50 shadow-sm" : ""
-      }`}
+      } ${checked ? "ring-2 ring-primary/50" : ""}`}
       data-testid={`row-queue-${item.id}`}
     >
       <Link
@@ -348,6 +416,20 @@ function QueueRow({
         data-testid={`link-queue-card-${item.id}`}
       />
       <div className="p-4 flex flex-col lg:flex-row lg:items-center gap-4">
+        {selectable ? (
+          <div
+            className="relative z-20 flex items-center self-start lg:self-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Checkbox
+              checked={checked}
+              onCheckedChange={() => onToggle?.(item.id)}
+              aria-label={`Select ${item.teamName} revenue entry`}
+              data-testid={`checkbox-queue-${item.id}`}
+            />
+          </div>
+        ) : null}
+
         {/* Left — main info */}
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -472,6 +554,206 @@ function QueueRow({
         </div>
       </div>
     </Card>
+  );
+}
+
+// Bulk verify / reject for the selected pending entries. There is no bulk
+// backend endpoint, so this loops the existing per-entry mutations (each also
+// fires its own notification/email side-effects, same as a single action).
+// Bulk verify uses each entry's full claimed amount — to verify a different
+// amount, review that entry individually.
+function BulkReviewBar({
+  items,
+  onDone,
+}: {
+  items: QueueItem[];
+  onDone: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const verify = useVerifyRevenueEntry();
+  const reject = useRejectRevenueEntry();
+  const [open, setOpen] = useState<"approve" | "reject" | null>(null);
+  const [notes, setNotes] = useState("");
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const running = progress !== null;
+
+  const totalAmount = items.reduce((sum, i) => sum + (i.amount || 0), 0);
+
+  const invalidate = () => {
+    for (const s of ["submitted", "verified", "rejected"] as const) {
+      queryClient.invalidateQueries({
+        queryKey: getGetAdminReviewQueueQueryKey({
+          type: "revenue",
+          status: s as "submitted" | "verified",
+        }),
+      });
+    }
+  };
+
+  const runBulk = async (mode: "approve" | "reject") => {
+    if (mode === "reject" && !notes.trim()) return;
+    setProgress({ done: 0, total: items.length });
+    let ok = 0;
+    let fail = 0;
+    for (const it of items) {
+      try {
+        if (mode === "approve") {
+          await verify.mutateAsync({
+            id: it.id,
+            data: { verifiedAmount: it.amount, adminNotes: notes },
+          });
+        } else {
+          await reject.mutateAsync({
+            id: it.id,
+            data: { adminNotes: notes },
+          });
+        }
+        ok++;
+      } catch {
+        fail++;
+      }
+      setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    setProgress(null);
+    setOpen(null);
+    setNotes("");
+    invalidate();
+    const verb = mode === "approve" ? "Verified" : "Rejected";
+    toast({
+      title: `${verb} ${ok} ${ok === 1 ? "entry" : "entries"}${
+        fail ? ` · ${fail} failed` : ""
+      }`,
+      variant: fail ? "destructive" : undefined,
+    });
+    onDone();
+  };
+
+  return (
+    <div className="sticky top-2 z-30 flex flex-wrap items-center gap-3 rounded-lg border bg-background/95 px-4 py-2 shadow-sm backdrop-blur">
+      <span className="text-sm font-medium" data-testid="text-bulk-selected">
+        {items.length} selected · {formatINR(totalAmount)} claimed
+      </span>
+      <div className="ml-auto flex items-center gap-2">
+        <Button
+          size="sm"
+          className="bg-green-600 hover:bg-green-700 text-white"
+          onClick={() => setOpen("approve")}
+          disabled={running}
+          data-testid="button-bulk-approve"
+        >
+          <Check className="w-4 h-4 mr-1" /> Approve selected
+        </Button>
+        <Button
+          size="sm"
+          className="bg-red-400 hover:bg-red-500 text-white"
+          onClick={() => setOpen("reject")}
+          disabled={running}
+          data-testid="button-bulk-reject"
+        >
+          <X className="w-4 h-4 mr-1" /> Reject selected
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onDone}
+          disabled={running}
+          data-testid="button-bulk-clear"
+        >
+          Clear
+        </Button>
+      </div>
+
+      {/* Bulk approve dialog */}
+      <Dialog
+        open={open === "approve"}
+        onOpenChange={(o) => (!o && !running ? setOpen(null) : undefined)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve {items.length} entries</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Each selected entry will be verified at its{" "}
+              <strong>full claimed amount</strong> (total{" "}
+              {formatINR(totalAmount)}). To verify a different amount, review
+              that entry individually.
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Admin notes (optional, applied to all)
+              </label>
+              <Textarea
+                placeholder="Optional note added to every verified entry…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+            {running ? (
+              <p className="text-sm text-muted-foreground">
+                Verifying {progress?.done}/{progress?.total}…
+              </p>
+            ) : null}
+            <div className="flex justify-end pt-2">
+              <Button
+                onClick={() => void runBulk("approve")}
+                disabled={running}
+                className="bg-green-600 hover:bg-green-700 text-white"
+                data-testid="button-confirm-bulk-approve"
+              >
+                {running && <Spinner className="w-4 h-4 mr-2" />}
+                Verify {items.length} entries
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk reject dialog */}
+      <Dialog
+        open={open === "reject"}
+        onOpenChange={(o) => (!o && !running ? setOpen(null) : undefined)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject {items.length} entries</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-destructive">
+                Rejection reason (required, applied to all)
+              </label>
+              <Textarea
+                placeholder="Explain why these are being rejected so the students can fix them…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                required
+              />
+            </div>
+            {running ? (
+              <p className="text-sm text-muted-foreground">
+                Rejecting {progress?.done}/{progress?.total}…
+              </p>
+            ) : null}
+            <div className="flex justify-end pt-2">
+              <Button
+                onClick={() => void runBulk("reject")}
+                disabled={running || !notes.trim()}
+                className="bg-red-400 hover:bg-red-500 text-white"
+                data-testid="button-confirm-bulk-reject"
+              >
+                {running && <Spinner className="w-4 h-4 mr-2" />}
+                Reject {items.length} entries
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

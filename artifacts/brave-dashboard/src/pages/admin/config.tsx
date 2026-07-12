@@ -41,6 +41,7 @@ import { ProgrammeWeeksManager } from "@/components/programme-weeks-manager";
 import { ReminderSettingsCard } from "@/components/reminder-settings-card";
 import { ResourcesSettingsCard } from "@/components/resources-settings-card";
 import { CoordinatorTagsCard } from "@/components/coordinator-tags-card";
+import { TeamNameUniquenessCard } from "@/components/team-name-uniqueness-card";
 import { GritConfigCard } from "@/components/grit-config-card";
 import { BrdDriveCard } from "@/components/brd-drive-card";
 import { PopupsAdminCard } from "@/components/popups-admin-card";
@@ -440,6 +441,9 @@ export default function AdminConfig() {
 
           {/* Coordinator Tags — admin-managed catalog (add / edit / delete). */}
           <CoordinatorTagsCard />
+
+          {/* Team Name Uniqueness — notify duplicate-name teams to rename. */}
+          <TeamNameUniquenessCard />
         </div>
 
         {/* RIGHT column — Key Dates, Thresholds + Save, Notifications & Reminders. */}

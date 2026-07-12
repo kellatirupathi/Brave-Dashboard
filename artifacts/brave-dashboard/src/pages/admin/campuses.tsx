@@ -42,9 +42,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building2, Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import {
+  Building2,
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+  ChevronsUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import { useAdminPageAccess } from "@/lib/admin-access";
-import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/format";
@@ -55,6 +66,64 @@ import {
 } from "@/components/coordinators-popover";
 
 const UNASSIGNED = "__unassigned__";
+
+// The campuses list is not paginated (all campuses come back in one request),
+// so sorting is done client-side over the full set.
+type SortKey =
+  | "name"
+  | "location"
+  | "activeTeams"
+  | "totalRevenue"
+  | "coordinator";
+
+// These default to descending on first click (largest first). Text columns
+// default to ascending (A→Z).
+const NUMERIC_SORT_KEYS = new Set<SortKey>(["activeTeams", "totalRevenue"]);
+
+function SortHeader({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  align = "left",
+  className,
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey | null;
+  dir: "asc" | "desc";
+  onSort: (k: SortKey) => void;
+  align?: "left" | "right";
+  className?: string;
+}) {
+  const active = activeKey === sortKey;
+  return (
+    <TableHead className={cn(align === "right" && "text-right", className)}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          "inline-flex items-center gap-1 select-none hover:opacity-80 transition-opacity",
+          active && "font-semibold",
+        )}
+        data-testid={`sort-campuses-${sortKey}`}
+        aria-label={`Sort by ${label}`}
+      >
+        {label}
+        {active ? (
+          dir === "asc" ? (
+            <ArrowUp className="w-3.5 h-3.5" />
+          ) : (
+            <ArrowDown className="w-3.5 h-3.5" />
+          )
+        ) : (
+          <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />
+        )}
+      </button>
+    </TableHead>
+  );
+}
 
 export default function AdminCampuses() {
   const { data: campuses, isLoading } = useListCampuses();
@@ -70,6 +139,49 @@ export default function AdminCampuses() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const { canEdit, canDelete } = useAdminPageAccess("/admin/campuses");
+
+  const [sortBy, setSortBy] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir(NUMERIC_SORT_KEYS.has(key) ? "desc" : "asc");
+    }
+  };
+
+  const sortedCampuses = useMemo(() => {
+    const list = campuses ?? [];
+    if (!sortBy) return list;
+    const dir = sortDir === "desc" ? -1 : 1;
+    return [...list].sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case "name":
+          cmp = a.name.localeCompare(b.name);
+          break;
+        case "location":
+          cmp = `${a.city}, ${a.state}`.localeCompare(`${b.city}, ${b.state}`);
+          break;
+        case "activeTeams":
+          // Primary: active (engaged) teams; tiebreak on total teams.
+          cmp = a.activeTeams - b.activeTeams || a.totalTeams - b.totalTeams;
+          break;
+        case "totalRevenue":
+          cmp = a.totalRevenue - b.totalRevenue;
+          break;
+        case "coordinator":
+          cmp = (a.coordinatorName ?? "").localeCompare(
+            b.coordinatorName ?? "",
+          );
+          break;
+      }
+      if (cmp === 0) cmp = a.id - b.id; // stable tiebreak
+      return cmp * dir;
+    });
+  }, [campuses, sortBy, sortDir]);
 
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState("");
@@ -271,16 +383,48 @@ export default function AdminCampuses() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Campus Name</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead className="text-right">Teams (Active)</TableHead>
-                  <TableHead className="text-right">Total Revenue</TableHead>
-                  <TableHead>Coordinator</TableHead>
+                  <SortHeader
+                    label="Campus Name"
+                    sortKey="name"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    label="Location"
+                    sortKey="location"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    label="Teams (Active)"
+                    sortKey="activeTeams"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    label="Total Revenue"
+                    sortKey="totalRevenue"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    label="Coordinator"
+                    sortKey="coordinator"
+                    activeKey={sortBy}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                   <TableHead className="text-right w-28"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {campuses?.map((c) => {
+                {sortedCampuses.map((c) => {
                   const isEditing = editingId === c.id;
                   return (
                     <TableRow

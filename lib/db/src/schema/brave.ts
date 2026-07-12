@@ -332,6 +332,13 @@ export const teamsTable = pgTable(
     coordinatorComment: text("coordinator_comment"),
     isHidden: boolean("is_hidden").notNull().default(false),
     isFeatured: boolean("is_featured").notNull().default(false),
+    // Set true by the admin "Team name uniqueness" action for the losing teams
+    // in a duplicate-name group (every team except the highest verified-revenue
+    // / most-journals / oldest one). Drives the student rename popup. Cleared
+    // automatically when the team is renamed.
+    nameFlaggedForRename: boolean("name_flagged_for_rename")
+      .notNull()
+      .default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
