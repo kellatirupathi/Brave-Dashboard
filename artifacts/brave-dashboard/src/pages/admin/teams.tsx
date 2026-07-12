@@ -135,6 +135,7 @@ function SortHeader({
   dir,
   onSort,
   align = "left",
+  className,
 }: {
   label: string;
   sortKey: SortKey;
@@ -142,10 +143,11 @@ function SortHeader({
   dir: "asc" | "desc";
   onSort: (k: SortKey) => void;
   align?: "left" | "right";
+  className?: string;
 }) {
   const active = activeKey === sortKey;
   return (
-    <TableHead className={align === "right" ? "text-right" : undefined}>
+    <TableHead className={cn(align === "right" && "text-right", className)}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
@@ -586,6 +588,7 @@ export default function AdminTeams() {
                     activeKey={sortBy}
                     dir={sortDir}
                     onSort={handleSort}
+                    className="min-w-[220px]"
                   />
                   <TableHead>Name uniqueness</TableHead>
                   <SortHeader
@@ -635,7 +638,9 @@ export default function AdminTeams() {
                     onSort={handleSort}
                     align="right"
                   />
-                  <TableHead className="text-right">GRIT Miles</TableHead>
+                  <TableHead className="text-right min-w-[96px] whitespace-nowrap">
+                    GRIT Miles
+                  </TableHead>
                   <SortHeader
                     label="Last updated"
                     sortKey="updated"
@@ -665,7 +670,9 @@ export default function AdminTeams() {
                           {team.tagline || "-"}
                         </div>
                       </TableCell>
-                      <TableCell>{team.campusName}</TableCell>
+                      <TableCell className="min-w-[220px] whitespace-nowrap">
+                        {team.campusName}
+                      </TableCell>
                       <TableCell>
                         {(() => {
                           const group = dupGroupByKey.get(
@@ -725,7 +732,7 @@ export default function AdminTeams() {
                       <TableCell className="text-right">
                         {team.projectCount}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right min-w-[96px] whitespace-nowrap">
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-sm font-medium text-primary hover:bg-primary/20 tabular-nums"
