@@ -1616,6 +1616,10 @@ export type GetAdminReviewQueueParams = {
    * @maximum 100
    */
   pageSize?: number;
+  /**
+   * Sort order. Defaults to newest first.
+   */
+  sort?: GetAdminReviewQueueSort;
 };
 
 export type GetAdminReviewQueueType =
@@ -1632,6 +1636,16 @@ export const GetAdminReviewQueueStatus = {
   submitted: "submitted",
   verified: "verified",
   rejected: "rejected",
+} as const;
+
+export type GetAdminReviewQueueSort =
+  (typeof GetAdminReviewQueueSort)[keyof typeof GetAdminReviewQueueSort];
+
+export const GetAdminReviewQueueSort = {
+  newest: "newest",
+  oldest: "oldest",
+  amount_desc: "amount_desc",
+  amount_asc: "amount_asc",
 } as const;
 
 export type GetLeaderboardParams = {

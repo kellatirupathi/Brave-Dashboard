@@ -2469,6 +2469,10 @@ export const GetAdminReviewQueueQueryParams = zod.object({
     .max(getAdminReviewQueueQueryPageSizeMax)
     .optional()
     .describe("Number of items per page. Defaults to 20, max 100."),
+  sort: zod
+    .enum(["newest", "oldest", "amount_desc", "amount_asc"])
+    .optional()
+    .describe("Sort order. Defaults to newest first."),
 });
 
 export const GetAdminReviewQueueResponse = zod.object({

@@ -41,6 +41,7 @@ export const ADMIN_PAGES: readonly AdminPage[] = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/new-users-requests", label: "New User Requests" },
   { href: "/admin/announcements", label: "Announcements" },
+  { href: "/admin/popups", label: "Popups" },
   { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/feedback", label: "Feedback" },
   { href: "/admin/audit-log", label: "Audit Log" },

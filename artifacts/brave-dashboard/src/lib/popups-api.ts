@@ -59,6 +59,42 @@ export function deletePopup(id: number): Promise<null> {
   return customFetch<null>(`/api/admin/popups/${id}`, { method: "DELETE" });
 }
 
+// ---------- Admin: confirmations report ----------
+export type PopupConfirmation = {
+  id: number;
+  popupId: number;
+  templateName: string;
+  studentName: string;
+  niatId: string | null;
+  email: string | null;
+  campusName: string | null;
+  confirmedAt: string;
+};
+
+export type PopupConfirmationsResponse = {
+  items: PopupConfirmation[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export function getPopupConfirmations(params: {
+  search?: string;
+  popupId?: number;
+  page?: number;
+  pageSize?: number;
+}): Promise<PopupConfirmationsResponse> {
+  const p = new URLSearchParams();
+  if (params.search) p.set("search", params.search);
+  if (params.popupId != null) p.set("popupId", String(params.popupId));
+  if (params.page) p.set("page", String(params.page));
+  if (params.pageSize) p.set("pageSize", String(params.pageSize));
+  const qs = p.toString();
+  return customFetch<PopupConfirmationsResponse>(
+    `/api/admin/popup-confirmations${qs ? `?${qs}` : ""}`,
+  );
+}
+
 // ---------- Student ----------
 export function fetchPendingPopups(): Promise<PendingPopup[]> {
   return customFetch<PendingPopup[]>("/api/popups/pending");

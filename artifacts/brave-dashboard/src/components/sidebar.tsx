@@ -414,6 +414,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             href: "/admin/announcements",
             icon: Megaphone,
           },
+          { name: "Popups", href: "/admin/popups", icon: MessageSquare },
           { name: "Feedback", href: "/admin/feedback", icon: MessageSquare },
           { name: "Audit Log", href: "/admin/audit-log", icon: ClipboardList },
         ],

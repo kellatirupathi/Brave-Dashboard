@@ -92,6 +92,7 @@ import AdminJournalTeamDetail from "@/pages/admin/journal-team-detail";
 import AdminHeatmap from "@/pages/admin/heatmap";
 import AdminCampusInsights from "@/pages/admin/campus-insights";
 import AdminChatbotHistory from "@/pages/admin/chatbot-history";
+import AdminPopups from "@/pages/admin/popups";
 import AdminNotifications from "@/pages/admin/notifications";
 import CoordinatorJournals from "@/pages/coordinator/journals";
 import CoordinatorJournalTracking from "@/pages/coordinator/journal-tracking";
@@ -647,6 +648,11 @@ function Router() {
             component={AdminChatbotHistory}
             allowedRoles={["admin"]}
           />
+        </Route>
+
+        {/* Admin Popups — student popup confirmations report (Communications). */}
+        <Route path="/admin/popups">
+          <ProtectedRoute component={AdminPopups} allowedRoles={["admin"]} />
         </Route>
 
         {/* Admin Notifications — overdue review-queue email subscribers. */}

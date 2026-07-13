@@ -65,6 +65,7 @@ export * from "./exchangeMobileAuthorizationCodeBody";
 export * from "./feedback";
 export * from "./feedbackWithUser";
 export * from "./getAdminReviewQueueParams";
+export * from "./getAdminReviewQueueSort";
 export * from "./getAdminReviewQueueStatus";
 export * from "./getAdminReviewQueueType";
 export * from "./getAuditLogParams";

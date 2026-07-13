@@ -1323,6 +1323,12 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
+        - name: sort
+          in: query
+          description: Sort order. Defaults to newest first.
+          schema:
+            type: string
+            enum: [newest, oldest, amount_desc, amount_asc]
       responses:
         "200":
           description: Review queue

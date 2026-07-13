@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, asc, sql, notInArray } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, notInArray } from "drizzle-orm";
 import {
   db,
   popupTemplatesTable,
   popupAcknowledgementsTable,
+  usersTable,
+  campusesTable,
 } from "@workspace/db";
 import { logAudit } from "../lib/audit";
 
@@ -174,6 +176,168 @@ router.delete("/admin/popups/:id", async (req, res): Promise<void> => {
   );
   res.status(204).end();
 });
+
+// ---------- Admin: confirmations report ----------
+//
+// Every student's acknowledgement of every popup (one row per confirmation),
+// joined to the popup template + the student's profile + campus. Powers the
+// admin "Popups" page under Communications. Searchable, filterable by popup,
+// paginated, with a CSV export.
+
+function buildConfirmationWhere(search: string, popupId: number | null) {
+  const conds = [];
+  if (popupId) conds.push(eq(popupAcknowledgementsTable.popupId, popupId));
+  if (search) {
+    const pat = `%${search}%`;
+    const orClause = or(
+      ilike(usersTable.firstName, pat),
+      ilike(usersTable.lastName, pat),
+      ilike(
+        sql`(coalesce(${usersTable.firstName}, '') || ' ' || coalesce(${usersTable.lastName}, ''))`,
+        pat,
+      ),
+      ilike(usersTable.niatId, pat),
+      ilike(usersTable.email, pat),
+      ilike(popupTemplatesTable.name, pat),
+    );
+    if (orClause) conds.push(orClause);
+  }
+  return conds.length > 0 ? and(...conds) : undefined;
+}
+
+function confirmationsBaseQuery() {
+  return db
+    .select({
+      id: popupAcknowledgementsTable.id,
+      popupId: popupAcknowledgementsTable.popupId,
+      templateName: popupTemplatesTable.name,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      niatId: usersTable.niatId,
+      email: usersTable.email,
+      campusName: campusesTable.name,
+      confirmedAt: popupAcknowledgementsTable.confirmedAt,
+    })
+    .from(popupAcknowledgementsTable)
+    .leftJoin(
+      popupTemplatesTable,
+      eq(popupTemplatesTable.id, popupAcknowledgementsTable.popupId),
+    )
+    .leftJoin(usersTable, eq(usersTable.id, popupAcknowledgementsTable.userId))
+    .leftJoin(campusesTable, eq(campusesTable.id, usersTable.campusId));
+}
+
+router.get("/admin/popup-confirmations", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const search =
+    typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const popupId =
+    typeof req.query.popupId === "string" &&
+    Number.isInteger(Number(req.query.popupId))
+      ? Number(req.query.popupId)
+      : null;
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const pageSize = Math.min(500, Math.max(1, Number(req.query.pageSize) || 50));
+  const offset = (page - 1) * pageSize;
+  const whereClause = buildConfirmationWhere(search, popupId);
+
+  const rows = await confirmationsBaseQuery()
+    .where(whereClause)
+    .orderBy(desc(popupAcknowledgementsTable.confirmedAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  const [cnt] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(popupAcknowledgementsTable)
+    .leftJoin(
+      popupTemplatesTable,
+      eq(popupTemplatesTable.id, popupAcknowledgementsTable.popupId),
+    )
+    .leftJoin(usersTable, eq(usersTable.id, popupAcknowledgementsTable.userId))
+    .where(whereClause);
+
+  res.json({
+    items: rows.map((r) => ({
+      id: r.id,
+      popupId: r.popupId,
+      templateName: r.templateName ?? "(deleted popup)",
+      studentName: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "—",
+      niatId: r.niatId ?? null,
+      email: r.email ?? null,
+      campusName: r.campusName ?? null,
+      confirmedAt: r.confirmedAt,
+    })),
+    total: Number(cnt?.c ?? 0),
+    page,
+    pageSize,
+  });
+});
+
+function csvCell(v: unknown): string {
+  const s = v == null ? "" : String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+router.get(
+  "/admin/popup-confirmations/export.csv",
+  async (req, res): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
+    const search =
+      typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const popupId =
+      typeof req.query.popupId === "string" &&
+      Number.isInteger(Number(req.query.popupId))
+        ? Number(req.query.popupId)
+        : null;
+    const whereClause = buildConfirmationWhere(search, popupId);
+
+    const rows = await confirmationsBaseQuery()
+      .where(whereClause)
+      .orderBy(desc(popupAcknowledgementsTable.confirmedAt))
+      .limit(100000);
+
+    const header = [
+      "Template",
+      "Student",
+      "NIAT ID",
+      "Campus",
+      "Email",
+      "Confirmed At",
+    ];
+    const lines = [header.map(csvCell).join(",")];
+    for (const r of rows) {
+      lines.push(
+        [
+          r.templateName ?? "(deleted popup)",
+          `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "—",
+          r.niatId ?? "",
+          r.campusName ?? "",
+          r.email ?? "",
+          r.confirmedAt
+            ? new Date(r.confirmedAt)
+                .toISOString()
+                .slice(0, 16)
+                .replace("T", " ")
+            : "",
+        ]
+          .map(csvCell)
+          .join(","),
+      );
+    }
+    const csv = lines.join("\r\n");
+    const buffer = Buffer.concat([
+      Buffer.from("﻿", "utf8"),
+      Buffer.from(csv, "utf8"),
+    ]);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="popup-confirmations.csv"`,
+    );
+    res.send(buffer);
+  },
+);
 
 // ---------- Student-facing ----------
 

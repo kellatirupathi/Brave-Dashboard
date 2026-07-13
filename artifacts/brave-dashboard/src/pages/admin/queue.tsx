@@ -33,6 +33,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertCircle,
   Check,
   X,
@@ -46,6 +53,7 @@ import {
   Hourglass,
   ChevronLeft,
   ChevronRight,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   Popover,
@@ -103,10 +111,61 @@ type BrdAiAnalysis = {
 
 type Tab = "pending" | "approved" | "rejected";
 
+type SortOption = "newest" | "oldest" | "amount_desc" | "amount_asc";
+
+// Tap-to-insert default rejection reasons shown under the reject textarea.
+const REJECT_SUGGESTIONS = [
+  "The payment proof does not match the claimed amount.",
+  "BRD is missing or the link does not open.",
+  "Payment date or reference / UTR number is not visible in the proof.",
+  "Payer / payee details do not match the client.",
+  "This looks like a duplicate of an already-submitted entry.",
+  "The uploaded document is unclear — please re-upload a clearer copy.",
+  "Client name does not match the project.",
+  "Insufficient proof of payment received.",
+];
+
+// Small chip row that inserts a suggested reason into the reject textarea.
+function RejectReasonSuggestions({
+  onPick,
+}: {
+  onPick: (text: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">
+        Quick reasons — tap to add:
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {REJECT_SUGGESTIONS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onPick(s)}
+            className="rounded-full border px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            data-testid="reject-suggestion"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Append a picked suggestion to whatever the admin has already typed.
+function appendReason(prev: string, text: string): string {
+  const base = prev.trim();
+  if (!base) return text;
+  if (base.includes(text)) return base;
+  return `${base} ${text}`;
+}
+
 export default function AdminQueue() {
   const [tab, setTab] = useState<Tab>("pending");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortOption>("newest");
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 250);
@@ -128,15 +187,31 @@ export default function AdminQueue() {
             Verify, reject, or unverify revenue entries submitted by teams.
           </p>
         </div>
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by team, project, client, amount…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-9"
-            data-testid="input-search-queue"
-          />
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by team, project, client, amount…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-queue"
+            />
+          </div>
+          <Select value={sort} onValueChange={(v) => setSort(v as SortOption)}>
+            <SelectTrigger className="sm:w-52" data-testid="select-queue-sort">
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="w-4 h-4" />
+                <SelectValue placeholder="Sort" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest first</SelectItem>
+              <SelectItem value="oldest">Oldest first</SelectItem>
+              <SelectItem value="amount_desc">Amount: High → Low</SelectItem>
+              <SelectItem value="amount_asc">Amount: Low → High</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -167,15 +242,15 @@ export default function AdminQueue() {
         </div>
 
         <TabsContent value="pending" className="mt-6">
-          <QueueList status="submitted" search={search} />
+          <QueueList status="submitted" search={search} sort={sort} />
         </TabsContent>
 
         <TabsContent value="approved" className="mt-6">
-          <QueueList status="verified" search={search} />
+          <QueueList status="verified" search={search} sort={sort} />
         </TabsContent>
 
         <TabsContent value="rejected" className="mt-6">
-          <QueueList status="rejected" search={search} />
+          <QueueList status="rejected" search={search} sort={sort} />
         </TabsContent>
       </Tabs>
     </div>
@@ -187,9 +262,11 @@ const QUEUE_PAGE_SIZE = 20;
 function QueueList({
   status,
   search,
+  sort,
 }: {
   status: "submitted" | "verified" | "rejected";
   search: string;
+  sort: SortOption;
 }) {
   const type = "revenue" as const;
   const [page, setPage] = useState(1);
@@ -200,10 +277,10 @@ function QueueList({
   const selectable = status === "submitted" && canEdit;
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  // Reset to the first page whenever the search term changes.
+  // Reset to the first page whenever the search term or sort order changes.
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, sort]);
 
   // Selection is per-page — clear it whenever the page or search changes.
   useEffect(() => {
@@ -214,6 +291,7 @@ function QueueList({
     type,
     status,
     search: search || undefined,
+    sort,
     page,
     pageSize: QUEUE_PAGE_SIZE,
   });
@@ -733,6 +811,9 @@ function BulkReviewBar({
                 onChange={(e) => setNotes(e.target.value)}
                 required
               />
+              <RejectReasonSuggestions
+                onPick={(text) => setNotes((prev) => appendReason(prev, text))}
+              />
             </div>
             {running ? (
               <p className="text-sm text-muted-foreground">
@@ -908,6 +989,11 @@ function PendingActions({ item }: { item: QueueItem }) {
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 required
+              />
+              <RejectReasonSuggestions
+                onPick={(text) =>
+                  setAdminNotes((prev) => appendReason(prev, text))
+                }
               />
             </div>
             <div className="flex justify-end pt-4">

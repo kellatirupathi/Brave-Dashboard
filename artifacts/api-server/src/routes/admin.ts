@@ -154,10 +154,23 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
   const whereClause = and(...conditions);
 
   // Each query joins revenue → team → campus → project → leader (submitter).
-  const orderExpr =
+  // Sort order (top-right control): newest/oldest by the tab's relevant date
+  // (verifiedAt for the approved tab, submittedAt otherwise), or by amount.
+  const sortParam =
+    typeof req.query.sort === "string" ? req.query.sort : "newest";
+  const dateCol =
     status === "verified"
-      ? sql`${revenueEntriesTable.verifiedAt} desc nulls last`
-      : sql`${revenueEntriesTable.submittedAt} desc nulls last`;
+      ? revenueEntriesTable.verifiedAt
+      : revenueEntriesTable.submittedAt;
+  const amountCol = sql`coalesce(${revenueEntriesTable.verifiedAmount}, ${revenueEntriesTable.amount})`;
+  const orderExpr =
+    sortParam === "oldest"
+      ? sql`${dateCol} asc nulls last`
+      : sortParam === "amount_desc"
+        ? sql`${amountCol} desc nulls last`
+        : sortParam === "amount_asc"
+          ? sql`${amountCol} asc nulls last`
+          : sql`${dateCol} desc nulls last`;
 
   const rows = await db
     .select({
@@ -169,7 +182,10 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     .from(revenueEntriesTable)
     .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
     .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
-    .leftJoin(projectsTable, eq(projectsTable.id, revenueEntriesTable.projectId))
+    .leftJoin(
+      projectsTable,
+      eq(projectsTable.id, revenueEntriesTable.projectId),
+    )
     .leftJoin(usersTable, eq(usersTable.id, teamsTable.leaderId))
     .where(whereClause)
     .orderBy(orderExpr)
@@ -181,7 +197,10 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
     .from(revenueEntriesTable)
     .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
     .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
-    .leftJoin(projectsTable, eq(projectsTable.id, revenueEntriesTable.projectId))
+    .leftJoin(
+      projectsTable,
+      eq(projectsTable.id, revenueEntriesTable.projectId),
+    )
     .leftJoin(usersTable, eq(usersTable.id, teamsTable.leaderId))
     .where(whereClause);
 
@@ -516,11 +535,9 @@ router.post(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("unique") || msg.includes("duplicate")) {
-        res
-          .status(409)
-          .json({
-            error: "A user with this email or Forms ID already exists.",
-          });
+        res.status(409).json({
+          error: "A user with this email or Forms ID already exists.",
+        });
         return;
       }
       throw err;
@@ -1432,11 +1449,9 @@ router.post(
       // and the insert. Surface as a 409 instead of a generic 500.
       const code = (err as { code?: string } | null)?.code;
       if (code === "23505") {
-        res
-          .status(409)
-          .json({
-            error: "A student with this Student User ID already exists",
-          });
+        res.status(409).json({
+          error: "A student with this Student User ID already exists",
+        });
         return;
       }
       throw err;

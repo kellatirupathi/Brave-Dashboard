@@ -5,6 +5,7 @@
  * BRAVE Program Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { GetAdminReviewQueueSort } from "./getAdminReviewQueueSort";
 import type { GetAdminReviewQueueStatus } from "./getAdminReviewQueueStatus";
 import type { GetAdminReviewQueueType } from "./getAdminReviewQueueType";
 
@@ -27,4 +28,8 @@ export type GetAdminReviewQueueParams = {
    * @maximum 100
    */
   pageSize?: number;
+  /**
+   * Sort order. Defaults to newest first.
+   */
+  sort?: GetAdminReviewQueueSort;
 };
