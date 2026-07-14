@@ -339,6 +339,9 @@ export const teamsTable = pgTable(
     nameFlaggedForRename: boolean("name_flagged_for_rename")
       .notNull()
       .default(false),
+    // Free-form admin note for the whole team (admin-only; shown on the admin
+    // team-detail page). Distinct from coordinatorComment.
+    adminNotes: text("admin_notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -482,6 +485,9 @@ export const projectsTable = pgTable(
     description: text("description").notNull(),
     status: projectStatusEnum("status").notNull().default("active"),
     createdBy: text("created_by").notNull(),
+    // Free-form admin note for this specific project (admin-only; shown on the
+    // admin team-detail page's project card).
+    adminNotes: text("admin_notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

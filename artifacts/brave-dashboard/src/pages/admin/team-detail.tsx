@@ -1,5 +1,5 @@
 import { useParams } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
 import {
@@ -22,6 +22,11 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  saveTeamAdminNotes,
+  saveProjectAdminNotes,
+} from "@/lib/admin-notes-api";
 import {
   Table,
   TableBody,
@@ -66,6 +71,69 @@ function docLink(url: string | null | undefined, label: string, key: string) {
       variant="inline"
       testId={`attachment-${key}`}
     />
+  );
+}
+
+// Editable admin note (team-level or per-project). Saves via the passed
+// onSave, toasts, and disables Save until the text actually changes.
+function AdminNotesEditor({
+  initial,
+  placeholder,
+  onSave,
+  testId,
+}: {
+  initial: string;
+  placeholder: string;
+  onSave: (value: string) => Promise<void>;
+  testId: string;
+}) {
+  const { toast } = useToast();
+  const [value, setValue] = useState(initial);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setValue(initial);
+  }, [initial]);
+
+  const dirty = value.trim() !== (initial ?? "").trim();
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await onSave(value.trim());
+      toast({ title: "Notes saved" });
+    } catch (err) {
+      toast({
+        title: "Could not save notes",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        data-testid={`${testId}-input`}
+      />
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={saving || !dirty}
+          data-testid={`${testId}-save`}
+        >
+          {saving && <Spinner className="w-4 h-4 mr-2" />}
+          Save notes
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -116,7 +184,19 @@ export default function AdminTeamDetail() {
   const isAdmin = user?.role === "admin";
   // Respect the super-admin-controlled per-page delete permission for the
   // Teams page on this detail view too (API enforces it as well).
-  const { canDelete } = useAdminPageAccess("/admin/teams");
+  const { canEdit, canDelete } = useAdminPageAccess("/admin/teams");
+  const canEditNotes = isAdmin && canEdit;
+
+  const invalidateTeam = () =>
+    queryClient.invalidateQueries({ queryKey: getGetTeamQueryKey(teamId) });
+  const saveTeamNotes = async (value: string) => {
+    await saveTeamAdminNotes(teamId, value);
+    invalidateTeam();
+  };
+  const saveProjectNotes = async (projectId: number, value: string) => {
+    await saveProjectAdminNotes(projectId, value);
+    invalidateTeam();
+  };
 
   const handleDelete = () => {
     deleteTeam.mutate(
@@ -334,6 +414,30 @@ export default function AdminTeamDetail() {
         </CardContent>
       </Card>
 
+      {canEditNotes || (team as any).adminNotes ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Admin notes (team)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {canEditNotes ? (
+              <AdminNotesEditor
+                initial={
+                  (team as unknown as { adminNotes?: string }).adminNotes ?? ""
+                }
+                placeholder="Overall notes about this team (admins only)…"
+                onSave={saveTeamNotes}
+                testId="team-admin-notes"
+              />
+            ) : (
+              <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                {(team as unknown as { adminNotes?: string }).adminNotes}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div>
         <h2 className="text-xl font-semibold tracking-tight mb-3">
           Projects ({projects.length})
@@ -357,6 +461,8 @@ export default function AdminTeamDetail() {
                 project={p}
                 orderBook={obByProject.get(p.id) ?? []}
                 revenue={revByProject.get(p.id) ?? []}
+                canEdit={canEditNotes}
+                onSaveNotes={(value) => saveProjectNotes(p.id, value)}
               />
             ))}
           </div>
@@ -395,10 +501,14 @@ function ProjectCard({
   project,
   orderBook,
   revenue,
+  canEdit,
+  onSaveNotes,
 }: {
   project: any;
   orderBook: any[];
   revenue: any[];
+  canEdit: boolean;
+  onSaveNotes: (value: string) => Promise<void>;
 }) {
   return (
     <Card data-testid={`project-${project.id}`}>
@@ -437,19 +547,38 @@ function ProjectCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <EntryTable
-          title={`Order Book (${orderBook.length})`}
-          entries={orderBook}
-          emptyText="No order book entries."
-          testIdPrefix={`ob-p${project.id}`}
-        />
-        <EntryTable
-          title={`Revenue (${revenue.length})`}
-          entries={revenue}
-          emptyText="No revenue entries."
-          testIdPrefix={`rev-p${project.id}`}
-        />
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <EntryTable
+            title={`Order Book (${orderBook.length})`}
+            entries={orderBook}
+            emptyText="No order book entries."
+            testIdPrefix={`ob-p${project.id}`}
+          />
+          <EntryTable
+            title={`Revenue (${revenue.length})`}
+            entries={revenue}
+            emptyText="No revenue entries."
+            testIdPrefix={`rev-p${project.id}`}
+          />
+        </div>
+        {canEdit || project.adminNotes ? (
+          <div className="space-y-1.5 rounded-md border bg-muted/20 p-3">
+            <h4 className="text-sm font-medium">Admin notes</h4>
+            {canEdit ? (
+              <AdminNotesEditor
+                initial={project.adminNotes ?? ""}
+                placeholder="Notes about this project (admins only)…"
+                onSave={onSaveNotes}
+                testId={`project-notes-${project.id}`}
+              />
+            ) : (
+              <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                {project.adminNotes}
+              </p>
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

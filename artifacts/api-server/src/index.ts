@@ -226,10 +226,19 @@ async function ensureTeamColumns(): Promise<void> {
   try {
     await db.execute(sql`
       ALTER TABLE teams
-        ADD COLUMN IF NOT EXISTS name_flagged_for_rename boolean NOT NULL DEFAULT false
+        ADD COLUMN IF NOT EXISTS name_flagged_for_rename boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS admin_notes text
     `);
   } catch (err) {
-    logger.error({ err }, "Failed to ensure teams name_flagged_for_rename");
+    logger.error({ err }, "Failed to ensure teams columns");
+  }
+  try {
+    await db.execute(sql`
+      ALTER TABLE projects
+        ADD COLUMN IF NOT EXISTS admin_notes text
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure projects admin_notes");
   }
 }
 

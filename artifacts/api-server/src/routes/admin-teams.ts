@@ -1332,6 +1332,84 @@ router.post(
   },
 );
 
+// Admin free-form notes: an overall note for a team, and a note per project.
+// Admin-only, gated by the /admin/teams edit permission. Stored on
+// teams.admin_notes / projects.admin_notes and surfaced by GET /teams/:id.
+router.put(
+  "/admin/teams/:id/notes",
+  requireAdminPage("/admin/teams", "edit"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid team id" });
+      return;
+    }
+    const raw = (req.body ?? {}).adminNotes;
+    const adminNotes =
+      typeof raw === "string" && raw.trim() ? raw.trim() : null;
+    const [team] = await db
+      .update(teamsTable)
+      .set({ adminNotes })
+      .where(eq(teamsTable.id, id))
+      .returning({ id: teamsTable.id, adminNotes: teamsTable.adminNotes });
+    if (!team) {
+      res.status(404).json({ error: "Team not found" });
+      return;
+    }
+    await logAudit(
+      req.user.id,
+      "update_team_admin_notes",
+      "team",
+      id,
+      adminNotes ? "set" : "cleared",
+    );
+    res.json({ id: team.id, adminNotes: team.adminNotes });
+  },
+);
+
+router.put(
+  "/admin/projects/:id/notes",
+  requireAdminPage("/admin/teams", "edit"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid project id" });
+      return;
+    }
+    const raw = (req.body ?? {}).adminNotes;
+    const adminNotes =
+      typeof raw === "string" && raw.trim() ? raw.trim() : null;
+    const [project] = await db
+      .update(projectsTable)
+      .set({ adminNotes })
+      .where(eq(projectsTable.id, id))
+      .returning({
+        id: projectsTable.id,
+        adminNotes: projectsTable.adminNotes,
+      });
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    await logAudit(
+      req.user.id,
+      "update_project_admin_notes",
+      "project",
+      id,
+      adminNotes ? "set" : "cleared",
+    );
+    res.json({ id: project.id, adminNotes: project.adminNotes });
+  },
+);
+
 router.get(
   "/admin/teams/export-all.csv",
   async (req: Request, res: Response): Promise<void> => {
