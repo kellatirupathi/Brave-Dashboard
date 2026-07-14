@@ -114,15 +114,21 @@ type Tab = "pending" | "approved" | "rejected";
 type SortOption = "newest" | "oldest" | "amount_desc" | "amount_asc";
 
 // Tap-to-insert default rejection reasons shown under the reject textarea.
+// Derived from the actual rejection reasons admins have written in production,
+// rewritten into a clear, consistent, actionable format.
 const REJECT_SUGGESTIONS = [
-  "The payment proof does not match the claimed amount.",
-  "BRD is missing or the link does not open.",
-  "Payment date or reference / UTR number is not visible in the proof.",
-  "Payer / payee details do not match the client.",
-  "This looks like a duplicate of an already-submitted entry.",
-  "The uploaded document is unclear — please re-upload a clearer copy.",
-  "Client name does not match the project.",
-  "Insufficient proof of payment received.",
+  "Your BRD is not in the required format. Please re-upload it as a PDF following the specified BRD format, and apply again.",
+  "Your BRD document is not loading or the link does not open. Please re-upload it in a proper PDF format and apply again.",
+  "This is a duplicate entry — the same revenue has already been submitted or approved earlier. Please do not submit the same payment twice.",
+  "Payment proof is missing or insufficient. Please attach clear payment screenshots (bank credit entry / UTR reference) and apply again.",
+  "Please add client conversation screenshots, working project links (live demo / GitHub), and full project details in the BRD, then apply again.",
+  "Please apply only for the amount actually received in your bank account. Once you receive the remaining amount, submit a new entry for it.",
+  "This payment was received outside the programme duration (15th April to 15th July). Only revenue earned within this period is considered.",
+  "The payment has not yet been received in your bank account. Please apply again after the amount is credited; meanwhile you may record it in the Order Book.",
+  "This entry appears to be inaccurate or unverifiable. Please re-apply with genuine supporting documents (working links, bank statement, client details). Note: fake entries may lead to debarment from the programme.",
+  "For recurring or reseller revenue, only your own share/commission can be claimed — not the full sale value of another product. Please re-apply with your actual earnings.",
+  "The payment reference (UTR number), date, or payer details are not clearly visible in the proof. Please re-upload a clearer copy showing these details.",
+  "This is a related-party transaction (payment from family/friends/own accounts) and cannot be considered as client revenue.",
 ];
 
 // Small chip row that inserts a suggested reason into the reject textarea.
