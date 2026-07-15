@@ -67,6 +67,44 @@ const router: IRouter = Router();
 // In-flight reseed guard: prevents two admins from clobbering each other.
 let reseedInFlight = false;
 
+// Builds the ORDER BY for the review queue + its CSV export from the `sort`
+// query param. Shared by both so on-screen order and exported order match.
+//   newest/oldest       — by the tab's relevant date
+//   amount_desc/asc     — by the entry amount
+//   entries_desc/asc    — GROUP a team's rows together, teams ordered by how
+//                         many entries they have in this tab (window COUNT)
+//   team_sum_desc/asc   — GROUP a team's rows together, teams ordered by the
+//                         total ₹ of all their entries in this tab (window SUM)
+// For the two grouped sorts, a team's own rows are ordered by amount high→low.
+// The window functions partition by team_id so the count/sum is computed across
+// the whole result set (correct even with pagination), not just one page.
+function buildQueueOrderExpr(
+  sortParam: string,
+  dateCol: unknown,
+  amountCol: unknown,
+) {
+  const teamCountWindow = sql`count(*) over (partition by ${teamsTable.id})`;
+  const teamSumWindow = sql`sum(${amountCol}) over (partition by ${teamsTable.id})`;
+  switch (sortParam) {
+    case "oldest":
+      return sql`${dateCol} asc nulls last`;
+    case "amount_desc":
+      return sql`${amountCol} desc nulls last`;
+    case "amount_asc":
+      return sql`${amountCol} asc nulls last`;
+    case "entries_desc":
+      return sql`${teamCountWindow} desc, ${teamsTable.name} asc nulls last, ${amountCol} desc nulls last`;
+    case "entries_asc":
+      return sql`${teamCountWindow} asc, ${teamsTable.name} asc nulls last, ${amountCol} desc nulls last`;
+    case "team_sum_desc":
+      return sql`${teamSumWindow} desc nulls last, ${teamsTable.name} asc nulls last, ${amountCol} desc nulls last`;
+    case "team_sum_asc":
+      return sql`${teamSumWindow} asc nulls last, ${teamsTable.name} asc nulls last, ${amountCol} desc nulls last`;
+    default:
+      return sql`${dateCol} desc nulls last`;
+  }
+}
+
 // Review Queue
 // Admins see everything (or filter by `?campusId=`). Coordinators are
 // hard-locked to their own campus — any campusId query string is ignored
@@ -163,18 +201,7 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
       ? revenueEntriesTable.verifiedAt
       : revenueEntriesTable.submittedAt;
   const amountCol = sql`coalesce(${revenueEntriesTable.verifiedAmount}, ${revenueEntriesTable.amount})`;
-  // "team" groups all of a team's entries together (ordered by team name),
-  // and within each team sorts by highest amount first.
-  const orderExpr =
-    sortParam === "oldest"
-      ? sql`${dateCol} asc nulls last`
-      : sortParam === "amount_desc"
-        ? sql`${amountCol} desc nulls last`
-        : sortParam === "amount_asc"
-          ? sql`${amountCol} asc nulls last`
-          : sortParam === "team"
-            ? sql`${teamsTable.name} asc nulls last, ${amountCol} desc nulls last`
-            : sql`${dateCol} desc nulls last`;
+  const orderExpr = buildQueueOrderExpr(sortParam, dateCol, amountCol);
 
   const rows = await db
     .select({
@@ -334,18 +361,7 @@ router.get(
         ? revenueEntriesTable.verifiedAt
         : revenueEntriesTable.submittedAt;
     const amountCol = sql`coalesce(${revenueEntriesTable.verifiedAmount}, ${revenueEntriesTable.amount})`;
-    // "team" groups a team's entries together (by team name), highest amount
-    // first within each team — matching the on-screen queue sort.
-    const orderExpr =
-      sortParam === "oldest"
-        ? sql`${dateCol} asc nulls last`
-        : sortParam === "amount_desc"
-          ? sql`${amountCol} desc nulls last`
-          : sortParam === "amount_asc"
-            ? sql`${amountCol} asc nulls last`
-            : sortParam === "team"
-              ? sql`${teamsTable.name} asc nulls last, ${amountCol} desc nulls last`
-              : sql`${dateCol} desc nulls last`;
+    const orderExpr = buildQueueOrderExpr(sortParam, dateCol, amountCol);
 
     const rows = noScope
       ? []
