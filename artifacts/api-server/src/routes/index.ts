@@ -43,6 +43,7 @@ import adminBrdDriveRouter from "./admin-brd-drive";
 import popupsRouter from "./popups";
 import projectsLockRouter from "./projects-lock";
 import rejectionReasonsRouter from "./rejection-reasons";
+import leaderboardConfigRouter from "./leaderboard-config";
 
 const router: IRouter = Router();
 
@@ -116,5 +117,7 @@ router.use(popupsRouter);
 router.use(projectsLockRouter);
 // Revenue rejection reasons catalog: admin Config CRUD + queue chips (additive)
 router.use(rejectionReasonsRouter);
+// Leaderboard display config: hide-rank-for-students + banner image (additive)
+router.use(leaderboardConfigRouter);
 
 export default router;

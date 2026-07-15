@@ -30,6 +30,7 @@ import {
   type ExemptTeam,
   type TeamSearchResult,
 } from "@/lib/team-submissions-api";
+import { SubmissionRequestsList } from "@/components/submission-requests-list";
 
 const EXEMPTIONS_KEY = ["admin-team-exemptions"];
 
@@ -99,7 +100,17 @@ export function TeamSubmissionsPage() {
           enable it.
         </p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
+        {/* Pending "Request to submit" from team leaders. */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Requests</h3>
+          <p className="text-xs text-muted-foreground">
+            Teams that asked to submit while locked. Enable one to let that team
+            add revenue / order book entries.
+          </p>
+          <SubmissionRequestsList />
+        </div>
+
         {/* Top row: search + Add team */}
         <TeamSearchRow
           onPick={(r) =>

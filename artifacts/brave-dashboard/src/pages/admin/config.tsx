@@ -57,6 +57,7 @@ import { PopupsAdminCard } from "@/components/popups-admin-card";
 import { ProjectsLockCard } from "@/components/projects-lock-card";
 import { RejectionReasonsCard } from "@/components/rejection-reasons-card";
 import { TeamSubmissionsPage } from "@/components/team-submissions-card";
+import { LeaderboardConfigCard } from "@/components/leaderboard-config-card";
 import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
@@ -596,6 +597,8 @@ export default function AdminConfig() {
               <PopupsAdminCard />
               {/* Projects submissions lock — pause student orders/BRD uploads. */}
               <ProjectsLockCard />
+              {/* Leaderboard: hide rank from students + banner image. */}
+              <LeaderboardConfigCard />
             </div>
           )}
 

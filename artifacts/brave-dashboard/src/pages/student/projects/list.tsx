@@ -123,7 +123,7 @@ export default function ProjectsList() {
   return (
     <div className="space-y-6">
       {/* Admin "projects submissions lock" notice — shown while locked. */}
-      <ProjectsLockBanner />
+      <ProjectsLockBanner canRequest={isLeader} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

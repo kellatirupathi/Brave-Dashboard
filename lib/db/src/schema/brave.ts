@@ -887,6 +887,15 @@ export const programmeConfigTable = pgTable("programme_config", {
   rejectedResubmitEnabled: boolean("rejected_resubmit_enabled")
     .notNull()
     .default(true),
+  // When true, students no longer see rank (the 1/2/3 medals + rank numbers)
+  // on the leaderboard — only revenue. Admins & coordinators always see rank.
+  // Default false = students see rank as before.
+  hideLeaderboardRankForStudents: boolean("hide_leaderboard_rank_for_students")
+    .notNull()
+    .default(false),
+  // Optional banner image shown at the top of the leaderboard page (e.g. the
+  // finalised leaderboard graphic). Null = no image.
+  leaderboardImageUrl: text("leaderboard_image_url"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -1429,3 +1438,32 @@ export const teamSubmissionExemptionsTable = pgTable(
 
 export type TeamSubmissionExemption =
   typeof teamSubmissionExemptionsTable.$inferSelect;
+
+// Student "Request to submit" — filed by a team leader from the locked
+// Projects page when the global submissions lock is on and their team isn't
+// exempted. Admins review these in the "Teams Submissions" Config page and the
+// Communications → Submission Requests page, and can enable that team (which
+// writes a team_submission_exemptions row). One PENDING request per team.
+export const submissionAccessRequestsTable = pgTable(
+  "submission_access_requests",
+  {
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    purpose: text("purpose"),
+    status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'declined'
+    decidedBy: text("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("submission_access_requests_team_idx").on(t.teamId),
+    index("submission_access_requests_status_idx").on(t.status),
+    index("submission_access_requests_created_idx").on(t.createdAt),
+  ],
+);
+
+export type SubmissionAccessRequest =
+  typeof submissionAccessRequestsTable.$inferSelect;

@@ -54,3 +54,47 @@ export function setTeamExemptions(input: {
     { method: "PUT", body: JSON.stringify(input) },
   );
 }
+
+// ── "Request to submit" (student leader files, admin reviews) ──────────────
+
+export type SubmissionRequest = {
+  id: number;
+  teamId: number;
+  teamName: string;
+  campusName: string;
+  leaderName: string;
+  purpose: string;
+  createdAt: string;
+  exempted: boolean;
+};
+
+// Student (team leader): file a request. Idempotent per pending team.
+export function createSubmissionRequest(
+  purpose: string,
+): Promise<{ ok: boolean; alreadyPending: boolean }> {
+  return customFetch<{ ok: boolean; alreadyPending: boolean }>(
+    "/api/submission-access-request",
+    { method: "POST", body: JSON.stringify({ purpose }) },
+  );
+}
+
+// Student: is there already a pending request for my team?
+export function getMySubmissionRequest(): Promise<{
+  pending: boolean;
+  createdAt: string | null;
+}> {
+  return customFetch<{ pending: boolean; createdAt: string | null }>(
+    "/api/submission-access-request/mine",
+    { method: "GET" },
+  );
+}
+
+// Admin: list pending submission requests.
+export function listSubmissionRequests(): Promise<{
+  items: SubmissionRequest[];
+}> {
+  return customFetch<{ items: SubmissionRequest[] }>(
+    "/api/admin/submission-access-requests",
+    { method: "GET" },
+  );
+}

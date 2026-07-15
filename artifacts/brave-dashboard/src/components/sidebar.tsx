@@ -37,6 +37,7 @@ import {
   ExternalLink,
   Rocket,
   Sparkles,
+  Inbox,
 } from "lucide-react";
 
 // Student documentation guide (opens in a new tab from the sidebar bottom).
@@ -415,6 +416,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             icon: Megaphone,
           },
           { name: "Popups", href: "/admin/popups", icon: MessageSquare },
+          {
+            name: "Submission Requests",
+            href: "/admin/submission-requests",
+            icon: Inbox,
+          },
           { name: "Feedback", href: "/admin/feedback", icon: MessageSquare },
           { name: "Audit Log", href: "/admin/audit-log", icon: ClipboardList },
         ],

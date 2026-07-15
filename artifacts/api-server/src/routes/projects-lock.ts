@@ -13,11 +13,15 @@ import {
   db,
   programmeConfigTable,
   teamSubmissionExemptionsTable,
+  submissionAccessRequestsTable,
   teamsTable,
+  teamMembersTable,
   campusesTable,
+  usersTable,
 } from "@workspace/db";
-import { desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
+import { requireTeamLeader } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -305,6 +309,21 @@ router.put(
         .insert(teamSubmissionExemptionsTable)
         .values(uniqueIds.map((teamId) => ({ teamId, enabledBy: req.user.id })))
         .onConflictDoNothing();
+      // Resolve any pending "request to submit" for these teams so they drop
+      // off the requests list once the admin has enabled them.
+      await db
+        .update(submissionAccessRequestsTable)
+        .set({
+          status: "approved",
+          decidedBy: req.user.id,
+          decidedAt: new Date(),
+        })
+        .where(
+          and(
+            inArray(submissionAccessRequestsTable.teamId, uniqueIds),
+            eq(submissionAccessRequestsTable.status, "pending"),
+          ),
+        );
     } else {
       await db
         .delete(teamSubmissionExemptionsTable)
@@ -321,6 +340,152 @@ router.put(
       ok: true,
       count: uniqueIds.length,
       enabled: parsed.data.enabled,
+    });
+  },
+);
+
+// ───────────────────────────────────────────────────────────────────────────
+// "Request to submit" — a locked team leader asks an admin to enable their
+// team's submissions. Reviewed on the Config "Teams Submissions" page and the
+// Communications → Submission Requests page.
+// ───────────────────────────────────────────────────────────────────────────
+
+// Resolve the current user's team id (via team_members). Null if not on a team.
+async function getMyTeamId(userId: string): Promise<number | null> {
+  const [row] = await db
+    .select({ teamId: teamMembersTable.teamId })
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, userId))
+    .limit(1);
+  return row?.teamId ?? null;
+}
+
+const CreateRequestBody = z.object({
+  purpose: z.string().trim().max(1000).optional(),
+});
+
+// Student (team leader) files a request. Idempotent: if a pending request
+// already exists for the team, it is returned as-is instead of duplicated.
+router.post(
+  "/submission-access-request",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const teamId = await getMyTeamId(req.user.id);
+    if (teamId == null) {
+      res.status(400).json({ error: "You are not on a team." });
+      return;
+    }
+    // Only the team leader (or an admin override) may request.
+    if (!(await requireTeamLeader(req, res, teamId))) return;
+    const parsed = CreateRequestBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(submissionAccessRequestsTable)
+      .where(
+        and(
+          eq(submissionAccessRequestsTable.teamId, teamId),
+          eq(submissionAccessRequestsTable.status, "pending"),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      res.json({ ok: true, alreadyPending: true, request: existing });
+      return;
+    }
+    const [request] = await db
+      .insert(submissionAccessRequestsTable)
+      .values({
+        teamId,
+        requestedBy: req.user.id,
+        purpose: parsed.data.purpose?.trim() || null,
+      })
+      .returning();
+    res.status(201).json({ ok: true, alreadyPending: false, request });
+  },
+);
+
+// Student: does my team have a pending request already? (drives the banner UI)
+router.get(
+  "/submission-access-request/mine",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const teamId = await getMyTeamId(req.user.id);
+    if (teamId == null) {
+      res.json({ pending: false });
+      return;
+    }
+    const [row] = await db
+      .select({ createdAt: submissionAccessRequestsTable.createdAt })
+      .from(submissionAccessRequestsTable)
+      .where(
+        and(
+          eq(submissionAccessRequestsTable.teamId, teamId),
+          eq(submissionAccessRequestsTable.status, "pending"),
+        ),
+      )
+      .limit(1);
+    res.json({ pending: !!row, createdAt: row?.createdAt ?? null });
+  },
+);
+
+// Admin: list pending submission requests with team + leader name + purpose.
+router.get(
+  "/admin/submission-access-requests",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
+    const leader = usersTable;
+    const rows = await db
+      .select({
+        id: submissionAccessRequestsTable.id,
+        teamId: submissionAccessRequestsTable.teamId,
+        purpose: submissionAccessRequestsTable.purpose,
+        createdAt: submissionAccessRequestsTable.createdAt,
+        teamName: teamsTable.name,
+        campusName: campusesTable.name,
+        leaderFirst: leader.firstName,
+        leaderLast: leader.lastName,
+      })
+      .from(submissionAccessRequestsTable)
+      .leftJoin(
+        teamsTable,
+        eq(teamsTable.id, submissionAccessRequestsTable.teamId),
+      )
+      .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+      .leftJoin(leader, eq(leader.id, teamsTable.leaderId))
+      .where(eq(submissionAccessRequestsTable.status, "pending"))
+      .orderBy(desc(submissionAccessRequestsTable.createdAt));
+    // Which of these teams are already exempted (so the UI can show state).
+    const ids = rows.map((r) => r.teamId);
+    const exemptSet = new Set<number>();
+    if (ids.length) {
+      const ex = await db
+        .select({ teamId: teamSubmissionExemptionsTable.teamId })
+        .from(teamSubmissionExemptionsTable)
+        .where(inArray(teamSubmissionExemptionsTable.teamId, ids));
+      for (const e of ex) exemptSet.add(e.teamId);
+    }
+    res.json({
+      items: rows.map((r) => ({
+        id: r.id,
+        teamId: r.teamId,
+        teamName: r.teamName ?? `Team #${r.teamId}`,
+        campusName: r.campusName ?? "",
+        leaderName:
+          `${r.leaderFirst ?? ""} ${r.leaderLast ?? ""}`.trim() || "—",
+        purpose: r.purpose ?? "",
+        createdAt: r.createdAt,
+        exempted: exemptSet.has(r.teamId),
+      })),
     });
   },
 );

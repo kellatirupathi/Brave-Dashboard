@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { getLeaderboardConfig } from "@/lib/leaderboard-config-api";
 
 export default function Leaderboard({
   headerExtra,
@@ -29,11 +31,60 @@ export default function Leaderboard({
   const [search, setSearch] = useState("");
   const canOpenTeam = user?.role === "admin" || user?.role === "coordinator";
 
+  // Leaderboard display config: optional banner image + hide-rank-for-students.
+  const { data: lbConfig } = useQuery({
+    queryKey: ["leaderboard-config"],
+    queryFn: getLeaderboardConfig,
+    staleTime: 60_000,
+  });
+  // Hide rank ONLY for students, and only when the admin toggle is on. Admins
+  // and coordinators always see rank.
+  const hideRank =
+    user?.role === "student" && (lbConfig?.hideRankForStudents ?? false);
+  const bannerImage = lbConfig?.imageUrl ?? null;
+
   const { data: leaderboard, isLoading } = useGetLeaderboard({
     view,
     campusId: view === "campus" ? (user?.campusId ?? undefined) : undefined,
     search: search || undefined,
   });
+
+  // When an admin hides rank from students, the entire ranking (search, tabs
+  // and the list) is hidden — students see ONLY the admin-set image on the
+  // page. Admins & coordinators are never affected.
+  if (hideRank) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Leaderboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Race to ₹2,00,000 Verified Revenue
+          </p>
+        </div>
+        {bannerImage ? (
+          <img
+            src={bannerImage}
+            alt="Leaderboard"
+            className="w-full rounded-xl border object-contain"
+            data-testid="leaderboard-banner-image"
+          />
+        ) : (
+          <div
+            className="text-center py-20 bg-card border rounded-xl border-dashed"
+            data-testid="leaderboard-hidden-placeholder"
+          >
+            <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+            <h3 className="text-lg font-semibold">
+              The leaderboard is being finalised
+            </h3>
+            <p className="text-muted-foreground mt-2">
+              Rankings are hidden for now — check back soon.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

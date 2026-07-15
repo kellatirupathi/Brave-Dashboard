@@ -646,7 +646,7 @@ export default function ProjectDetail() {
       </div>
 
       {/* Admin "projects submissions lock" notice — shown while locked. */}
-      <ProjectsLockBanner />
+      <ProjectsLockBanner canRequest={isLeader} />
 
       {teamLoadFailed ? (
         <div

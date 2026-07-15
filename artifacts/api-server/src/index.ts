@@ -314,7 +314,9 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
       ALTER TABLE programme_config
         ADD COLUMN IF NOT EXISTS project_submissions_locked boolean NOT NULL DEFAULT false,
         ADD COLUMN IF NOT EXISTS project_submissions_lock_message text,
-        ADD COLUMN IF NOT EXISTS rejected_resubmit_enabled boolean NOT NULL DEFAULT true
+        ADD COLUMN IF NOT EXISTS rejected_resubmit_enabled boolean NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS hide_leaderboard_rank_for_students boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS leaderboard_image_url text
     `);
   } catch (err) {
     logger.error(
@@ -358,6 +360,34 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
     `);
   } catch (err) {
     logger.error({ err }, "Failed to ensure team_submission_exemptions table");
+  }
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS submission_access_requests (
+        id serial PRIMARY KEY,
+        team_id integer NOT NULL,
+        requested_by text NOT NULL,
+        purpose text,
+        status text NOT NULL DEFAULT 'pending',
+        decided_by text,
+        decided_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS submission_access_requests_team_idx
+        ON submission_access_requests (team_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS submission_access_requests_status_idx
+        ON submission_access_requests (status)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS submission_access_requests_created_idx
+        ON submission_access_requests (created_at)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure submission_access_requests table");
   }
 }
 
