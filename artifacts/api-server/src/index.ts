@@ -313,7 +313,8 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
     await db.execute(sql`
       ALTER TABLE programme_config
         ADD COLUMN IF NOT EXISTS project_submissions_locked boolean NOT NULL DEFAULT false,
-        ADD COLUMN IF NOT EXISTS project_submissions_lock_message text
+        ADD COLUMN IF NOT EXISTS project_submissions_lock_message text,
+        ADD COLUMN IF NOT EXISTS rejected_resubmit_enabled boolean NOT NULL DEFAULT true
     `);
   } catch (err) {
     logger.error(
@@ -337,6 +338,26 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
     `);
   } catch (err) {
     logger.error({ err }, "Failed to ensure rejection_reasons table");
+  }
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS team_submission_exemptions (
+        id serial PRIMARY KEY,
+        team_id integer NOT NULL,
+        enabled_by text,
+        enabled_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS team_submission_exemptions_team_unique
+        ON team_submission_exemptions (team_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS team_submission_exemptions_enabled_at_idx
+        ON team_submission_exemptions (enabled_at)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure team_submission_exemptions table");
   }
 }
 

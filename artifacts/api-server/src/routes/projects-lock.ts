@@ -9,8 +9,14 @@
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { db, programmeConfigTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import {
+  db,
+  programmeConfigTable,
+  teamSubmissionExemptionsTable,
+  teamsTable,
+  campusesTable,
+} from "@workspace/db";
+import { desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
 import { logAudit } from "../lib/audit";
 
@@ -22,7 +28,11 @@ export const DEFAULT_PROJECTS_LOCK_MESSAGE =
 const UpdateBody = z.object({
   locked: z.boolean().optional(),
   message: z.string().max(1000).nullable().optional(),
+  rejectedResubmitEnabled: z.boolean().optional(),
 });
+
+export const REJECTED_RESUBMIT_DISABLED_ERROR =
+  "Editing and resubmitting rejected entries is currently disabled. Please check back later.";
 
 async function getConfigRow() {
   let [row] = await db.select().from(programmeConfigTable).limit(1);
@@ -38,16 +48,24 @@ function serialize(row: typeof programmeConfigTable.$inferSelect) {
     message:
       (row.projectSubmissionsLockMessage ?? "").trim() ||
       DEFAULT_PROJECTS_LOCK_MESSAGE,
+    // When false, the student "Edit & fix" + "Resubmit for verification"
+    // buttons on rejected revenue entries are hidden and the API blocks
+    // resubmitting a rejected entry.
+    rejectedResubmitEnabled: row.rejectedResubmitEnabled,
   };
 }
 
 /**
  * Returns the lock message when project submissions are locked for this
- * request's user, or null when the action may proceed. Admins bypass the lock.
- * Used by financials.ts to enforce the lock server-side.
+ * request's user + team, or null when the action may proceed. Admins bypass
+ * the lock. When the global lock is ON, a team is still allowed if it has a
+ * per-team exemption row (team_submission_exemptions). Used by financials.ts
+ * to enforce the lock server-side. Pass the entry's teamId so the exemption
+ * can be checked.
  */
 export async function getProjectSubmissionsLockError(
   req: Request,
+  teamId?: number,
 ): Promise<string | null> {
   if (req.user?.role === "admin") return null;
   const [row] = await db
@@ -58,7 +76,34 @@ export async function getProjectSubmissionsLockError(
     .from(programmeConfigTable)
     .limit(1);
   if (!row?.locked) return null;
+  // Global lock is ON — allow this team only if it is specifically exempted.
+  if (teamId != null) {
+    const [exempt] = await db
+      .select({ id: teamSubmissionExemptionsTable.id })
+      .from(teamSubmissionExemptionsTable)
+      .where(eq(teamSubmissionExemptionsTable.teamId, teamId))
+      .limit(1);
+    if (exempt) return null;
+  }
   return (row.message ?? "").trim() || DEFAULT_PROJECTS_LOCK_MESSAGE;
+}
+
+/**
+ * Returns an error message when a student may NOT resubmit a rejected revenue
+ * entry (the admin toggle is off), or null when resubmission is allowed. Admins
+ * bypass the toggle. Used by financials.ts to enforce it on the submit route.
+ */
+export async function getRejectedResubmitError(
+  req: Request,
+): Promise<string | null> {
+  if (req.user?.role === "admin") return null;
+  const [row] = await db
+    .select({ enabled: programmeConfigTable.rejectedResubmitEnabled })
+    .from(programmeConfigTable)
+    .limit(1);
+  // Default-allow when the row/column is missing.
+  if (row?.enabled === false) return REJECTED_RESUBMIT_DISABLED_ERROR;
+  return null;
 }
 
 // Readable by any authenticated user — the student Projects pages use this to
@@ -97,6 +142,9 @@ router.put(
       const trimmed = (parsed.data.message ?? "").trim();
       patch.projectSubmissionsLockMessage = trimmed || null;
     }
+    if (parsed.data.rejectedResubmitEnabled !== undefined) {
+      patch.rejectedResubmitEnabled = parsed.data.rejectedResubmitEnabled;
+    }
     const [updated] = await db
       .update(programmeConfigTable)
       .set(patch)
@@ -112,6 +160,168 @@ router.put(
         : "unlocked project submissions",
     );
     res.json(serialize(updated));
+  },
+);
+
+// ───────────────────────────────────────────────────────────────────────────
+// Per-team submission exemptions ("Teams Submissions" Config page + the
+// per-team toggle on the admin team-detail header).
+// ───────────────────────────────────────────────────────────────────────────
+
+function requireAdmin(req: Request, res: Response): boolean {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return false;
+  }
+  return true;
+}
+
+// List currently-exempted teams, newest-enabled first (for the Config page).
+router.get(
+  "/admin/team-submission-exemptions",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
+    const rows = await db
+      .select({
+        teamId: teamSubmissionExemptionsTable.teamId,
+        enabledAt: teamSubmissionExemptionsTable.enabledAt,
+        teamName: teamsTable.name,
+        campusName: campusesTable.name,
+      })
+      .from(teamSubmissionExemptionsTable)
+      .leftJoin(
+        teamsTable,
+        eq(teamsTable.id, teamSubmissionExemptionsTable.teamId),
+      )
+      .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+      .orderBy(desc(teamSubmissionExemptionsTable.enabledAt));
+    res.json({
+      items: rows.map((r) => ({
+        teamId: r.teamId,
+        teamName: r.teamName ?? `Team #${r.teamId}`,
+        campusName: r.campusName ?? "",
+        enabledAt: r.enabledAt,
+      })),
+    });
+  },
+);
+
+// Search teams by name/campus (for the "add team" modal search box). Marks
+// which results are already exempted so the UI can show their state.
+router.get(
+  "/admin/team-submission-exemptions/search",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (q.length < 1) {
+      res.json({ items: [] });
+      return;
+    }
+    const like = `%${q}%`;
+    const rows = await db
+      .select({
+        teamId: teamsTable.id,
+        teamName: teamsTable.name,
+        campusName: campusesTable.name,
+      })
+      .from(teamsTable)
+      .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+      .where(or(ilike(teamsTable.name, like), ilike(campusesTable.name, like)))
+      .orderBy(teamsTable.name)
+      .limit(20);
+    const ids = rows.map((r) => r.teamId);
+    const exemptSet = new Set<number>();
+    if (ids.length) {
+      const ex = await db
+        .select({ teamId: teamSubmissionExemptionsTable.teamId })
+        .from(teamSubmissionExemptionsTable)
+        .where(inArray(teamSubmissionExemptionsTable.teamId, ids));
+      for (const e of ex) exemptSet.add(e.teamId);
+    }
+    res.json({
+      items: rows.map((r) => ({
+        teamId: r.teamId,
+        teamName: r.teamName,
+        campusName: r.campusName ?? "",
+        exempted: exemptSet.has(r.teamId),
+      })),
+    });
+  },
+);
+
+// Status for a single team (used by the team-detail header toggle).
+router.get(
+  "/admin/team-submission-exemptions/:teamId",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
+    const teamId = Number(req.params.teamId);
+    if (!Number.isInteger(teamId) || teamId <= 0) {
+      res.status(400).json({ error: "Invalid team id" });
+      return;
+    }
+    const [row] = await db
+      .select({ enabledAt: teamSubmissionExemptionsTable.enabledAt })
+      .from(teamSubmissionExemptionsTable)
+      .where(eq(teamSubmissionExemptionsTable.teamId, teamId))
+      .limit(1);
+    res.json({ teamId, exempted: !!row, enabledAt: row?.enabledAt ?? null });
+  },
+);
+
+const ToggleBody = z.object({
+  // One team (team-detail toggle) …
+  teamId: z.number().int().positive().optional(),
+  // … or many (Config page bulk select).
+  teamIds: z.array(z.number().int().positive()).max(1000).optional(),
+  enabled: z.boolean(),
+});
+
+// Enable/disable submission exemptions for one or more teams. enabled=true
+// upserts a row (idempotent); enabled=false deletes the row(s).
+router.put(
+  "/admin/team-submission-exemptions",
+  requireAdminPage("/admin/config", "edit"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = ToggleBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const ids = [
+      ...(parsed.data.teamId != null ? [parsed.data.teamId] : []),
+      ...(parsed.data.teamIds ?? []),
+    ];
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) {
+      res.status(400).json({ error: "No team id provided" });
+      return;
+    }
+    if (parsed.data.enabled) {
+      await db
+        .insert(teamSubmissionExemptionsTable)
+        .values(uniqueIds.map((teamId) => ({ teamId, enabledBy: req.user.id })))
+        .onConflictDoNothing();
+    } else {
+      await db
+        .delete(teamSubmissionExemptionsTable)
+        .where(inArray(teamSubmissionExemptionsTable.teamId, uniqueIds));
+    }
+    await logAudit(
+      req.user.id,
+      "update_team_submission_exemptions",
+      "team",
+      uniqueIds[0],
+      `${parsed.data.enabled ? "enabled" : "disabled"} submissions for ${uniqueIds.length} team(s)`,
+    );
+    res.json({
+      ok: true,
+      count: uniqueIds.length,
+      enabled: parsed.data.enabled,
+    });
   },
 );
 

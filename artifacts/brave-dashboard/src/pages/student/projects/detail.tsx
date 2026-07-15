@@ -123,7 +123,12 @@ export default function ProjectDetail() {
     !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
   // Admin "projects submissions lock" — while locked, adding orders/revenue
   // and submitting BRDs is disabled here (the API enforces it too).
-  const { locked: submissionsLocked } = useProjectsLock();
+  // `resubmitEnabled` gates the "Edit & fix" + "Resubmit for verification"
+  // buttons on REJECTED entries (also enforced server-side).
+  const {
+    locked: submissionsLocked,
+    rejectedResubmitEnabled: resubmitEnabled,
+  } = useProjectsLock();
 
   const createOrderBook = useCreateOrderBookEntry();
   const updateOrderBook = useUpdateOrderBookEntry();
@@ -979,36 +984,39 @@ export default function ProjectDetail() {
                               )}
                           </div>
                         )}
-                        {isLeader && entry.status === "rejected" && (
-                          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => startEditRevenue(entry)}
-                              data-testid={`button-edit-revenue-${entry.id}`}
-                            >
-                              <Pencil className="w-4 h-4 mr-2" /> Edit &amp; fix
-                            </Button>
-                            <Button
-                              size="sm"
-                              disabled={
-                                submitRevenue.isPending ||
-                                !entry.brdUrl ||
-                                submissionsLocked
-                              }
-                              onClick={() => handleSubmitRevenue(entry.id)}
-                              title={
-                                submissionsLocked
-                                  ? "Submissions are currently paused"
-                                  : undefined
-                              }
-                              data-testid={`button-resubmit-revenue-${entry.id}`}
-                            >
-                              <Send className="w-4 h-4 mr-2" /> Resubmit for
-                              verification
-                            </Button>
-                          </div>
-                        )}
+                        {isLeader &&
+                          entry.status === "rejected" &&
+                          resubmitEnabled && (
+                            <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => startEditRevenue(entry)}
+                                data-testid={`button-edit-revenue-${entry.id}`}
+                              >
+                                <Pencil className="w-4 h-4 mr-2" /> Edit &amp;
+                                fix
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={
+                                  submitRevenue.isPending ||
+                                  !entry.brdUrl ||
+                                  submissionsLocked
+                                }
+                                onClick={() => handleSubmitRevenue(entry.id)}
+                                title={
+                                  submissionsLocked
+                                    ? "Submissions are currently paused"
+                                    : undefined
+                                }
+                                data-testid={`button-resubmit-revenue-${entry.id}`}
+                              >
+                                <Send className="w-4 h-4 mr-2" /> Resubmit for
+                                verification
+                              </Button>
+                            </div>
+                          )}
                         {isLeader && entry.status === "submitted" && (
                           <Button
                             size="sm"

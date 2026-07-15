@@ -19,9 +19,15 @@ export function ProjectsLockCard() {
   const [loaded, setLoaded] = useState(false);
   const [locked, setLocked] = useState(false);
   const [message, setMessage] = useState("");
-  const [initial, setInitial] = useState<{ locked: boolean; message: string }>({
+  const [resubmitEnabled, setResubmitEnabled] = useState(true);
+  const [initial, setInitial] = useState<{
+    locked: boolean;
+    message: string;
+    resubmitEnabled: boolean;
+  }>({
     locked: false,
     message: "",
+    resubmitEnabled: true,
   });
   const [saving, setSaving] = useState(false);
 
@@ -32,7 +38,12 @@ export function ProjectsLockCard() {
         if (cancelled) return;
         setLocked(data.locked);
         setMessage(data.message);
-        setInitial({ locked: data.locked, message: data.message });
+        setResubmitEnabled(data.rejectedResubmitEnabled);
+        setInitial({
+          locked: data.locked,
+          message: data.message,
+          resubmitEnabled: data.rejectedResubmitEnabled,
+        });
         setLoaded(true);
       })
       .catch(() => {
@@ -44,7 +55,9 @@ export function ProjectsLockCard() {
   }, []);
 
   const dirty =
-    locked !== initial.locked || message.trim() !== initial.message.trim();
+    locked !== initial.locked ||
+    message.trim() !== initial.message.trim() ||
+    resubmitEnabled !== initial.resubmitEnabled;
 
   const handleSave = async () => {
     setSaving(true);
@@ -52,10 +65,16 @@ export function ProjectsLockCard() {
       const data = await saveProjectsLock({
         locked,
         message: message.trim() || null,
+        rejectedResubmitEnabled: resubmitEnabled,
       });
       setLocked(data.locked);
       setMessage(data.message);
-      setInitial({ locked: data.locked, message: data.message });
+      setResubmitEnabled(data.rejectedResubmitEnabled);
+      setInitial({
+        locked: data.locked,
+        message: data.message,
+        resubmitEnabled: data.rejectedResubmitEnabled,
+      });
       queryClient.invalidateQueries({ queryKey: ["projects-lock"] });
       toast({
         title: data.locked
@@ -115,6 +134,23 @@ export function ProjectsLockCard() {
             disabled={!loaded || saving}
             placeholder="Submissions are temporarily paused…"
             data-testid="input-projects-lock-message"
+          />
+        </div>
+        <div className="flex items-center justify-between border p-4 rounded-lg">
+          <div>
+            <p className="font-medium">
+              Allow editing &amp; resubmitting rejected entries
+            </p>
+            <p className="text-sm text-muted-foreground">
+              When off, the student "Edit &amp; fix" and "Resubmit for
+              verification" buttons on rejected revenue entries are hidden.
+            </p>
+          </div>
+          <Switch
+            checked={resubmitEnabled}
+            onCheckedChange={setResubmitEnabled}
+            disabled={!loaded || saving}
+            data-testid="switch-rejected-resubmit"
           />
         </div>
         <div className="flex justify-end">

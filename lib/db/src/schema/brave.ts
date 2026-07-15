@@ -880,6 +880,13 @@ export const programmeConfigTable = pgTable("programme_config", {
   // Message shown at the top of the student Projects pages while locked.
   // Null → the UI falls back to a default message.
   projectSubmissionsLockMessage: text("project_submissions_lock_message"),
+  // When true (default), students can edit + resubmit a REJECTED revenue entry
+  // ("Edit & fix" / "Resubmit for verification" on the project detail page).
+  // When false, both buttons are hidden and the API blocks resubmitting a
+  // rejected entry. Admins are never affected.
+  rejectedResubmitEnabled: boolean("rejected_resubmit_enabled")
+    .notNull()
+    .default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -1397,3 +1404,28 @@ export const rejectionReasonsTable = pgTable(
 );
 
 export type RejectionReason = typeof rejectionReasonsTable.$inferSelect;
+
+// Per-team exemption from the global "Projects Submissions Lock" (additive,
+// isolated). When the global lock is ON, EVERY team is blocked from adding
+// revenue / order-book entries and submitting BRDs — EXCEPT teams that have a
+// row here. One row per team = that team may still submit while locked.
+// Toggling a team "off" deletes its row. When the global lock is OFF this
+// table is irrelevant (everyone can submit).
+export const teamSubmissionExemptionsTable = pgTable(
+  "team_submission_exemptions",
+  {
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id").notNull(),
+    enabledBy: text("enabled_by"),
+    enabledAt: timestamp("enabled_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("team_submission_exemptions_team_unique").on(t.teamId),
+    index("team_submission_exemptions_enabled_at_idx").on(t.enabledAt),
+  ],
+);
+
+export type TeamSubmissionExemption =
+  typeof teamSubmissionExemptionsTable.$inferSelect;

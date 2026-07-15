@@ -13,7 +13,7 @@ import {
   getListRevenueEntriesQueryKey,
   type ErrorType,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR, formatDateTime } from "@/lib/format";
 import { useAdminPageAccess } from "@/lib/admin-access";
@@ -27,6 +27,11 @@ import {
   saveTeamAdminNotes,
   saveProjectAdminNotes,
 } from "@/lib/admin-notes-api";
+import {
+  getTeamExemption,
+  setTeamExemptions,
+} from "@/lib/team-submissions-api";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -166,6 +171,54 @@ function AdminNoteModal({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Header toggle: exempt THIS team from the global Projects Submissions Lock.
+// On = this team can add revenue/order-book entries even while the global lock
+// is on. Off = follows the global lock. Mirrors the "Teams Submissions" Config
+// page (same endpoints), so both stay in sync.
+function TeamSubmissionToggle({ teamId }: { teamId: number }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["team-exemption", teamId],
+    queryFn: () => getTeamExemption(teamId),
+    enabled: Number.isFinite(teamId),
+  });
+  const mutate = useMutation({
+    mutationFn: (enabled: boolean) => setTeamExemptions({ teamId, enabled }),
+    onSuccess: (_r, enabled) => {
+      toast({
+        title: enabled
+          ? "Submissions enabled for this team"
+          : "Submissions disabled for this team",
+      });
+      queryClient.invalidateQueries({ queryKey: ["team-exemption", teamId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-team-exemptions"] });
+    },
+    onError: (err: unknown) =>
+      toast({
+        title: "Could not update",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      }),
+  });
+
+  return (
+    <label
+      className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm select-none"
+      title="Allow this team to add revenue / order book entries even while the global submissions lock is on"
+      data-testid="team-submission-toggle"
+    >
+      <span className="text-muted-foreground">Submissions</span>
+      <Switch
+        checked={data?.exempted ?? false}
+        disabled={isLoading || mutate.isPending}
+        onCheckedChange={(c) => mutate.mutate(c)}
+        aria-label="Allow submissions for this team while locked"
+      />
+    </label>
   );
 }
 
@@ -332,6 +385,7 @@ export default function AdminTeamDetail() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && canEdit && <TeamSubmissionToggle teamId={teamId} />}
           {(canEditNotes || teamNote) && (
             <Button
               size="sm"

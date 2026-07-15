@@ -6,13 +6,23 @@ import { useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
 import { getProjectsLock } from "@/lib/projects-lock-api";
 
-export function useProjectsLock(): { locked: boolean; message: string } {
+export function useProjectsLock(): {
+  locked: boolean;
+  message: string;
+  // Whether students may edit + resubmit a rejected revenue entry. Defaults to
+  // true (allowed) until the config loads, so buttons aren't hidden on a blip.
+  rejectedResubmitEnabled: boolean;
+} {
   const { data } = useQuery({
     queryKey: ["projects-lock"],
     queryFn: getProjectsLock,
     staleTime: 60_000,
   });
-  return { locked: data?.locked ?? false, message: data?.message ?? "" };
+  return {
+    locked: data?.locked ?? false,
+    message: data?.message ?? "",
+    rejectedResubmitEnabled: data?.rejectedResubmitEnabled ?? true,
+  };
 }
 
 export function ProjectsLockBanner() {

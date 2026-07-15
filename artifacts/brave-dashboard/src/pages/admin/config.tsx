@@ -23,6 +23,7 @@ import {
   Users,
   Plug,
   Wrench,
+  Unlock,
 } from "lucide-react";
 import {
   Select,
@@ -55,6 +56,7 @@ import { BrdDriveCard } from "@/components/brd-drive-card";
 import { PopupsAdminCard } from "@/components/popups-admin-card";
 import { ProjectsLockCard } from "@/components/projects-lock-card";
 import { RejectionReasonsCard } from "@/components/rejection-reasons-card";
+import { TeamSubmissionsPage } from "@/components/team-submissions-card";
 import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
@@ -379,6 +381,7 @@ export default function AdminConfig() {
     { id: "grit", label: "GRIT Miles", icon: Trophy },
     { id: "reminders", label: "Notifications & Reminders", icon: Bell },
     { id: "student", label: "Student Content", icon: GraduationCap },
+    { id: "team-submissions", label: "Teams Submissions", icon: Unlock },
     { id: "queue", label: "Review Queue", icon: XCircle },
     { id: "teams", label: "Teams & Coordinators", icon: Users },
     { id: "integrations", label: "Integrations", icon: Plug },
@@ -595,6 +598,9 @@ export default function AdminConfig() {
               <ProjectsLockCard />
             </div>
           )}
+
+          {/* ── Teams Submissions ── */}
+          {activeSection === "team-submissions" && <TeamSubmissionsPage />}
 
           {/* ── Review Queue ── */}
           {activeSection === "queue" && (

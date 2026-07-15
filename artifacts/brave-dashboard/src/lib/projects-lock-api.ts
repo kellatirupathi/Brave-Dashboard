@@ -7,6 +7,7 @@ import { customFetch } from "@workspace/api-client-react";
 export type ProjectsLock = {
   locked: boolean;
   message: string;
+  rejectedResubmitEnabled: boolean;
 };
 
 export function getProjectsLock(): Promise<ProjectsLock> {
@@ -16,6 +17,7 @@ export function getProjectsLock(): Promise<ProjectsLock> {
 export function saveProjectsLock(input: {
   locked?: boolean;
   message?: string | null;
+  rejectedResubmitEnabled?: boolean;
 }): Promise<ProjectsLock> {
   return customFetch<ProjectsLock>("/api/admin/projects-lock", {
     method: "PUT",

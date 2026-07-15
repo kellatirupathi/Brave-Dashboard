@@ -43,7 +43,10 @@ import {
   scheduleBrdAnalysis,
   runBrdAnalysisNow,
 } from "../lib/ai/brd-scheduler";
-import { getProjectSubmissionsLockError } from "./projects-lock";
+import {
+  getProjectSubmissionsLockError,
+  getRejectedResubmitError,
+} from "./projects-lock";
 
 const router: IRouter = Router();
 
@@ -203,8 +206,11 @@ router.post("/order-book-entries", async (req, res): Promise<void> => {
     return;
   }
   // Admin Config "projects submissions lock" — blocks students (not admins)
-  // from adding order book entries while enabled.
-  const obLockMessage = await getProjectSubmissionsLockError(req);
+  // from adding order book entries while enabled (unless this team is exempted).
+  const obLockMessage = await getProjectSubmissionsLockError(
+    req,
+    project.teamId,
+  );
   if (obLockMessage) {
     res.status(403).json({ error: obLockMessage });
     return;
@@ -407,8 +413,11 @@ router.post("/revenue-entries", async (req, res): Promise<void> => {
     return;
   }
   // Admin Config "projects submissions lock" — blocks students (not admins)
-  // from adding revenue entries (BRD uploads) while enabled.
-  const revLockMessage = await getProjectSubmissionsLockError(req);
+  // from adding revenue entries (BRD uploads) while enabled (unless exempted).
+  const revLockMessage = await getProjectSubmissionsLockError(
+    req,
+    project.teamId,
+  );
   if (revLockMessage) {
     res.status(403).json({ error: revLockMessage });
     return;
@@ -482,6 +491,15 @@ router.patch("/revenue-entries/:id", async (req, res): Promise<void> => {
   // Only the team leader (or an admin override) may edit revenue entries.
   if (!(await requireTeamLeader(req, res, existingRev.teamId))) {
     return;
+  }
+  // Admin Config "resubmit rejected entries" toggle — when off, students (not
+  // admins) can't edit-and-fix a currently REJECTED entry either.
+  if (existingRev.status === "rejected") {
+    const resubmitErr = await getRejectedResubmitError(req);
+    if (resubmitErr) {
+      res.status(403).json({ error: resubmitErr });
+      return;
+    }
   }
   // A team leader may edit their own revenue entries in any status (draft,
   // submitted, verified, rejected) — clientName, amount, paymentDate and the
@@ -613,11 +631,23 @@ router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
     return;
   }
   // Admin Config "projects submissions lock" — blocks students (not admins)
-  // from submitting revenue for verification while enabled.
-  const submitLockMessage = await getProjectSubmissionsLockError(req);
+  // from submitting revenue for verification while enabled (unless exempted).
+  const submitLockMessage = await getProjectSubmissionsLockError(
+    req,
+    existing.teamId,
+  );
   if (submitLockMessage) {
     res.status(403).json({ error: submitLockMessage });
     return;
+  }
+  // Admin Config "resubmit rejected entries" toggle — when off, students (not
+  // admins) can't resubmit a currently REJECTED entry.
+  if (existing.status === "rejected") {
+    const resubmitErr = await getRejectedResubmitError(req);
+    if (resubmitErr) {
+      res.status(403).json({ error: resubmitErr });
+      return;
+    }
   }
   if (!existing.brdUrl || existing.brdUrl.trim() === "") {
     res.status(400).json({
