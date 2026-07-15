@@ -369,12 +369,17 @@ router.get(
       "Status",
       "Submitted",
       "Verified",
+      "BRD Link",
       "BRD Relevancy",
       "BRD Uniqueness",
       "Admin Notes",
     ].join(",");
     const lines = rows.map((r) => {
       const e = r.e;
+      // Prefer the Google Drive mirror link when present, else the raw BRD
+      // object path stored on the entry.
+      const brdLink =
+        (e.brdDriveUrl ?? "").trim() || (e.brdUrl ?? "").trim() || "";
       return [
         r.teamName ?? "",
         r.campusName ?? "",
@@ -385,6 +390,7 @@ router.get(
         e.status,
         e.submittedAt ? new Date(e.submittedAt).toISOString() : "",
         e.verifiedAt ? new Date(e.verifiedAt).toISOString() : "",
+        brdLink,
         e.brdScore ?? "",
         e.uniquenessScore ?? "",
         e.adminNotes ?? "",

@@ -66,7 +66,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listRejectionReasons } from "@/lib/rejection-reasons-api";
 import { downloadReviewQueueCsv } from "@/lib/review-queue-export";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 
 type QueueItem = {
@@ -168,13 +168,57 @@ const TAB_STATUS: Record<Tab, "submitted" | "verified" | "rejected"> = {
   rejected: "rejected",
 };
 
+// Persist the tab / sort / search selection so leaving the page (e.g. opening
+// a BRD) or reloading restores the same view instead of resetting to defaults.
+// sessionStorage keeps it for the browser session without touching the URL.
+const QUEUE_TAB_KEY = "admin-queue-tab";
+const QUEUE_SORT_KEY = "admin-queue-sort";
+const QUEUE_SEARCH_KEY = "admin-queue-search";
+
+function readStored<T extends string>(
+  key: string,
+  allowed: T[],
+  fallback: T,
+): T {
+  if (typeof window === "undefined") return fallback;
+  const v = window.sessionStorage.getItem(key);
+  return v && (allowed as string[]).includes(v) ? (v as T) : fallback;
+}
+
 export default function AdminQueue() {
   const { toast } = useToast();
-  const [tab, setTab] = useState<Tab>("pending");
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortOption>("newest");
+  const [tab, setTab] = useState<Tab>(() =>
+    readStored<Tab>(
+      QUEUE_TAB_KEY,
+      ["pending", "approved", "rejected"],
+      "pending",
+    ),
+  );
+  const [searchInput, setSearchInput] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : (window.sessionStorage.getItem(QUEUE_SEARCH_KEY) ?? ""),
+  );
+  const [search, setSearch] = useState(searchInput);
+  const [sort, setSort] = useState<SortOption>(() =>
+    readStored<SortOption>(
+      QUEUE_SORT_KEY,
+      ["newest", "oldest", "amount_desc", "amount_asc"],
+      "newest",
+    ),
+  );
   const [exporting, setExporting] = useState(false);
+
+  // Persist selections whenever they change.
+  useEffect(() => {
+    window.sessionStorage.setItem(QUEUE_TAB_KEY, tab);
+  }, [tab]);
+  useEffect(() => {
+    window.sessionStorage.setItem(QUEUE_SORT_KEY, sort);
+  }, [sort]);
+  useEffect(() => {
+    window.sessionStorage.setItem(QUEUE_SEARCH_KEY, search);
+  }, [search]);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 250);
@@ -201,8 +245,14 @@ export default function AdminQueue() {
     }
   };
 
-  // Reset search when tab changes
+  // Reset search when the user switches tabs — but NOT on the initial mount,
+  // so a search restored from sessionStorage isn't wiped on first render.
+  const didMountRef = useRef(false);
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
     setSearchInput("");
     setSearch("");
   }, [tab]);
