@@ -259,6 +259,155 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
   });
 });
 
+// Minimal RFC-4180 CSV cell escaping (same rule as the access-requests export).
+const reviewQueueCsvEscape = (v: unknown): string => {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+// CSV export for the current Review Queue tab. Exports ALL rows matching the
+// same status + campus + search filter and the same sort as the on-screen
+// list (no pagination). Admin (all campuses) or coordinator (own campus),
+// exactly matching the read access of GET /admin/review-queue above.
+router.get(
+  "/admin/review-queue/export.csv",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const isAdmin = req.user.role === "admin";
+    const isCoordinator = req.user.role === "coordinator";
+    if (!isAdmin && !isCoordinator) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const statusParam = req.query.status as string | undefined;
+    const status: "submitted" | "verified" | "rejected" =
+      statusParam === "verified"
+        ? "verified"
+        : statusParam === "rejected"
+          ? "rejected"
+          : "submitted";
+    const campusId = isCoordinator
+      ? (req.user.campusId ?? undefined)
+      : req.query.campusId
+        ? Number(req.query.campusId)
+        : undefined;
+    const search =
+      typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const searchLower = search.toLowerCase();
+    const searchAmount = search && /^\d+$/.test(search) ? Number(search) : null;
+
+    // Coordinator with no campus sees nothing — emit an empty (header-only) CSV.
+    const noScope = isCoordinator && req.user.campusId == null;
+
+    const conditions = [eq(revenueEntriesTable.status, status)];
+    if (campusId) conditions.push(eq(teamsTable.campusId, campusId));
+    if (search) {
+      const like = `%${searchLower}%`;
+      const searchConds = [
+        ilike(teamsTable.name, like),
+        ilike(campusesTable.name, like),
+        ilike(projectsTable.title, like),
+        ilike(revenueEntriesTable.clientName, like),
+        ilike(usersTable.email, like),
+        sql`lower(coalesce(${usersTable.firstName}, '') || ' ' || coalesce(${usersTable.lastName}, '')) like ${like}`,
+      ];
+      if (searchAmount !== null) {
+        searchConds.push(eq(revenueEntriesTable.amount, searchAmount));
+        searchConds.push(eq(revenueEntriesTable.verifiedAmount, searchAmount));
+      }
+      const searchOr = or(...searchConds);
+      if (searchOr) conditions.push(searchOr);
+    }
+    const whereClause = and(...conditions);
+
+    const sortParam =
+      typeof req.query.sort === "string" ? req.query.sort : "newest";
+    const dateCol =
+      status === "verified"
+        ? revenueEntriesTable.verifiedAt
+        : revenueEntriesTable.submittedAt;
+    const amountCol = sql`coalesce(${revenueEntriesTable.verifiedAmount}, ${revenueEntriesTable.amount})`;
+    const orderExpr =
+      sortParam === "oldest"
+        ? sql`${dateCol} asc nulls last`
+        : sortParam === "amount_desc"
+          ? sql`${amountCol} desc nulls last`
+          : sortParam === "amount_asc"
+            ? sql`${amountCol} asc nulls last`
+            : sql`${dateCol} desc nulls last`;
+
+    const rows = noScope
+      ? []
+      : await db
+          .select({
+            e: revenueEntriesTable,
+            teamName: teamsTable.name,
+            campusName: campusesTable.name,
+            projectTitle: projectsTable.title,
+          })
+          .from(revenueEntriesTable)
+          .leftJoin(teamsTable, eq(teamsTable.id, revenueEntriesTable.teamId))
+          .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
+          .leftJoin(
+            projectsTable,
+            eq(projectsTable.id, revenueEntriesTable.projectId),
+          )
+          .leftJoin(usersTable, eq(usersTable.id, teamsTable.leaderId))
+          .where(whereClause)
+          .orderBy(orderExpr);
+
+    const header = [
+      "Team",
+      "Campus",
+      "Project",
+      "Client",
+      "Amount Claimed",
+      "Verified Amount",
+      "Status",
+      "Submitted",
+      "Verified",
+      "BRD Relevancy",
+      "BRD Uniqueness",
+      "Admin Notes",
+    ].join(",");
+    const lines = rows.map((r) => {
+      const e = r.e;
+      return [
+        r.teamName ?? "",
+        r.campusName ?? "",
+        r.projectTitle ?? "",
+        e.clientName ?? "",
+        e.amount ?? "",
+        e.verifiedAmount ?? "",
+        e.status,
+        e.submittedAt ? new Date(e.submittedAt).toISOString() : "",
+        e.verifiedAt ? new Date(e.verifiedAt).toISOString() : "",
+        e.brdScore ?? "",
+        e.uniquenessScore ?? "",
+        e.adminNotes ?? "",
+      ]
+        .map(reviewQueueCsvEscape)
+        .join(",");
+    });
+    const csv = "﻿" + [header, ...lines].join("\n");
+    const tabLabel =
+      status === "verified"
+        ? "approved"
+        : status === "rejected"
+          ? "rejected"
+          : "pending";
+    const filename = `brave-review-queue-${tabLabel}-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
+  },
+);
+
 // User Management
 router.get("/admin/users", async (req, res): Promise<void> => {
   if (!req.isAuthenticated() || req.user.role !== "admin") {

@@ -54,6 +54,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
+  Download,
 } from "lucide-react";
 import {
   Popover,
@@ -63,6 +64,7 @@ import {
 import { DocumentLinkButton } from "@/components/document-viewer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listRejectionReasons } from "@/lib/rejection-reasons-api";
+import { downloadReviewQueueCsv } from "@/lib/review-queue-export";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
@@ -159,16 +161,45 @@ function appendReason(prev: string, text: string): string {
   return `${base} ${text}`;
 }
 
+// Maps the visible tab to the API status value used by the queue + export.
+const TAB_STATUS: Record<Tab, "submitted" | "verified" | "rejected"> = {
+  pending: "submitted",
+  approved: "verified",
+  rejected: "rejected",
+};
+
 export default function AdminQueue() {
+  const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("pending");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOption>("newest");
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 250);
     return () => clearTimeout(t);
   }, [searchInput]);
+
+  // Export the CURRENT tab (respecting the active search + sort) to CSV.
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await downloadReviewQueueCsv({
+        status: TAB_STATUS[tab],
+        search: search || undefined,
+        sort,
+      });
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Reset search when tab changes
   useEffect(() => {
@@ -226,17 +257,34 @@ export default function AdminQueue() {
               Rejected
             </TabsTrigger>
           </TabsList>
-          <Link href="/admin/queue/detailed-analysis">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               className="gap-1.5"
-              data-testid="link-view-all-analysis"
+              onClick={() => void handleExport()}
+              disabled={exporting}
+              data-testid="button-export-queue"
             >
-              <Bot className="w-4 h-4" />
-              View all analysis
+              {exporting ? (
+                <Spinner className="w-4 h-4" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Export CSV
             </Button>
-          </Link>
+            <Link href="/admin/queue/detailed-analysis">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                data-testid="link-view-all-analysis"
+              >
+                <Bot className="w-4 h-4" />
+                View all analysis
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <TabsContent value="pending" className="mt-6">
