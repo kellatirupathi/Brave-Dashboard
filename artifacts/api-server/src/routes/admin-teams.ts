@@ -966,51 +966,59 @@ function stackCell(values: Array<string | number | null | undefined>): string {
   return values.map((v) => (v == null || v === "" ? "" : String(v))).join("\n");
 }
 
-// Build the "Team Projects" worksheet as an array-of-arrays so we control the
-// dynamic per-project columns and enable wrap-text on stacked cells.
+// Build the "Team Projects" worksheet as an array-of-arrays. LONG format: one
+// row PER PROJECT. The team-level lead columns repeat on each of a team's
+// project rows; a "Project Number" column carries the project's index within
+// its team, and the project fields become fixed columns (not repeated groups).
+// A team with 5 projects produces 5 rows; a team with 0 projects produces one
+// row with the project columns left blank. Multi-client / multi-BRD values are
+// still stacked line-by-line within a single cell, kept row-aligned across the
+// BRD columns. Existing sheets and the CSV are untouched.
 function buildTeamProjectsSheet(rows: TeamProjectsRow[]): XLSX.WorkSheet {
-  const maxProjects = rows.reduce((m, r) => Math.max(m, r.projects.length), 0);
-
-  // Header row.
-  const header: string[] = [...TEAM_PROJECTS_LEAD_HEADERS];
-  for (let i = 1; i <= maxProjects; i++) {
-    for (const label of PROJECT_FIELD_LABELS) {
-      header.push(`Project ${i} ${label}`);
-    }
-  }
+  // Header row: lead columns + Project Number + flat per-project fields.
+  const header: string[] = [
+    ...TEAM_PROJECTS_LEAD_HEADERS,
+    "Project Number",
+    ...PROJECT_FIELD_LABELS,
+  ];
 
   const aoa: Array<Array<string | number>> = [header];
 
+  const leadCells = (r: TeamProjectsRow): Array<string | number> => [
+    r.campus_name,
+    r.team_name,
+    r.team_status,
+    r.team_verified_revenue,
+    r.team_verified_order_book,
+    r.team_projects_count,
+    fmtCell(r.team_created_at),
+  ];
+
   for (const r of rows) {
-    const line: Array<string | number> = [
-      r.campus_name,
-      r.team_name,
-      r.team_status,
-      r.team_verified_revenue,
-      r.team_verified_order_book,
-      r.team_projects_count,
-      fmtCell(r.team_created_at),
-    ];
-    for (let i = 0; i < maxProjects; i++) {
-      const p = r.projects[i];
-      if (!p) {
-        // No project in this slot — fill blanks for the whole group.
-        for (let k = 0; k < PROJECT_FIELD_LABELS.length; k++) line.push("");
-        continue;
-      }
-      const statusCell = `${p.status}${p.hasVerified ? " (has verified)" : ""}`;
-      line.push(p.name);
-      line.push(statusCell);
-      line.push(stackCell(p.clients));
-      line.push(stackCell(p.brds.map((b) => b.brdLink)));
-      line.push(stackCell(p.brds.map((b) => b.status)));
-      line.push(stackCell(p.brds.map((b) => b.relevancyScore)));
-      line.push(stackCell(p.brds.map((b) => b.relevancySummary)));
-      line.push(stackCell(p.brds.map((b) => b.uniquenessScore)));
-      line.push(stackCell(p.brds.map((b) => b.uniquenessSummary)));
-      line.push(p.overallSummary);
+    if (r.projects.length === 0) {
+      // No projects — emit a single row with the project columns blank.
+      const line: Array<string | number> = [...leadCells(r), ""];
+      for (let k = 0; k < PROJECT_FIELD_LABELS.length; k++) line.push("");
+      aoa.push(line);
+      continue;
     }
-    aoa.push(line);
+    r.projects.forEach((p, i) => {
+      const statusCell = `${p.status}${p.hasVerified ? " (has verified)" : ""}`;
+      aoa.push([
+        ...leadCells(r),
+        i + 1, // Project Number (1-based within the team)
+        p.name,
+        statusCell,
+        stackCell(p.clients),
+        stackCell(p.brds.map((b) => b.brdLink)),
+        stackCell(p.brds.map((b) => b.status)),
+        stackCell(p.brds.map((b) => b.relevancyScore)),
+        stackCell(p.brds.map((b) => b.relevancySummary)),
+        stackCell(p.brds.map((b) => b.uniquenessScore)),
+        stackCell(p.brds.map((b) => b.uniquenessSummary)),
+        p.overallSummary,
+      ]);
+    });
   }
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -1027,15 +1035,14 @@ function buildTeamProjectsSheet(rows: TeamProjectsRow[]): XLSX.WorkSheet {
     }
   }
 
-  // Reasonable column widths: lead columns narrower, project text columns wide.
+  // Column widths: lead columns narrower, project text columns wide.
   const cols: Array<{ wch: number }> = TEAM_PROJECTS_LEAD_HEADERS.map((h) => ({
     wch: h === "Team Name" || h === "Campus" ? 22 : 16,
   }));
-  for (let i = 0; i < maxProjects; i++) {
-    for (const label of PROJECT_FIELD_LABELS) {
-      const wide = label.includes("Summary") || label.includes("Client");
-      cols.push({ wch: wide ? 40 : label.includes("Link") ? 36 : 18 });
-    }
+  cols.push({ wch: 14 }); // Project Number
+  for (const label of PROJECT_FIELD_LABELS) {
+    const wide = label.includes("Summary") || label.includes("Client");
+    cols.push({ wch: wide ? 40 : label.includes("Link") ? 36 : 18 });
   }
   ws["!cols"] = cols;
 
