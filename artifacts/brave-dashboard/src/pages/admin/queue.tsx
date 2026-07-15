@@ -295,9 +295,12 @@ export default function AdminQueue() {
             />
           </div>
           <Select value={sort} onValueChange={(v) => setSort(v as SortOption)}>
-            <SelectTrigger className="sm:w-52" data-testid="select-queue-sort">
-              <div className="flex items-center gap-2">
-                <ArrowUpDown className="w-4 h-4" />
+            <SelectTrigger
+              className="w-full sm:w-72"
+              data-testid="select-queue-sort"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <ArrowUpDown className="w-4 h-4 shrink-0" />
                 <SelectValue placeholder="Sort" />
               </div>
             </SelectTrigger>
