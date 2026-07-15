@@ -969,16 +969,6 @@ function ListView() {
         </TabsList>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Export entire dataset to CSV */}
-          <Button
-            variant="outline"
-            onClick={() => exportAnalysesToCsv(items)}
-            data-testid="button-export-csv"
-          >
-            <Download className="mr-2 size-4" />
-            Export CSV
-          </Button>
-
           {/* Status filter */}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger
@@ -1055,6 +1045,16 @@ function ListView() {
               </Command>
             </PopoverContent>
           </Popover>
+
+          {/* Export entire dataset to CSV — kept last on the toolbar. */}
+          <Button
+            variant="outline"
+            onClick={() => exportAnalysesToCsv(items)}
+            data-testid="button-export-csv"
+          >
+            <Download className="mr-2 size-4" />
+            Export CSV
+          </Button>
         </div>
       </div>
 
@@ -1327,17 +1327,19 @@ export default function DetailedAnalysisPage() {
         ) : null}
       </div>
 
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Bot className="w-6 h-6" />
-          Detailed AI BRD Analysis
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {validEntryId
-            ? "Full analysis details + every past run for this entry."
-            : "Every analysed revenue entry across all teams, most recent first."}
-        </p>
-      </div>
+      {/* Title/subtitle only on the single-entry detail view; the list view
+          drops them to keep the toolbar at the top. */}
+      {validEntryId ? (
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Bot className="w-6 h-6" />
+            Detailed AI BRD Analysis
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Full analysis details + every past run for this entry.
+          </p>
+        </div>
+      ) : null}
 
       {validEntryId ? <DetailView entryId={validEntryId} /> : <ListView />}
     </div>

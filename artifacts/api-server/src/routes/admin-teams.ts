@@ -700,6 +700,8 @@ type ProjectExport = {
   name: string;
   status: string; // "active" | "inactive"
   hasVerified: boolean;
+  verifiedRevenue: number; // sum of verified revenue entries for this project
+  verifiedOrderBook: number; // sum of verified order-book entries for this project
   clients: string[]; // distinct, revenue + order book
   brds: ProjectBrd[];
   overallSummary: string;
@@ -805,11 +807,13 @@ async function fetchTeamProjectsRows(
     projectsByTeam.set(p.teamId, bucket);
   }
 
-  // Revenue entries (BRDs + AI scores + clients) per project.
+  // Revenue entries (BRDs + AI scores + clients + amounts) per project.
   type RevenueRow = {
     projectId: number;
     clientName: string;
     status: string;
+    amount: number | null;
+    verifiedAmount: number | null;
     brdUrl: string | null;
     brdDriveUrl: string | null;
     brdScore: number | null;
@@ -821,6 +825,8 @@ async function fetchTeamProjectsRows(
     projectId: number;
     clientName: string;
     status: string;
+    amount: number | null;
+    verifiedAmount: number | null;
   };
 
   const revenueRows: RevenueRow[] = projectIds.length
@@ -829,6 +835,8 @@ async function fetchTeamProjectsRows(
           projectId: revenueEntriesTable.projectId,
           clientName: revenueEntriesTable.clientName,
           status: revenueEntriesTable.status,
+          amount: revenueEntriesTable.amount,
+          verifiedAmount: revenueEntriesTable.verifiedAmount,
           brdUrl: revenueEntriesTable.brdUrl,
           brdDriveUrl: revenueEntriesTable.brdDriveUrl,
           brdScore: revenueEntriesTable.brdScore,
@@ -844,13 +852,15 @@ async function fetchTeamProjectsRows(
         )) as RevenueRow[])
     : [];
 
-  // Order-book client names per project (for the de-duplicated client list).
+  // Order-book entries (client names + amounts) per project.
   const orderRows: OrderRow[] = projectIds.length
     ? ((await db
         .select({
           projectId: orderBookEntriesTable.projectId,
           clientName: orderBookEntriesTable.clientName,
           status: orderBookEntriesTable.status,
+          amount: orderBookEntriesTable.amount,
+          verifiedAmount: orderBookEntriesTable.verifiedAmount,
         })
         .from(orderBookEntriesTable)
         .where(
@@ -914,6 +924,16 @@ async function fetchTeamProjectsRows(
         revs.some((r) => r.status === "verified") ||
         orders.some((o) => o.status === "verified");
 
+      // Per-project verified totals — only 'verified' entries count, using the
+      // admin-verified amount (falling back to the claimed amount), matching
+      // how revenue is aggregated everywhere else in the app.
+      const verifiedRevenue = revs
+        .filter((r) => r.status === "verified")
+        .reduce((sum, r) => sum + (r.verifiedAmount ?? r.amount ?? 0), 0);
+      const verifiedOrderBook = orders
+        .filter((o) => o.status === "verified")
+        .reduce((sum, o) => sum + (o.verifiedAmount ?? o.amount ?? 0), 0);
+
       // Overall summary: prefer the most informative relevancy summary text.
       const overallSummary =
         brds.find((b) => b.relevancySummary)?.relevancySummary ?? "";
@@ -922,6 +942,8 @@ async function fetchTeamProjectsRows(
         name: p.title,
         status: p.status,
         hasVerified,
+        verifiedRevenue,
+        verifiedOrderBook,
         clients,
         brds,
         overallSummary,
@@ -941,6 +963,8 @@ async function fetchTeamProjectsRows(
 const PROJECT_FIELD_LABELS = [
   "Name",
   "Status",
+  "Verified Revenue (INR)",
+  "Order Book (INR)",
   "Client Name(s)",
   "BRD Link(s)",
   "BRD Verified Status(es)",
@@ -1009,6 +1033,8 @@ function buildTeamProjectsSheet(rows: TeamProjectsRow[]): XLSX.WorkSheet {
         i + 1, // Project Number (1-based within the team)
         p.name,
         statusCell,
+        p.verifiedRevenue,
+        p.verifiedOrderBook,
         stackCell(p.clients),
         stackCell(p.brds.map((b) => b.brdLink)),
         stackCell(p.brds.map((b) => b.status)),

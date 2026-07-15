@@ -163,6 +163,8 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
       ? revenueEntriesTable.verifiedAt
       : revenueEntriesTable.submittedAt;
   const amountCol = sql`coalesce(${revenueEntriesTable.verifiedAmount}, ${revenueEntriesTable.amount})`;
+  // "team" groups all of a team's entries together (ordered by team name),
+  // and within each team sorts by highest amount first.
   const orderExpr =
     sortParam === "oldest"
       ? sql`${dateCol} asc nulls last`
@@ -170,7 +172,9 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
         ? sql`${amountCol} desc nulls last`
         : sortParam === "amount_asc"
           ? sql`${amountCol} asc nulls last`
-          : sql`${dateCol} desc nulls last`;
+          : sortParam === "team"
+            ? sql`${teamsTable.name} asc nulls last, ${amountCol} desc nulls last`
+            : sql`${dateCol} desc nulls last`;
 
   const rows = await db
     .select({
@@ -330,6 +334,8 @@ router.get(
         ? revenueEntriesTable.verifiedAt
         : revenueEntriesTable.submittedAt;
     const amountCol = sql`coalesce(${revenueEntriesTable.verifiedAmount}, ${revenueEntriesTable.amount})`;
+    // "team" groups a team's entries together (by team name), highest amount
+    // first within each team — matching the on-screen queue sort.
     const orderExpr =
       sortParam === "oldest"
         ? sql`${dateCol} asc nulls last`
@@ -337,7 +343,9 @@ router.get(
           ? sql`${amountCol} desc nulls last`
           : sortParam === "amount_asc"
             ? sql`${amountCol} asc nulls last`
-            : sql`${dateCol} desc nulls last`;
+            : sortParam === "team"
+              ? sql`${teamsTable.name} asc nulls last, ${amountCol} desc nulls last`
+              : sql`${dateCol} desc nulls last`;
 
     const rows = noScope
       ? []

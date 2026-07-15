@@ -4,7 +4,7 @@
 // sort of the on-screen list so the export matches what the admin is viewing.
 
 type ExportStatus = "submitted" | "verified" | "rejected";
-type ExportSort = "newest" | "oldest" | "amount_desc" | "amount_asc";
+type ExportSort = "newest" | "oldest" | "amount_desc" | "amount_asc" | "team";
 
 export async function downloadReviewQueueCsv(opts: {
   status: ExportStatus;

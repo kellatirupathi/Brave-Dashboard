@@ -1328,7 +1328,7 @@ paths:
           description: Sort order. Defaults to newest first.
           schema:
             type: string
-            enum: [newest, oldest, amount_desc, amount_asc]
+            enum: [newest, oldest, amount_desc, amount_asc, team]
       responses:
         "200":
           description: Review queue

@@ -1646,6 +1646,7 @@ export const GetAdminReviewQueueSort = {
   oldest: "oldest",
   amount_desc: "amount_desc",
   amount_asc: "amount_asc",
+  team: "team",
 } as const;
 
 export type GetLeaderboardParams = {

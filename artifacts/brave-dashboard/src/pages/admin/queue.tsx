@@ -114,7 +114,7 @@ type BrdAiAnalysis = {
 
 type Tab = "pending" | "approved" | "rejected";
 
-type SortOption = "newest" | "oldest" | "amount_desc" | "amount_asc";
+type SortOption = "newest" | "oldest" | "amount_desc" | "amount_asc" | "team";
 
 // Small chip row that inserts a suggested reason into the reject textarea.
 // Reasons are admin-managed from Config → Revenue Rejection Reasons (was a
@@ -203,7 +203,7 @@ export default function AdminQueue() {
   const [sort, setSort] = useState<SortOption>(() =>
     readStored<SortOption>(
       QUEUE_SORT_KEY,
-      ["newest", "oldest", "amount_desc", "amount_asc"],
+      ["newest", "oldest", "amount_desc", "amount_asc", "team"],
       "newest",
     ),
   );
@@ -289,6 +289,9 @@ export default function AdminQueue() {
               <SelectItem value="oldest">Oldest first</SelectItem>
               <SelectItem value="amount_desc">Amount: High → Low</SelectItem>
               <SelectItem value="amount_asc">Amount: Low → High</SelectItem>
+              <SelectItem value="team">
+                Team (grouped, high amount first)
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
