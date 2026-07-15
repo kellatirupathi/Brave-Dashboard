@@ -15,6 +15,14 @@ import {
   RotateCcw,
   AlertTriangle,
   Mail,
+  CalendarDays,
+  Trophy,
+  Bell,
+  GraduationCap,
+  XCircle,
+  Users,
+  Plug,
+  Wrench,
 } from "lucide-react";
 import {
   Select,
@@ -191,6 +199,8 @@ export default function AdminConfig() {
   const [formData, setFormData] = useState<any>({});
   const [devEnabled, setDevEnabled] = useState<boolean>(false);
   const [reseeding, setReseeding] = useState<boolean>(false);
+  // Which config section is shown in the right pane (left-menu navigation).
+  const [activeSection, setActiveSection] = useState<string>("schedule");
 
   // SES test-email state.
   const [testEmail, setTestEmail] = useState<string>("");
@@ -361,343 +371,419 @@ export default function AdminConfig() {
       </div>
     );
 
+  // Left-menu sections. Each id maps to a block in the right pane below.
+  // "developer" is only listed when dev tools are enabled.
+  const SECTIONS: Array<{ id: string; label: string; icon: any }> = [
+    { id: "schedule", label: "Programme Schedule", icon: Calendar },
+    { id: "weeks", label: "Programme Weeks", icon: CalendarDays },
+    { id: "grit", label: "GRIT Miles", icon: Trophy },
+    { id: "reminders", label: "Notifications & Reminders", icon: Bell },
+    { id: "student", label: "Student Content", icon: GraduationCap },
+    { id: "queue", label: "Review Queue", icon: XCircle },
+    { id: "teams", label: "Teams & Coordinators", icon: Users },
+    { id: "integrations", label: "Integrations", icon: Plug },
+    ...(devEnabled
+      ? [{ id: "developer", label: "Developer Tools", icon: Wrench }]
+      : []),
+  ];
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Two-column layout: Programme Weeks on the left, all other settings on the right. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start mt-0">
-        {/* LEFT column — Programme Weeks (auto-saves per row) + email self-test. */}
-        <div className="space-y-6">
-          <ProgrammeWeeksManager />
-
-          {/* Email delivery self-test (Amazon SES). */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="w-5 h-5 text-primary" />
-                Email delivery test (Amazon SES)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Send a sample transactional email to confirm Amazon SES is
-                delivering correctly. Use your own inbox first; results show up
-                in a toast.
-              </p>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Recipient email</label>
-                <Input
-                  type="email"
-                  placeholder="you@example.com"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                  disabled={sendingTestEmail}
-                  data-testid="input-test-email"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Template</label>
-                <Select
-                  value={testTemplate}
-                  onValueChange={(v) =>
-                    setTestTemplate(
-                      v as "plain" | "revenue_verified" | "revenue_rejected",
-                    )
-                  }
-                  disabled={sendingTestEmail}
-                >
-                  <SelectTrigger data-testid="select-test-template">
-                    <SelectValue placeholder="Pick a template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="plain">Plain test email</SelectItem>
-                    <SelectItem value="revenue_verified">
-                      Revenue verified
-                    </SelectItem>
-                    <SelectItem value="revenue_rejected">
-                      Revenue rejected
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
+    <div className="max-w-7xl mx-auto">
+      {/* Sidebar-menu layout: section list on the left, the selected section's
+          cards on the right. Cards and their logic are unchanged. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 items-start">
+        {/* LEFT — section menu */}
+        <nav className="lg:sticky lg:top-4 space-y-1" data-testid="config-menu">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            const active = activeSection === s.id;
+            return (
+              <button
+                key={s.id}
                 type="button"
-                onClick={handleSendTestEmail}
-                disabled={sendingTestEmail || !testEmail.trim()}
-                className="gap-2"
-                data-testid="button-send-test-email"
+                onClick={() => setActiveSection(s.id)}
+                className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                  active
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+                data-testid={`config-menu-${s.id}`}
               >
-                {sendingTestEmail ? (
-                  <Spinner className="w-4 h-4" />
-                ) : (
-                  <Mail className="w-4 h-4" />
-                )}
-                {sendingTestEmail ? "Sending…" : "Send test email"}
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                If the email doesn't arrive, the SES account may still be in
-                sandbox mode — in that case it can only deliver to verified
-                addresses until production access is granted.
-              </p>
-            </CardContent>
-          </Card>
+                <Icon className="w-4 h-4 shrink-0" />
+                {s.label}
+              </button>
+            );
+          })}
+        </nav>
 
-          {/* Coordinator Tags — admin-managed catalog (add / edit / delete). */}
-          <CoordinatorTagsCard />
-
-          {/* Team Name Uniqueness — notify duplicate-name teams to rename. */}
-          <TeamNameUniquenessCard />
-
-          {/* Projects submissions lock — pause student orders/BRD uploads. */}
-          <ProjectsLockCard />
-
-          {/* Revenue rejection reasons — CRUD for the queue's quick chips. */}
-          <RejectionReasonsCard />
-        </div>
-
-        {/* RIGHT column — Key Dates, Thresholds + Save, Notifications & Reminders. */}
+        {/* RIGHT — selected section content */}
         <div className="space-y-6">
-          {/* SECTION 1 — Programme schedule (saved by the bottom Save button) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-primary" /> Key Dates &
-                Deadlines
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Start Date</label>
-                  <Input
-                    type="date"
-                    value={formData.startDate?.split("T")[0] || ""}
-                    onChange={(e) => handleChange("startDate", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">End Date</label>
-                  <Input
-                    type="date"
-                    value={formData.endDate?.split("T")[0] || ""}
-                    onChange={(e) => handleChange("endDate", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Demo Day Date</label>
-                  <Input
-                    type="date"
-                    value={formData.demoDayDate?.split("T")[0] || ""}
-                    onChange={(e) =>
-                      handleChange("demoDayDate", e.target.value)
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    Application Deadline
-                  </label>
-                  <Input
-                    type="date"
-                    value={
-                      formData.demoDayApplicationDeadline?.split("T")[0] || ""
-                    }
-                    onChange={(e) =>
-                      handleChange("demoDayApplicationDeadline", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* ── Programme Schedule ── */}
+          {activeSection === "schedule" && (
+            <div className="space-y-6">
+              {/* SECTION 1 — Programme schedule (saved by the bottom Save button) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-primary" /> Key Dates &
+                    Deadlines
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Start Date</label>
+                      <Input
+                        type="date"
+                        value={formData.startDate?.split("T")[0] || ""}
+                        onChange={(e) =>
+                          handleChange("startDate", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">End Date</label>
+                      <Input
+                        type="date"
+                        value={formData.endDate?.split("T")[0] || ""}
+                        onChange={(e) =>
+                          handleChange("endDate", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">
+                        Demo Day Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={formData.demoDayDate?.split("T")[0] || ""}
+                        onChange={(e) =>
+                          handleChange("demoDayDate", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">
+                        Application Deadline
+                      </label>
+                      <Input
+                        type="date"
+                        value={
+                          formData.demoDayApplicationDeadline?.split("T")[0] ||
+                          ""
+                        }
+                        onChange={(e) =>
+                          handleChange(
+                            "demoDayApplicationDeadline",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* SECTION 2 — Programme thresholds & visibility (saved by the Save button below). */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-primary" /> Thresholds &
-                Toggles
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Demo Eligibility Threshold (₹)
-                </label>
-                <Input
-                  type="number"
-                  value={formData.demoEligibilityThreshold || ""}
-                  onChange={(e) =>
-                    handleChange(
-                      "demoEligibilityThreshold",
-                      Number(e.target.value),
-                    )
-                  }
-                />
-              </div>
+              {/* SECTION 2 — Programme thresholds & visibility (saved by the Save button below). */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-primary" /> Thresholds &
+                    Toggles
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Demo Eligibility Threshold (₹)
+                    </label>
+                    <Input
+                      type="number"
+                      value={formData.demoEligibilityThreshold || ""}
+                      onChange={(e) =>
+                        handleChange(
+                          "demoEligibilityThreshold",
+                          Number(e.target.value),
+                        )
+                      }
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Team Members Count Limit
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={formData.teamMemberLimit ?? ""}
-                  onChange={(e) =>
-                    handleChange("teamMemberLimit", Number(e.target.value))
-                  }
-                  data-testid="input-team-member-limit"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Maximum number of students allowed on a single team. New
-                  invites, join requests, and acceptances will be rejected once
-                  a team reaches this limit.
-                </p>
-              </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Team Members Count Limit
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={formData.teamMemberLimit ?? ""}
+                      onChange={(e) =>
+                        handleChange("teamMemberLimit", Number(e.target.value))
+                      }
+                      data-testid="input-team-member-limit"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Maximum number of students allowed on a single team. New
+                      invites, join requests, and acceptances will be rejected
+                      once a team reaches this limit.
+                    </p>
+                  </div>
 
-              <div className="flex items-center justify-between border p-4 rounded-lg">
-                <div>
-                  <p className="font-medium">Leaderboard Frozen</p>
+                  <div className="flex items-center justify-between border p-4 rounded-lg">
+                    <div>
+                      <p className="font-medium">Leaderboard Frozen</p>
+                      <p className="text-sm text-muted-foreground">
+                        Hide the leaderboard from students to build suspense.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.leaderboardFrozen || false}
+                      onCheckedChange={(c) =>
+                        handleChange("leaderboardFrozen", c)
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between border p-4 rounded-lg">
+                    <div>
+                      <p className="font-medium">Demo Day Applications Open</p>
+                      <p className="text-sm text-muted-foreground">
+                        Allow eligible teams to submit their pitches.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.demoDayApplicationsOpen || false}
+                      onCheckedChange={(c) =>
+                        handleChange("demoDayApplicationsOpen", c)
+                      }
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end">
+                <Button onClick={handleSave} disabled={updateConfig.isPending}>
+                  {updateConfig.isPending ? (
+                    <Spinner className="w-4 h-4 mr-2" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  Save Configuration
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Programme Weeks ── */}
+          {activeSection === "weeks" && <ProgrammeWeeksManager />}
+
+          {/* ── GRIT Miles ── */}
+          {activeSection === "grit" && <GritConfigCard />}
+
+          {/* ── Notifications & Reminders ── */}
+          {activeSection === "reminders" && <ReminderSettingsCard />}
+
+          {/* ── Student Content ── */}
+          {activeSection === "student" && (
+            <div className="space-y-6">
+              {/* Student-facing Resources visibility (auto-saves). */}
+              <ResourcesSettingsCard />
+              {/* Admin-managed student pop-ups (CRUD, additive). */}
+              <PopupsAdminCard />
+              {/* Projects submissions lock — pause student orders/BRD uploads. */}
+              <ProjectsLockCard />
+            </div>
+          )}
+
+          {/* ── Review Queue ── */}
+          {activeSection === "queue" && (
+            /* Revenue rejection reasons — CRUD for the queue's quick chips. */
+            <RejectionReasonsCard />
+          )}
+
+          {/* ── Teams & Coordinators ── */}
+          {activeSection === "teams" && (
+            <div className="space-y-6">
+              {/* Coordinator Tags — admin-managed catalog (add / edit / delete). */}
+              <CoordinatorTagsCard />
+              {/* Team Name Uniqueness — notify duplicate-name teams to rename. */}
+              <TeamNameUniquenessCard />
+            </div>
+          )}
+
+          {/* ── Integrations ── */}
+          {activeSection === "integrations" && (
+            <div className="space-y-6">
+              {/* Chatbot LLM provider runtime switch. */}
+              <ChatbotProviderCard />
+              {/* Manual BRD → Google Drive migration (click only). */}
+              <BrdDriveCard />
+
+              {/* Email delivery self-test (Amazon SES). */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-primary" />
+                    Email delivery test (Amazon SES)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Hide the leaderboard from students to build suspense.
+                    Send a sample transactional email to confirm Amazon SES is
+                    delivering correctly. Use your own inbox first; results show
+                    up in a toast.
                   </p>
-                </div>
-                <Switch
-                  checked={formData.leaderboardFrozen || false}
-                  onCheckedChange={(c) => handleChange("leaderboardFrozen", c)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between border p-4 rounded-lg">
-                <div>
-                  <p className="font-medium">Demo Day Applications Open</p>
-                  <p className="text-sm text-muted-foreground">
-                    Allow eligible teams to submit their pitches.
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Recipient email
+                    </label>
+                    <Input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={testEmail}
+                      onChange={(e) => setTestEmail(e.target.value)}
+                      disabled={sendingTestEmail}
+                      data-testid="input-test-email"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Template</label>
+                    <Select
+                      value={testTemplate}
+                      onValueChange={(v) =>
+                        setTestTemplate(
+                          v as
+                            | "plain"
+                            | "revenue_verified"
+                            | "revenue_rejected",
+                        )
+                      }
+                      disabled={sendingTestEmail}
+                    >
+                      <SelectTrigger data-testid="select-test-template">
+                        <SelectValue placeholder="Pick a template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="plain">Plain test email</SelectItem>
+                        <SelectItem value="revenue_verified">
+                          Revenue verified
+                        </SelectItem>
+                        <SelectItem value="revenue_rejected">
+                          Revenue rejected
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleSendTestEmail}
+                    disabled={sendingTestEmail || !testEmail.trim()}
+                    className="gap-2"
+                    data-testid="button-send-test-email"
+                  >
+                    {sendingTestEmail ? (
+                      <Spinner className="w-4 h-4" />
+                    ) : (
+                      <Mail className="w-4 h-4" />
+                    )}
+                    {sendingTestEmail ? "Sending…" : "Send test email"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    If the email doesn't arrive, the SES account may still be in
+                    sandbox mode — in that case it can only deliver to verified
+                    addresses until production access is granted.
                   </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* ── Developer Tools (only when dev mode is enabled) ── */}
+          {activeSection === "developer" && devEnabled && (
+            <Card
+              className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-950/10"
+              data-testid="card-dev-tools"
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                  <AlertTriangle className="w-5 h-5" /> Developer Tools
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-4 border border-amber-200 dark:border-amber-900/40 p-4 rounded-lg bg-background">
+                  <div className="space-y-1">
+                    <p className="font-medium">Reset demo data</p>
+                    <p className="text-sm text-muted-foreground">
+                      Wipes all seeded users, teams, and entries (those tagged
+                      <code className="mx-1 px-1 rounded bg-muted text-xs">
+                        @brave.seed
+                      </code>
+                      ) and re-runs the canonical seed. Real users and their
+                      data are not touched. This action is hidden in production.
+                    </p>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        disabled={reseeding}
+                        data-testid="button-reseed"
+                      >
+                        {reseeding ? (
+                          <Spinner className="w-4 h-4 mr-2" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                        )}
+                        Reset demo data
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reset demo data?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will delete every seeded user, team, project,
+                          order, revenue entry, milestone, demo-day application,
+                          announcement, and notification, then re-create the
+                          canonical demo dataset. Real (non-seed) users and data
+                          will not be affected. The seed typically takes a few
+                          seconds.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleReseed}
+                          data-testid="button-reseed-confirm"
+                        >
+                          Yes, reset demo data
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
-                <Switch
-                  checked={formData.demoDayApplicationsOpen || false}
-                  onCheckedChange={(c) =>
-                    handleChange("demoDayApplicationsOpen", c)
-                  }
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={updateConfig.isPending}>
-              {updateConfig.isPending ? (
-                <Spinner className="w-4 h-4 mr-2" />
-              ) : (
-                <Save className="w-4 h-4 mr-2" />
-              )}
-              Save Configuration
-            </Button>
-          </div>
-
-          {/* GRIT Miles ladder + journal edit deadline + escalation toggle. */}
-          <GritConfigCard />
-
-          {/* SECTION 3 — Reminder service master toggles (auto-saves per toggle). */}
-          <ReminderSettingsCard />
-
-          {/* SECTION 4 — Student-facing Resources visibility (auto-saves). */}
-          <ResourcesSettingsCard />
-
-          {/* SECTION 5 — Chatbot LLM provider runtime switch. */}
-          <ChatbotProviderCard />
-
-          {/* SECTION 6 — Manual BRD → Google Drive migration (click only). */}
-          <BrdDriveCard />
-
-          {/* SECTION 7 — Admin-managed student pop-ups (CRUD, additive). */}
-          <PopupsAdminCard />
+                {reseedResult?.ok === true && (
+                  <p
+                    className="text-sm text-emerald-700 dark:text-emerald-400"
+                    data-testid="text-reseed-success"
+                  >
+                    Demo data reset — re-seeded in{" "}
+                    {(reseedResult.durationMs / 1000).toFixed(1)}s.
+                  </p>
+                )}
+                {reseedResult?.ok === false && (
+                  <p
+                    className="text-sm text-destructive"
+                    data-testid="text-reseed-error"
+                  >
+                    Reset failed: {reseedResult.error}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
-
-      {devEnabled && (
-        <Card
-          className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-950/10"
-          data-testid="card-dev-tools"
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
-              <AlertTriangle className="w-5 h-5" /> Developer Tools
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-start justify-between gap-4 border border-amber-200 dark:border-amber-900/40 p-4 rounded-lg bg-background">
-              <div className="space-y-1">
-                <p className="font-medium">Reset demo data</p>
-                <p className="text-sm text-muted-foreground">
-                  Wipes all seeded users, teams, and entries (those tagged
-                  <code className="mx-1 px-1 rounded bg-muted text-xs">
-                    @brave.seed
-                  </code>
-                  ) and re-runs the canonical seed. Real users and their data
-                  are not touched. This action is hidden in production.
-                </p>
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    disabled={reseeding}
-                    data-testid="button-reseed"
-                  >
-                    {reseeding ? (
-                      <Spinner className="w-4 h-4 mr-2" />
-                    ) : (
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                    )}
-                    Reset demo data
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Reset demo data?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will delete every seeded user, team, project, order,
-                      revenue entry, milestone, demo-day application,
-                      announcement, and notification, then re-create the
-                      canonical demo dataset. Real (non-seed) users and data
-                      will not be affected. The seed typically takes a few
-                      seconds.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleReseed}
-                      data-testid="button-reseed-confirm"
-                    >
-                      Yes, reset demo data
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-            {reseedResult?.ok === true && (
-              <p
-                className="text-sm text-emerald-700 dark:text-emerald-400"
-                data-testid="text-reseed-success"
-              >
-                Demo data reset — re-seeded in{" "}
-                {(reseedResult.durationMs / 1000).toFixed(1)}s.
-              </p>
-            )}
-            {reseedResult?.ok === false && (
-              <p
-                className="text-sm text-destructive"
-                data-testid="text-reseed-error"
-              >
-                Reset failed: {reseedResult.error}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
