@@ -793,16 +793,16 @@ function statusRowClass(status: string): string {
   }
 }
 
-// Bolder status badge (green/red/yellow) with black text so it stands out in
-// the tinted row.
+// Soft status badge — same light tint as the row (no thick/solid fill), with
+// black text.
 function statusBadgeClass(status: string): string {
   switch (status.toLowerCase()) {
     case "verified":
-      return "bg-green-500 border-green-600 text-black";
+      return "bg-green-100 border-green-200 text-black hover:bg-green-100 dark:bg-green-950/40 dark:border-green-900 dark:text-green-100";
     case "rejected":
-      return "bg-red-500 border-red-600 text-black";
+      return "bg-red-100 border-red-200 text-black hover:bg-red-100 dark:bg-red-950/40 dark:border-red-900 dark:text-red-100";
     case "submitted":
-      return "bg-amber-400 border-amber-500 text-black";
+      return "bg-amber-100 border-amber-200 text-black hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-100";
     default:
       return "bg-muted text-foreground";
   }
@@ -876,7 +876,8 @@ function EntryTable({
                     </TableCell>
                     <TableCell>
                       <Badge
-                        className={`text-[10px] capitalize font-semibold ${statusBadgeClass(statusStr)}`}
+                        variant="outline"
+                        className={`text-[10px] capitalize font-medium ${statusBadgeClass(statusStr)}`}
                       >
                         {e.status}
                       </Badge>

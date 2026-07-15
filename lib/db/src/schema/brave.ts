@@ -896,6 +896,19 @@ export const programmeConfigTable = pgTable("programme_config", {
   // Optional banner image shown at the top of the leaderboard page (e.g. the
   // finalised leaderboard graphic). Null = no image.
   leaderboardImageUrl: text("leaderboard_image_url"),
+  // Leaderboard banner source: "image" (use leaderboardImageUrl) or "template"
+  // (render a built-in template with the content below). Default "image".
+  leaderboardBannerSource: text("leaderboard_banner_source")
+    .notNull()
+    .default("image"),
+  // Chosen template id when source = "template" (broadcast | podium |
+  // spotlight | ribbon).
+  leaderboardBannerTemplate: text("leaderboard_banner_template")
+    .notNull()
+    .default("broadcast"),
+  // Editable template content ({ eyebrow,title,subtitle,timeText,chip1,chip2 }).
+  // Null → the UI falls back to DEFAULT_BANNER_CONTENT.
+  leaderboardBannerContent: jsonb("leaderboard_banner_content"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

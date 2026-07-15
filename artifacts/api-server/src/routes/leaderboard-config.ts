@@ -18,9 +18,23 @@ import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
 
+const BannerContent = z.object({
+  eyebrow: z.string().max(120),
+  title: z.string().max(120),
+  subtitle: z.string().max(300),
+  timeText: z.string().max(160),
+  chip1: z.string().max(80),
+  chip2: z.string().max(80),
+});
+
 const UpdateBody = z.object({
   hideRankForStudents: z.boolean().optional(),
   imageUrl: z.string().max(2000).nullable().optional(),
+  bannerSource: z.enum(["image", "template"]).optional(),
+  bannerTemplate: z
+    .enum(["broadcast", "podium", "spotlight", "ribbon"])
+    .optional(),
+  bannerContent: BannerContent.nullable().optional(),
 });
 
 async function getConfigRow() {
@@ -35,6 +49,16 @@ function serialize(row: typeof programmeConfigTable.$inferSelect) {
   return {
     hideRankForStudents: row.hideLeaderboardRankForStudents,
     imageUrl: (row.leaderboardImageUrl ?? "").trim() || null,
+    bannerSource:
+      (row.leaderboardBannerSource as "image" | "template") ?? "image",
+    bannerTemplate:
+      (row.leaderboardBannerTemplate as
+        | "broadcast"
+        | "podium"
+        | "spotlight"
+        | "ribbon") ?? "broadcast",
+    bannerContent:
+      (row.leaderboardBannerContent as Record<string, string> | null) ?? null,
   };
 }
 
@@ -73,6 +97,15 @@ router.put(
     if (parsed.data.imageUrl !== undefined) {
       const trimmed = (parsed.data.imageUrl ?? "").trim();
       patch.leaderboardImageUrl = trimmed || null;
+    }
+    if (parsed.data.bannerSource !== undefined) {
+      patch.leaderboardBannerSource = parsed.data.bannerSource;
+    }
+    if (parsed.data.bannerTemplate !== undefined) {
+      patch.leaderboardBannerTemplate = parsed.data.bannerTemplate;
+    }
+    if (parsed.data.bannerContent !== undefined) {
+      patch.leaderboardBannerContent = parsed.data.bannerContent;
     }
     const [updated] = await db
       .update(programmeConfigTable)

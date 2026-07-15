@@ -18,6 +18,10 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { getLeaderboardConfig } from "@/lib/leaderboard-config-api";
+import {
+  DEFAULT_BANNER_CONTENT,
+  LeaderboardBannerTemplateView,
+} from "@/components/leaderboard-banner-templates";
 
 export default function Leaderboard({
   headerExtra,
@@ -31,17 +35,23 @@ export default function Leaderboard({
   const [search, setSearch] = useState("");
   const canOpenTeam = user?.role === "admin" || user?.role === "coordinator";
 
-  // Leaderboard display config: optional banner image + hide-rank-for-students.
-  const { data: lbConfig } = useQuery({
+  // Leaderboard display config: banner (image or template) + hide-rank flag.
+  const isStudent = user?.role === "student";
+  const { data: lbConfig, isLoading: lbConfigLoading } = useQuery({
     queryKey: ["leaderboard-config"],
     queryFn: getLeaderboardConfig,
     staleTime: 60_000,
   });
   // Hide rank ONLY for students, and only when the admin toggle is on. Admins
   // and coordinators always see rank.
-  const hideRank =
-    user?.role === "student" && (lbConfig?.hideRankForStudents ?? false);
+  const hideRank = isStudent && (lbConfig?.hideRankForStudents ?? false);
   const bannerImage = lbConfig?.imageUrl ?? null;
+  const bannerSource = lbConfig?.bannerSource ?? "image";
+  const bannerTemplate = lbConfig?.bannerTemplate ?? "broadcast";
+  const bannerContent = {
+    ...DEFAULT_BANNER_CONTENT,
+    ...(lbConfig?.bannerContent ?? {}),
+  };
 
   const { data: leaderboard, isLoading } = useGetLeaderboard({
     view,
@@ -49,10 +59,24 @@ export default function Leaderboard({
     search: search || undefined,
   });
 
+  // Avoid a flash of the normal leaderboard (National / My Campus tabs) for a
+  // student before we know whether rank is hidden. Wait for the config first.
+  if (isStudent && lbConfigLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
   // When an admin hides rank from students, the entire ranking (search, tabs
-  // and the list) is hidden — students see ONLY the admin-set image on the
-  // page. Admins & coordinators are never affected.
+  // and the list) is hidden — students see ONLY the banner (image or template).
+  // Admins & coordinators are never affected.
   if (hideRank) {
+    const hasBanner =
+      bannerSource === "template"
+        ? true
+        : !!(bannerImage && bannerImage.trim());
     return (
       <div className="space-y-6">
         <div>
@@ -61,9 +85,14 @@ export default function Leaderboard({
             Race to ₹2,00,000 Verified Revenue
           </p>
         </div>
-        {bannerImage ? (
+        {bannerSource === "template" ? (
+          <LeaderboardBannerTemplateView
+            template={bannerTemplate}
+            content={bannerContent}
+          />
+        ) : hasBanner ? (
           <img
-            src={bannerImage}
+            src={bannerImage as string}
             alt="Leaderboard"
             className="w-full rounded-xl border object-contain"
             data-testid="leaderboard-banner-image"
