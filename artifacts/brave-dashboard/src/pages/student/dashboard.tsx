@@ -29,6 +29,7 @@ import {
 import { NotificationsBell } from "@/components/notifications-bell";
 import { HelpMenu } from "@/components/help-menu";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
+import { SubmitAsapBanner } from "@/components/projects-lock-banner";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
 import { TeamNameDuplicatePopup } from "@/components/team-name-duplicate-popup";
@@ -234,6 +235,7 @@ export default function TeamDashboard() {
       <TeamNameDuplicatePopup />
       <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <PinnedAnnouncementBanner />
+        <SubmitAsapBanner />
 
         {/* ===================== COMMAND HEADER ===================== */}
         <header className={cn(PANEL, "overflow-hidden")}>

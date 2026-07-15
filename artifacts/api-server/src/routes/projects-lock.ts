@@ -23,6 +23,12 @@ import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
 import { requireTeamLeader } from "../lib/auth";
 import { logAudit } from "../lib/audit";
+import { sendEmail, getAppUrl } from "../lib/email/brevo";
+import {
+  renderSubmissionEnabledEmail,
+  renderSubmissionDisabledEmail,
+} from "../lib/email/templates/submission-access";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -352,6 +358,10 @@ router.put(
       uniqueIds[0],
       `${parsed.data.enabled ? "enabled" : "disabled"} submissions for ${uniqueIds.length} team(s)`,
     );
+    // Email each affected team's leader + members (best-effort; never blocks
+    // the response). Fires for single, header, bulk and request-enable toggles
+    // since they all go through this one endpoint.
+    void notifyTeamsSubmissionToggle(uniqueIds, parsed.data.enabled);
     res.json({
       ok: true,
       count: uniqueIds.length,
@@ -359,6 +369,52 @@ router.put(
     });
   },
 );
+
+// Emails every member (leader included) of the given teams that their
+// submissions were enabled/disabled. Best-effort: skips synthetic/placeholder
+// addresses, logs and swallows all errors.
+async function notifyTeamsSubmissionToggle(
+  teamIds: number[],
+  enabled: boolean,
+): Promise<void> {
+  try {
+    const appUrl = getAppUrl();
+    const isRealEmail = (e: string | null | undefined): e is string =>
+      !!e && !/@forms\.local$/i.test(e) && !/^sso_/i.test(e) && e.includes("@");
+    // Team names.
+    const teams = await db
+      .select({ id: teamsTable.id, name: teamsTable.name })
+      .from(teamsTable)
+      .where(inArray(teamsTable.id, teamIds));
+    const nameById = new Map(teams.map((t) => [t.id, t.name]));
+    // Members (with emails) for these teams.
+    const members = await db
+      .select({ teamId: teamMembersTable.teamId, email: usersTable.email })
+      .from(teamMembersTable)
+      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+      .where(inArray(teamMembersTable.teamId, teamIds));
+    const emailsByTeam = new Map<number, string[]>();
+    for (const m of members) {
+      if (!isRealEmail(m.email)) continue;
+      const arr = emailsByTeam.get(m.teamId) ?? [];
+      if (!arr.includes(m.email)) arr.push(m.email);
+      emailsByTeam.set(m.teamId, arr);
+    }
+    for (const teamId of teamIds) {
+      const recipients = (emailsByTeam.get(teamId) ?? [])
+        .slice(0, 50)
+        .map((email) => ({ email }));
+      if (recipients.length === 0) continue;
+      const teamName = nameById.get(teamId) ?? "your team";
+      const { subject, text, html } = enabled
+        ? renderSubmissionEnabledEmail({ teamName, appUrl })
+        : renderSubmissionDisabledEmail({ teamName, appUrl });
+      await sendEmail({ to: recipients, subject, text, html });
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to send team submission toggle emails");
+  }
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // "Request to submit" — a locked team leader asks an admin to enable their

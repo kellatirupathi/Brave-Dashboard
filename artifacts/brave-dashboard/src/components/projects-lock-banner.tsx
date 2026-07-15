@@ -31,6 +31,10 @@ export function useProjectsLock(): {
   // Whether students may edit + resubmit a rejected revenue entry. Defaults to
   // true (allowed) until the config loads, so buttons aren't hidden on a blip.
   rejectedResubmitEnabled: boolean;
+  // Raw flags: the global lock state and whether this team is exempted. Used to
+  // show the "submit ASAP" nudge to exempted teams during a global lock.
+  globalLocked: boolean;
+  exempted: boolean;
 } {
   const { data } = useQuery({
     queryKey: ["projects-lock"],
@@ -43,7 +47,30 @@ export function useProjectsLock(): {
     locked: globalLocked && !exempted,
     message: data?.message ?? "",
     rejectedResubmitEnabled: data?.rejectedResubmitEnabled ?? true,
+    globalLocked,
+    exempted,
   };
+}
+
+// Shown to a team that is EXEMPTED while the global lock is ON — a one-row
+// urgency nudge (they're allowed to submit during the lockdown, so they should
+// do it quickly). Rendered at the top of the Projects and Dashboard pages.
+export function SubmitAsapBanner() {
+  const { globalLocked, exempted } = useProjectsLock();
+  if (!(globalLocked && exempted)) return null;
+  return (
+    <div
+      className="flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm text-foreground"
+      data-testid="banner-submit-asap"
+    >
+      <Send className="h-4 w-4 shrink-0 text-primary" />
+      <p className="leading-relaxed">
+        <span className="font-semibold">Submissions close soon.</span> Your team
+        can still add entries — please add your revenue &amp; order book entries
+        as soon as possible.
+      </p>
+    </div>
+  );
 }
 
 // `canRequest` = the current user is the team leader (only they may request).

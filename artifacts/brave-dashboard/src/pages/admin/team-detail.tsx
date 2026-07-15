@@ -778,6 +778,36 @@ function truncateReason(s: string, n = 40): string {
   return s.length > n ? `${s.slice(0, n).trimEnd()}…` : s;
 }
 
+// Light row tint by entry status: green (verified), red (rejected), yellow
+// (submitted). Others (draft/revoked) get no tint.
+function statusRowClass(status: string): string {
+  switch (status.toLowerCase()) {
+    case "verified":
+      return "bg-green-50 hover:bg-green-100/70 dark:bg-green-950/25 dark:hover:bg-green-950/40";
+    case "rejected":
+      return "bg-red-50 hover:bg-red-100/70 dark:bg-red-950/25 dark:hover:bg-red-950/40";
+    case "submitted":
+      return "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/25 dark:hover:bg-amber-950/40";
+    default:
+      return "";
+  }
+}
+
+// Bolder status badge (green/red/yellow) with black text so it stands out in
+// the tinted row.
+function statusBadgeClass(status: string): string {
+  switch (status.toLowerCase()) {
+    case "verified":
+      return "bg-green-500 border-green-600 text-black";
+    case "rejected":
+      return "bg-red-500 border-red-600 text-black";
+    case "submitted":
+      return "bg-amber-400 border-amber-500 text-black";
+    default:
+      return "bg-muted text-foreground";
+  }
+}
+
 function EntryTable({
   title,
   entries,
@@ -834,15 +864,19 @@ function EntryTable({
                 const isRejected =
                   String(e.status ?? "").toLowerCase() === "rejected";
                 const reason = String(e.adminNotes ?? "").trim();
+                const statusStr = String(e.status ?? "");
                 return (
-                  <TableRow key={e.id} data-testid={`${testIdPrefix}-${e.id}`}>
+                  <TableRow
+                    key={e.id}
+                    data-testid={`${testIdPrefix}-${e.id}`}
+                    className={statusRowClass(statusStr)}
+                  >
                     <TableCell className="text-sm">
                       {e.clientName ?? "—"}
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant="outline"
-                        className="text-[10px] capitalize"
+                        className={`text-[10px] capitalize font-semibold ${statusBadgeClass(statusStr)}`}
                       >
                         {e.status}
                       </Badge>

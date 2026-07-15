@@ -42,6 +42,7 @@ import {
 import { DocumentLinkButton } from "@/components/document-viewer";
 import {
   ProjectsLockBanner,
+  SubmitAsapBanner,
   useProjectsLock,
 } from "@/components/projects-lock-banner";
 import { Link } from "wouter";
@@ -647,6 +648,8 @@ export default function ProjectDetail() {
 
       {/* Admin "projects submissions lock" notice — shown while locked. */}
       <ProjectsLockBanner canRequest={isLeader} />
+      {/* Exempted-team nudge while the global lock is on. */}
+      <SubmitAsapBanner />
 
       {teamLoadFailed ? (
         <div

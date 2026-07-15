@@ -24,6 +24,7 @@ import { NotificationsBell } from "@/components/notifications-bell";
 import { HelpMenu } from "@/components/help-menu";
 import { JournalWeekTracker } from "@/components/journal-week-tracker";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
+import { SubmitAsapBanner } from "@/components/projects-lock-banner";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
 import { ProgramCountdown } from "@/components/program-countdown";
@@ -163,6 +164,7 @@ export default function TeamDashboard() {
       <AutoIntroVideo />
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <PinnedAnnouncementBanner />
+        <SubmitAsapBanner />
 
         {/* ===================== HEADER ===================== */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
