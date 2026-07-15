@@ -45,6 +45,8 @@ import { TeamNameUniquenessCard } from "@/components/team-name-uniqueness-card";
 import { GritConfigCard } from "@/components/grit-config-card";
 import { BrdDriveCard } from "@/components/brd-drive-card";
 import { PopupsAdminCard } from "@/components/popups-admin-card";
+import { ProjectsLockCard } from "@/components/projects-lock-card";
+import { RejectionReasonsCard } from "@/components/rejection-reasons-card";
 import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
@@ -444,6 +446,12 @@ export default function AdminConfig() {
 
           {/* Team Name Uniqueness — notify duplicate-name teams to rename. */}
           <TeamNameUniquenessCard />
+
+          {/* Projects submissions lock — pause student orders/BRD uploads. */}
+          <ProjectsLockCard />
+
+          {/* Revenue rejection reasons — CRUD for the queue's quick chips. */}
+          <RejectionReasonsCard />
         </div>
 
         {/* RIGHT column — Key Dates, Thresholds + Save, Notifications & Reminders. */}

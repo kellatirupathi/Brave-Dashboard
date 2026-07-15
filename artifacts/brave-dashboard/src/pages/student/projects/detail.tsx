@@ -40,6 +40,10 @@ import {
   Ban,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
+import {
+  ProjectsLockBanner,
+  useProjectsLock,
+} from "@/components/projects-lock-banner";
 import { Link } from "wouter";
 import { useState } from "react";
 import {
@@ -117,6 +121,9 @@ export default function ProjectDetail() {
     teamIsError && normalizeError(teamError).status !== 404;
   const isLeader =
     !!myTeam && !!user && String(myTeam.leaderId) === String(user.id);
+  // Admin "projects submissions lock" — while locked, adding orders/revenue
+  // and submitting BRDs is disabled here (the API enforces it too).
+  const { locked: submissionsLocked } = useProjectsLock();
 
   const createOrderBook = useCreateOrderBookEntry();
   const updateOrderBook = useUpdateOrderBookEntry();
@@ -633,6 +640,9 @@ export default function ProjectDetail() {
         )}
       </div>
 
+      {/* Admin "projects submissions lock" notice — shown while locked. */}
+      <ProjectsLockBanner />
+
       {teamLoadFailed ? (
         <div
           className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
@@ -715,12 +725,12 @@ export default function ProjectDetail() {
             <Dialog
               open={isRevenueOpen}
               onOpenChange={(open) => {
-                if (!isLeader) return;
+                if (!isLeader || submissionsLocked) return;
                 setIsRevenueOpen(open);
                 if (!open) resetForms();
               }}
             >
-              {isLeader && (
+              {isLeader && !submissionsLocked && (
                 <DialogTrigger asChild>
                   <Button size="sm" data-testid="button-add-revenue">
                     <Plus className="w-4 h-4 mr-2" /> Add Revenue
@@ -941,13 +951,17 @@ export default function ProjectDetail() {
                             <Button
                               size="default"
                               disabled={
-                                submitRevenue.isPending || !entry.brdUrl
+                                submitRevenue.isPending ||
+                                !entry.brdUrl ||
+                                submissionsLocked
                               }
                               onClick={() => handleSubmitRevenue(entry.id)}
                               title={
-                                !entry.brdUrl
-                                  ? "Upload a BRD before submitting"
-                                  : undefined
+                                submissionsLocked
+                                  ? "Submissions are currently paused"
+                                  : !entry.brdUrl
+                                    ? "Upload a BRD before submitting"
+                                    : undefined
                               }
                               className="w-full sm:w-auto shadow-md shadow-primary/30 font-semibold"
                               data-testid={`button-submit-revenue-${entry.id}`}
@@ -955,12 +969,14 @@ export default function ProjectDetail() {
                               <Send className="w-4 h-4 mr-2" /> Submit for
                               verification
                             </Button>
-                            {entry.brdUrl && !submitRevenue.isPending && (
-                              <span
-                                aria-hidden
-                                className="pointer-events-none absolute inset-0 rounded-md ring-2 ring-primary/60 animate-pulse"
-                              />
-                            )}
+                            {entry.brdUrl &&
+                              !submitRevenue.isPending &&
+                              !submissionsLocked && (
+                                <span
+                                  aria-hidden
+                                  className="pointer-events-none absolute inset-0 rounded-md ring-2 ring-primary/60 animate-pulse"
+                                />
+                              )}
                           </div>
                         )}
                         {isLeader && entry.status === "rejected" && (
@@ -976,9 +992,16 @@ export default function ProjectDetail() {
                             <Button
                               size="sm"
                               disabled={
-                                submitRevenue.isPending || !entry.brdUrl
+                                submitRevenue.isPending ||
+                                !entry.brdUrl ||
+                                submissionsLocked
                               }
                               onClick={() => handleSubmitRevenue(entry.id)}
+                              title={
+                                submissionsLocked
+                                  ? "Submissions are currently paused"
+                                  : undefined
+                              }
                               data-testid={`button-resubmit-revenue-${entry.id}`}
                             >
                               <Send className="w-4 h-4 mr-2" /> Resubmit for
@@ -1032,12 +1055,12 @@ export default function ProjectDetail() {
             <Dialog
               open={isOrderOpen}
               onOpenChange={(open) => {
-                if (!isLeader) return;
+                if (!isLeader || submissionsLocked) return;
                 setIsOrderOpen(open);
                 if (!open) resetForms();
               }}
             >
-              {isLeader && (
+              {isLeader && !submissionsLocked && (
                 <DialogTrigger asChild>
                   <Button size="sm" data-testid="button-add-order">
                     <Plus className="w-4 h-4 mr-2" /> Add Order

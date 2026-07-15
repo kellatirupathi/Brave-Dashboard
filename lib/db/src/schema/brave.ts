@@ -870,6 +870,16 @@ export const programmeConfigTable = pgTable("programme_config", {
   // for students. Independent of the GRIT Miles flags above and of the admin
   // "Demo Day Submissions" item, which is never affected.
   demoDayMenuEnabled: boolean("demo_day_menu_enabled").notNull().default(true),
+  // Projects submissions lock (admin Config toggle). When true, students can
+  // no longer add order book entries, add revenue entries, or submit revenue
+  // for verification (BRD uploads) — the student Projects pages show the
+  // message below instead. Admins are never blocked. Default false = open.
+  projectSubmissionsLocked: boolean("project_submissions_locked")
+    .notNull()
+    .default(false),
+  // Message shown at the top of the student Projects pages while locked.
+  // Null → the UI falls back to a default message.
+  projectSubmissionsLockMessage: text("project_submissions_lock_message"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -1364,3 +1374,26 @@ export const popupAcknowledgementsTable = pgTable(
 
 export type PopupAcknowledgement =
   typeof popupAcknowledgementsTable.$inferSelect;
+
+// Admin-managed catalog of common revenue rejection reasons (additive,
+// isolated). CRUD lives on the Config page; the review-queue reject dialogs
+// show these as tap-to-insert chips instead of a hardcoded list. Seeded once
+// at server bootstrap with the two previously hardcoded reasons.
+export const rejectionReasonsTable = pgTable(
+  "rejection_reasons",
+  {
+    id: serial("id").primaryKey(),
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("rejection_reasons_sort_idx").on(t.sortOrder)],
+);
+
+export type RejectionReason = typeof rejectionReasonsTable.$inferSelect;

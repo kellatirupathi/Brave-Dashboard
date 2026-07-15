@@ -43,6 +43,7 @@ import {
   scheduleBrdAnalysis,
   runBrdAnalysisNow,
 } from "../lib/ai/brd-scheduler";
+import { getProjectSubmissionsLockError } from "./projects-lock";
 
 const router: IRouter = Router();
 
@@ -199,6 +200,13 @@ router.post("/order-book-entries", async (req, res): Promise<void> => {
   }
   // Only the team leader (or an admin override) may add order book entries.
   if (!(await requireTeamLeader(req, res, project.teamId))) {
+    return;
+  }
+  // Admin Config "projects submissions lock" — blocks students (not admins)
+  // from adding order book entries while enabled.
+  const obLockMessage = await getProjectSubmissionsLockError(req);
+  if (obLockMessage) {
+    res.status(403).json({ error: obLockMessage });
     return;
   }
   const now = new Date();
@@ -398,6 +406,13 @@ router.post("/revenue-entries", async (req, res): Promise<void> => {
   if (!(await requireTeamLeader(req, res, project.teamId))) {
     return;
   }
+  // Admin Config "projects submissions lock" — blocks students (not admins)
+  // from adding revenue entries (BRD uploads) while enabled.
+  const revLockMessage = await getProjectSubmissionsLockError(req);
+  if (revLockMessage) {
+    res.status(403).json({ error: revLockMessage });
+    return;
+  }
   const paymentDateStr =
     typeof parsed.data.paymentDate === "string"
       ? parsed.data.paymentDate
@@ -595,6 +610,13 @@ router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
   // Only the team leader (or an admin override) may submit revenue entries
   // for verification.
   if (!(await requireTeamLeader(req, res, existing.teamId))) {
+    return;
+  }
+  // Admin Config "projects submissions lock" — blocks students (not admins)
+  // from submitting revenue for verification while enabled.
+  const submitLockMessage = await getProjectSubmissionsLockError(req);
+  if (submitLockMessage) {
+    res.status(403).json({ error: submitLockMessage });
     return;
   }
   if (!existing.brdUrl || existing.brdUrl.trim() === "") {

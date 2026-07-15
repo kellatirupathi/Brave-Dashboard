@@ -41,6 +41,8 @@ import termsRouter from "./terms";
 import demoDaySubmissionsRouter from "./demoday-submissions";
 import adminBrdDriveRouter from "./admin-brd-drive";
 import popupsRouter from "./popups";
+import projectsLockRouter from "./projects-lock";
+import rejectionReasonsRouter from "./rejection-reasons";
 
 const router: IRouter = Router();
 
@@ -110,5 +112,9 @@ router.use(demoDaySubmissionsRouter);
 router.use(adminBrdDriveRouter);
 // Admin-managed student pop-ups: CRUD + student pending/ack (additive, isolated)
 router.use(popupsRouter);
+// Projects submissions lock: admin Config toggle + student read (additive)
+router.use(projectsLockRouter);
+// Revenue rejection reasons catalog: admin Config CRUD + queue chips (additive)
+router.use(rejectionReasonsRouter);
 
 export default router;

@@ -61,7 +61,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { DocumentLinkButton } from "@/components/document-viewer";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { listRejectionReasons } from "@/lib/rejection-reasons-api";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
@@ -113,33 +114,36 @@ type Tab = "pending" | "approved" | "rejected";
 
 type SortOption = "newest" | "oldest" | "amount_desc" | "amount_asc";
 
-// Tap-to-insert default rejection reasons shown under the reject textarea.
-const REJECT_SUGGESTIONS = [
-  "Kindly submit the BRD in the required format",
-  "Please attach conversation screenshots, working links, a phase-wise payment plan, client details, and testimonials",
-];
-
 // Small chip row that inserts a suggested reason into the reject textarea.
+// Reasons are admin-managed from Config → Revenue Rejection Reasons (was a
+// hardcoded list before).
 function RejectReasonSuggestions({
   onPick,
 }: {
   onPick: (text: string) => void;
 }) {
+  const { data } = useQuery({
+    queryKey: ["admin-rejection-reasons"],
+    queryFn: listRejectionReasons,
+    staleTime: 60_000,
+  });
+  const reasons = data?.items ?? [];
+  if (reasons.length === 0) return null;
   return (
     <div className="space-y-1.5">
       <p className="text-xs text-muted-foreground">
         Quick reasons — tap to add:
       </p>
       <div className="flex flex-wrap gap-1.5">
-        {REJECT_SUGGESTIONS.map((s) => (
+        {reasons.map((r) => (
           <button
-            key={s}
+            key={r.id}
             type="button"
-            onClick={() => onPick(s)}
+            onClick={() => onPick(r.label)}
             className="rounded-full border px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             data-testid="reject-suggestion"
           >
-            {s}
+            {r.label}
           </button>
         ))}
       </div>
@@ -265,10 +269,11 @@ function QueueList({
   const type = "revenue" as const;
   const [page, setPage] = useState(1);
 
-  // Bulk multi-select is only offered on the pending tab, and only to admins
-  // who may edit the queue. Selection is scoped to the current page.
+  // Bulk multi-select is offered on all three tabs (pending: approve/reject,
+  // approved: unverify, rejected: re-open) to admins who may edit the queue.
+  // Selection is scoped to the current page.
   const { canEdit } = useAdminPageAccess("/admin/queue");
-  const selectable = status === "submitted" && canEdit;
+  const selectable = canEdit;
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   // Reset to the first page whenever the search term or sort order changes.
@@ -360,10 +365,18 @@ function QueueList({
       </div>
 
       {selectable && selectedItems.length > 0 ? (
-        <BulkReviewBar
-          items={selectedItems}
-          onDone={() => setSelected(new Set())}
-        />
+        status === "submitted" ? (
+          <BulkReviewBar
+            items={selectedItems}
+            onDone={() => setSelected(new Set())}
+          />
+        ) : (
+          <BulkUnverifyBar
+            items={selectedItems}
+            status={status}
+            onDone={() => setSelected(new Set())}
+          />
+        )
       ) : null}
 
       {items.length === 0 ? (
@@ -828,6 +841,150 @@ function BulkReviewBar({
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Bulk unverify (Approved tab) / re-open (Rejected tab) for the selected
+// entries. Both move the entries back to Pending review via the same
+// per-entry unverify endpoint — like BulkReviewBar, there is no bulk backend
+// endpoint, so this loops the existing per-entry mutation (each also fires
+// its own notification side-effects, same as a single action).
+function BulkUnverifyBar({
+  items,
+  status,
+  onDone,
+}: {
+  items: QueueItem[];
+  status: "verified" | "rejected";
+  onDone: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const unverify = useUnverifyRevenueEntry();
+  const [open, setOpen] = useState(false);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const running = progress !== null;
+
+  const verb = status === "verified" ? "Unverify" : "Re-open";
+  const totalAmount = items.reduce(
+    (sum, i) =>
+      sum + (status === "verified" ? (i.verifiedAmount ?? i.amount) : i.amount),
+    0,
+  );
+
+  const invalidate = () => {
+    for (const s of ["submitted", "verified", "rejected"] as const) {
+      queryClient.invalidateQueries({
+        queryKey: getGetAdminReviewQueueQueryKey({
+          type: "revenue",
+          status: s as "submitted" | "verified",
+        }),
+      });
+    }
+  };
+
+  const runBulk = async () => {
+    setProgress({ done: 0, total: items.length });
+    let ok = 0;
+    let fail = 0;
+    for (const it of items) {
+      try {
+        await unverify.mutateAsync({ id: it.id });
+        ok++;
+      } catch {
+        fail++;
+      }
+      setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    setProgress(null);
+    setOpen(false);
+    invalidate();
+    toast({
+      title: `${status === "verified" ? "Unverified" : "Re-opened"} ${ok} ${
+        ok === 1 ? "entry" : "entries"
+      }${fail ? ` · ${fail} failed` : ""}`,
+      description: "Moved back to the pending review queue.",
+      variant: fail ? "destructive" : undefined,
+    });
+    onDone();
+  };
+
+  return (
+    <div className="sticky top-2 z-30 flex flex-wrap items-center gap-3 rounded-lg border bg-background/95 px-4 py-2 shadow-sm backdrop-blur">
+      <span className="text-sm font-medium" data-testid="text-bulk-selected">
+        {items.length} selected · {formatINR(totalAmount)}
+      </span>
+      <div className="ml-auto flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setOpen(true)}
+          disabled={running}
+          data-testid={
+            status === "verified"
+              ? "button-bulk-unverify"
+              : "button-bulk-reopen"
+          }
+        >
+          <RotateCcw className="w-4 h-4 mr-1" /> {verb} selected
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onDone}
+          disabled={running}
+          data-testid="button-bulk-clear"
+        >
+          Clear
+        </Button>
+      </div>
+
+      <AlertDialog
+        open={open}
+        onOpenChange={(o) => (!o && !running ? setOpen(false) : undefined)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {verb} {items.length} {items.length === 1 ? "entry" : "entries"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {status === "verified"
+                ? "Each selected entry's verified amount and admin notes will be cleared and the entry moved back to "
+                : "Each selected entry will be moved back to "}
+              <strong>Pending review</strong>. Team leaders will be notified.
+              You can verify or reject them again from the pending tab.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {running ? (
+            <p className="text-sm text-muted-foreground">
+              Processing {progress?.done}/{progress?.total}…
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={running}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void runBulk();
+              }}
+              disabled={running}
+              data-testid={
+                status === "verified"
+                  ? "button-confirm-bulk-unverify"
+                  : "button-confirm-bulk-reopen"
+              }
+            >
+              {running && <Spinner className="w-4 h-4 mr-2" />}
+              {verb} {items.length} {items.length === 1 ? "entry" : "entries"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

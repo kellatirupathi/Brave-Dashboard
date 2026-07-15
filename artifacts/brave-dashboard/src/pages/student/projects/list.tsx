@@ -52,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/lib/api-error";
 import { VerificationTimelineNote } from "@/components/verification-timeline-note";
 import { InternationalClientsNote } from "@/components/international-clients-note";
+import { ProjectsLockBanner } from "@/components/projects-lock-banner";
 
 const projectSchema = z.object({
   title: z.string().min(3).max(80),
@@ -121,6 +122,9 @@ export default function ProjectsList() {
 
   return (
     <div className="space-y-6">
+      {/* Admin "projects submissions lock" notice — shown while locked. */}
+      <ProjectsLockBanner />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>

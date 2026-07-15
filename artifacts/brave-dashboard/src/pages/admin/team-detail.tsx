@@ -42,6 +42,8 @@ import {
   IndianRupee,
   ListChecks,
   Trash2,
+  StickyNote,
+  Pencil,
 } from "lucide-react";
 import { DocumentLinkButton } from "@/components/document-viewer";
 import {
@@ -74,16 +76,25 @@ function docLink(url: string | null | undefined, label: string, key: string) {
   );
 }
 
-// Editable admin note (team-level or per-project). Saves via the passed
-// onSave, toasts, and disables Save until the text actually changes.
-function AdminNotesEditor({
+// Modal editor for an admin note (team-level or per-project). Opens from the
+// small "Admin note" buttons; saving empty text clears the note (the API
+// stores null). Read-only view for admins without edit access.
+function AdminNoteModal({
+  open,
+  onOpenChange,
+  title,
   initial,
   placeholder,
+  canEdit,
   onSave,
   testId,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
   initial: string;
   placeholder: string;
+  canEdit: boolean;
   onSave: (value: string) => Promise<void>;
   testId: string;
 }) {
@@ -91,20 +102,20 @@ function AdminNotesEditor({
   const [value, setValue] = useState(initial);
   const [saving, setSaving] = useState(false);
 
+  // Re-sync the draft each time the modal opens with the latest saved note.
   useEffect(() => {
-    setValue(initial);
-  }, [initial]);
-
-  const dirty = value.trim() !== (initial ?? "").trim();
+    if (open) setValue(initial);
+  }, [open, initial]);
 
   const submit = async () => {
     setSaving(true);
     try {
       await onSave(value.trim());
-      toast({ title: "Notes saved" });
+      toast({ title: "Note saved" });
+      onOpenChange(false);
     } catch (err) {
       toast({
-        title: "Could not save notes",
+        title: "Could not save note",
         description: err instanceof Error ? err.message : "Please try again.",
         variant: "destructive",
       });
@@ -114,26 +125,47 @@ function AdminNotesEditor({
   };
 
   return (
-    <div className="space-y-2">
-      <Textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={placeholder}
-        rows={3}
-        data-testid={`${testId}-input`}
-      />
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={submit}
-          disabled={saving || !dirty}
-          data-testid={`${testId}-save`}
-        >
-          {saving && <Spinner className="w-4 h-4 mr-2" />}
-          Save notes
-        </Button>
-      </div>
-    </div>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!saving) onOpenChange(o);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        {canEdit ? (
+          <div className="space-y-3">
+            <Textarea
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={placeholder}
+              rows={4}
+              data-testid={`${testId}-input`}
+            />
+            <p className="text-xs text-muted-foreground">
+              Visible to admins only.
+            </p>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={submit}
+                disabled={saving}
+                data-testid={`${testId}-save`}
+              >
+                {saving && <Spinner className="w-4 h-4 mr-2" />}
+                Save note
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+            {initial || "No note yet."}
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -180,6 +212,7 @@ export default function AdminTeamDetail() {
   const [, setLocation] = useLocation();
   const deleteTeam = useDeleteTeam();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [teamNoteOpen, setTeamNoteOpen] = useState(false);
 
   const isAdmin = user?.role === "admin";
   // Respect the super-admin-controlled per-page delete permission for the
@@ -254,6 +287,9 @@ export default function AdminTeamDetail() {
   );
 
   const statusVariant = team.status === "active" ? "default" : "destructive";
+  const teamNote = (
+    (team as unknown as { adminNotes?: string }).adminNotes ?? ""
+  ).trim();
 
   return (
     <div className="space-y-6">
@@ -296,6 +332,17 @@ export default function AdminTeamDetail() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {(canEditNotes || teamNote) && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTeamNoteOpen(true)}
+              data-testid="button-team-admin-note"
+            >
+              <StickyNote className="w-4 h-4 mr-1" />
+              {teamNote ? "Admin note" : "Add admin note"}
+            </Button>
+          )}
           <Badge
             variant={statusVariant as any}
             className="text-xs uppercase tracking-wide"
@@ -414,29 +461,17 @@ export default function AdminTeamDetail() {
         </CardContent>
       </Card>
 
-      {canEditNotes || (team as any).adminNotes ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Admin notes (team)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {canEditNotes ? (
-              <AdminNotesEditor
-                initial={
-                  (team as unknown as { adminNotes?: string }).adminNotes ?? ""
-                }
-                placeholder="Overall notes about this team (admins only)…"
-                onSave={saveTeamNotes}
-                testId="team-admin-notes"
-              />
-            ) : (
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                {(team as unknown as { adminNotes?: string }).adminNotes}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
+      {/* Team admin note — opened from the small header button. */}
+      <AdminNoteModal
+        open={teamNoteOpen}
+        onOpenChange={setTeamNoteOpen}
+        title={`Admin note — ${team.name}`}
+        initial={teamNote}
+        placeholder="Overall notes about this team (admins only)…"
+        canEdit={canEditNotes}
+        onSave={saveTeamNotes}
+        testId="team-admin-notes"
+      />
 
       <div>
         <h2 className="text-xl font-semibold tracking-tight mb-3">
@@ -510,6 +545,29 @@ function ProjectCard({
   canEdit: boolean;
   onSaveNotes: (value: string) => Promise<void>;
 }) {
+  const { toast } = useToast();
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const note = String(project.adminNotes ?? "").trim();
+
+  const deleteNote = async () => {
+    setDeleting(true);
+    try {
+      await onSaveNotes("");
+      toast({ title: "Note deleted" });
+      setConfirmDelete(false);
+    } catch (err) {
+      toast({
+        title: "Could not delete note",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Card data-testid={`project-${project.id}`}>
       <CardHeader className="pb-3">
@@ -520,6 +578,17 @@ function ProjectCard({
               <Badge variant="outline" className="text-[10px] capitalize">
                 {project.status}
               </Badge>
+              {canEdit && !note && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setNoteOpen(true)}
+                  data-testid={`button-add-project-note-${project.id}`}
+                >
+                  <StickyNote className="w-3 h-3 mr-1" /> Add admin note
+                </Button>
+              )}
             </CardTitle>
             {project.description && (
               <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
@@ -562,24 +631,91 @@ function ProjectCard({
             testIdPrefix={`rev-p${project.id}`}
           />
         </div>
-        {canEdit || project.adminNotes ? (
-          <div className="space-y-1.5 rounded-md border bg-muted/20 p-3">
-            <h4 className="text-sm font-medium">Admin notes</h4>
-            {canEdit ? (
-              <AdminNotesEditor
-                initial={project.adminNotes ?? ""}
-                placeholder="Notes about this project (admins only)…"
-                onSave={onSaveNotes}
-                testId={`project-notes-${project.id}`}
-              />
-            ) : (
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                {project.adminNotes}
-              </p>
-            )}
+        {/* Saved note shown at the bottom of the project, with edit/delete
+            icon buttons for admins who may edit. */}
+        {note ? (
+          <div
+            className="space-y-1.5 rounded-md border bg-muted/20 p-3"
+            data-testid={`project-note-${project.id}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="flex items-center gap-1.5 text-sm font-medium">
+                <StickyNote className="w-3.5 h-3.5" /> Admin note
+              </h4>
+              {canEdit && (
+                <div className="flex gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => setNoteOpen(true)}
+                    aria-label="Edit admin note"
+                    data-testid={`button-edit-project-note-${project.id}`}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-destructive hover:text-destructive"
+                    onClick={() => setConfirmDelete(true)}
+                    aria-label="Delete admin note"
+                    data-testid={`button-delete-project-note-${project.id}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+              {note}
+            </p>
           </div>
         ) : null}
       </CardContent>
+
+      <AdminNoteModal
+        open={noteOpen}
+        onOpenChange={setNoteOpen}
+        title={`Admin note — ${project.title}`}
+        initial={note}
+        placeholder="Notes about this project (admins only)…"
+        canEdit={canEdit}
+        onSave={onSaveNotes}
+        testId={`project-notes-${project.id}`}
+      />
+
+      <AlertDialog
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          if (!deleting) setConfirmDelete(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this admin note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The note on "{project.title}" will be removed. This cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void deleteNote();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid={`button-confirm-delete-project-note-${project.id}`}
+            >
+              {deleting && <Spinner className="w-4 h-4 mr-2" />}
+              Delete note
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

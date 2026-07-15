@@ -9,6 +9,7 @@ import { bootstrapCoordinatorTags } from "./bootstrap-coordinator-tags";
 import { catchUpPendingBrdAnalyses } from "./lib/ai/analyse-brd";
 import { catchUpPendingJournalAnalyses } from "./lib/ai/journal-scheduler";
 import { sweepAutoApprovePendingRequests } from "./lib/membership-requests";
+import { bootstrapRejectionReasons } from "./routes/rejection-reasons";
 
 async function reportUsersWithoutCampus(): Promise<void> {
   try {
@@ -302,6 +303,43 @@ async function ensurePopupTables(): Promise<void> {
   }
 }
 
+// Adds the projects-submissions-lock columns to programme_config and creates
+// the rejection_reasons table. Runs at startup for the same reason as the
+// other ensure* helpers: prod does NOT run `drizzle-kit push`, so without this
+// the projects-lock / rejection-reasons routes would crash with
+// "column/relation does not exist". Fully idempotent; safe on every boot.
+async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE programme_config
+        ADD COLUMN IF NOT EXISTS project_submissions_locked boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS project_submissions_lock_message text
+    `);
+  } catch (err) {
+    logger.error(
+      { err },
+      "Failed to ensure programme_config projects-lock columns",
+    );
+  }
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS rejection_reasons (
+        id serial PRIMARY KEY,
+        label text NOT NULL,
+        sort_order integer NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS rejection_reasons_sort_idx
+        ON rejection_reasons (sort_order)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure rejection_reasons table");
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -372,6 +410,18 @@ async function runBootstrap(): Promise<void> {
     await ensurePopupTables();
   } catch (err) {
     logger.error({ err }, "ensurePopupTables failed");
+  }
+  try {
+    await ensureProjectsLockAndRejectionReasons();
+  } catch (err) {
+    logger.error({ err }, "ensureProjectsLockAndRejectionReasons failed");
+  }
+  // Seed the two previously hardcoded reject-reason chips once, only when the
+  // rejection_reasons table is empty (admin deletions are never resurrected).
+  try {
+    await bootstrapRejectionReasons();
+  } catch (err) {
+    logger.error({ err }, "bootstrapRejectionReasons failed");
   }
   try {
     await bootstrapCanonicalCampuses();
