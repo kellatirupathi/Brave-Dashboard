@@ -989,6 +989,7 @@ function ListView() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All status</SelectItem>
+              <SelectItem value="submitted">Pending</SelectItem>
               <SelectItem value="verified">Approved</SelectItem>
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
