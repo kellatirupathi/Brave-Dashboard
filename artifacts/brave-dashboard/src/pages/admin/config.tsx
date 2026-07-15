@@ -393,11 +393,15 @@ export default function AdminConfig() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Sidebar-menu layout: section list on the left, the selected section's
-          cards on the right. Cards and their logic are unchanged. */}
-      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 items-start">
-        {/* LEFT — section menu */}
-        <nav className="lg:sticky lg:top-4 space-y-1" data-testid="config-menu">
+      {/* Sidebar-menu layout: the left section list stays fixed while the
+          right content pane scrolls on its own (desktop). On mobile it's a
+          normal stacked, page-scrolling layout. Cards/logic are unchanged. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 items-start lg:h-[calc(100vh-2rem)]">
+        {/* LEFT — fixed section menu (scrolls internally only if it overflows) */}
+        <nav
+          className="space-y-1 lg:h-full lg:overflow-y-auto lg:pr-1"
+          data-testid="config-menu"
+        >
           {SECTIONS.map((s) => {
             const Icon = s.icon;
             const active = activeSection === s.id;
@@ -420,8 +424,8 @@ export default function AdminConfig() {
           })}
         </nav>
 
-        {/* RIGHT — selected section content */}
-        <div className="space-y-6">
+        {/* RIGHT — selected section content (independent scroll on desktop) */}
+        <div className="space-y-6 lg:h-full lg:overflow-y-auto lg:pr-2 lg:pb-6">
           {/* ── Programme Schedule ── */}
           {activeSection === "schedule" && (
             <div className="space-y-6">
