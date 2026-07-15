@@ -759,9 +759,15 @@ function QueueRow({
             (status === "submitted" ? (
               <PendingActions item={item} />
             ) : status === "rejected" ? (
-              <ReopenAction item={item} />
+              <div className="flex gap-2">
+                <VerifyAction item={item} />
+                <ReopenAction item={item} />
+              </div>
             ) : (
-              <UnverifyAction item={item} />
+              <div className="flex gap-2">
+                <RejectAction item={item} />
+                <UnverifyAction item={item} />
+              </div>
             ))}
         </div>
       </div>
@@ -1288,6 +1294,200 @@ function PendingActions({ item }: { item: QueueItem }) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Invalidate all three review-queue tabs so a status change moves the row live.
+function invalidateAllQueueTabs(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  for (const s of ["submitted", "verified", "rejected"] as const) {
+    queryClient.invalidateQueries({
+      queryKey: getGetAdminReviewQueueQueryKey({
+        type: "revenue",
+        status: s as "submitted" | "verified",
+      }),
+    });
+  }
+}
+
+// Reject action offered on the Approved tab — rejects a currently verified
+// entry directly (reason required). The row moves live to the Rejected tab.
+function RejectAction({ item }: { item: QueueItem }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const reject = useRejectRevenueEntry();
+  const [open, setOpen] = useState(false);
+  const [adminNotes, setAdminNotes] = useState("");
+
+  const reset = () => {
+    setOpen(false);
+    setAdminNotes("");
+  };
+
+  const onReject = () => {
+    reject.mutate(
+      { id: item.id, data: { adminNotes } },
+      {
+        onSuccess: () => {
+          toast({ title: "Revenue entry rejected" });
+          invalidateAllQueueTabs(queryClient);
+          reset();
+        },
+        onError: (err: unknown) => {
+          toast({
+            title: "Reject failed",
+            description:
+              err instanceof Error ? err.message : "Failed to reject entry",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        className="bg-red-400 hover:bg-red-500 text-white"
+        onClick={() => setOpen(true)}
+        data-testid={`button-reject-${item.id}`}
+      >
+        <X className="w-4 h-4 mr-1" /> Reject
+      </Button>
+      <Dialog open={open} onOpenChange={(o) => (!o ? reset() : null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Revenue Entry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-destructive">
+                Rejection Reason (Required)
+              </label>
+              <Textarea
+                placeholder="Explain why this is being rejected so the student can fix it..."
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                required
+              />
+              <RejectReasonSuggestions
+                onPick={(text) =>
+                  setAdminNotes((prev) => appendReason(prev, text))
+                }
+              />
+            </div>
+            <div className="flex justify-end pt-4">
+              <Button
+                className="bg-red-400 hover:bg-red-500 text-white"
+                onClick={onReject}
+                disabled={reject.isPending || !adminNotes.trim()}
+                data-testid={`button-confirm-reject-${item.id}`}
+              >
+                {reject.isPending && <Spinner className="w-4 h-4 mr-2" />}{" "}
+                Reject Entry
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// Verify action offered on the Rejected tab — verifies a currently rejected
+// entry directly. The row moves live to the Approved tab.
+function VerifyAction({ item }: { item: QueueItem }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const verify = useVerifyRevenueEntry();
+  const [open, setOpen] = useState(false);
+  const [verifiedAmount, setVerifiedAmount] = useState<number | "">(
+    item.amount,
+  );
+  const [adminNotes, setAdminNotes] = useState("");
+
+  const reset = () => {
+    setOpen(false);
+    setAdminNotes("");
+    setVerifiedAmount(item.amount);
+  };
+
+  const onApprove = () => {
+    const amount = Number(verifiedAmount) || item.amount;
+    verify.mutate(
+      { id: item.id, data: { verifiedAmount: amount, adminNotes } },
+      {
+        onSuccess: () => {
+          toast({ title: "Revenue entry verified" });
+          invalidateAllQueueTabs(queryClient);
+          reset();
+        },
+        onError: (err: unknown) => {
+          toast({
+            title: "Verify failed",
+            description:
+              err instanceof Error ? err.message : "Failed to verify entry",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        className="bg-green-600 hover:bg-green-700 text-white"
+        onClick={() => setOpen(true)}
+        data-testid={`button-verify-${item.id}`}
+      >
+        <Check className="w-4 h-4 mr-1" /> Verify
+      </Button>
+      <Dialog open={open} onOpenChange={(o) => (!o ? reset() : null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verify Revenue Entry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Verified Amount (₹)</label>
+              <Input
+                type="number"
+                value={verifiedAmount}
+                onChange={(e) => setVerifiedAmount(Number(e.target.value))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Original claim: {formatINR(item.amount)}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Admin Notes (Optional)
+              </label>
+              <Textarea
+                placeholder="Add internal notes or feedback..."
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end pt-4">
+              <Button
+                onClick={onApprove}
+                disabled={verify.isPending}
+                className="bg-green-600 hover:bg-green-700 text-white"
+                data-testid={`button-confirm-verify-${item.id}`}
+              >
+                {verify.isPending && <Spinner className="w-4 h-4 mr-2" />}{" "}
+                Confirm Verification
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
