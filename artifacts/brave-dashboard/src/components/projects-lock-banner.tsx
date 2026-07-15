@@ -23,6 +23,9 @@ import {
 } from "@/lib/team-submissions-api";
 
 export function useProjectsLock(): {
+  // Effective lock for THIS user's team: true only when the global lock is on
+  // AND the team is NOT exempted. An exempted team (or admin) reads false, so
+  // the banner is hidden and add/submit work normally.
   locked: boolean;
   message: string;
   // Whether students may edit + resubmit a rejected revenue entry. Defaults to
@@ -34,8 +37,10 @@ export function useProjectsLock(): {
     queryFn: getProjectsLock,
     staleTime: 60_000,
   });
+  const globalLocked = data?.locked ?? false;
+  const exempted = data?.exempted ?? false;
   return {
-    locked: data?.locked ?? false,
+    locked: globalLocked && !exempted,
     message: data?.message ?? "",
     rejectedResubmitEnabled: data?.rejectedResubmitEnabled ?? true,
   };

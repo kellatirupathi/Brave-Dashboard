@@ -8,6 +8,10 @@ export type ProjectsLock = {
   locked: boolean;
   message: string;
   rejectedResubmitEnabled: boolean;
+  // True when the CURRENT user's team is exempted from the global lock (or the
+  // user is an admin). An exempted team can submit normally, no banner. Only
+  // returned by GET /projects-lock (not the admin PUT response).
+  exempted?: boolean;
 };
 
 export function getProjectsLock(): Promise<ProjectsLock> {

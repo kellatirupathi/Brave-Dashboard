@@ -111,7 +111,9 @@ export async function getRejectedResubmitError(
 }
 
 // Readable by any authenticated user — the student Projects pages use this to
-// show the banner and disable the add/submit actions.
+// show the banner and disable the add/submit actions. Also reports whether the
+// CURRENT user's team is exempted from the global lock, so an exempted team
+// sees no banner and can submit normally.
 router.get(
   "/projects-lock",
   async (req: Request, res: Response): Promise<void> => {
@@ -120,7 +122,21 @@ router.get(
       return;
     }
     const row = await getConfigRow();
-    res.json(serialize(row));
+    // Resolve the caller's team and check whether it's exempted. Admins are
+    // never locked; treat them as exempted so the UI never shows the banner.
+    let exempted = req.user.role === "admin";
+    if (!exempted) {
+      const teamId = await getMyTeamId(req.user.id);
+      if (teamId != null) {
+        const [ex] = await db
+          .select({ id: teamSubmissionExemptionsTable.id })
+          .from(teamSubmissionExemptionsTable)
+          .where(eq(teamSubmissionExemptionsTable.teamId, teamId))
+          .limit(1);
+        exempted = !!ex;
+      }
+    }
+    res.json({ ...serialize(row), exempted });
   },
 );
 
