@@ -432,6 +432,20 @@ async function ensureFinaleSubmissions(): Promise<void> {
         created_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+    // Edit/soft-delete columns — added after the table shipped, so they go on
+    // via ALTER for installs that already created it.
+    await db.execute(sql`
+      ALTER TABLE finale_submissions
+        ADD COLUMN IF NOT EXISTS category text,
+        ADD COLUMN IF NOT EXISTS updated_at timestamptz,
+        ADD COLUMN IF NOT EXISTS updated_by text,
+        ADD COLUMN IF NOT EXISTS deleted_at timestamptz,
+        ADD COLUMN IF NOT EXISTS deleted_by text
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS finale_submissions_deleted_at_idx
+        ON finale_submissions (deleted_at)
+    `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS finale_submissions_team_idx
         ON finale_submissions (team_id)

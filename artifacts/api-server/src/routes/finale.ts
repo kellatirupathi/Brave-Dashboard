@@ -27,10 +27,25 @@ import {
   usersTable,
   revenueEntriesTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNull,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
 import { ObjectStorageService } from "../lib/objectStorage";
-import { isDriveConfigured, uploadFinaleDeckToDrive } from "../lib/drive/drive-client";
+import {
+  isDriveConfigured,
+  uploadFinaleDeckToDrive,
+} from "../lib/drive/drive-client";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -97,90 +112,97 @@ async function isTeamLeader(userId: string, teamId: number): Promise<boolean> {
  * upload (leader only), the admin-authored content, the lock state, and the
  * team's own submissions.
  */
-router.get(
-  "/finale/me",
-  async (req: Request, res: Response): Promise<void> => {
-    if (!req.isAuthenticated()) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-    const config = await getConfigRow();
-    const threshold = config.finaleMinVerifiedRevenue;
-    const base = {
-      enabled: config.finaleMenuEnabled,
-      threshold,
-      content: (config.finaleContent ?? "").trim() || DEFAULT_FINALE_CONTENT,
-      locked: config.finaleSubmissionsLocked,
-      lockMessage:
-        (config.finaleLockMessage ?? "").trim() || DEFAULT_FINALE_LOCK_MESSAGE,
-    };
+router.get("/finale/me", async (req: Request, res: Response): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const config = await getConfigRow();
+  const threshold = config.finaleMinVerifiedRevenue;
+  const base = {
+    enabled: config.finaleMenuEnabled,
+    threshold,
+    content: (config.finaleContent ?? "").trim() || DEFAULT_FINALE_CONTENT,
+    locked: config.finaleSubmissionsLocked,
+    lockMessage:
+      (config.finaleLockMessage ?? "").trim() || DEFAULT_FINALE_LOCK_MESSAGE,
+  };
 
-    const teamId = await getMyTeamId(req.user.id);
-    if (teamId == null) {
-      res.json({
-        ...base,
-        eligible: false,
-        canUpload: false,
-        verifiedRevenue: 0,
-        teamName: null,
-        items: [],
-      });
-      return;
-    }
-
-    const verifiedRevenue = await getTeamVerifiedRevenue(teamId);
-    const [team] = await db
-      .select({ name: teamsTable.name })
-      .from(teamsTable)
-      .where(eq(teamsTable.id, teamId))
-      .limit(1);
-    const leader = await isTeamLeader(req.user.id, teamId);
-    const eligible = verifiedRevenue >= threshold;
-
-    // Every member of the team sees the team's decks — only the leader uploads.
-    const rows = await db
-      .select({
-        id: finaleSubmissionsTable.id,
-        fileUrl: finaleSubmissionsTable.fileUrl,
-        fileName: finaleSubmissionsTable.fileName,
-        remarks: finaleSubmissionsTable.remarks,
-        driveUrl: finaleSubmissionsTable.driveUrl,
-        createdAt: finaleSubmissionsTable.createdAt,
-        submittedBy: finaleSubmissionsTable.submittedBy,
-        submitterFirst: usersTable.firstName,
-        submitterLast: usersTable.lastName,
-      })
-      .from(finaleSubmissionsTable)
-      .leftJoin(usersTable, eq(usersTable.id, finaleSubmissionsTable.submittedBy))
-      .where(eq(finaleSubmissionsTable.teamId, teamId))
-      .orderBy(desc(finaleSubmissionsTable.createdAt));
-
+  const teamId = await getMyTeamId(req.user.id);
+  if (teamId == null) {
     res.json({
       ...base,
-      eligible,
-      // The leader may upload only while eligible and unlocked.
-      canUpload: leader && eligible && !config.finaleSubmissionsLocked,
-      isLeader: leader,
-      verifiedRevenue,
-      teamName: team?.name ?? null,
-      items: rows.map((r) => ({
-        id: r.id,
-        fileUrl: r.fileUrl,
-        fileName: r.fileName,
-        remarks: r.remarks,
-        driveUrl: r.driveUrl,
-        createdAt: r.createdAt,
-        submitterName:
-          [r.submitterFirst, r.submitterLast].filter(Boolean).join(" ").trim() ||
-          "—",
-      })),
+      eligible: false,
+      canUpload: false,
+      verifiedRevenue: 0,
+      teamName: null,
+      items: [],
     });
-  },
-);
+    return;
+  }
+
+  const verifiedRevenue = await getTeamVerifiedRevenue(teamId);
+  const [team] = await db
+    .select({ name: teamsTable.name })
+    .from(teamsTable)
+    .where(eq(teamsTable.id, teamId))
+    .limit(1);
+  const leader = await isTeamLeader(req.user.id, teamId);
+  const eligible = verifiedRevenue >= threshold;
+
+  // Every member of the team sees the team's decks — only the leader uploads.
+  const rows = await db
+    .select({
+      id: finaleSubmissionsTable.id,
+      fileUrl: finaleSubmissionsTable.fileUrl,
+      fileName: finaleSubmissionsTable.fileName,
+      category: finaleSubmissionsTable.category,
+      remarks: finaleSubmissionsTable.remarks,
+      driveUrl: finaleSubmissionsTable.driveUrl,
+      createdAt: finaleSubmissionsTable.createdAt,
+      submittedBy: finaleSubmissionsTable.submittedBy,
+      submitterFirst: usersTable.firstName,
+      submitterLast: usersTable.lastName,
+    })
+    .from(finaleSubmissionsTable)
+    .leftJoin(usersTable, eq(usersTable.id, finaleSubmissionsTable.submittedBy))
+    .where(
+      and(
+        eq(finaleSubmissionsTable.teamId, teamId),
+        isNull(finaleSubmissionsTable.deletedAt),
+      ),
+    )
+    .orderBy(desc(finaleSubmissionsTable.createdAt));
+
+  res.json({
+    ...base,
+    eligible,
+    // The leader may upload only while eligible and unlocked. Editing and
+    // deleting ride the same rule — see resolveSubmissionAccess.
+    canUpload: leader && eligible && !config.finaleSubmissionsLocked,
+    canManage: leader && eligible && !config.finaleSubmissionsLocked,
+    isLeader: leader,
+    verifiedRevenue,
+    teamName: team?.name ?? null,
+    items: rows.map((r) => ({
+      id: r.id,
+      fileUrl: r.fileUrl,
+      fileName: r.fileName,
+      category: r.category,
+      remarks: r.remarks,
+      driveUrl: r.driveUrl,
+      createdAt: r.createdAt,
+      submitterName:
+        [r.submitterFirst, r.submitterLast].filter(Boolean).join(" ").trim() ||
+        "—",
+    })),
+  });
+});
 
 const CreateBody = z.object({
   fileUrl: z.string().trim().min(1).max(500),
   fileName: z.string().trim().max(300).optional(),
+  category: z.string().trim().max(200).optional(),
   remarks: z.string().trim().max(2000).optional(),
 });
 
@@ -203,7 +225,8 @@ router.post(
     if (config.finaleSubmissionsLocked) {
       res.status(403).json({
         error:
-          (config.finaleLockMessage ?? "").trim() || DEFAULT_FINALE_LOCK_MESSAGE,
+          (config.finaleLockMessage ?? "").trim() ||
+          DEFAULT_FINALE_LOCK_MESSAGE,
       });
       return;
     }
@@ -236,6 +259,7 @@ router.post(
         submittedBy: req.user.id,
         fileUrl: parsed.data.fileUrl,
         fileName: parsed.data.fileName ?? null,
+        category: parsed.data.category ?? null,
         remarks: parsed.data.remarks ?? null,
       })
       .returning();
@@ -244,6 +268,141 @@ router.post(
     if (created) void mirrorToDrive(created.id);
 
     res.status(201).json({ ok: true, id: created?.id ?? null });
+  },
+);
+
+const UpdateSubmissionBody = z.object({
+  // Optional — omit to keep the current deck and only change the remarks.
+  fileUrl: z.string().trim().min(1).max(500).optional(),
+  fileName: z.string().trim().max(300).optional(),
+  category: z.string().trim().max(200).nullable().optional(),
+  remarks: z.string().trim().max(2000).nullable().optional(),
+});
+
+/**
+ * Resolve who may edit/delete a given submission.
+ *
+ * Admins always may. A student may only when they lead that submission's team
+ * AND the admin lock is off — otherwise the lock would leak (a leader could
+ * delete-and-re-upload to sidestep a paused submission window).
+ *
+ * Returns the row when allowed, or an {error, status} to send back.
+ */
+async function resolveSubmissionAccess(
+  req: Request,
+  id: number,
+): Promise<
+  | { ok: true; row: typeof finaleSubmissionsTable.$inferSelect }
+  | { ok: false; status: number; error: string }
+> {
+  if (!req.isAuthenticated()) {
+    return { ok: false, status: 401, error: "Unauthorized" };
+  }
+  const [row] = await db
+    .select()
+    .from(finaleSubmissionsTable)
+    .where(
+      and(
+        eq(finaleSubmissionsTable.id, id),
+        isNull(finaleSubmissionsTable.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!row) return { ok: false, status: 404, error: "Submission not found." };
+
+  if (req.user.role === "admin") return { ok: true, row };
+
+  if (!(await isTeamLeader(req.user.id, row.teamId))) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Only your team leader can change the Finale deck.",
+    };
+  }
+  const config = await getConfigRow();
+  if (config.finaleSubmissionsLocked) {
+    return {
+      ok: false,
+      status: 403,
+      error:
+        (config.finaleLockMessage ?? "").trim() || DEFAULT_FINALE_LOCK_MESSAGE,
+    };
+  }
+  return { ok: true, row };
+}
+
+/** Edit a deck's file and/or remarks. Admin, or the team leader while open. */
+router.put(
+  "/finale/submission/:id",
+  async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params["id"]);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const access = await resolveSubmissionAccess(req, id);
+    if (!access.ok) {
+      res.status(access.status).json({ error: access.error });
+      return;
+    }
+    const parsed = UpdateSubmissionBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const patch: Record<string, unknown> = {
+      updatedAt: new Date(),
+      updatedBy: req.user!.id,
+    };
+    if (parsed.data.category !== undefined) {
+      patch.category = (parsed.data.category ?? "").trim() || null;
+    }
+    if (parsed.data.remarks !== undefined) {
+      patch.remarks = (parsed.data.remarks ?? "").trim() || null;
+    }
+    // A replaced file needs a fresh Drive mirror, so clear the old link.
+    const fileReplaced =
+      parsed.data.fileUrl != null && parsed.data.fileUrl !== access.row.fileUrl;
+    if (fileReplaced) {
+      patch.fileUrl = parsed.data.fileUrl;
+      patch.fileName = parsed.data.fileName ?? null;
+      patch.driveUrl = null;
+      patch.driveFileId = null;
+      patch.driveSyncedAt = null;
+      patch.driveError = null;
+    }
+
+    await db
+      .update(finaleSubmissionsTable)
+      .set(patch)
+      .where(eq(finaleSubmissionsTable.id, id));
+
+    if (fileReplaced) void mirrorToDrive(id);
+
+    res.json({ ok: true, id });
+  },
+);
+
+/** Soft-delete a deck. Admin, or the team leader while open. */
+router.delete(
+  "/finale/submission/:id",
+  async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params["id"]);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const access = await resolveSubmissionAccess(req, id);
+    if (!access.ok) {
+      res.status(access.status).json({ error: access.error });
+      return;
+    }
+    await db
+      .update(finaleSubmissionsTable)
+      .set({ deletedAt: new Date(), deletedBy: req.user!.id })
+      .where(eq(finaleSubmissionsTable.id, id));
+    res.json({ ok: true, id });
   },
 );
 
@@ -260,12 +419,15 @@ async function mirrorToDrive(id: number): Promise<void> {
       .from(finaleSubmissionsTable)
       .where(eq(finaleSubmissionsTable.id, id))
       .limit(1);
-    if (!row || row.driveFileId) return;
+    // Skip if it's gone, already mirrored, or was deleted while we queued —
+    // otherwise a delete racing the mirror would leave an orphan in Drive.
+    if (!row || row.driveFileId || row.deletedAt) return;
 
     const file = await objectStorage.getObjectEntityFile(row.fileUrl);
     const [meta] = await file.getMetadata();
     const mimeType = (meta.contentType as string | undefined) || PPTX_MIME;
-    const filename = row.fileName?.trim() || `finale-team-${row.teamId}-${row.id}.pptx`;
+    const filename =
+      row.fileName?.trim() || `finale-team-${row.teamId}-${row.id}.pptx`;
     const result = await uploadFinaleDeckToDrive(
       file.createReadStream(),
       filename,
@@ -292,6 +454,23 @@ async function mirrorToDrive(id: number): Promise<void> {
 
 // ── Admin ──────────────────────────────────────────────────────────────────
 
+/**
+ * Authenticate an admin-only route.
+ *
+ * `requireAdminPage` deliberately does NOT authenticate — it only ever adds a
+ * per-page restriction for users who are already admins, and lets every other
+ * role fall through to the route's own check (see require-admin-page.ts). That
+ * own check is this. Without it these routes would be readable by any logged-in
+ * student. Returns false once a response has been sent.
+ */
+function requireAdmin(req: Request, res: Response): boolean {
+  if (!req.isAuthenticated() || req.user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return false;
+  }
+  return true;
+}
+
 type FinaleSort = "newest" | "oldest" | "team_asc" | "team_desc";
 
 /**
@@ -307,7 +486,11 @@ function buildAdminQuery(opts: {
   to?: string;
   sort: FinaleSort;
 }) {
-  const conds = [];
+  // Soft-deleted decks are invisible everywhere — this sits in the shared
+  // builder so the list and the CSV export can't drift apart.
+  const conds: Array<SQL<unknown> | undefined> = [
+    isNull(finaleSubmissionsTable.deletedAt),
+  ];
   if (opts.search) {
     const term = `%${opts.search}%`;
     conds.push(
@@ -315,18 +498,20 @@ function buildAdminQuery(opts: {
         ilike(teamsTable.name, term),
         ilike(campusesTable.name, term),
         ilike(finaleSubmissionsTable.remarks, term),
+        ilike(finaleSubmissionsTable.category, term),
         ilike(finaleSubmissionsTable.fileName, term),
       ),
     );
   }
-  if (opts.from) conds.push(gte(finaleSubmissionsTable.createdAt, new Date(opts.from)));
+  if (opts.from)
+    conds.push(gte(finaleSubmissionsTable.createdAt, new Date(opts.from)));
   if (opts.to) {
     // `to` is an inclusive day — cover the whole date.
     const end = new Date(opts.to);
     end.setHours(23, 59, 59, 999);
     conds.push(lte(finaleSubmissionsTable.createdAt, end));
   }
-  return conds.length > 0 ? and(...conds) : undefined;
+  return and(...conds);
 }
 
 function orderFor(sort: FinaleSort) {
@@ -361,7 +546,10 @@ async function fetchAdminRows(opts: {
     .leftJoin(teamsTable, eq(teamsTable.id, finaleSubmissionsTable.teamId))
     .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
     .where(where)
-    .orderBy(finaleSubmissionsTable.teamId, desc(finaleSubmissionsTable.createdAt))
+    .orderBy(
+      finaleSubmissionsTable.teamId,
+      desc(finaleSubmissionsTable.createdAt),
+    )
     .as("latest");
 
   const base = db
@@ -372,6 +560,7 @@ async function fetchAdminRows(opts: {
       campusName: campusesTable.name,
       fileUrl: finaleSubmissionsTable.fileUrl,
       fileName: finaleSubmissionsTable.fileName,
+      category: finaleSubmissionsTable.category,
       remarks: finaleSubmissionsTable.remarks,
       driveUrl: finaleSubmissionsTable.driveUrl,
       createdAt: finaleSubmissionsTable.createdAt,
@@ -381,6 +570,7 @@ async function fetchAdminRows(opts: {
       totalSubmissions: sql<number>`(
         SELECT count(*)::int FROM finale_submissions fs
         WHERE fs.team_id = ${finaleSubmissionsTable.teamId}
+          AND fs.deleted_at IS NULL
       )`,
       verifiedRevenue: sql<string>`COALESCE((
         SELECT SUM(COALESCE(re.verified_amount, 0))
@@ -410,6 +600,7 @@ async function fetchAdminRows(opts: {
     leaderEmail: r.leaderEmail ?? "",
     fileUrl: r.fileUrl,
     fileName: r.fileName,
+    category: r.category,
     remarks: r.remarks,
     driveUrl: r.driveUrl,
     createdAt: r.createdAt,
@@ -423,6 +614,7 @@ router.get(
   "/admin/finale/submissions",
   requireAdminPage("/admin/finale-submissions", "view"),
   async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
     const search = String(req.query["search"] ?? "").trim() || undefined;
     const from = String(req.query["from"] ?? "").trim() || undefined;
     const to = String(req.query["to"] ?? "").trim() || undefined;
@@ -452,6 +644,7 @@ router.get(
   "/admin/finale/submissions/team/:teamId",
   requireAdminPage("/admin/finale-submissions", "view"),
   async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
     const teamId = Number(req.params["teamId"]);
     if (!Number.isFinite(teamId)) {
       res.status(400).json({ error: "Invalid team id" });
@@ -462,6 +655,7 @@ router.get(
         id: finaleSubmissionsTable.id,
         fileUrl: finaleSubmissionsTable.fileUrl,
         fileName: finaleSubmissionsTable.fileName,
+        category: finaleSubmissionsTable.category,
         remarks: finaleSubmissionsTable.remarks,
         driveUrl: finaleSubmissionsTable.driveUrl,
         createdAt: finaleSubmissionsTable.createdAt,
@@ -469,15 +663,25 @@ router.get(
         submitterLast: usersTable.lastName,
       })
       .from(finaleSubmissionsTable)
-      .leftJoin(usersTable, eq(usersTable.id, finaleSubmissionsTable.submittedBy))
-      .where(eq(finaleSubmissionsTable.teamId, teamId))
+      .leftJoin(
+        usersTable,
+        eq(usersTable.id, finaleSubmissionsTable.submittedBy),
+      )
+      .where(
+        and(
+          eq(finaleSubmissionsTable.teamId, teamId),
+          isNull(finaleSubmissionsTable.deletedAt),
+        ),
+      )
       .orderBy(desc(finaleSubmissionsTable.createdAt));
     res.json({
       items: rows.map((r) => ({
         ...r,
         submitterName:
-          [r.submitterFirst, r.submitterLast].filter(Boolean).join(" ").trim() ||
-          "—",
+          [r.submitterFirst, r.submitterLast]
+            .filter(Boolean)
+            .join(" ")
+            .trim() || "—",
       })),
     });
   },
@@ -496,6 +700,7 @@ router.get(
   "/admin/finale/submissions/export.csv",
   requireAdminPage("/admin/finale-submissions", "view"),
   async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
     const search = String(req.query["search"] ?? "").trim() || undefined;
     const from = String(req.query["from"] ?? "").trim() || undefined;
     const to = String(req.query["to"] ?? "").trim() || undefined;
@@ -510,6 +715,7 @@ router.get(
         campusName: campusesTable.name,
         fileUrl: finaleSubmissionsTable.fileUrl,
         fileName: finaleSubmissionsTable.fileName,
+        category: finaleSubmissionsTable.category,
         remarks: finaleSubmissionsTable.remarks,
         driveUrl: finaleSubmissionsTable.driveUrl,
         createdAt: finaleSubmissionsTable.createdAt,
@@ -525,7 +731,10 @@ router.get(
       .from(finaleSubmissionsTable)
       .leftJoin(teamsTable, eq(teamsTable.id, finaleSubmissionsTable.teamId))
       .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
-      .leftJoin(usersTable, eq(usersTable.id, finaleSubmissionsTable.submittedBy))
+      .leftJoin(
+        usersTable,
+        eq(usersTable.id, finaleSubmissionsTable.submittedBy),
+      )
       .where(where)
       .orderBy(orderFor(sort));
 
@@ -536,6 +745,7 @@ router.get(
       "Submitted By",
       "Email",
       "Verified Revenue (INR)",
+      "Category",
       "File Name",
       "Drive Link",
       "File Link",
@@ -548,10 +758,13 @@ router.get(
         [
           r.teamName ?? "—",
           r.campusName ?? "—",
-          [r.submitterFirst, r.submitterLast].filter(Boolean).join(" ").trim() ||
-            "—",
+          [r.submitterFirst, r.submitterLast]
+            .filter(Boolean)
+            .join(" ")
+            .trim() || "—",
           r.submitterEmail ?? "",
           Number(r.verifiedRevenue ?? 0),
+          r.category ?? "",
           r.fileName ?? "",
           r.driveUrl ?? "",
           r.fileUrl ? `${appUrl}/api/storage${r.fileUrl}` : "",
@@ -597,7 +810,8 @@ function serializeConfig(row: typeof programmeConfigTable.$inferSelect) {
 router.get(
   "/admin/finale-config",
   requireAdminPage("/admin/config", "view"),
-  async (_req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
     res.json(serializeConfig(await getConfigRow()));
   },
 );
@@ -627,7 +841,8 @@ router.put(
       patch.finaleSubmissionsLocked = parsed.data.finaleSubmissionsLocked;
     }
     if (parsed.data.finaleLockMessage !== undefined) {
-      patch.finaleLockMessage = (parsed.data.finaleLockMessage ?? "").trim() || null;
+      patch.finaleLockMessage =
+        (parsed.data.finaleLockMessage ?? "").trim() || null;
     }
     if (parsed.data.finaleContent !== undefined) {
       patch.finaleContent = (parsed.data.finaleContent ?? "").trim() || null;

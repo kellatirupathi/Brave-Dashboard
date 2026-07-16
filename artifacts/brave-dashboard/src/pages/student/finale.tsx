@@ -13,12 +13,21 @@ import remarkGfm from "remark-gfm";
 import { useRequestUploadUrl } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   CheckCircle2,
+  ChevronRight,
   FileUp,
+  Info,
   Lock,
   Presentation,
   Trophy,
@@ -27,6 +36,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime, formatINR } from "@/lib/format";
+import { FinaleSubmissionActions } from "@/components/finale-submission-actions";
 import {
   createFinaleSubmission,
   getFinaleMe,
@@ -48,6 +58,7 @@ function isPptx(file: File): boolean {
 }
 
 export default function FinalePage() {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: FINALE_KEY,
     queryFn: getFinaleMe,
@@ -104,46 +115,75 @@ export default function FinalePage() {
         </div>
       ) : null}
 
-      {/* 25% form / 75% guidelines. */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_3fr] items-start">
-        {/* LEFT — form / thank-you / read-only notice */}
-        <div className="space-y-6">
-          {showForm ? (
-            <SubmitForm
-              onDone={() => setFormOpen(false)}
-              canCancel={hasSubmitted}
-            />
-          ) : hasSubmitted ? (
-            <ThankYou
-              canUpload={data.canUpload}
-              onAnother={() => setFormOpen(true)}
-            />
-          ) : !data.isLeader ? (
-            <Card>
-              <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                <Presentation className="mx-auto mb-3 h-8 w-8 opacity-40" />
-                Your team leader submits the Finale deck. Anything they submit
-                will show up here for the whole team.
-              </CardContent>
-            </Card>
-          ) : null}
+      {/* Guidelines live behind this bar so the form is the first thing on
+          the page — the content is long enough to bury it otherwise. */}
+      <GuidelinesBar content={data.content} />
 
-          {data.items.length > 0 ? (
-            <SubmissionsList items={data.items} />
-          ) : null}
-        </div>
-
-        {/* RIGHT — admin-authored content, rendered as markdown */}
-        <Card data-testid="card-finale-content">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Guidelines</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MarkdownContent value={data.content} />
+      {showForm ? (
+        <SubmitForm
+          onDone={() => setFormOpen(false)}
+          canCancel={hasSubmitted}
+        />
+      ) : hasSubmitted ? (
+        <ThankYou
+          canUpload={data.canUpload}
+          onAnother={() => setFormOpen(true)}
+        />
+      ) : !data.isLeader ? (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            <Presentation className="mx-auto mb-3 h-8 w-8 opacity-40" />
+            Your team leader submits the Finale deck. Anything they submit will
+            show up here for the whole team.
           </CardContent>
         </Card>
-      </div>
+      ) : null}
+
+      {/* Submitted decks, newest first (the server orders by createdAt desc). */}
+      {data.items.length > 0 ? (
+        <SubmissionsList
+          items={data.items}
+          canManage={!!data.canManage}
+          onChanged={() =>
+            queryClient.invalidateQueries({ queryKey: FINALE_KEY })
+          }
+        />
+      ) : null}
     </div>
+  );
+}
+
+// Collapsed guidelines: a one-line bar that opens the admin-authored content
+// in a modal, so the long instructions don't push the upload form off-screen.
+function GuidelinesBar({ content }: { content: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-2 rounded-md border bg-muted/40 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted"
+        data-testid="button-show-guidelines"
+      >
+        <Info className="h-4 w-4 shrink-0 text-primary" />
+        <span className="flex-1 font-medium">
+          Guidelines — what your deck must cover
+        </span>
+        <span className="text-xs text-muted-foreground">View</span>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Guidelines</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto pr-1">
+            <MarkdownContent value={content} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -220,6 +260,7 @@ function SubmitForm({
 
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [category, setCategory] = useState("");
   const [remarks, setRemarks] = useState("");
   const [uploading, setUploading] = useState(false);
 
@@ -266,12 +307,14 @@ function SubmitForm({
       createFinaleSubmission({
         fileUrl: fileUrl!,
         fileName: file?.name,
+        category: category.trim() || undefined,
         remarks: remarks.trim() || undefined,
       }),
     onSuccess: () => {
       toast({ title: "Submitted" });
       setFile(null);
       setFileUrl(null);
+      setCategory("");
       setRemarks("");
       queryClient.invalidateQueries({ queryKey: FINALE_KEY });
       onDone();
@@ -336,6 +379,18 @@ function SubmitForm({
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="finale-category">Category</Label>
+          <Input
+            id="finale-category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            maxLength={200}
+            placeholder="e.g. EdTech, D2C, SaaS…"
+            data-testid="input-finale-category"
+          />
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="finale-remarks">Remarks</Label>
           <Textarea
             id="finale-remarks"
@@ -379,7 +434,17 @@ function SubmitForm({
 }
 
 // Every deck this team has submitted — visible to the leader AND all members.
-function SubmissionsList({ items }: { items: FinaleSubmissionItem[] }) {
+// The leader also gets the Edit/Delete menu (hidden while submissions are
+// locked; members never see it).
+function SubmissionsList({
+  items,
+  canManage,
+  onChanged,
+}: {
+  items: FinaleSubmissionItem[];
+  canManage: boolean;
+  onChanged: () => void;
+}) {
   return (
     <Card data-testid="card-finale-submissions">
       <CardHeader className="pb-3">
@@ -407,6 +472,7 @@ function SubmissionsList({ items }: { items: FinaleSubmissionItem[] }) {
                 </a>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatDateTime(item.createdAt)} · by {item.submitterName}
+                  {item.category ? ` · ${item.category}` : ""}
                 </p>
                 {item.remarks ? (
                   <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
@@ -414,6 +480,9 @@ function SubmissionsList({ items }: { items: FinaleSubmissionItem[] }) {
                   </p>
                 ) : null}
               </div>
+              {canManage ? (
+                <FinaleSubmissionActions submission={item} onDone={onChanged} />
+              ) : null}
             </div>
           </div>
         ))}

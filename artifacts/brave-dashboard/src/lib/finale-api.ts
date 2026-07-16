@@ -7,6 +7,7 @@ export type FinaleSubmissionItem = {
   id: number;
   fileUrl: string;
   fileName: string | null;
+  category: string | null;
   remarks: string | null;
   driveUrl: string | null;
   createdAt: string;
@@ -24,6 +25,8 @@ export type FinaleMe = {
   // Only the team leader may upload; members get the page read-only.
   isLeader?: boolean;
   canUpload: boolean;
+  // Whether the caller may edit/delete their team's decks (leader, unlocked).
+  canManage?: boolean;
   // Admin-authored right-hand content.
   content: string;
   // When locked, the upload form is replaced by the banner below.
@@ -40,11 +43,39 @@ export function getFinaleMe(): Promise<FinaleMe> {
 export function createFinaleSubmission(input: {
   fileUrl: string;
   fileName?: string;
+  category?: string;
   remarks?: string;
 }): Promise<{ ok: boolean; id: number | null }> {
   return customFetch<{ ok: boolean; id: number | null }>(
     "/api/finale/submission",
     { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+// Edit a deck. Omit fileUrl to keep the current file and change only remarks.
+// Used by BOTH the student page (leader) and the admin list — the server
+// resolves permission from the caller's role.
+export function updateFinaleSubmission(
+  id: number,
+  input: {
+    fileUrl?: string;
+    fileName?: string;
+    category?: string | null;
+    remarks?: string | null;
+  },
+): Promise<{ ok: boolean; id: number }> {
+  return customFetch<{ ok: boolean; id: number }>(
+    `/api/finale/submission/${id}`,
+    { method: "PUT", body: JSON.stringify(input) },
+  );
+}
+
+export function deleteFinaleSubmission(
+  id: number,
+): Promise<{ ok: boolean; id: number }> {
+  return customFetch<{ ok: boolean; id: number }>(
+    `/api/finale/submission/${id}`,
+    { method: "DELETE" },
   );
 }
 
@@ -62,6 +93,7 @@ export type FinaleAdminRow = {
   leaderEmail: string;
   fileUrl: string;
   fileName: string | null;
+  category: string | null;
   remarks: string | null;
   driveUrl: string | null;
   createdAt: string;

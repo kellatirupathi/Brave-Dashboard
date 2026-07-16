@@ -1524,6 +1524,8 @@ export const finaleSubmissionsTable = pgTable(
     // Object-storage path (/objects/<id>) of the uploaded .pptx.
     fileUrl: text("file_url").notNull(),
     fileName: text("file_name"),
+    // Free-text category the team files the deck under.
+    category: text("category"),
     remarks: text("remarks"),
     // Google Drive mirror of the pptx (shareable link used by the export).
     driveUrl: text("drive_url"),
@@ -1533,10 +1535,19 @@ export const finaleSubmissionsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Set when the deck or remarks are edited (by the leader or an admin).
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    updatedBy: text("updated_by"),
+    // Soft delete: rows are never physically removed, so a mistaken delete is
+    // recoverable and the mirrored Drive file is never orphaned. Every read
+    // path filters on `deletedAt IS NULL`.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: text("deleted_by"),
   },
   (t) => [
     index("finale_submissions_team_idx").on(t.teamId),
     index("finale_submissions_created_at_idx").on(t.createdAt),
+    index("finale_submissions_deleted_at_idx").on(t.deletedAt),
   ],
 );
 

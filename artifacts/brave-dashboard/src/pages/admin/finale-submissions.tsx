@@ -3,7 +3,7 @@
 // Server-side search / date filter / sort / pagination, same shape as the
 // review queue. Export pulls EVERY deck with its Drive link.
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { formatDateTime, formatINR } from "@/lib/format";
+import { FinaleSubmissionActions } from "@/components/finale-submission-actions";
 import {
   finaleExportUrl,
   listFinaleSubmissions,
@@ -49,6 +50,7 @@ const SORTS: Array<{ value: FinaleSort; label: string }> = [
 ];
 
 export default function AdminFinaleSubmissions() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<FinaleSort>("newest");
   const [from, setFrom] = useState("");
@@ -171,6 +173,7 @@ export default function AdminFinaleSubmissions() {
                 <tr className="text-left">
                   <th className="p-3 font-medium">Team</th>
                   <th className="p-3 font-medium">Campus</th>
+                  <th className="p-3 font-medium">Category</th>
                   <th className="p-3 font-medium">Submitted by</th>
                   <th className="p-3 font-medium text-right">
                     Verified revenue
@@ -180,6 +183,7 @@ export default function AdminFinaleSubmissions() {
                     Submitted
                   </th>
                   <th className="p-3 font-medium text-right">Decks</th>
+                  <th className="p-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -193,6 +197,9 @@ export default function AdminFinaleSubmissions() {
                     <td className="p-3 font-medium">{r.teamName}</td>
                     <td className="p-3 text-muted-foreground">
                       {r.campusName}
+                    </td>
+                    <td className="p-3 text-muted-foreground">
+                      {r.category || "—"}
                     </td>
                     <td className="p-3 text-muted-foreground">
                       {r.leaderName}
@@ -220,6 +227,16 @@ export default function AdminFinaleSubmissions() {
                     </td>
                     <td className="p-3 text-right tabular-nums text-muted-foreground">
                       {r.totalSubmissions}
+                    </td>
+                    <td className="p-3 text-right">
+                      <FinaleSubmissionActions
+                        submission={r}
+                        onDone={() =>
+                          queryClient.invalidateQueries({
+                            queryKey: ["admin-finale-submissions"],
+                          })
+                        }
+                      />
                     </td>
                   </tr>
                 ))}
@@ -274,11 +291,19 @@ function TeamDecksDialog({
   row: FinaleAdminRow | null;
   onClose: () => void;
 }) {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-finale-team", row?.teamId],
     queryFn: () => listTeamFinaleSubmissions(row!.teamId),
     enabled: row != null,
   });
+
+  // An edit/delete in here also changes the row behind the dialog (it may have
+  // been that team's latest deck), so refresh both lists.
+  const refreshBoth = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin-finale-team"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-finale-submissions"] });
+  };
 
   return (
     <Dialog open={row != null} onOpenChange={(o) => !o && onClose()}>
@@ -293,25 +318,32 @@ function TeamDecksDialog({
         ) : (
           <div className="max-h-[60vh] space-y-3 overflow-y-auto">
             {(data?.items ?? []).map((item) => (
-              <div key={item.id} className="rounded-md border p-3">
-                <a
-                  href={item.driveUrl || `/api/storage${item.fileUrl}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-                >
-                  <Presentation className="h-3.5 w-3.5" />
-                  {item.fileName || "Deck"}
-                  <ExternalLink className="h-3 w-3 opacity-70" />
-                </a>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {formatDateTime(item.createdAt)} · by {item.submitterName}
-                </p>
-                {item.remarks ? (
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-                    {item.remarks}
+              <div key={item.id} className="flex gap-2 rounded-md border p-3">
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={item.driveUrl || `/api/storage${item.fileUrl}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                  >
+                    <Presentation className="h-3.5 w-3.5" />
+                    {item.fileName || "Deck"}
+                    <ExternalLink className="h-3 w-3 opacity-70" />
+                  </a>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatDateTime(item.createdAt)} · by {item.submitterName}
+                    {item.category ? ` · ${item.category}` : ""}
                   </p>
-                ) : null}
+                  {item.remarks ? (
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {item.remarks}
+                    </p>
+                  ) : null}
+                </div>
+                <FinaleSubmissionActions
+                  submission={item}
+                  onDone={refreshBoth}
+                />
               </div>
             ))}
           </div>

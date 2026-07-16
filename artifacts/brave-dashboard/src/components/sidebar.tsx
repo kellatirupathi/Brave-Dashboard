@@ -340,7 +340,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           ...(configReady && finaleMenuVisibleForStudent
             ? [
                 {
-                  name: "BRAVE Finale Submissions",
+                  name: "Finale Submissions",
                   href: "/finale",
                   icon: Trophy,
                   isNew: true,
