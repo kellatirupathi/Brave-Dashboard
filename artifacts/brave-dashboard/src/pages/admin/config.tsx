@@ -57,6 +57,7 @@ import { PopupsAdminCard } from "@/components/popups-admin-card";
 import { ProjectsLockCard } from "@/components/projects-lock-card";
 import { RejectionReasonsCard } from "@/components/rejection-reasons-card";
 import { TeamSubmissionsPage } from "@/components/team-submissions-card";
+import { FinaleConfigCard } from "@/components/finale-config-card";
 import { LeaderboardConfigCard } from "@/components/leaderboard-config-card";
 import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
@@ -383,6 +384,7 @@ export default function AdminConfig() {
     { id: "reminders", label: "Notifications & Reminders", icon: Bell },
     { id: "student", label: "Student Content", icon: GraduationCap },
     { id: "team-submissions", label: "Teams Submissions", icon: Unlock },
+    { id: "finale", label: "Finale Submissions", icon: Trophy },
     { id: "queue", label: "Review Queue", icon: XCircle },
     { id: "teams", label: "Teams & Coordinators", icon: Users },
     { id: "integrations", label: "Integrations", icon: Plug },
@@ -608,6 +610,8 @@ export default function AdminConfig() {
 
           {/* ── Teams Submissions ── */}
           {activeSection === "team-submissions" && <TeamSubmissionsPage />}
+
+          {activeSection === "finale" && <FinaleConfigCard />}
 
           {/* ── Review Queue ── */}
           {activeSection === "queue" && (

@@ -46,6 +46,7 @@ const STUDENT_DOCS_URL =
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
+import { getFinaleMe } from "@/lib/finale-api";
 import { cn } from "@/lib/utils";
 import { BraveLogo } from "./brave-logo";
 import {
@@ -82,11 +83,26 @@ type NavGroup = {
   name: string;
   icon: ComponentType<{ className?: string }>;
   children: NavLeaf[];
+  // Same shining "NEW" badge as a leaf — drawn on the group trigger.
+  isNew?: boolean;
 };
 type NavItem = NavLeaf | NavGroup;
 
 function isGroup(item: NavItem): item is NavGroup {
   return (item as NavGroup).children !== undefined;
+}
+
+/** The shining "NEW" badge shared by leaf links and group triggers. */
+function NewBadge({ name }: { name: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-amber-950 shadow-sm animate-pulse"
+      data-testid={`sidebar-new-badge-${name}`}
+    >
+      <Sparkles className="h-2.5 w-2.5" />
+      New
+    </span>
+  );
 }
 
 /**
@@ -143,12 +159,15 @@ function GroupFlyout({
             <Icon className="w-4 h-4" />
             {group.name}
           </span>
-          <ChevronRight
-            className={cn(
-              "w-4 h-4 transition-transform",
-              open && "translate-x-0.5",
-            )}
-          />
+          <span className="flex items-center gap-1.5">
+            {group.isNew && <NewBadge name={group.name} />}
+            <ChevronRight
+              className={cn(
+                "w-4 h-4 transition-transform",
+                open && "translate-x-0.5",
+              )}
+            />
+          </span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -270,6 +289,19 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const demoDayMenuVisibleForStudent =
     studentGritConfig?.demoDayMenuEnabled ?? true;
 
+  // BRAVE Finale menu: shown only when the admin has enabled the feature AND
+  // this student's team has cleared the verified-revenue bar. Defaults to
+  // hidden while loading — unlike Demo Day, most teams are NOT eligible, so
+  // defaulting to visible would flash the menu in for everyone on every load.
+  const { data: finaleMe } = useQuery({
+    queryKey: ["finale-me"],
+    queryFn: getFinaleMe,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  const finaleMenuVisibleForStudent =
+    !!finaleMe?.enabled && !!finaleMe?.eligible;
+
   // Per-page admin permissions (default-allow). Enabled only for admins; the
   // query is cached and shared with ProtectedRoute. Restricted admins have
   // hidden pages filtered out of the nav below.
@@ -298,6 +330,16 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                   name: "Demo Day",
                   href: "/demo-day",
                   icon: Rocket,
+                  isNew: true,
+                },
+              ]
+            : []),
+          ...(finaleMenuVisibleForStudent
+            ? [
+                {
+                  name: "BRAVE Finale Submissions",
+                  href: "/finale",
+                  icon: Trophy,
                   isNew: true,
                 },
               ]
@@ -388,10 +430,21 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         ],
       },
       {
-        name: "Demo Day Submissions",
-        href: "/admin/demo-day-submissions",
-        icon: Rocket,
+        name: "Submissions",
+        icon: Inbox,
         isNew: true,
+        children: [
+          {
+            name: "Finale Submissions",
+            href: "/admin/finale-submissions",
+            icon: Trophy,
+          },
+          {
+            name: "Demo Day Submissions",
+            href: "/admin/demo-day-submissions",
+            icon: Rocket,
+          },
+        ],
       },
       {
         name: "Setup",
@@ -557,15 +610,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 >
                   <Icon className="w-4 h-4" />
                   <span className="flex-1">{leaf.name}</span>
-                  {leaf.isNew && (
-                    <span
-                      className="inline-flex items-center gap-0.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wide text-amber-950 shadow-sm animate-pulse"
-                      data-testid={`sidebar-new-badge-${leaf.name}`}
-                    >
-                      <Sparkles className="h-2.5 w-2.5" />
-                      New
-                    </span>
-                  )}
+                  {leaf.isNew && <NewBadge name={leaf.name} />}
                 </span>
               </Link>
             );

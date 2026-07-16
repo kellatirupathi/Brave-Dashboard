@@ -870,6 +870,22 @@ export const programmeConfigTable = pgTable("programme_config", {
   // for students. Independent of the GRIT Miles flags above and of the admin
   // "Demo Day Submissions" item, which is never affected.
   demoDayMenuEnabled: boolean("demo_day_menu_enabled").notNull().default(true),
+  // ── BRAVE Finale Submissions ──────────────────────────────────────────────
+  // Master switch for the student "BRAVE Finale Submissions" menu + page.
+  finaleMenuEnabled: boolean("finale_menu_enabled").notNull().default(false),
+  // Minimum VERIFIED revenue (INR) a team must have earned before its leader
+  // and members can see the Finale page. Admin-tunable; 200000 = ₹2 lakhs.
+  finaleMinVerifiedRevenue: integer("finale_min_verified_revenue")
+    .notNull()
+    .default(200000),
+  // When true, the upload form is replaced by a banner on the Finale page —
+  // the rest of the page (content, past submissions) still renders.
+  finaleSubmissionsLocked: boolean("finale_submissions_locked")
+    .notNull()
+    .default(false),
+  finaleLockMessage: text("finale_lock_message"),
+  // Admin-authored content shown in the right-hand column of the Finale page.
+  finaleContent: text("finale_content"),
   // Projects submissions lock (admin Config toggle). When true, students can
   // no longer add order book entries, add revenue entries, or submit revenue
   // for verification (BRD uploads) — the student Projects pages show the
@@ -1489,3 +1505,39 @@ export const submissionAccessRequestsTable = pgTable(
 
 export type SubmissionAccessRequest =
   typeof submissionAccessRequestsTable.$inferSelect;
+
+// BRAVE Finale Submissions — pptx decks uploaded by a team leader from the
+// student "BRAVE Finale Submissions" page. A team may submit more than once
+// (each upload is its own row); the admin list shows the latest per team, and
+// every member of the team can see all of their team's rows.
+//
+// Files are uploaded to object storage first (presigned URL, same flow as
+// BRDs) and stored here as an object path. A background/manual mirror pushes
+// them to Google Drive and fills driveUrl/driveFileId — same pattern as the
+// BRD Drive migration.
+export const finaleSubmissionsTable = pgTable(
+  "finale_submissions",
+  {
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id").notNull(),
+    submittedBy: text("submitted_by").notNull(),
+    // Object-storage path (/objects/<id>) of the uploaded .pptx.
+    fileUrl: text("file_url").notNull(),
+    fileName: text("file_name"),
+    remarks: text("remarks"),
+    // Google Drive mirror of the pptx (shareable link used by the export).
+    driveUrl: text("drive_url"),
+    driveFileId: text("drive_file_id"),
+    driveSyncedAt: timestamp("drive_synced_at", { withTimezone: true }),
+    driveError: text("drive_error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("finale_submissions_team_idx").on(t.teamId),
+    index("finale_submissions_created_at_idx").on(t.createdAt),
+  ],
+);
+
+export type FinaleSubmission = typeof finaleSubmissionsTable.$inferSelect;

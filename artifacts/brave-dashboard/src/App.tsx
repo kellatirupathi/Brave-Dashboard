@@ -42,6 +42,7 @@ import GritMilesPage from "@/pages/student/demo-day";
 import DemoDayUpload from "@/pages/student/demo-day-upload";
 import TeamDashboardLegacy from "@/pages/student/dashboard-legacy";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
+import { getFinaleMe } from "@/lib/finale-api";
 import Notifications from "@/pages/student/notifications";
 import Invitations from "@/pages/student/invitations";
 import JoinByCode from "@/pages/student/join";
@@ -66,6 +67,8 @@ import AdminProjectDetail from "@/pages/admin/project-detail";
 import AdminLeaderboard from "@/pages/admin/leaderboard";
 import AdminDemoDay from "@/pages/admin/demo-day";
 import AdminDemoDaySubmissions from "@/pages/admin/demo-day-submissions";
+import AdminFinaleSubmissions from "@/pages/admin/finale-submissions";
+import FinalePage from "@/pages/student/finale";
 import AdminUsers from "@/pages/admin/users";
 import AdminUserNew from "@/pages/admin/user-new";
 import AdminUserPermissions from "@/pages/admin/user-permissions";
@@ -280,6 +283,33 @@ function StudentDemoDayGuard() {
   return <DemoDayUpload />;
 }
 
+// Gates the student Finale page: the feature must be on AND the team must have
+// cleared the verified-revenue bar. Same shape as StudentDemoDayGuard — only
+// bounce on an explicit `false`/ineligible so a slow load doesn't redirect.
+function StudentFinaleGuard() {
+  const { user } = useAuth();
+  const { data: finaleMe, isLoading } = useQuery({
+    queryKey: ["finale-me"],
+    queryFn: getFinaleMe,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  if (user?.role === "student" && isLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <Spinner className="size-10" />
+      </div>
+    );
+  }
+  if (
+    user?.role === "student" &&
+    (finaleMe?.enabled === false || finaleMe?.eligible === false)
+  ) {
+    return <Redirect to="/" />;
+  }
+  return <FinalePage />;
+}
+
 function RootRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -398,6 +428,12 @@ function Router() {
         <Route path="/demo-day">
           <ProtectedRoute
             component={StudentDemoDayGuard}
+            allowedRoles={["student"]}
+          />
+        </Route>
+        <Route path="/finale">
+          <ProtectedRoute
+            component={StudentFinaleGuard}
             allowedRoles={["student"]}
           />
         </Route>
@@ -566,6 +602,12 @@ function Router() {
         <Route path="/admin/demo-day-submissions">
           <ProtectedRoute
             component={AdminDemoDaySubmissions}
+            allowedRoles={["admin"]}
+          />
+        </Route>
+        <Route path="/admin/finale-submissions">
+          <ProtectedRoute
+            component={AdminFinaleSubmissions}
             allowedRoles={["admin"]}
           />
         </Route>

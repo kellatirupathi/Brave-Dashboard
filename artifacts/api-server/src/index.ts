@@ -400,6 +400,51 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
   }
 }
 
+// BRAVE Finale Submissions: config columns + the submissions table. Same
+// reasoning as ensureProjectsLockAndRejectionReasons — prod never runs
+// `drizzle-kit push`, so the routes would crash without this. Idempotent.
+async function ensureFinaleSubmissions(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE programme_config
+        ADD COLUMN IF NOT EXISTS finale_menu_enabled boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS finale_min_verified_revenue integer NOT NULL DEFAULT 200000,
+        ADD COLUMN IF NOT EXISTS finale_submissions_locked boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS finale_lock_message text,
+        ADD COLUMN IF NOT EXISTS finale_content text
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure programme_config finale columns");
+  }
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS finale_submissions (
+        id serial PRIMARY KEY,
+        team_id integer NOT NULL,
+        submitted_by text NOT NULL,
+        file_url text NOT NULL,
+        file_name text,
+        remarks text,
+        drive_url text,
+        drive_file_id text,
+        drive_synced_at timestamptz,
+        drive_error text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS finale_submissions_team_idx
+        ON finale_submissions (team_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS finale_submissions_created_at_idx
+        ON finale_submissions (created_at)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure finale_submissions table");
+  }
+}
+
 async function backfillOrderBookEntries(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -475,6 +520,11 @@ async function runBootstrap(): Promise<void> {
     await ensureProjectsLockAndRejectionReasons();
   } catch (err) {
     logger.error({ err }, "ensureProjectsLockAndRejectionReasons failed");
+  }
+  try {
+    await ensureFinaleSubmissions();
+  } catch (err) {
+    logger.error({ err }, "ensureFinaleSubmissions failed");
   }
   // Seed the two previously hardcoded reject-reason chips once, only when the
   // rejection_reasons table is empty (admin deletions are never resurrected).

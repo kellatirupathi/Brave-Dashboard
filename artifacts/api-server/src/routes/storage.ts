@@ -16,7 +16,10 @@ import {
   teamMembersTable,
   uploadedFilesTable,
 } from "@workspace/db";
-import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import {
+  ObjectStorageService,
+  ObjectNotFoundError,
+} from "../lib/objectStorage";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -37,6 +40,9 @@ export const ALLOWED_UPLOAD_MIME_TYPES: readonly string[] = [
   "image/webp",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // PowerPoint decks — the BRAVE Finale pptx submissions.
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
 
 function formatBytes(bytes: number): string {
@@ -65,83 +71,89 @@ async function getStoredFileMetadata(objectPath: string) {
  * generated object path so downstream viewers/downloads can use the real name
  * instead of the random UUID stored in object storage.
  */
-router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post(
+  "/storage/uploads/request-url",
+  async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
 
-  const parsed = RequestUploadUrlBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Missing or invalid required fields" });
-    return;
-  }
+    const parsed = RequestUploadUrlBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Missing or invalid required fields" });
+      return;
+    }
 
-  const { name, size, contentType } = parsed.data;
+    const { name, size, contentType } = parsed.data;
 
-  if (!Number.isFinite(size) || size <= 0) {
-    res.status(400).json({ error: "File size must be a positive number." });
-    return;
-  }
+    if (!Number.isFinite(size) || size <= 0) {
+      res.status(400).json({ error: "File size must be a positive number." });
+      return;
+    }
 
-  if (size > MAX_UPLOAD_SIZE_BYTES) {
-    res.status(413).json({
-      error: `File is too large. Maximum allowed size is ${formatBytes(MAX_UPLOAD_SIZE_BYTES)}.`,
-    });
-    return;
-  }
+    if (size > MAX_UPLOAD_SIZE_BYTES) {
+      res.status(413).json({
+        error: `File is too large. Maximum allowed size is ${formatBytes(MAX_UPLOAD_SIZE_BYTES)}.`,
+      });
+      return;
+    }
 
-  const normalizedType = contentType.trim().toLowerCase();
-  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(normalizedType)) {
-    res.status(415).json({
-      error: `Unsupported file type "${contentType}". Allowed types: PDF, JPEG, PNG, GIF, WEBP, DOC, DOCX.`,
-    });
-    return;
-  }
-
-  try {
-
-    const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    const normalizedType = contentType.trim().toLowerCase();
+    if (!ALLOWED_UPLOAD_MIME_TYPES.includes(normalizedType)) {
+      res.status(415).json({
+        error: `Unsupported file type "${contentType}". Allowed types: PDF, JPEG, PNG, GIF, WEBP, DOC, DOCX.`,
+      });
+      return;
+    }
 
     try {
-      await db
-        .insert(uploadedFilesTable)
-        .values({
-          objectPath,
-          filename: name,
-          size,
-          contentType,
-          uploadedById: req.user?.id ?? null,
-        })
-        .onConflictDoUpdate({
-          target: uploadedFilesTable.objectPath,
-          set: {
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const objectPath =
+        objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+      try {
+        await db
+          .insert(uploadedFilesTable)
+          .values({
+            objectPath,
             filename: name,
             size,
             contentType,
             uploadedById: req.user?.id ?? null,
-          },
-        });
-    } catch (err) {
-      // Don't fail the upload request just because the metadata insert failed;
-      // the upload itself can still succeed and the viewer will fall back to
-      // generic labels.
-      req.log.warn({ err, objectPath }, "Failed to record uploaded file metadata");
-    }
+          })
+          .onConflictDoUpdate({
+            target: uploadedFilesTable.objectPath,
+            set: {
+              filename: name,
+              size,
+              contentType,
+              uploadedById: req.user?.id ?? null,
+            },
+          });
+      } catch (err) {
+        // Don't fail the upload request just because the metadata insert failed;
+        // the upload itself can still succeed and the viewer will fall back to
+        // generic labels.
+        req.log.warn(
+          { err, objectPath },
+          "Failed to record uploaded file metadata",
+        );
+      }
 
-    res.json(
-      RequestUploadUrlResponse.parse({
-        uploadURL,
-        objectPath,
-        metadata: { name, size, contentType },
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Error generating upload URL");
-    res.status(500).json({ error: "Failed to generate upload URL" });
-  }
-});
+      res.json(
+        RequestUploadUrlResponse.parse({
+          uploadURL,
+          objectPath,
+          metadata: { name, size, contentType },
+        }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Error generating upload URL");
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  },
+);
 
 /**
  * GET /storage/uploads/metadata?path=/objects/<id>
@@ -168,7 +180,9 @@ router.get("/storage/uploads/metadata", async (req: Request, res: Response) => {
       const owningTeamId = await findOwningTeamId(path);
       if (owningTeamId === null) {
         if (req.user.role !== "admin") {
-          res.status(404).json({ error: "No metadata recorded for this object" });
+          res
+            .status(404)
+            .json({ error: "No metadata recorded for this object" });
           return;
         }
       } else {
@@ -206,44 +220,49 @@ router.get("/storage/uploads/metadata", async (req: Request, res: Response) => {
  * These are unconditionally public — no authentication or ACL checks.
  * IMPORTANT: Always provide this endpoint when object storage is set up.
  */
-router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
-  try {
-    const raw = req.params.filePath;
-    const filePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const file = await objectStorageService.searchPublicObject(filePath);
-    if (!file) {
-      res.status(404).json({ error: "File not found" });
-      return;
+router.get(
+  "/storage/public-objects/*filePath",
+  async (req: Request, res: Response) => {
+    try {
+      const raw = req.params.filePath;
+      const filePath = Array.isArray(raw) ? raw.join("/") : raw;
+      const file = await objectStorageService.searchPublicObject(filePath);
+      if (!file) {
+        res.status(404).json({ error: "File not found" });
+        return;
+      }
+
+      const downloadFlag = req.query.download;
+      const isDownload =
+        downloadFlag === "1" || downloadFlag === "true" || downloadFlag === "";
+      const filenameParam = req.query.filename;
+      const explicitFilename =
+        typeof filenameParam === "string" && filenameParam.length > 0
+          ? filenameParam
+          : undefined;
+
+      const response = await objectStorageService.downloadObject(file, 3600, {
+        disposition: isDownload ? "attachment" : "inline",
+        filename: explicitFilename,
+      });
+
+      res.status(response.status);
+      response.headers.forEach((value, key) => res.setHeader(key, value));
+
+      if (response.body) {
+        const nodeStream = Readable.fromWeb(
+          response.body as ReadableStream<Uint8Array>,
+        );
+        nodeStream.pipe(res);
+      } else {
+        res.end();
+      }
+    } catch (error) {
+      req.log.error({ err: error }, "Error serving public object");
+      res.status(500).json({ error: "Failed to serve public object" });
     }
-
-    const downloadFlag = req.query.download;
-    const isDownload =
-      downloadFlag === "1" || downloadFlag === "true" || downloadFlag === "";
-    const filenameParam = req.query.filename;
-    const explicitFilename =
-      typeof filenameParam === "string" && filenameParam.length > 0
-        ? filenameParam
-        : undefined;
-
-    const response = await objectStorageService.downloadObject(file, 3600, {
-      disposition: isDownload ? "attachment" : "inline",
-      filename: explicitFilename,
-    });
-
-    res.status(response.status);
-    response.headers.forEach((value, key) => res.setHeader(key, value));
-
-    if (response.body) {
-      const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
-      nodeStream.pipe(res);
-    } else {
-      res.end();
-    }
-  } catch (error) {
-    req.log.error({ err: error }, "Error serving public object");
-    res.status(500).json({ error: "Failed to serve public object" });
-  }
-});
+  },
+);
 
 /**
  * Find the team that owns a given object path by checking the database
@@ -336,7 +355,8 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
-    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+    const objectFile =
+      await objectStorageService.getObjectEntityFile(objectPath);
 
     const owningTeamId = await findOwningTeamId(objectPath);
     if (owningTeamId === null) {
@@ -361,19 +381,27 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
         ? filenameParam
         : undefined;
 
-    const storedMeta = await getStoredFileMetadata(objectPath).catch(() => null);
+    const storedMeta = await getStoredFileMetadata(objectPath).catch(
+      () => null,
+    );
     const filename = explicitFilename ?? storedMeta?.filename;
 
-    const response = await objectStorageService.downloadObject(objectFile, 3600, {
-      disposition: isDownload ? "attachment" : "inline",
-      filename,
-    });
+    const response = await objectStorageService.downloadObject(
+      objectFile,
+      3600,
+      {
+        disposition: isDownload ? "attachment" : "inline",
+        filename,
+      },
+    );
 
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
 
     if (response.body) {
-      const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
+      const nodeStream = Readable.fromWeb(
+        response.body as ReadableStream<Uint8Array>,
+      );
       nodeStream.pipe(res);
     } else {
       res.end();

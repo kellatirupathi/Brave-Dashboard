@@ -31,6 +31,16 @@ export function getDriveFolderId(): string | null {
 }
 
 /**
+ * Target folder for BRAVE Finale pptx decks. Falls back to the BRD folder when
+ * GDRIVE_FINALE_FOLDER_ID isn't set, so the feature works with the existing
+ * single-folder setup — set the dedicated var to keep decks separate.
+ */
+export function getFinaleFolderId(): string | null {
+  const id = (process.env["GDRIVE_FINALE_FOLDER_ID"] || "").trim();
+  return id.length > 0 ? id : getDriveFolderId();
+}
+
+/**
  * Parse the service-account JSON from the env var. Accepts either raw JSON or a
  * base64-encoded JSON blob (handy when a secrets manager mangles newlines in the
  * private_key). Returns null if missing/unparseable.
@@ -114,11 +124,39 @@ export async function uploadBrdToDrive(
   filename: string,
   mimeType = "application/pdf",
 ): Promise<DriveUploadResult> {
-  const drive = getDriveClient();
   const folderId = getDriveFolderId();
   if (!folderId) {
     throw new Error("GDRIVE_BRD_FOLDER_ID is not set.");
   }
+  return uploadToDriveFolder(stream, filename, mimeType, folderId);
+}
+
+/**
+ * Upload a BRAVE Finale pptx deck to the Finale folder. Thin wrapper around
+ * uploadToDriveFolder — see uploadBrdToDrive for the shared semantics.
+ */
+export async function uploadFinaleDeckToDrive(
+  stream: Readable,
+  filename: string,
+  mimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+): Promise<DriveUploadResult> {
+  const folderId = getFinaleFolderId();
+  if (!folderId) {
+    throw new Error(
+      "GDRIVE_FINALE_FOLDER_ID (or GDRIVE_BRD_FOLDER_ID) is not set.",
+    );
+  }
+  return uploadToDriveFolder(stream, filename, mimeType, folderId);
+}
+
+/** Shared upload core: create the file, share it by link, return the link. */
+async function uploadToDriveFolder(
+  stream: Readable,
+  filename: string,
+  mimeType: string,
+  folderId: string,
+): Promise<DriveUploadResult> {
+  const drive = getDriveClient();
 
   const created = await drive.files.create({
     requestBody: {
