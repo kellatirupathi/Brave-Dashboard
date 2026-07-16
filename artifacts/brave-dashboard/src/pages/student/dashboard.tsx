@@ -30,6 +30,8 @@ import { NotificationsBell } from "@/components/notifications-bell";
 import { HelpMenu } from "@/components/help-menu";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SubmitAsapBanner } from "@/components/projects-lock-banner";
+import { getLeaderboardConfig } from "@/lib/leaderboard-config-api";
+import { DEFAULT_BANNER_CONTENT } from "@/components/leaderboard-banner-templates";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
 import { TeamNameDuplicatePopup } from "@/components/team-name-duplicate-popup";
@@ -118,6 +120,20 @@ function RadialProgress({
   );
 }
 
+// Shown in place of a rank number while the admin hides ranks from students.
+// Keeps the KPI card the same size — just a small "revealing soon" line.
+function RankHiddenValue() {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-base font-semibold text-muted-foreground"
+      data-testid="kpi-rank-hidden"
+    >
+      <Lock className="h-4 w-4" />
+      Revealing soon
+    </span>
+  );
+}
+
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
   const { data: progress, isError: progressError } = useQuery({
@@ -128,6 +144,17 @@ export default function TeamDashboard() {
     queryKey: ["student-grit-config"],
     queryFn: getStudentGritConfig,
   });
+  // While the admin hides rank from students, the rank KPI cards must not leak
+  // it — they show a small "revealing soon" note with the reveal time instead.
+  const { data: lbConfig } = useQuery({
+    queryKey: ["leaderboard-config"],
+    queryFn: getLeaderboardConfig,
+    staleTime: 60_000,
+  });
+  const rankHidden = lbConfig?.hideRankForStudents ?? false;
+  const revealText =
+    lbConfig?.bannerContent?.timeText?.trim() ||
+    DEFAULT_BANNER_CONTENT.timeText;
 
   if (isLoading) {
     return (
@@ -215,15 +242,19 @@ export default function TeamDashboard() {
     },
     {
       label: "National rank",
-      value: `#${summary.nationalRank || "—"}`,
-      sub: "All campuses",
+      // While ranks are hidden from students, don't leak the rank here —
+      // show a small "revealing soon" note with the admin's reveal time.
+      value: rankHidden ? <RankHiddenValue /> : `#${summary.nationalRank || "—"}`,
+      sub: rankHidden ? revealText : "All campuses",
       icon: Trophy,
       href: "/leaderboard",
     },
     {
       label: "Campus rank",
-      value: `#${summary.campusRank || "—"}`,
-      sub: summary.team?.campusName || "Your campus",
+      value: rankHidden ? <RankHiddenValue /> : `#${summary.campusRank || "—"}`,
+      sub: rankHidden
+        ? revealText
+        : summary.team?.campusName || "Your campus",
       icon: Building2,
       href: "/leaderboard",
     },

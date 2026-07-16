@@ -19,12 +19,15 @@ import {
   TrendingUp,
   Wallet,
   ArrowUpRight,
+  Lock,
 } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { HelpMenu } from "@/components/help-menu";
 import { JournalWeekTracker } from "@/components/journal-week-tracker";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SubmitAsapBanner } from "@/components/projects-lock-banner";
+import { getLeaderboardConfig } from "@/lib/leaderboard-config-api";
+import { DEFAULT_BANNER_CONTENT } from "@/components/leaderboard-banner-templates";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
 import { ProgramCountdown } from "@/components/program-countdown";
@@ -64,6 +67,20 @@ const TONE_DOT: Record<Tone, string> = {
   muted: "bg-muted-foreground/40",
 };
 
+// Shown in place of a rank number while the admin hides ranks from students.
+// Keeps the KPI card the same size — just a small "revealing soon" line.
+function RankHiddenValue() {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-base font-semibold text-muted-foreground"
+      data-testid="kpi-rank-hidden"
+    >
+      <Lock className="h-4 w-4" />
+      Revealing soon
+    </span>
+  );
+}
+
 export default function TeamDashboard() {
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
   // Same data source the journal widgets already used — reused here so the
@@ -72,6 +89,17 @@ export default function TeamDashboard() {
     queryKey: ["progress-summary"],
     queryFn: getProgressSummary,
   });
+  // While the admin hides rank from students, the rank KPI cards must not leak
+  // it — they show a small "revealing soon" note with the reveal time instead.
+  const { data: lbConfig } = useQuery({
+    queryKey: ["leaderboard-config"],
+    queryFn: getLeaderboardConfig,
+    staleTime: 60_000,
+  });
+  const rankHidden = lbConfig?.hideRankForStudents ?? false;
+  const revealText =
+    lbConfig?.bannerContent?.timeText?.trim() ||
+    DEFAULT_BANNER_CONTENT.timeText;
 
   if (isLoading) {
     return (
@@ -143,16 +171,22 @@ export default function TeamDashboard() {
     },
     {
       label: "National rank",
-      value: `#${summary.nationalRank || "—"}`,
-      sub: "All campuses",
+      // While ranks are hidden from students, don't leak the rank here —
+      // show a small "revealing soon" note with the admin's reveal time.
+      value: rankHidden ? (
+        <RankHiddenValue />
+      ) : (
+        `#${summary.nationalRank || "—"}`
+      ),
+      sub: rankHidden ? revealText : "All campuses",
       icon: Trophy,
       href: "/leaderboard",
       accent: "text-amber-600 bg-amber-50",
     },
     {
       label: "Campus rank",
-      value: `#${summary.campusRank || "—"}`,
-      sub: summary.team?.campusName || "Your campus",
+      value: rankHidden ? <RankHiddenValue /> : `#${summary.campusRank || "—"}`,
+      sub: rankHidden ? revealText : summary.team?.campusName || "Your campus",
       icon: Building2,
       href: "/leaderboard",
       accent: "text-violet-600 bg-violet-50",
