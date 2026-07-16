@@ -64,6 +64,8 @@ export type SubmissionRequest = {
   campusName: string;
   leaderName: string;
   purpose: string;
+  status: "pending" | "approved" | "rejected";
+  decisionNote: string;
   createdAt: string;
   exempted: boolean;
 };
@@ -89,12 +91,23 @@ export function getMySubmissionRequest(): Promise<{
   );
 }
 
-// Admin: list pending submission requests.
+// Admin: list open submission requests (pending + rejected).
 export function listSubmissionRequests(): Promise<{
   items: SubmissionRequest[];
 }> {
   return customFetch<{ items: SubmissionRequest[] }>(
     "/api/admin/submission-access-requests",
     { method: "GET" },
+  );
+}
+
+// Admin: reject a request with a reason (emails the team).
+export function rejectSubmissionRequest(
+  id: number,
+  reason: string,
+): Promise<{ ok: boolean; id: number; status: string }> {
+  return customFetch<{ ok: boolean; id: number; status: string }>(
+    `/api/admin/submission-access-requests/${id}/reject`,
+    { method: "PUT", body: JSON.stringify({ reason }) },
   );
 }

@@ -1464,9 +1464,11 @@ export const submissionAccessRequestsTable = pgTable(
     teamId: integer("team_id").notNull(),
     requestedBy: text("requested_by").notNull(),
     purpose: text("purpose"),
-    status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'declined'
+    status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
     decidedBy: text("decided_by"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
+    // Admin's reason when a request is rejected (emailed to the team).
+    decisionNote: text("decision_note"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

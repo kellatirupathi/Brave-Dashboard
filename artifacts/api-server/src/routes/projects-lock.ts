@@ -27,6 +27,7 @@ import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import {
   renderSubmissionEnabledEmail,
   renderSubmissionDisabledEmail,
+  renderSubmissionRequestRejectedEmail,
 } from "../lib/email/templates/submission-access";
 import { logger } from "../lib/logger";
 
@@ -510,7 +511,8 @@ router.get(
   },
 );
 
-// Admin: list pending submission requests with team + leader name + purpose.
+// Admin: list open submission requests (pending + rejected, so a rejected one
+// stays visible with its reason) with team + leader name + purpose.
 router.get(
   "/admin/submission-access-requests",
   async (req: Request, res: Response): Promise<void> => {
@@ -521,6 +523,8 @@ router.get(
         id: submissionAccessRequestsTable.id,
         teamId: submissionAccessRequestsTable.teamId,
         purpose: submissionAccessRequestsTable.purpose,
+        status: submissionAccessRequestsTable.status,
+        decisionNote: submissionAccessRequestsTable.decisionNote,
         createdAt: submissionAccessRequestsTable.createdAt,
         teamName: teamsTable.name,
         campusName: campusesTable.name,
@@ -534,7 +538,9 @@ router.get(
       )
       .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
       .leftJoin(leader, eq(leader.id, teamsTable.leaderId))
-      .where(eq(submissionAccessRequestsTable.status, "pending"))
+      .where(
+        inArray(submissionAccessRequestsTable.status, ["pending", "rejected"]),
+      )
       .orderBy(desc(submissionAccessRequestsTable.createdAt));
     // Which of these teams are already exempted (so the UI can show state).
     const ids = rows.map((r) => r.teamId);
@@ -555,11 +561,101 @@ router.get(
         leaderName:
           `${r.leaderFirst ?? ""} ${r.leaderLast ?? ""}`.trim() || "—",
         purpose: r.purpose ?? "",
+        status: r.status,
+        decisionNote: r.decisionNote ?? "",
         createdAt: r.createdAt,
         exempted: exemptSet.has(r.teamId),
       })),
     });
   },
 );
+
+const RejectRequestBody = z.object({
+  reason: z.string().trim().min(1).max(1000),
+});
+
+// Admin: reject a pending "Request to submit" with a reason. The team's
+// leader + members are emailed the reason. The row stays visible (status
+// 'rejected') so admins can see what was declined and why.
+router.put(
+  "/admin/submission-access-requests/:id/reject",
+  requireAdminPage("/admin/config", "edit"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid request id" });
+      return;
+    }
+    const parsed = RejectRequestBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [updated] = await db
+      .update(submissionAccessRequestsTable)
+      .set({
+        status: "rejected",
+        decisionNote: parsed.data.reason,
+        decidedBy: req.user.id,
+        decidedAt: new Date(),
+      })
+      .where(eq(submissionAccessRequestsTable.id, id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Request not found" });
+      return;
+    }
+    await logAudit(
+      req.user.id,
+      "reject_submission_access_request",
+      "team",
+      updated.teamId,
+      parsed.data.reason,
+    );
+    // Email the team (best-effort; never blocks the response).
+    void notifySubmissionRequestRejected(updated.teamId, parsed.data.reason);
+    res.json({ ok: true, id: updated.id, status: updated.status });
+  },
+);
+
+// Emails a team's members that their submission request was rejected, with the
+// admin's reason. Best-effort: skips placeholder addresses, swallows errors.
+async function notifySubmissionRequestRejected(
+  teamId: number,
+  reason: string,
+): Promise<void> {
+  try {
+    const appUrl = getAppUrl();
+    const isRealEmail = (e: string | null | undefined): e is string =>
+      !!e && !/@forms\.local$/i.test(e) && !/^sso_/i.test(e) && e.includes("@");
+    const [team] = await db
+      .select({ name: teamsTable.name })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, teamId));
+    const members = await db
+      .select({ email: usersTable.email })
+      .from(teamMembersTable)
+      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+      .where(eq(teamMembersTable.teamId, teamId));
+    const recipients = Array.from(
+      new Set(members.map((m) => m.email).filter(isRealEmail)),
+    )
+      .slice(0, 50)
+      .map((email) => ({ email }));
+    if (recipients.length === 0) return;
+    const { subject, text, html } = renderSubmissionRequestRejectedEmail({
+      teamName: team?.name ?? "your team",
+      appUrl,
+      reason,
+    });
+    await sendEmail({ to: recipients, subject, text, html });
+  } catch (err) {
+    logger.error({ err }, "Failed to send submission-request rejected email");
+  }
+}
 
 export default router;

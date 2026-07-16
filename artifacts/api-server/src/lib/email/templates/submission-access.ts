@@ -39,6 +39,39 @@ export function renderSubmissionEnabledEmail(
   return { subject, text, html };
 }
 
+// Sent when an admin rejects a team's "Request to submit".
+export function renderSubmissionRequestRejectedEmail(
+  input: SubmissionAccessEmailInput & { reason: string },
+) {
+  const subject = `Update on your submission request — ${input.teamName}`;
+  const lines = [
+    `Hi Team ${input.teamName},`,
+    "",
+    "Thanks for reaching out. We've reviewed your request to submit while submissions are paused, and we're not able to open it up right now.",
+    "",
+    "Reason from the admin team:",
+    input.reason,
+    "",
+    "If something changes or you have more details to share, please reply to this email or reach your success coach — you're welcome to raise a fresh request.",
+    "",
+    "— BRAVE Team",
+  ];
+  const text = lines.join("\n");
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#1a1d21;line-height:1.6">
+      <p>Hi Team <strong>${input.teamName}</strong>,</p>
+      <p>Thanks for reaching out. We've reviewed your request to submit while submissions are paused,
+      and we're <strong>not able to open it up right now</strong>.</p>
+      <p style="margin:16px 0;padding:12px 14px;background:#fef2f2;border-left:3px solid #ef4444;border-radius:6px">
+        <strong>Reason from the admin team:</strong><br/>${input.reason}
+      </p>
+      <p>If something changes or you have more details to share, reply to this email or reach your
+      success coach — you're welcome to raise a fresh request.</p>
+      <p>— BRAVE Team</p>
+    </div>`;
+  return { subject, text, html };
+}
+
 export function renderSubmissionDisabledEmail(
   input: SubmissionAccessEmailInput,
 ) {

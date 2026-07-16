@@ -374,8 +374,13 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
         status text NOT NULL DEFAULT 'pending',
         decided_by text,
         decided_at timestamptz,
+        decision_note text,
         created_at timestamptz NOT NULL DEFAULT now()
       )
+    `);
+    await db.execute(sql`
+      ALTER TABLE submission_access_requests
+        ADD COLUMN IF NOT EXISTS decision_note text
     `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS submission_access_requests_team_idx
