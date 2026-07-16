@@ -162,12 +162,18 @@ export function FinaleConfigCard() {
             id="finale-content"
             value={form.finaleContent}
             onChange={(e) => set("finaleContent", e.target.value)}
-            rows={6}
+            rows={10}
             maxLength={5000}
             disabled={!loaded || saving}
             placeholder="Guidelines, deadline, what the deck must cover…"
             data-testid="input-finale-content"
           />
+          <p className="text-xs text-muted-foreground">
+            Supports Markdown — <code>## Heading</code>, <code>**bold**</code>,{" "}
+            <code>- bullet</code>, <code>[link](url)</code>, tables. Text pasted
+            from WhatsApp with <code>*single asterisks*</code> also renders
+            bold.
+          </p>
         </div>
 
         <div className="flex justify-end">

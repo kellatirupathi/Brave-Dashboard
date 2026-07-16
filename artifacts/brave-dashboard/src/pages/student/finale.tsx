@@ -8,6 +8,8 @@
 // "Submit another pptx" text button that re-opens the form.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useRequestUploadUrl } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -102,7 +104,8 @@ export default function FinalePage() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
+      {/* 25% form / 75% guidelines. */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_3fr] items-start">
         {/* LEFT — form / thank-you / read-only notice */}
         <div className="space-y-6">
           {showForm ? (
@@ -130,18 +133,43 @@ export default function FinalePage() {
           ) : null}
         </div>
 
-        {/* RIGHT — admin-authored content */}
+        {/* RIGHT — admin-authored content, rendered as markdown */}
         <Card data-testid="card-finale-content">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Guidelines</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-              {data.content}
-            </p>
+            <MarkdownContent value={data.content} />
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Admin-authored guidelines, rendered as markdown.
+ *
+ * Admins paste this straight out of WhatsApp, where *single asterisks* mean
+ * bold — but markdown reads that as italic. We upgrade a `*…*` span to `**…**`
+ * when it looks like WhatsApp bold (single asterisks, no spaces hugging the
+ * text, all on one line) so the intent survives. Text already using `**bold**`
+ * is untouched, since the `[^*]` bounds can't match the inner asterisks.
+ *
+ * react-markdown escapes raw HTML by default, so admin content can't inject
+ * markup into the page.
+ */
+function MarkdownContent({ value }: { value: string }) {
+  const normalized = value.replace(
+    /(^|[^*])\*([^*\s][^*\n]*[^*\s]|[^*\s])\*(?!\*)/g,
+    "$1**$2**",
+  );
+  return (
+    <div
+      className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground prose-headings:text-foreground prose-strong:text-foreground prose-a:text-primary break-words"
+      data-testid="finale-content-markdown"
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalized}</ReactMarkdown>
     </div>
   );
 }

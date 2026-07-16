@@ -84,75 +84,72 @@ export default function AdminFinaleSubmissions() {
 
   return (
     <div className="space-y-6">
-      {/* Title left; filters + search + export pinned right. */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
-            <Trophy className="h-7 w-7 text-primary" />
-            Finale Submissions
-          </h1>
-          <p className="text-muted-foreground">
-            Final pitch decks submitted by teams — latest per team.
-          </p>
+      <div>
+        <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
+          <Trophy className="h-7 w-7 text-primary" />
+          Finale Submissions
+        </h1>
+        <p className="text-muted-foreground">
+          Final pitch decks submitted by teams — latest per team.
+        </p>
+      </div>
+
+      {/* One row: search, dates, sort — Export pinned far right. The search
+          box flexes so the controls stay on a single line as it narrows. */}
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search team, campus, remarks…"
+            className="pl-8"
+            data-testid="input-finale-search"
+          />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="w-[150px]"
-              data-testid="input-finale-from"
-            />
-            <span className="text-sm text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="w-[150px]"
-              data-testid="input-finale-to"
-            />
-          </div>
+        <Input
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          className="w-[150px] shrink-0"
+          data-testid="input-finale-from"
+        />
+        <span className="shrink-0 text-sm text-muted-foreground">to</span>
+        <Input
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          className="w-[150px] shrink-0"
+          data-testid="input-finale-to"
+        />
 
-          <Select value={sort} onValueChange={(v) => setSort(v as FinaleSort)}>
-            <SelectTrigger
-              className="w-[180px]"
-              data-testid="select-finale-sort"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORTS.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="relative w-full max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search team, campus, remarks…"
-              className="pl-8"
-              data-testid="input-finale-search"
-            />
-          </div>
-
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            data-testid="button-finale-export"
+        <Select value={sort} onValueChange={(v) => setSort(v as FinaleSort)}>
+          <SelectTrigger
+            className="w-[180px] shrink-0"
+            data-testid="select-finale-sort"
           >
-            <a href={finaleExportUrl(params)}>
-              <Download className="mr-1.5 h-4 w-4" /> Export
-            </a>
-          </Button>
-        </div>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORTS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          asChild
+          variant="outline"
+          className="shrink-0"
+          data-testid="button-finale-export"
+        >
+          <a href={finaleExportUrl(params)}>
+            <Download className="mr-1.5 h-4 w-4" /> Export
+          </a>
+        </Button>
       </div>
 
       {isLoading ? (
