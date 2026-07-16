@@ -256,11 +256,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   });
   const hasTeam = teamLoading ? !!user?.teamId : !!myTeam;
 
-  // Public visibility flag — controls whether students see the Resources
-  // sidebar entry. Admin sidebar always shows it regardless. Defaults to
-  // true while loading so the menu doesn't flicker out for students who
-  // already had access.
-  const { data: resourcesSettings } = useQuery<{
+  // Admin-controlled visibility flags for the student menu. Each of these can
+  // hide a nav item, so we render NO toggleable item until they've all
+  // resolved (see `configReady` below) — guessing a default either flashes an
+  // item in and then yanks it away, or hides one the student should have.
+  const { data: resourcesSettings, isLoading: resourcesLoading } = useQuery<{
     enabledForStudents: boolean;
   }>({
     queryKey: ["public-resources-settings"],
@@ -274,13 +274,13 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     staleTime: 60_000,
     enabled: user?.role === "student",
   });
+  // On error the query returns no data — fall back to visible, matching the
+  // server's default-allow posture.
   const resourcesVisibleForStudent =
     resourcesSettings?.enabledForStudents ?? true;
 
-  // Admin-controlled visibility for the student Demo Day menu item. Reuses the
-  // shared student-grit-config cache. Defaults to true while loading so the
-  // item doesn't flicker out for students who already had access.
-  const { data: studentGritConfig } = useQuery({
+  // Demo Day menu. Reuses the shared student-grit-config cache.
+  const { data: studentGritConfig, isLoading: gritLoading } = useQuery({
     queryKey: ["student-grit-config"],
     queryFn: getStudentGritConfig,
     staleTime: 60_000,
@@ -289,11 +289,9 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const demoDayMenuVisibleForStudent =
     studentGritConfig?.demoDayMenuEnabled ?? true;
 
-  // BRAVE Finale menu: shown only when the admin has enabled the feature AND
-  // this student's team has cleared the verified-revenue bar. Defaults to
-  // hidden while loading — unlike Demo Day, most teams are NOT eligible, so
-  // defaulting to visible would flash the menu in for everyone on every load.
-  const { data: finaleMe } = useQuery({
+  // BRAVE Finale menu: the admin must have enabled the feature AND this
+  // student's team must have cleared the verified-revenue bar.
+  const { data: finaleMe, isLoading: finaleLoading } = useQuery({
     queryKey: ["finale-me"],
     queryFn: getFinaleMe,
     staleTime: 60_000,
@@ -301,6 +299,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   });
   const finaleMenuVisibleForStudent =
     !!finaleMe?.enabled && !!finaleMe?.eligible;
+
+  // True once every visibility flag above has settled. `isLoading` is false
+  // for disabled queries, so this is only ever false for students — other
+  // roles render immediately.
+  const configReady = !resourcesLoading && !gritLoading && !finaleLoading;
 
   // Per-page admin permissions (default-allow). Enabled only for admins; the
   // query is cached and shared with ProtectedRoute. Restricted admins have
@@ -324,7 +327,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             icon: Award,
             isNew: true,
           },
-          ...(demoDayMenuVisibleForStudent
+          ...(configReady && demoDayMenuVisibleForStudent
             ? [
                 {
                   name: "Demo Day",
@@ -334,7 +337,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 },
               ]
             : []),
-          ...(finaleMenuVisibleForStudent
+          ...(configReady && finaleMenuVisibleForStudent
             ? [
                 {
                   name: "BRAVE Finale Submissions",
@@ -346,7 +349,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             : []),
           { name: "My Team", href: "/team", icon: Users },
           // Resources entry is gated by the admin-controlled visibility flag.
-          ...(resourcesVisibleForStudent
+          ...(configReady && resourcesVisibleForStudent
             ? [
                 {
                   name: "Resources",
@@ -366,7 +369,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       : [
           { name: "Get started", href: "/get-started", icon: Users },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
-          ...(resourcesVisibleForStudent
+          ...(configReady && resourcesVisibleForStudent
             ? [
                 {
                   name: "Resources",
