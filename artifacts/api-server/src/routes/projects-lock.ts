@@ -40,7 +40,11 @@ const UpdateBody = z.object({
   locked: z.boolean().optional(),
   message: z.string().max(1000).nullable().optional(),
   rejectedResubmitEnabled: z.boolean().optional(),
+  submissionRequestEnabled: z.boolean().optional(),
 });
+
+export const SUBMISSION_REQUEST_DISABLED_ERROR =
+  "Submission requests are currently closed. Please reach your success coach instead.";
 
 export const REJECTED_RESUBMIT_DISABLED_ERROR =
   "Editing and resubmitting rejected entries is currently disabled. Please check back later.";
@@ -63,6 +67,9 @@ function serialize(row: typeof programmeConfigTable.$inferSelect) {
     // buttons on rejected revenue entries are hidden and the API blocks
     // resubmitting a rejected entry.
     rejectedResubmitEnabled: row.rejectedResubmitEnabled,
+    // When false, the "Request to submit" button is hidden from the lock
+    // banner and the request API rejects new requests.
+    submissionRequestEnabled: row.submissionRequestEnabled,
   };
 }
 
@@ -168,6 +175,9 @@ router.put(
     if (parsed.data.message !== undefined) {
       const trimmed = (parsed.data.message ?? "").trim();
       patch.projectSubmissionsLockMessage = trimmed || null;
+    }
+    if (parsed.data.submissionRequestEnabled !== undefined) {
+      patch.submissionRequestEnabled = parsed.data.submissionRequestEnabled;
     }
     if (parsed.data.rejectedResubmitEnabled !== undefined) {
       patch.rejectedResubmitEnabled = parsed.data.rejectedResubmitEnabled;
@@ -453,6 +463,12 @@ router.post(
     }
     // Only the team leader (or an admin override) may request.
     if (!(await requireTeamLeader(req, res, teamId))) return;
+    // Admin can close the request channel entirely (Config toggle).
+    const config = await getConfigRow();
+    if (!config.submissionRequestEnabled) {
+      res.status(403).json({ error: SUBMISSION_REQUEST_DISABLED_ERROR });
+      return;
+    }
     const parsed = CreateRequestBody.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });

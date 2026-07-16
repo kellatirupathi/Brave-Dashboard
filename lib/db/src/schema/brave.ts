@@ -880,6 +880,13 @@ export const programmeConfigTable = pgTable("programme_config", {
   // Message shown at the top of the student Projects pages while locked.
   // Null → the UI falls back to a default message.
   projectSubmissionsLockMessage: text("project_submissions_lock_message"),
+  // When true (default), the "Request to submit" button is shown to team
+  // leaders in the projects-lock banner while the global lock is on, letting
+  // them file a request an admin reviews. When false, the button is hidden and
+  // the request API is blocked — students just see the lock message.
+  submissionRequestEnabled: boolean("submission_request_enabled")
+    .notNull()
+    .default(true),
   // When true (default), students can edit + resubmit a REJECTED revenue entry
   // ("Edit & fix" / "Resubmit for verification" on the project detail page).
   // When false, both buttons are hidden and the API blocks resubmitting a

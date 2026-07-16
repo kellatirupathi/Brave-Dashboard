@@ -20,14 +20,17 @@ export function ProjectsLockCard() {
   const [locked, setLocked] = useState(false);
   const [message, setMessage] = useState("");
   const [resubmitEnabled, setResubmitEnabled] = useState(true);
+  const [requestEnabled, setRequestEnabled] = useState(true);
   const [initial, setInitial] = useState<{
     locked: boolean;
     message: string;
     resubmitEnabled: boolean;
+    requestEnabled: boolean;
   }>({
     locked: false,
     message: "",
     resubmitEnabled: true,
+    requestEnabled: true,
   });
   const [saving, setSaving] = useState(false);
 
@@ -39,10 +42,12 @@ export function ProjectsLockCard() {
         setLocked(data.locked);
         setMessage(data.message);
         setResubmitEnabled(data.rejectedResubmitEnabled);
+        setRequestEnabled(data.submissionRequestEnabled);
         setInitial({
           locked: data.locked,
           message: data.message,
           resubmitEnabled: data.rejectedResubmitEnabled,
+          requestEnabled: data.submissionRequestEnabled,
         });
         setLoaded(true);
       })
@@ -57,7 +62,8 @@ export function ProjectsLockCard() {
   const dirty =
     locked !== initial.locked ||
     message.trim() !== initial.message.trim() ||
-    resubmitEnabled !== initial.resubmitEnabled;
+    resubmitEnabled !== initial.resubmitEnabled ||
+    requestEnabled !== initial.requestEnabled;
 
   const handleSave = async () => {
     setSaving(true);
@@ -66,14 +72,17 @@ export function ProjectsLockCard() {
         locked,
         message: message.trim() || null,
         rejectedResubmitEnabled: resubmitEnabled,
+        submissionRequestEnabled: requestEnabled,
       });
       setLocked(data.locked);
       setMessage(data.message);
       setResubmitEnabled(data.rejectedResubmitEnabled);
+      setRequestEnabled(data.submissionRequestEnabled);
       setInitial({
         locked: data.locked,
         message: data.message,
         resubmitEnabled: data.rejectedResubmitEnabled,
+        requestEnabled: data.submissionRequestEnabled,
       });
       queryClient.invalidateQueries({ queryKey: ["projects-lock"] });
       toast({
@@ -134,6 +143,22 @@ export function ProjectsLockCard() {
             disabled={!loaded || saving}
             placeholder="Submissions are temporarily paused…"
             data-testid="input-projects-lock-message"
+          />
+        </div>
+        <div className="flex items-center justify-between border p-4 rounded-lg">
+          <div>
+            <p className="font-medium">Show "Request to submit" button</p>
+            <p className="text-sm text-muted-foreground">
+              Adds a button under the locked message so a team leader can ask
+              for access. When off, students only see the message. Only applies
+              while project submissions are locked.
+            </p>
+          </div>
+          <Switch
+            checked={requestEnabled}
+            onCheckedChange={setRequestEnabled}
+            disabled={!loaded || saving || !locked}
+            data-testid="switch-submission-request"
           />
         </div>
         <div className="flex items-center justify-between border p-4 rounded-lg">

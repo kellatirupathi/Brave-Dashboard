@@ -31,6 +31,10 @@ export function useProjectsLock(): {
   // Whether students may edit + resubmit a rejected revenue entry. Defaults to
   // true (allowed) until the config loads, so buttons aren't hidden on a blip.
   rejectedResubmitEnabled: boolean;
+  // Whether the "Request to submit" button is offered in the lock banner.
+  // Defaults to false until the config loads so the button never flashes in
+  // and then disappears when it's switched off.
+  submissionRequestEnabled: boolean;
   // Raw flags: the global lock state and whether this team is exempted. Used to
   // show the "submit ASAP" nudge to exempted teams during a global lock.
   globalLocked: boolean;
@@ -47,6 +51,7 @@ export function useProjectsLock(): {
     locked: globalLocked && !exempted,
     message: data?.message ?? "",
     rejectedResubmitEnabled: data?.rejectedResubmitEnabled ?? true,
+    submissionRequestEnabled: data?.submissionRequestEnabled ?? false,
     globalLocked,
     exempted,
   };
@@ -74,13 +79,15 @@ export function SubmitAsapBanner() {
 }
 
 // `canRequest` = the current user is the team leader (only they may request).
+// The button also requires the admin "Allow request to submit" Config toggle.
 export function ProjectsLockBanner({
   canRequest = false,
 }: {
   canRequest?: boolean;
 }) {
-  const { locked, message } = useProjectsLock();
+  const { locked, message, submissionRequestEnabled } = useProjectsLock();
   if (!locked) return null;
+  const showRequest = canRequest && submissionRequestEnabled;
   return (
     <div
       className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
@@ -89,7 +96,7 @@ export function ProjectsLockBanner({
       <Lock className="mt-0.5 h-4 w-4 shrink-0" />
       <div className="space-y-2">
         <p className="whitespace-pre-wrap leading-relaxed">{message}</p>
-        {canRequest ? <RequestToSubmit /> : null}
+        {showRequest ? <RequestToSubmit /> : null}
       </div>
     </div>
   );

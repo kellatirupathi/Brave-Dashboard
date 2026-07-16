@@ -315,6 +315,7 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
         ADD COLUMN IF NOT EXISTS project_submissions_locked boolean NOT NULL DEFAULT false,
         ADD COLUMN IF NOT EXISTS project_submissions_lock_message text,
         ADD COLUMN IF NOT EXISTS rejected_resubmit_enabled boolean NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS submission_request_enabled boolean NOT NULL DEFAULT true,
         ADD COLUMN IF NOT EXISTS hide_leaderboard_rank_for_students boolean NOT NULL DEFAULT false,
         ADD COLUMN IF NOT EXISTS leaderboard_image_url text,
         ADD COLUMN IF NOT EXISTS leaderboard_banner_source text NOT NULL DEFAULT 'image',
