@@ -4,6 +4,7 @@
 import {
   ADMIN_PAGES,
   FULL_PAGE_PERMISSION,
+  pageHasAction,
   type AdminPermissions,
   type PagePermission,
 } from "@/lib/admin-access";
@@ -30,14 +31,29 @@ type Props = {
 
 type Field = keyof PagePermission;
 
-// The four toggleable columns, in render order. Each gets a "select/deselect
-// all" checkbox in the header that drives every row's value for that field.
-const COLUMNS: { field: Field; label: string }[] = [
+// The toggleable columns, in render order. Each gets a "select/deselect all"
+// checkbox in the header that drives every row's value for that field.
+//
+// `optional` marks a column that only applies to SOME pages — those rows show
+// "—" instead of a checkbox, because granting it would do nothing (see
+// PAGE_ACTIONS). view / edit / delete / hidden apply to every page.
+const COLUMNS: { field: Field; label: string; optional?: boolean }[] = [
   { field: "view", label: "View" },
   { field: "edit", label: "Edit" },
+  { field: "approve", label: "Approve", optional: true },
+  { field: "reject", label: "Reject", optional: true },
   { field: "delete", label: "Delete" },
+  { field: "export", label: "Export", optional: true },
   { field: "hidden", label: "Hide" },
 ];
+
+// Does this row render a real checkbox for this column?
+function cellApplies(href: string, field: Field): boolean {
+  if (field === "approve" || field === "reject" || field === "export") {
+    return pageHasAction(href, field);
+  }
+  return true;
+}
 
 // Header "select all" checkbox. Tri-state: filled check when every page is on,
 // a minus when only some are on, empty when none. Clicking when not fully on
@@ -97,10 +113,13 @@ export function AdminPermissionsTable({
     });
   };
 
-  // Set one field across every page in a single change (header "select all").
+  // Set one field across every page it applies to (header "select all").
+  // Pages the column doesn't apply to are skipped — flipping a bit no route
+  // reads would just make the header state lie.
   const setColumn = (field: Field, value: boolean) => {
     const next: AdminPermissions = { ...permissions };
     for (const page of ADMIN_PAGES) {
+      if (!cellApplies(page.href, field)) continue;
       const current = next[page.href] ?? { ...FULL_PAGE_PERMISSION };
       next[page.href] = { ...current, [field]: value };
     }
@@ -108,15 +127,18 @@ export function AdminPermissionsTable({
   };
 
   // Resolve a column's header checkbox state: all on → true, none on → false,
-  // mixed → "indeterminate".
+  // mixed → "indeterminate". Counted only over the rows the column applies to.
   const columnState = (field: Field): boolean | "indeterminate" => {
     let checked = 0;
+    let total = 0;
     for (const page of ADMIN_PAGES) {
+      if (!cellApplies(page.href, field)) continue;
+      total++;
       const perm = permissions[page.href] ?? FULL_PAGE_PERMISSION;
       if (perm[field]) checked++;
     }
-    if (checked === 0) return false;
-    if (checked === ADMIN_PAGES.length) return true;
+    if (total === 0 || checked === 0) return false;
+    if (checked === total) return true;
     return "indeterminate";
   };
 
@@ -142,15 +164,21 @@ export function AdminPermissionsTable({
         </span>
       </label>
 
+      {/* Scrolls sideways rather than wrapping — every row stays one line. */}
       <div className="overflow-x-auto rounded-lg border">
-        <Table>
+        <Table className="min-w-[880px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[180px]">Page</TableHead>
+              <TableHead className="w-[190px] whitespace-nowrap">
+                Page
+              </TableHead>
+              <TableHead className="w-[230px] whitespace-nowrap">
+                Path
+              </TableHead>
               {COLUMNS.map((col) => (
                 <TableHead key={col.field} className="text-center">
                   <div className="flex flex-col items-center gap-1.5">
-                    <span>{col.label}</span>
+                    <span className="whitespace-nowrap">{col.label}</span>
                     <ColumnToggle
                       state={columnState(col.field)}
                       disabled={gridDisabled}
@@ -170,46 +198,66 @@ export function AdminPermissionsTable({
               };
               return (
                 <TableRow key={page.href}>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium whitespace-nowrap">
                     {page.label}
-                    <span className="block text-xs text-muted-foreground">
-                      {page.href}
-                    </span>
                   </TableCell>
-                  {(["view", "edit", "delete"] as const).map((field) => (
-                    <TableCell key={field} className="text-center">
-                      <Checkbox
-                        checked={perm[field]}
-                        disabled={gridDisabled || perm.hidden}
-                        onCheckedChange={(v) =>
-                          updateField(page.href, field, v === true)
-                        }
-                        data-testid={`checkbox-${field}-${page.href}`}
-                      />
-                    </TableCell>
-                  ))}
-                  <TableCell className="text-center">
-                    <Checkbox
-                      checked={perm.hidden}
-                      disabled={gridDisabled}
-                      onCheckedChange={(v) =>
-                        updateField(page.href, "hidden", v === true)
-                      }
-                      data-testid={`checkbox-hidden-${page.href}`}
-                    />
+                  <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                    {page.href}
                   </TableCell>
+                  {COLUMNS.map((col) => {
+                    // Column doesn't exist on this page — show a dash so it's
+                    // clear there's nothing to grant, not an unchecked box.
+                    if (!cellApplies(page.href, col.field)) {
+                      return (
+                        <TableCell
+                          key={col.field}
+                          className="text-center text-muted-foreground/50"
+                          data-testid={`cell-na-${col.field}-${page.href}`}
+                        >
+                          —
+                        </TableCell>
+                      );
+                    }
+                    return (
+                      <TableCell key={col.field} className="text-center">
+                        <Checkbox
+                          checked={perm[col.field]}
+                          disabled={
+                            gridDisabled ||
+                            // Hiding a page moots every other column, but the
+                            // Hide box itself must stay clickable to un-hide.
+                            (col.field !== "hidden" && perm.hidden)
+                          }
+                          onCheckedChange={(v) =>
+                            updateField(page.href, col.field, v === true)
+                          }
+                          data-testid={`checkbox-${col.field}-${page.href}`}
+                        />
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       </div>
-      <p className="text-xs text-muted-foreground">
-        <strong>View</strong> controls whether the page is reachable at all.{" "}
-        <strong>Hide</strong> also removes it from the sidebar and blocks the
-        URL. Leaving everything checked keeps full access (the default for every
-        existing admin).
-      </p>
+      <div className="space-y-1 text-xs text-muted-foreground">
+        <p>
+          <strong>View</strong> controls whether the page is reachable at all.{" "}
+          <strong>Hide</strong> also removes it from the sidebar and blocks the
+          URL. Leaving everything checked keeps full access (the default for
+          every existing admin).
+        </p>
+        <p>
+          <strong>Approve</strong> and <strong>Reject</strong> split a review
+          decision, so an admin can be allowed to approve while rejections go to
+          someone else. Both also need <strong>Edit</strong>.{" "}
+          <strong>Export</strong> covers the CSV / Excel downloads. A{" "}
+          <span className="font-medium">—</span> means the page has no such
+          action.
+        </p>
+      </div>
     </div>
   );
 }

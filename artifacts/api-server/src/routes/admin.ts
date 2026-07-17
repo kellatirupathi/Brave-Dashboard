@@ -302,6 +302,7 @@ const reviewQueueCsvEscape = (v: unknown): string => {
 // exactly matching the read access of GET /admin/review-queue above.
 router.get(
   "/admin/review-queue/export.csv",
+  requireAdminPage("/admin/queue", "export"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated()) {
       res.status(401).json({ error: "Unauthorized" });
@@ -2318,6 +2319,7 @@ const accessRequestCsvEscape = (v: unknown): string => {
 // path wins over the param route.
 router.get(
   "/admin/access-requests/export.csv",
+  requireAdminPage("/admin/new-users-requests", "export"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });
@@ -2385,7 +2387,7 @@ router.get("/admin/access-requests/:id", async (req, res): Promise<void> => {
 
 router.post(
   "/admin/access-requests/:id/approve",
-  requireAdminPage("/admin/new-users-requests", "edit"),
+  requireAdminPage("/admin/new-users-requests", "approve"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });
@@ -2448,7 +2450,7 @@ router.post(
 
 router.post(
   "/admin/access-requests/:id/reject",
-  requireAdminPage("/admin/new-users-requests", "edit"),
+  requireAdminPage("/admin/new-users-requests", "reject"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });
@@ -2787,7 +2789,7 @@ const MembershipDecisionBody = z.object({
 // source rows + email + notification). Re-checks invariants at approval time.
 router.post(
   "/admin/membership-requests/:id/approve",
-  requireAdminPage("/admin/team-requests", "edit"),
+  requireAdminPage("/admin/team-requests", "approve"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Admin access required" });
@@ -2869,7 +2871,7 @@ router.post(
 // notification to the initiator (and target for add-flows).
 router.post(
   "/admin/membership-requests/:id/reject",
-  requireAdminPage("/admin/team-requests", "edit"),
+  requireAdminPage("/admin/team-requests", "reject"),
   async (req, res): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Admin access required" });

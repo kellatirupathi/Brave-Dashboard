@@ -9,6 +9,7 @@ import {
 import { normalizeError } from "@/lib/api-error";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { MembershipHistoryPopover } from "@/components/membership-history-popover";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,10 @@ function TeamStatsBlock({ mr }: { mr: MembershipRequest }) {
 export default function AdminTeamRequests() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Approve/Reject are separately grantable — hide whichever this admin lacks
+  // rather than showing a button that 403s on click. The server enforces the
+  // same rule; this only keeps the UI honest.
+  const { canApprove, canReject } = useAdminPageAccess("/admin/team-requests");
   const [tab, setTab] = useState<"pending" | "history">("pending");
   const [rejectTarget, setRejectTarget] = useState<MembershipRequest | null>(
     null,
@@ -355,26 +360,30 @@ export default function AdminTeamRequests() {
                       : "Select all"}
                   </label>
                   <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={selectedIds.size === 0 || busy}
-                      onClick={() => void runBulk("approve", "")}
-                    >
-                      <Check className="mr-1 h-4 w-4" />
-                      Approve selected
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={selectedIds.size === 0 || busy}
-                      onClick={() => {
-                        setRejectNote("");
-                        setBulkReject(true);
-                      }}
-                    >
-                      <X className="mr-1 h-4 w-4" />
-                      Reject selected
-                    </Button>
+                    {canApprove ? (
+                      <Button
+                        size="sm"
+                        disabled={selectedIds.size === 0 || busy}
+                        onClick={() => void runBulk("approve", "")}
+                      >
+                        <Check className="mr-1 h-4 w-4" />
+                        Approve selected
+                      </Button>
+                    ) : null}
+                    {canReject ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={selectedIds.size === 0 || busy}
+                        onClick={() => {
+                          setRejectNote("");
+                          setBulkReject(true);
+                        }}
+                      >
+                        <X className="mr-1 h-4 w-4" />
+                        Reject selected
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -418,34 +427,38 @@ export default function AdminTeamRequests() {
                         userId={mr.targetUserId}
                         name={mr.targetName}
                       />
-                      <Button
-                        size="sm"
-                        onClick={() => approveMutation.mutate(mr.id)}
-                        disabled={rowBusy || bulkBusy}
-                      >
-                        {isApproving ? (
-                          <Spinner className="mr-1" />
-                        ) : (
-                          <Check className="mr-1 h-4 w-4" />
-                        )}
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setRejectTarget(mr);
-                          setRejectNote("");
-                        }}
-                        disabled={rowBusy || bulkBusy}
-                      >
-                        {isRejecting ? (
-                          <Spinner className="mr-1" />
-                        ) : (
-                          <X className="mr-1 h-4 w-4" />
-                        )}
-                        Reject
-                      </Button>
+                      {canApprove ? (
+                        <Button
+                          size="sm"
+                          onClick={() => approveMutation.mutate(mr.id)}
+                          disabled={rowBusy || bulkBusy}
+                        >
+                          {isApproving ? (
+                            <Spinner className="mr-1" />
+                          ) : (
+                            <Check className="mr-1 h-4 w-4" />
+                          )}
+                          Approve
+                        </Button>
+                      ) : null}
+                      {canReject ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setRejectTarget(mr);
+                            setRejectNote("");
+                          }}
+                          disabled={rowBusy || bulkBusy}
+                        >
+                          {isRejecting ? (
+                            <Spinner className="mr-1" />
+                          ) : (
+                            <X className="mr-1 h-4 w-4" />
+                          )}
+                          Reject
+                        </Button>
+                      ) : null}
                     </div>
                   </Card>
                 );

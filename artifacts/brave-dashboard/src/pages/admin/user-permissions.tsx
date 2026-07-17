@@ -65,7 +65,7 @@ export default function AdminUserPermissions() {
 
   if (isError || !data) {
     return (
-      <div className="space-y-4 max-w-3xl">
+      <div className="space-y-4 max-w-6xl">
         <Button variant="ghost" onClick={() => setLocation("/admin/users")}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to users
         </Button>
@@ -103,7 +103,7 @@ export default function AdminUserPermissions() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-6xl">
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -136,7 +136,11 @@ export default function AdminUserPermissions() {
           >
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={saving} data-testid="button-save-permissions">
+          <Button
+            onClick={onSave}
+            disabled={saving}
+            data-testid="button-save-permissions"
+          >
             {saving && <Spinner className="w-4 h-4 mr-2" />} Save
           </Button>
         </div>

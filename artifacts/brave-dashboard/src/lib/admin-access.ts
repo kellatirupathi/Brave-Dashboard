@@ -9,12 +9,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
-export type PermissionAction = "view" | "edit" | "delete";
+// `approve` / `reject` split the two halves of a review decision, which used
+// to share the single `edit` bit. `export` gates CSV/Excel downloads. Keep in
+// sync with the server mirror.
+export type PermissionAction =
+  | "view"
+  | "edit"
+  | "delete"
+  | "approve"
+  | "reject"
+  | "export";
 
 export type PagePermission = {
   view: boolean;
   edit: boolean;
   delete: boolean;
+  approve: boolean;
+  reject: boolean;
+  export: boolean;
   hidden: boolean;
 };
 
@@ -49,14 +61,46 @@ export const ADMIN_PAGES: readonly AdminPage[] = [
   { href: "/admin/audit-log", label: "Audit Log" },
   { href: "/admin/campus-insights", label: "Campus Insights" },
   { href: "/admin/chatbot-history", label: "Chatbot History" },
+  // These three are reachable today (two are in the admin sidebar) but were
+  // never registered here, so a super admin had no way to restrict them.
+  { href: "/admin/reports", label: "Journal Reports" },
+  { href: "/admin/reels-scripts", label: "Reels Scripts" },
+  { href: "/admin/campus-leaderboard", label: "Campus Leaderboard" },
   { href: "/admin/config", label: "Config" },
   { href: "/admin/resources", label: "Resources" },
 ] as const;
+
+// Which pages actually have the NEW actions wired to a real route — mirrors
+// the server. Anything absent renders "—" instead of a checkbox that would
+// grant nothing. view/edit/delete/hidden are universal and unchanged.
+export const PAGE_ACTIONS: Record<
+  string,
+  ReadonlyArray<"approve" | "reject" | "export">
+> = {
+  "/admin/queue": ["approve", "reject", "export"],
+  "/admin/team-requests": ["approve", "reject"],
+  "/admin/new-users-requests": ["approve", "reject", "export"],
+  "/admin/teams": ["export"],
+  "/admin/projects": ["export"],
+  "/admin/finale-submissions": ["approve", "reject", "export"],
+  "/admin/popups": ["export"],
+};
+
+/** Does `action` exist at all on `pageKey`? Drives the "—" cells in the UI. */
+export function pageHasAction(
+  pageKey: string,
+  action: "approve" | "reject" | "export",
+): boolean {
+  return (PAGE_ACTIONS[pageKey] ?? []).includes(action);
+}
 
 export const FULL_PAGE_PERMISSION: PagePermission = {
   view: true,
   edit: true,
   delete: true,
+  approve: true,
+  reject: true,
+  export: true,
   hidden: false,
 };
 
@@ -96,9 +140,27 @@ export function canAccess(
   const perm = access.permissions[pageKey];
   if (!perm) return true;
   if (perm.hidden) return false;
-  if (action === "view") return perm.view;
-  if (action === "edit") return perm.view && perm.edit;
-  return perm.view && perm.delete;
+  if (!perm.view) return false; // every action implies view
+  // `!== false` rather than truthiness: a server that predates approve/reject/
+  // export omits those fields, and a missing field means allowed (default-allow).
+  switch (action) {
+    case "view":
+      return true;
+    case "edit":
+      return perm.edit !== false;
+    case "delete":
+      return perm.delete !== false;
+    // approve/reject also require `edit` — see the server mirror for why
+    // (edit is the floor; the new bits subtract from it).
+    case "approve":
+      return perm.edit !== false && perm.approve !== false;
+    case "reject":
+      return perm.edit !== false && perm.reject !== false;
+    case "export":
+      return perm.export !== false;
+    default:
+      return false;
+  }
 }
 
 // Convenience hook for admin pages: resolves the caller's edit/delete rights
@@ -112,12 +174,18 @@ export function useAdminPageAccess(pageKey: string): {
   canView: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  canApprove: boolean;
+  canReject: boolean;
+  canExport: boolean;
 } {
   const { data: access } = useMyAdminAccess(true);
   return {
     canView: canAccess(access, pageKey, "view"),
     canEdit: canAccess(access, pageKey, "edit"),
     canDelete: canAccess(access, pageKey, "delete"),
+    canApprove: canAccess(access, pageKey, "approve"),
+    canReject: canAccess(access, pageKey, "reject"),
+    canExport: canAccess(access, pageKey, "export"),
   };
 }
 

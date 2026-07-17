@@ -1502,6 +1502,7 @@ router.get(
 // ---------- Export 2: multi-sheet xlsx (one sheet per campus) ----------
 router.get(
   "/admin/teams/export-by-campus.xlsx",
+  requireAdminPage("/admin/teams", "export"),
   async (req: Request, res: Response): Promise<void> => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       res.status(403).json({ error: "Forbidden" });

@@ -3,12 +3,16 @@
 // other *-api.ts helpers.
 import { customFetch } from "@workspace/api-client-react";
 
+// Admin review decision on a deck. Reversible in either direction.
+export type FinaleReviewStatus = "pending" | "verified" | "rejected";
+
 export type FinaleSubmissionItem = {
   id: number;
   fileUrl: string;
   fileName: string | null;
   category: string | null;
   remarks: string | null;
+  reviewStatus: FinaleReviewStatus;
   driveUrl: string | null;
   createdAt: string;
   submitterName: string;
@@ -95,6 +99,7 @@ export type FinaleAdminRow = {
   fileName: string | null;
   category: string | null;
   remarks: string | null;
+  reviewStatus: FinaleReviewStatus;
   driveUrl: string | null;
   createdAt: string;
   totalSubmissions: number;
@@ -135,6 +140,24 @@ export function listFinaleSubmissions(
   return customFetch<FinaleAdminList>(
     `/api/admin/finale/submissions?${toQuery(params)}`,
     { method: "GET" },
+  );
+}
+
+// Admin: verify / reject a deck. Either emails the team, and either can be
+// applied to an already-decided deck to flip it.
+export function reviewFinaleSubmission(
+  id: number,
+  status: "verified" | "rejected",
+): Promise<{ ok: boolean; id: number; reviewStatus: FinaleReviewStatus }> {
+  return customFetch<{
+    ok: boolean;
+    id: number;
+    reviewStatus: FinaleReviewStatus;
+  }>(
+    `/api/admin/finale/submissions/${id}/${
+      status === "verified" ? "verify" : "reject"
+    }`,
+    { method: "POST" },
   );
 }
 

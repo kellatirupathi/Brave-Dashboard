@@ -437,6 +437,9 @@ async function ensureFinaleSubmissions(): Promise<void> {
     await db.execute(sql`
       ALTER TABLE finale_submissions
         ADD COLUMN IF NOT EXISTS category text,
+        ADD COLUMN IF NOT EXISTS review_status text NOT NULL DEFAULT 'pending',
+        ADD COLUMN IF NOT EXISTS reviewed_by text,
+        ADD COLUMN IF NOT EXISTS reviewed_at timestamptz,
         ADD COLUMN IF NOT EXISTS updated_at timestamptz,
         ADD COLUMN IF NOT EXISTS updated_by text,
         ADD COLUMN IF NOT EXISTS deleted_at timestamptz,

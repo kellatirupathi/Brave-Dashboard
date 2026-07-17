@@ -3,7 +3,7 @@
 // Server-side search / date filter / sort / pagination, same shape as the
 // review queue. Export pulls EVERY deck with its Drive link.
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -29,18 +30,46 @@ import {
   Presentation,
   Search,
   Trophy,
+  X,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { formatDateTime, formatINR } from "@/lib/format";
+import { useAdminPageAccess } from "@/lib/admin-access";
 import { FinaleSubmissionActions } from "@/components/finale-submission-actions";
 import {
   finaleExportUrl,
   listFinaleSubmissions,
   listTeamFinaleSubmissions,
+  reviewFinaleSubmission,
   type FinaleAdminRow,
+  type FinaleReviewStatus,
   type FinaleSort,
 } from "@/lib/finale-api";
 
 const PAGE_SIZE = 50;
+
+// Row tint + label for a review decision. Kept light so the text stays black
+// and readable — same treatment as the team-detail entry tables.
+const STATUS_STYLES: Record<
+  FinaleReviewStatus,
+  { row: string; text: string; label: string }
+> = {
+  verified: {
+    row: "bg-green-50 hover:bg-green-100/70 dark:bg-green-950/20 dark:hover:bg-green-950/30",
+    text: "text-green-700 dark:text-green-400",
+    label: "Verified",
+  },
+  rejected: {
+    row: "bg-red-50 hover:bg-red-100/70 dark:bg-red-950/20 dark:hover:bg-red-950/30",
+    text: "text-red-700 dark:text-red-400",
+    label: "Rejected",
+  },
+  pending: {
+    row: "hover:bg-muted/30",
+    text: "text-muted-foreground",
+    label: "Pending",
+  },
+};
 
 const SORTS: Array<{ value: FinaleSort; label: string }> = [
   { value: "newest", label: "Newest first" },
@@ -51,6 +80,8 @@ const SORTS: Array<{ value: FinaleSort; label: string }> = [
 
 export default function AdminFinaleSubmissions() {
   const queryClient = useQueryClient();
+  // Export is separately grantable — the server enforces it too.
+  const { canExport } = useAdminPageAccess("/admin/finale-submissions");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<FinaleSort>("newest");
   const [from, setFrom] = useState("");
@@ -142,16 +173,18 @@ export default function AdminFinaleSubmissions() {
           </SelectContent>
         </Select>
 
-        <Button
-          asChild
-          variant="outline"
-          className="shrink-0"
-          data-testid="button-finale-export"
-        >
-          <a href={finaleExportUrl(params)}>
-            <Download className="mr-1.5 h-4 w-4" /> Export
-          </a>
-        </Button>
+        {canExport ? (
+          <Button
+            asChild
+            variant="outline"
+            className="shrink-0"
+            data-testid="button-finale-export"
+          >
+            <a href={finaleExportUrl(params)}>
+              <Download className="mr-1.5 h-4 w-4" /> Export
+            </a>
+          </Button>
+        ) : null}
       </div>
 
       {isLoading ? (
@@ -171,6 +204,7 @@ export default function AdminFinaleSubmissions() {
             <table className="w-full min-w-[1000px] text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-left">
+                  <th className="p-3 font-medium">Status</th>
                   <th className="p-3 font-medium">Team</th>
                   <th className="p-3 font-medium">Campus</th>
                   <th className="p-3 font-medium">Category</th>
@@ -187,59 +221,65 @@ export default function AdminFinaleSubmissions() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="cursor-pointer border-t align-top hover:bg-muted/30"
-                    onClick={() => setDetail(r)}
-                    data-testid={`finale-row-${r.teamId}`}
-                  >
-                    <td className="p-3 font-medium">{r.teamName}</td>
-                    <td className="p-3 text-muted-foreground">
-                      {r.campusName}
-                    </td>
-                    <td className="p-3 text-muted-foreground">
-                      {r.category || "—"}
-                    </td>
-                    <td className="p-3 text-muted-foreground">
-                      {r.leaderName}
-                    </td>
-                    <td className="p-3 text-right tabular-nums">
-                      {formatINR(r.verifiedRevenue)}
-                    </td>
-                    <td className="p-3">
-                      <a
-                        href={r.driveUrl || `/api/storage${r.fileUrl}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 text-primary hover:underline"
-                      >
-                        <Presentation className="h-3.5 w-3.5" />
-                        <span className="max-w-[200px] truncate">
-                          {r.fileName || "Deck"}
-                        </span>
-                        <ExternalLink className="h-3 w-3 opacity-70" />
-                      </a>
-                    </td>
-                    <td className="p-3 whitespace-nowrap text-muted-foreground">
-                      {formatDateTime(r.createdAt)}
-                    </td>
-                    <td className="p-3 text-right tabular-nums text-muted-foreground">
-                      {r.totalSubmissions}
-                    </td>
-                    <td className="p-3 text-right">
-                      <FinaleSubmissionActions
-                        submission={r}
-                        onDone={() =>
-                          queryClient.invalidateQueries({
-                            queryKey: ["admin-finale-submissions"],
-                          })
-                        }
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {items.map((r) => {
+                  const st = STATUS_STYLES[r.reviewStatus ?? "pending"];
+                  return (
+                    <tr
+                      key={r.id}
+                      className={`cursor-pointer border-t align-top ${st.row}`}
+                      onClick={() => setDetail(r)}
+                      data-testid={`finale-row-${r.teamId}`}
+                    >
+                      <td className={`p-3 font-semibold ${st.text}`}>
+                        {st.label}
+                      </td>
+                      <td className="p-3 font-medium">{r.teamName}</td>
+                      <td className="p-3 text-muted-foreground">
+                        {r.campusName}
+                      </td>
+                      <td className="p-3 text-muted-foreground">
+                        {r.category || "—"}
+                      </td>
+                      <td className="p-3 text-muted-foreground">
+                        {r.leaderName}
+                      </td>
+                      <td className="p-3 text-right tabular-nums">
+                        {formatINR(r.verifiedRevenue)}
+                      </td>
+                      <td className="p-3">
+                        <a
+                          href={r.driveUrl || `/api/storage${r.fileUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                        >
+                          <Presentation className="h-3.5 w-3.5" />
+                          <span className="max-w-[200px] truncate">
+                            {r.fileName || "Deck"}
+                          </span>
+                          <ExternalLink className="h-3 w-3 opacity-70" />
+                        </a>
+                      </td>
+                      <td className="p-3 whitespace-nowrap text-muted-foreground">
+                        {formatDateTime(r.createdAt)}
+                      </td>
+                      <td className="p-3 text-right tabular-nums text-muted-foreground">
+                        {r.totalSubmissions}
+                      </td>
+                      <td className="p-3 text-right">
+                        <FinaleSubmissionActions
+                          submission={r}
+                          onDone={() =>
+                            queryClient.invalidateQueries({
+                              queryKey: ["admin-finale-submissions"],
+                            })
+                          }
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -278,20 +318,36 @@ export default function AdminFinaleSubmissions() {
         </>
       )}
 
-      <TeamDecksDialog row={detail} onClose={() => setDetail(null)} />
+      <TeamDecksDialog
+        row={detail}
+        onClose={() => setDetail(null)}
+        onReviewed={(status) =>
+          setDetail((d) => (d ? { ...d, reviewStatus: status } : d))
+        }
+      />
     </div>
   );
 }
 
-// A team's full deck history — the row only shows its latest.
+// A team's full deck history — the row only shows its latest. The footer
+// verifies/rejects that latest deck (the one the table row represents), which
+// is what drives the row's Status column and tint.
 function TeamDecksDialog({
   row,
   onClose,
+  onReviewed,
 }: {
   row: FinaleAdminRow | null;
   onClose: () => void;
+  // Lets the parent reflect the new status without closing the dialog.
+  onReviewed: (status: FinaleReviewStatus) => void;
 }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  // Verify and Reject are separately grantable — hide whichever isn't held.
+  const { canApprove, canReject } = useAdminPageAccess(
+    "/admin/finale-submissions",
+  );
   const { data, isLoading } = useQuery({
     queryKey: ["admin-finale-team", row?.teamId],
     queryFn: () => listTeamFinaleSubmissions(row!.teamId),
@@ -305,11 +361,48 @@ function TeamDecksDialog({
     queryClient.invalidateQueries({ queryKey: ["admin-finale-submissions"] });
   };
 
+  const review = useMutation({
+    mutationFn: (status: "verified" | "rejected") =>
+      reviewFinaleSubmission(row!.id, status),
+    onSuccess: (res) => {
+      toast({
+        title: res.reviewStatus === "verified" ? "Verified" : "Rejected",
+        description: "The team has been emailed.",
+      });
+      onReviewed(res.reviewStatus);
+      refreshBoth();
+    },
+    onError: (err: unknown) =>
+      toast({
+        title: "Could not save the decision",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      }),
+  });
+
+  const status: FinaleReviewStatus = row?.reviewStatus ?? "pending";
+  const st = STATUS_STYLES[status];
+
   return (
     <Dialog open={row != null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{row?.teamName} — all submissions</DialogTitle>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            {row?.teamName} — all submissions
+            {status !== "pending" ? (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${st.text}`}
+                data-testid="finale-review-tag"
+              >
+                {status === "verified" ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  <X className="h-3 w-3" />
+                )}
+                {st.label}
+              </span>
+            ) : null}
+          </DialogTitle>
         </DialogHeader>
         {isLoading ? (
           <div className="flex justify-center py-8">
@@ -348,6 +441,54 @@ function TeamDecksDialog({
             ))}
           </div>
         )}
+
+        {/* Decision footer — acts on this team's latest deck, which is the one
+            the table row (and its Status column) represents. Both buttons stay
+            available after a decision so it can be flipped. */}
+        {canApprove || canReject ? (
+          <div className="flex items-center justify-between gap-3 border-t pt-4">
+            <p className="text-xs text-muted-foreground">
+              {status === "pending"
+                ? "Verifying or rejecting emails the team."
+                : `Already ${st.label.toLowerCase()} — you can still change this.`}
+            </p>
+            <div className="flex gap-2">
+              {canApprove && status !== "verified" ? (
+                <Button
+                  size="sm"
+                  className="bg-green-600 text-white hover:bg-green-700"
+                  disabled={review.isPending}
+                  onClick={() => review.mutate("verified")}
+                  data-testid="button-finale-verify"
+                >
+                  {review.isPending && review.variables === "verified" ? (
+                    <Spinner className="mr-1.5 h-4 w-4" />
+                  ) : (
+                    <Check className="mr-1.5 h-4 w-4" />
+                  )}
+                  Verify
+                </Button>
+              ) : null}
+              {canReject && status !== "rejected" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-destructive/40 text-destructive hover:text-destructive"
+                  disabled={review.isPending}
+                  onClick={() => review.mutate("rejected")}
+                  data-testid="button-finale-reject"
+                >
+                  {review.isPending && review.variables === "rejected" ? (
+                    <Spinner className="mr-1.5 h-4 w-4" />
+                  ) : (
+                    <X className="mr-1.5 h-4 w-4" />
+                  )}
+                  Reject
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

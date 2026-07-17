@@ -41,6 +41,11 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
+import { sendEmail, getAppUrl } from "../lib/email/brevo";
+import {
+  renderFinaleVerifiedEmail,
+  renderFinaleRejectedEmail,
+} from "../lib/email/templates/finale-review";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   isDriveConfigured,
@@ -158,6 +163,7 @@ router.get("/finale/me", async (req: Request, res: Response): Promise<void> => {
       fileName: finaleSubmissionsTable.fileName,
       category: finaleSubmissionsTable.category,
       remarks: finaleSubmissionsTable.remarks,
+      reviewStatus: finaleSubmissionsTable.reviewStatus,
       driveUrl: finaleSubmissionsTable.driveUrl,
       createdAt: finaleSubmissionsTable.createdAt,
       submittedBy: finaleSubmissionsTable.submittedBy,
@@ -190,6 +196,7 @@ router.get("/finale/me", async (req: Request, res: Response): Promise<void> => {
       fileName: r.fileName,
       category: r.category,
       remarks: r.remarks,
+      reviewStatus: r.reviewStatus,
       driveUrl: r.driveUrl,
       createdAt: r.createdAt,
       submitterName:
@@ -562,6 +569,7 @@ async function fetchAdminRows(opts: {
       fileName: finaleSubmissionsTable.fileName,
       category: finaleSubmissionsTable.category,
       remarks: finaleSubmissionsTable.remarks,
+      reviewStatus: finaleSubmissionsTable.reviewStatus,
       driveUrl: finaleSubmissionsTable.driveUrl,
       createdAt: finaleSubmissionsTable.createdAt,
       leaderFirst: usersTable.firstName,
@@ -602,11 +610,113 @@ async function fetchAdminRows(opts: {
     fileName: r.fileName,
     category: r.category,
     remarks: r.remarks,
+    reviewStatus: r.reviewStatus,
     driveUrl: r.driveUrl,
     createdAt: r.createdAt,
     totalSubmissions: Number(r.totalSubmissions ?? 1),
     verifiedRevenue: Number(r.verifiedRevenue ?? 0),
   }));
+}
+
+/**
+ * Verify / reject a deck. Split into two routes rather than one with a body
+ * param so each maps to its own permission — an admin can hold Approve
+ * without Reject (see admin-permissions.ts).
+ *
+ * Either decision is reversible: verifying a rejected deck (or vice versa)
+ * just overwrites the status and re-sends the matching email.
+ */
+function reviewRoute(next: "verified" | "rejected") {
+  return async (req: Request, res: Response): Promise<void> => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params["id"]);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [row] = await db
+      .select()
+      .from(finaleSubmissionsTable)
+      .where(
+        and(
+          eq(finaleSubmissionsTable.id, id),
+          isNull(finaleSubmissionsTable.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ error: "Submission not found." });
+      return;
+    }
+    await db
+      .update(finaleSubmissionsTable)
+      .set({
+        reviewStatus: next,
+        reviewedBy: req.user!.id,
+        reviewedAt: new Date(),
+      })
+      .where(eq(finaleSubmissionsTable.id, id));
+
+    // Best-effort — a mail failure must never fail the decision.
+    void notifyFinaleReview(row.teamId, row.fileName, next);
+
+    res.json({ ok: true, id, reviewStatus: next });
+  };
+}
+
+router.post(
+  "/admin/finale/submissions/:id/verify",
+  requireAdminPage("/admin/finale-submissions", "approve"),
+  reviewRoute("verified"),
+);
+
+router.post(
+  "/admin/finale/submissions/:id/reject",
+  requireAdminPage("/admin/finale-submissions", "reject"),
+  reviewRoute("rejected"),
+);
+
+/** Email the team's leader + members about a review decision. */
+async function notifyFinaleReview(
+  teamId: number,
+  fileName: string | null,
+  status: "verified" | "rejected",
+): Promise<void> {
+  try {
+    const appUrl = getAppUrl();
+    // Skip synthetic accounts that have no real inbox.
+    const isRealEmail = (e: string | null | undefined): e is string =>
+      !!e && !/@forms\.local$/i.test(e) && !/^sso_/i.test(e) && e.includes("@");
+    const [team] = await db
+      .select({ name: teamsTable.name })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, teamId))
+      .limit(1);
+    const members = await db
+      .select({ email: usersTable.email })
+      .from(teamMembersTable)
+      .leftJoin(usersTable, eq(usersTable.id, teamMembersTable.userId))
+      .where(eq(teamMembersTable.teamId, teamId));
+    const recipients = [
+      ...new Set(members.map((m) => m.email).filter(isRealEmail)),
+    ]
+      .slice(0, 50)
+      .map((email) => ({ email }));
+    if (recipients.length === 0) return;
+
+    const input = {
+      teamName: team?.name ?? "your team",
+      deckName: fileName?.trim() || "your pitch deck",
+      appUrl,
+    };
+    const { subject, text, html } =
+      status === "verified"
+        ? renderFinaleVerifiedEmail(input)
+        : renderFinaleRejectedEmail(input);
+    await sendEmail({ to: recipients, subject, text, html });
+  } catch (err) {
+    logger.error({ err, teamId, status }, "Finale review email failed");
+  }
 }
 
 /** Admin list — one row per team (latest deck), paginated. */
@@ -657,6 +767,7 @@ router.get(
         fileName: finaleSubmissionsTable.fileName,
         category: finaleSubmissionsTable.category,
         remarks: finaleSubmissionsTable.remarks,
+        reviewStatus: finaleSubmissionsTable.reviewStatus,
         driveUrl: finaleSubmissionsTable.driveUrl,
         createdAt: finaleSubmissionsTable.createdAt,
         submitterFirst: usersTable.firstName,
@@ -698,7 +809,7 @@ function csvCell(value: unknown): string {
  */
 router.get(
   "/admin/finale/submissions/export.csv",
-  requireAdminPage("/admin/finale-submissions", "view"),
+  requireAdminPage("/admin/finale-submissions", "export"),
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAdmin(req, res)) return;
     const search = String(req.query["search"] ?? "").trim() || undefined;
@@ -717,6 +828,7 @@ router.get(
         fileName: finaleSubmissionsTable.fileName,
         category: finaleSubmissionsTable.category,
         remarks: finaleSubmissionsTable.remarks,
+        reviewStatus: finaleSubmissionsTable.reviewStatus,
         driveUrl: finaleSubmissionsTable.driveUrl,
         createdAt: finaleSubmissionsTable.createdAt,
         submitterFirst: usersTable.firstName,
@@ -745,6 +857,7 @@ router.get(
       "Submitted By",
       "Email",
       "Verified Revenue (INR)",
+      "Status",
       "Category",
       "File Name",
       "Drive Link",
@@ -764,6 +877,7 @@ router.get(
             .trim() || "—",
           r.submitterEmail ?? "",
           Number(r.verifiedRevenue ?? 0),
+          r.reviewStatus ?? "pending",
           r.category ?? "",
           r.fileName ?? "",
           r.driveUrl ?? "",

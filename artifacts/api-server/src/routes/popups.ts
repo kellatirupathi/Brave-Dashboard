@@ -8,6 +8,7 @@ import {
   campusesTable,
 } from "@workspace/db";
 import { logAudit } from "../lib/audit";
+import { requireAdminPage } from "../lib/require-admin-page";
 
 const router: IRouter = Router();
 
@@ -281,6 +282,7 @@ function csvCell(v: unknown): string {
 
 router.get(
   "/admin/popup-confirmations/export.csv",
+  requireAdminPage("/admin/popups", "export"),
   async (req, res): Promise<void> => {
     if (!requireAdmin(req, res)) return;
     const search =

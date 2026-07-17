@@ -71,7 +71,10 @@ export default function AdminNewUserDetail() {
   const id = Number(params.id);
   // Approve / reject are "edit" actions on the New User Requests page — honour
   // the super-admin-controlled permission here too (API enforces it as well).
-  const { canEdit } = useAdminPageAccess("/admin/new-users-requests");
+  // Approve/Reject are separately grantable — hide each independently.
+  const { canApprove, canReject } = useAdminPageAccess(
+    "/admin/new-users-requests",
+  );
 
   const [confirm, setConfirm] = useState<null | "approve" | "reject">(null);
 
@@ -164,27 +167,31 @@ export default function AdminNewUserDetail() {
             />
           </Card>
 
-          {!canEdit ? (
+          {!canApprove && !canReject ? (
             <p className="text-sm text-muted-foreground">
               You don't have permission to approve or reject requests.
             </p>
           ) : data.status === "pending" ? (
             <div className="flex items-center gap-3">
-              <Button
-                onClick={() => setConfirm("approve")}
-                disabled={busy}
-                className="gap-2"
-              >
-                <Check className="w-4 h-4" /> Approve
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => setConfirm("reject")}
-                disabled={busy}
-                className="gap-2"
-              >
-                <X className="w-4 h-4" /> Reject
-              </Button>
+              {canApprove ? (
+                <Button
+                  onClick={() => setConfirm("approve")}
+                  disabled={busy}
+                  className="gap-2"
+                >
+                  <Check className="w-4 h-4" /> Approve
+                </Button>
+              ) : null}
+              {canReject ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => setConfirm("reject")}
+                  disabled={busy}
+                  className="gap-2"
+                >
+                  <X className="w-4 h-4" /> Reject
+                </Button>
+              ) : null}
             </div>
           ) : (
             <div className="flex items-center gap-3">
@@ -192,26 +199,28 @@ export default function AdminNewUserDetail() {
                 This request has been {data.status}. You can change the decision
                 below.
               </p>
-              {data.status === "rejected" ? (
-                <Button
-                  onClick={() => setConfirm("approve")}
-                  disabled={busy}
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Check className="w-4 h-4" /> Approve instead
-                </Button>
-              ) : (
-                <Button
-                  variant="destructive"
-                  onClick={() => setConfirm("reject")}
-                  disabled={busy}
-                  size="sm"
-                  className="gap-2"
-                >
-                  <X className="w-4 h-4" /> Revoke access
-                </Button>
-              )}
+              {data.status === "rejected"
+                ? canApprove && (
+                    <Button
+                      onClick={() => setConfirm("approve")}
+                      disabled={busy}
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <Check className="w-4 h-4" /> Approve instead
+                    </Button>
+                  )
+                : canReject && (
+                    <Button
+                      variant="destructive"
+                      onClick={() => setConfirm("reject")}
+                      disabled={busy}
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <X className="w-4 h-4" /> Revoke access
+                    </Button>
+                  )}
             </div>
           )}
         </>

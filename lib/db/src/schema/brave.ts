@@ -1535,6 +1535,12 @@ export const finaleSubmissionsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Admin review of the deck: 'pending' until an admin verifies or rejects
+    // it. Either decision emails the team, and either can be changed later —
+    // a verified deck can still be rejected and vice versa.
+    reviewStatus: text("review_status").notNull().default("pending"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     // Set when the deck or remarks are edited (by the leader or an admin).
     updatedAt: timestamp("updated_at", { withTimezone: true }),
     updatedBy: text("updated_by"),

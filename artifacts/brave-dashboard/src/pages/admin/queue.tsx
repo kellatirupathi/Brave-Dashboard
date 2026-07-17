@@ -224,6 +224,8 @@ export default function AdminQueue() {
       "newest",
     ),
   );
+  // Export is separately grantable — the server enforces it too.
+  const { canExport } = useAdminPageAccess("/admin/queue");
   const [exporting, setExporting] = useState(false);
 
   // Persist selections whenever they change.
@@ -340,21 +342,23 @@ export default function AdminQueue() {
             </TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => void handleExport()}
-              disabled={exporting}
-              data-testid="button-export-queue"
-            >
-              {exporting ? (
-                <Spinner className="w-4 h-4" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              Export CSV
-            </Button>
+            {canExport ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => void handleExport()}
+                disabled={exporting}
+                data-testid="button-export-queue"
+              >
+                {exporting ? (
+                  <Spinner className="w-4 h-4" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                Export CSV
+              </Button>
+            ) : null}
             <Link href="/admin/queue/detailed-analysis">
               <Button
                 variant="outline"
@@ -402,7 +406,7 @@ function QueueList({
   // Bulk multi-select is offered on all three tabs (pending: approve/reject,
   // approved: unverify, rejected: re-open) to admins who may edit the queue.
   // Selection is scoped to the current page.
-  const { canEdit } = useAdminPageAccess("/admin/queue");
+  const { canEdit, canExport } = useAdminPageAccess("/admin/queue");
   const selectable = canEdit;
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
@@ -616,7 +620,7 @@ function QueueRow({
 }) {
   // Review-queue verify/reject/unverify are "edit" actions — hidden for an
   // admin without edit on /admin/queue (default-allow for everyone else).
-  const { canEdit } = useAdminPageAccess("/admin/queue");
+  const { canEdit, canApprove, canReject } = useAdminPageAccess("/admin/queue");
   return (
     <Card
       className={`group relative transition-shadow hover:shadow-md hover:border-primary/40 ${
@@ -763,12 +767,12 @@ function QueueRow({
               <PendingActions item={item} />
             ) : status === "rejected" ? (
               <div className="flex gap-2">
-                <VerifyAction item={item} />
+                {canApprove ? <VerifyAction item={item} /> : null}
                 <ReopenAction item={item} />
               </div>
             ) : (
               <div className="flex gap-2">
-                <RejectAction item={item} />
+                {canReject ? <RejectAction item={item} /> : null}
                 <UnverifyAction item={item} />
               </div>
             ))}
@@ -1128,6 +1132,9 @@ function BulkUnverifyBar({
 function PendingActions({ item }: { item: QueueItem }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  // Verify/Reject are separately grantable — an admin may hold one without
+  // the other, so each button is hidden independently.
+  const { canApprove, canReject } = useAdminPageAccess("/admin/queue");
   const verify = useVerifyRevenueEntry();
   const reject = useRejectRevenueEntry();
   const [open, setOpen] = useState<"approve" | "reject" | null>(null);
@@ -1194,22 +1201,26 @@ function PendingActions({ item }: { item: QueueItem }) {
 
   return (
     <div className="flex gap-2">
-      <Button
-        size="sm"
-        className="bg-green-600 hover:bg-green-700 text-white"
-        onClick={() => setOpen("approve")}
-        data-testid={`button-verify-${item.id}`}
-      >
-        <Check className="w-4 h-4 mr-1" /> Verify
-      </Button>
-      <Button
-        size="sm"
-        className="bg-red-400 hover:bg-red-500 text-white"
-        onClick={() => setOpen("reject")}
-        data-testid={`button-reject-${item.id}`}
-      >
-        <X className="w-4 h-4 mr-1" /> Reject
-      </Button>
+      {canApprove ? (
+        <Button
+          size="sm"
+          className="bg-green-600 hover:bg-green-700 text-white"
+          onClick={() => setOpen("approve")}
+          data-testid={`button-verify-${item.id}`}
+        >
+          <Check className="w-4 h-4 mr-1" /> Verify
+        </Button>
+      ) : null}
+      {canReject ? (
+        <Button
+          size="sm"
+          className="bg-red-400 hover:bg-red-500 text-white"
+          onClick={() => setOpen("reject")}
+          data-testid={`button-reject-${item.id}`}
+        >
+          <X className="w-4 h-4 mr-1" /> Reject
+        </Button>
+      ) : null}
 
       {/* Verify dialog */}
       <Dialog

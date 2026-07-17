@@ -722,7 +722,7 @@ router.post(
 
 router.post(
   "/revenue-entries/:id/verify",
-  requireAdminPage("/admin/queue", "edit"),
+  requireAdminPage("/admin/queue", "approve"),
   async (req, res): Promise<void> => {
     const params = VerifyRevenueEntryParams.safeParse(req.params);
     if (!params.success) {
@@ -896,7 +896,7 @@ router.post(
 
 router.post(
   "/revenue-entries/:id/reject",
-  requireAdminPage("/admin/queue", "edit"),
+  requireAdminPage("/admin/queue", "reject"),
   async (req, res): Promise<void> => {
     const params = RejectRevenueEntryParams.safeParse(req.params);
     if (!params.success) {

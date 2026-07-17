@@ -7,12 +7,25 @@
 // is null (every existing admin) has FULL access to every page. Super admins
 // are never restricted by the map.
 
-export type PermissionAction = "view" | "edit" | "delete";
+// `approve` / `reject` split the two halves of a review decision, which used
+// to share the single `edit` bit — so a reviewer can be allowed to clear
+// approvals while rejections escalate to someone else. `export` gates the
+// CSV/Excel downloads, which hand over a whole page of data at once.
+export type PermissionAction =
+  | "view"
+  | "edit"
+  | "delete"
+  | "approve"
+  | "reject"
+  | "export";
 
 export type PagePermission = {
   view: boolean;
   edit: boolean;
   delete: boolean;
+  approve: boolean;
+  reject: boolean;
+  export: boolean;
   hidden: boolean;
 };
 
@@ -49,14 +62,54 @@ export const ADMIN_PAGES: readonly AdminPage[] = [
   { href: "/admin/audit-log", label: "Audit Log" },
   { href: "/admin/campus-insights", label: "Campus Insights" },
   { href: "/admin/chatbot-history", label: "Chatbot History" },
+  // These three are reachable today (two are in the admin sidebar) but were
+  // never registered here, so a super admin had no way to restrict them.
+  { href: "/admin/reports", label: "Journal Reports" },
+  { href: "/admin/reels-scripts", label: "Reels Scripts" },
+  { href: "/admin/campus-leaderboard", label: "Campus Leaderboard" },
   { href: "/admin/config", label: "Config" },
   { href: "/admin/resources", label: "Resources" },
 ] as const;
+
+// Which pages actually have the NEW actions wired to a real route. Anything
+// absent has no such action, so the permissions UI renders "—" instead of a
+// checkbox that would grant nothing. Every entry below corresponds to a route
+// that checks it — keep it that way, or the UI starts lying.
+//
+// view / edit / delete / hidden are deliberately NOT listed: they already
+// apply to every page today and that behaviour is left untouched.
+//
+// Submission Requests' Enable/Reject are deliberately absent — those routes
+// are shared with the Config → Teams Submissions page and are guarded by
+// /admin/config, so re-keying them here would change who can use Config.
+export const PAGE_ACTIONS: Record<
+  string,
+  ReadonlyArray<"approve" | "reject" | "export">
+> = {
+  "/admin/queue": ["approve", "reject", "export"],
+  "/admin/team-requests": ["approve", "reject"],
+  "/admin/new-users-requests": ["approve", "reject", "export"],
+  "/admin/teams": ["export"],
+  "/admin/projects": ["export"],
+  "/admin/finale-submissions": ["approve", "reject", "export"],
+  "/admin/popups": ["export"],
+};
+
+/** Does `action` exist at all on `pageKey`? Drives the "—" cells in the UI. */
+export function pageHasAction(
+  pageKey: string,
+  action: "approve" | "reject" | "export",
+): boolean {
+  return (PAGE_ACTIONS[pageKey] ?? []).includes(action);
+}
 
 export const FULL_PAGE_PERMISSION: PagePermission = {
   view: true,
   edit: true,
   delete: true,
+  approve: true,
+  reject: true,
+  export: true,
   hidden: false,
 };
 
@@ -75,11 +128,17 @@ function coercePagePermission(raw: unknown): PagePermission {
   if (!raw || typeof raw !== "object") return { ...FULL_PAGE_PERMISSION };
   const r = raw as Record<string, unknown>;
   return {
-    // Missing booleans default to allow (true) for view/edit/delete and
-    // not-hidden (false) — i.e. default-allow at the field level too.
+    // Missing booleans default to allow (true) and not-hidden (false) — i.e.
+    // default-allow at the field level too. This is what makes `approve` /
+    // `reject` / `export` safe to add: every permission map stored before they
+    // existed simply omits them, so they read back as allowed and no admin
+    // loses access on deploy.
     view: r.view !== false,
     edit: r.edit !== false,
     delete: r.delete !== false,
+    approve: r.approve !== false,
+    reject: r.reject !== false,
+    export: r.export !== false,
     hidden: r.hidden === true,
   };
 }
@@ -130,7 +189,28 @@ export function canAccessPage(
   if (perm == null) return true; // page not in the stored map → allowed
   const p = coercePagePermission(perm);
   if (p.hidden) return false;
-  if (action === "view") return p.view;
-  if (action === "edit") return p.view && p.edit;
-  return p.view && p.delete;
+  // Every action implies `view` — you can't act on a page you can't open.
+  // Each action is matched explicitly rather than falling through, so a new
+  // action can never silently inherit another one's check.
+  switch (action) {
+    case "view":
+      return p.view;
+    case "edit":
+      return p.view && p.edit;
+    case "delete":
+      return p.view && p.delete;
+    // approve/reject additionally require `edit`, which is what used to gate
+    // them. Without that, an admin explicitly denied `edit` would GAIN the
+    // ability to approve the moment this shipped, because `approve` defaults
+    // to allowed on their stored map. So: edit is the floor, and the new bits
+    // subtract from it — edit + reject:false = "may approve, may not reject".
+    case "approve":
+      return p.view && p.edit && p.approve;
+    case "reject":
+      return p.view && p.edit && p.reject;
+    case "export":
+      return p.view && p.export;
+    default:
+      return false;
+  }
 }
