@@ -23,7 +23,10 @@ import {
 import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
-import { renderPcaVotingOpenEmail } from "../lib/email/templates/pca-vote";
+import {
+  renderPcaVotingOpenEmail,
+  renderPcaVoteReceiptEmail,
+} from "../lib/email/templates/pca-vote";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -203,8 +206,38 @@ router.post("/pca/vote", async (req: Request, res: Response): Promise<void> => {
     res.status(409).json({ error: "You have already voted." });
     return;
   }
+
+  // Receipt to the voter only. Best-effort and fire-and-forget — a mail
+  // failure must never fail a vote that's already recorded.
+  void sendVoteReceipt(req.user.id);
+
   res.status(201).json({ ok: true });
 });
+
+/** Email the voter a static "your vote is recorded" receipt. */
+async function sendVoteReceipt(userId: string): Promise<void> {
+  try {
+    const [user] = await db
+      .select({ email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+    const email = user?.email;
+    // Skip synthetic accounts that have no real inbox.
+    if (
+      !email ||
+      !email.includes("@") ||
+      /@forms\.local$/i.test(email) ||
+      /^sso_/i.test(email)
+    ) {
+      return;
+    }
+    const { subject, text, html } = renderPcaVoteReceiptEmail();
+    await sendEmail({ to: [{ email }], subject, text, html });
+  } catch (err) {
+    logger.error({ err, userId }, "PCA vote receipt email failed");
+  }
+}
 
 // ── Admin ──────────────────────────────────────────────────────────────────
 
