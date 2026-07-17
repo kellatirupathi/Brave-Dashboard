@@ -120,7 +120,10 @@ export default function VotePeoplesChoice() {
                 <SelectTrigger id="pca-team" data-testid="select-pca-team">
                   <SelectValue placeholder="Choose a team…" />
                 </SelectTrigger>
-                <SelectContent>
+                {/* Explicit cap: the shared default only limits height to the
+                    space below the trigger, so a long candidate list runs off
+                    the page instead of scrolling inside its own menu. */}
+                <SelectContent className="max-h-[300px]">
                   {data.teams.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
                       {t.name}
