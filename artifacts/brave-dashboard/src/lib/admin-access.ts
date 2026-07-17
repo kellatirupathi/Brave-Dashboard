@@ -50,6 +50,10 @@ export const ADMIN_PAGES: readonly AdminPage[] = [
   { href: "/admin/demo-day", label: "Demo Day" },
   { href: "/admin/demo-day-submissions", label: "Demo Day Submissions" },
   { href: "/admin/finale-submissions", label: "Finale Submissions" },
+  {
+    href: "/admin/votes/peoples-choice-votes",
+    label: "People's Choice Votes",
+  },
   { href: "/admin/campuses", label: "Campuses" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/new-users-requests", label: "New User Requests" },
@@ -84,6 +88,7 @@ export const PAGE_ACTIONS: Record<
   "/admin/projects": ["export"],
   "/admin/finale-submissions": ["approve", "reject", "export"],
   "/admin/popups": ["export"],
+  "/admin/votes/peoples-choice-votes": ["export"],
 };
 
 /** Does `action` exist at all on `pageKey`? Drives the "—" cells in the UI. */

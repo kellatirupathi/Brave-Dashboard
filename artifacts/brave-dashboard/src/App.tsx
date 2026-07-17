@@ -68,7 +68,10 @@ import AdminLeaderboard from "@/pages/admin/leaderboard";
 import AdminDemoDay from "@/pages/admin/demo-day";
 import AdminDemoDaySubmissions from "@/pages/admin/demo-day-submissions";
 import AdminFinaleSubmissions from "@/pages/admin/finale-submissions";
+import AdminPcaVotes from "@/pages/admin/pca-votes";
 import FinalePage from "@/pages/student/finale";
+import VotePeoplesChoice from "@/pages/student/vote-peoples-choice";
+import { getPcaMe } from "@/lib/pca-api";
 import AdminUsers from "@/pages/admin/users";
 import AdminUserNew from "@/pages/admin/user-new";
 import AdminUserPermissions from "@/pages/admin/user-permissions";
@@ -113,6 +116,7 @@ import Guidebook from "@/pages/guidebook";
 // Components
 import { Layout } from "@/components/layout";
 import { Spinner } from "@/components/ui/spinner";
+import { BraveLoader } from "@/components/brave-loader";
 import { AccessGate } from "@/components/access-gate";
 import { TermsGate } from "@/components/terms-gate";
 import { PopupGate } from "@/components/popup-gate";
@@ -143,11 +147,7 @@ function ProtectedRoute({
     useMyAdminAccess(!!isAdmin);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Spinner className="size-10" />
-      </div>
-    );
+    return <BraveLoader />;
   }
 
   if (!isAuthenticated || !user) {
@@ -174,11 +174,7 @@ function ProtectedRoute({
   // itself is blocked, to avoid a redirect loop).
   if (isAdmin) {
     if (accessLoading) {
-      return (
-        <div className="min-h-screen w-full flex items-center justify-center bg-background">
-          <Spinner className="size-10" />
-        </div>
-      );
+      return <BraveLoader />;
     }
     if (adminAccess && isRouteBlocked(adminAccess, location)) {
       const dashboardBlocked = isRouteBlocked(adminAccess, "/admin");
@@ -239,11 +235,7 @@ function StudentDashboardOrGetStarted() {
   // sees the legacy UI flash before switching. isLoading is false when the
   // query is disabled (non-students), so this only gates students.
   if (isLoading || gritLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Spinner className="size-10" />
-      </div>
-    );
+    return <BraveLoader />;
   }
   // First-time profile completion: students with no team and who have never
   // saved their profile go to /profile first; the profile page then sends
@@ -271,11 +263,7 @@ function StudentDemoDayGuard() {
     enabled: user?.role === "student",
   });
   if (user?.role === "student" && isLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Spinner className="size-10" />
-      </div>
-    );
+    return <BraveLoader />;
   }
   if (user?.role === "student" && gritConfig?.demoDayMenuEnabled === false) {
     return <Redirect to="/" />;
@@ -295,11 +283,7 @@ function StudentFinaleGuard() {
     enabled: user?.role === "student",
   });
   if (user?.role === "student" && isLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Spinner className="size-10" />
-      </div>
-    );
+    return <BraveLoader />;
   }
   if (
     user?.role === "student" &&
@@ -310,15 +294,34 @@ function StudentFinaleGuard() {
   return <FinalePage />;
 }
 
+// Gates the People's Choice vote page: voting must be open AND this student's
+// team must clear the revenue bar. Only bounce on an explicit false so a slow
+// load never redirects someone who is allowed in.
+function StudentPcaGuard() {
+  const { user } = useAuth();
+  const { data: pca, isLoading } = useQuery({
+    queryKey: ["pca-me"],
+    queryFn: getPcaMe,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  if (user?.role === "student" && isLoading) {
+    return <BraveLoader />;
+  }
+  if (
+    user?.role === "student" &&
+    (pca?.enabled === false || pca?.eligible === false)
+  ) {
+    return <Redirect to="/" />;
+  }
+  return <VotePeoplesChoice />;
+}
+
 function RootRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Spinner className="size-10" />
-      </div>
-    );
+    return <BraveLoader />;
   }
 
   if (!isAuthenticated || !user) {
@@ -349,11 +352,7 @@ function RootRedirect() {
 function GuidebookStandalone() {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-background">
-        <Spinner className="size-10" />
-      </div>
-    );
+    return <BraveLoader />;
   }
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
@@ -434,6 +433,12 @@ function Router() {
         <Route path="/finale">
           <ProtectedRoute
             component={StudentFinaleGuard}
+            allowedRoles={["student"]}
+          />
+        </Route>
+        <Route path="/vote/people-choice-award">
+          <ProtectedRoute
+            component={StudentPcaGuard}
             allowedRoles={["student"]}
           />
         </Route>
@@ -610,6 +615,9 @@ function Router() {
             component={AdminFinaleSubmissions}
             allowedRoles={["admin"]}
           />
+        </Route>
+        <Route path="/admin/votes/peoples-choice-votes">
+          <ProtectedRoute component={AdminPcaVotes} allowedRoles={["admin"]} />
         </Route>
         <Route path="/admin/users/new">
           <ProtectedRoute component={AdminUserNew} allowedRoles={["admin"]} />

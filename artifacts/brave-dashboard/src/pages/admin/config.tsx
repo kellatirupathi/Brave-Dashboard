@@ -58,6 +58,7 @@ import { ProjectsLockCard } from "@/components/projects-lock-card";
 import { RejectionReasonsCard } from "@/components/rejection-reasons-card";
 import { TeamSubmissionsPage } from "@/components/team-submissions-card";
 import { FinaleConfigCard } from "@/components/finale-config-card";
+import { PcaConfigCard } from "@/components/pca-config-card";
 import { LeaderboardConfigCard } from "@/components/leaderboard-config-card";
 import { Label } from "@/components/ui/label";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
@@ -385,6 +386,7 @@ export default function AdminConfig() {
     { id: "student", label: "Student Content", icon: GraduationCap },
     { id: "team-submissions", label: "Teams Submissions", icon: Unlock },
     { id: "finale", label: "Finale Submissions", icon: Trophy },
+    { id: "pca", label: "People's Choice Award", icon: Trophy },
     { id: "queue", label: "Review Queue", icon: XCircle },
     { id: "teams", label: "Teams & Coordinators", icon: Users },
     { id: "integrations", label: "Integrations", icon: Plug },
@@ -612,6 +614,8 @@ export default function AdminConfig() {
           {activeSection === "team-submissions" && <TeamSubmissionsPage />}
 
           {activeSection === "finale" && <FinaleConfigCard />}
+
+          {activeSection === "pca" && <PcaConfigCard />}
 
           {/* ── Review Queue ── */}
           {activeSection === "queue" && (

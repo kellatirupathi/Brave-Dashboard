@@ -11,6 +11,7 @@ import {
   SheetDescription,
 } from "./ui/sheet";
 import { Chatbot } from "./chatbot";
+import { PcaVoteBanner } from "./pca-vote-banner";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -54,6 +55,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <SidebarBody onNavigate={() => setMobileNavOpen(false)} />
           </SheetContent>
         </Sheet>
+
+        {/* People's Choice Award nudge — sits above every page's content and
+            self-gates (renders nothing unless voting is open, this student is
+            eligible, and they haven't voted). */}
+        <PcaVoteBanner />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
           {children}

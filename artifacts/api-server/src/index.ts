@@ -411,10 +411,46 @@ async function ensureFinaleSubmissions(): Promise<void> {
         ADD COLUMN IF NOT EXISTS finale_min_verified_revenue integer NOT NULL DEFAULT 200000,
         ADD COLUMN IF NOT EXISTS finale_submissions_locked boolean NOT NULL DEFAULT false,
         ADD COLUMN IF NOT EXISTS finale_lock_message text,
-        ADD COLUMN IF NOT EXISTS finale_content text
+        ADD COLUMN IF NOT EXISTS finale_content text,
+        ADD COLUMN IF NOT EXISTS pca_voting_enabled boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS pca_min_verified_revenue integer NOT NULL DEFAULT 200000
     `);
   } catch (err) {
     logger.error({ err }, "Failed to ensure programme_config finale columns");
+  }
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS pca_votes (
+        id serial PRIMARY KEY,
+        voter_id text NOT NULL,
+        voter_team_id integer NOT NULL,
+        voter_role text NOT NULL,
+        voted_team_id integer NOT NULL,
+        comments text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz,
+        updated_by text
+      )
+    `);
+    // One vote per person, enforced by the DB rather than only the route.
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS pca_votes_voter_unique
+        ON pca_votes (voter_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS pca_votes_voted_team_idx
+        ON pca_votes (voted_team_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS pca_votes_voter_team_idx
+        ON pca_votes (voter_team_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS pca_votes_created_idx
+        ON pca_votes (created_at)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure pca_votes table");
   }
   try {
     await db.execute(sql`

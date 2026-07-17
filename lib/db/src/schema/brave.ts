@@ -886,6 +886,16 @@ export const programmeConfigTable = pgTable("programme_config", {
   finaleLockMessage: text("finale_lock_message"),
   // Admin-authored content shown in the right-hand column of the Finale page.
   finaleContent: text("finale_content"),
+  // ── People's Choice Award voting ──────────────────────────────────────────
+  // Master switch. Turning it on emails every eligible voter, shows the banner
+  // on every student page and unhides /vote/people-choice-award.
+  pcaVotingEnabled: boolean("pca_voting_enabled").notNull().default(false),
+  // Verified-revenue bar a team must clear to be votable AND for its members
+  // to vote. Deliberately SEPARATE from finaleMinVerifiedRevenue so moving the
+  // Finale bar never silently changes who can vote.
+  pcaMinVerifiedRevenue: integer("pca_min_verified_revenue")
+    .notNull()
+    .default(200000),
   // Projects submissions lock (admin Config toggle). When true, students can
   // no longer add order book entries, add revenue entries, or submit revenue
   // for verification (BRD uploads) — the student Projects pages show the
@@ -1558,3 +1568,39 @@ export const finaleSubmissionsTable = pgTable(
 );
 
 export type FinaleSubmission = typeof finaleSubmissionsTable.$inferSelect;
+
+// People's Choice Award votes. One row per VOTER — the unique index on
+// voterId is what enforces "one vote per person" at the database level, not
+// just in the route.
+//
+// A voter must belong to a team above the PCA revenue bar, and may not vote
+// for their own team (the API never even lists it). voterRole is snapshotted
+// at vote time so the admin's Leader/Member tag stays accurate even if the
+// team's leadership changes afterwards.
+export const pcaVotesTable = pgTable(
+  "pca_votes",
+  {
+    id: serial("id").primaryKey(),
+    voterId: text("voter_id").notNull(),
+    // The voter's OWN team — used for the admin tag and the self-vote check.
+    voterTeamId: integer("voter_team_id").notNull(),
+    voterRole: text("voter_role").notNull(), // 'leader' | 'member'
+    // The team they voted FOR. Never equal to voterTeamId.
+    votedTeamId: integer("voted_team_id").notNull(),
+    comments: text("comments"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // Set when an admin edits the vote (students vote once and cannot change).
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    updatedBy: text("updated_by"),
+  },
+  (t) => [
+    unique("pca_votes_voter_unique").on(t.voterId),
+    index("pca_votes_voted_team_idx").on(t.votedTeamId),
+    index("pca_votes_voter_team_idx").on(t.voterTeamId),
+    index("pca_votes_created_idx").on(t.createdAt),
+  ],
+);
+
+export type PcaVote = typeof pcaVotesTable.$inferSelect;

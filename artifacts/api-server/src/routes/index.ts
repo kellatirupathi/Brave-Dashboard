@@ -43,6 +43,7 @@ import adminBrdDriveRouter from "./admin-brd-drive";
 import popupsRouter from "./popups";
 import projectsLockRouter from "./projects-lock";
 import finaleRouter from "./finale";
+import pcaVotesRouter from "./pca-votes";
 import rejectionReasonsRouter from "./rejection-reasons";
 import leaderboardConfigRouter from "./leaderboard-config";
 
@@ -117,6 +118,7 @@ router.use(popupsRouter);
 // Projects submissions lock: admin Config toggle + student read (additive)
 router.use(projectsLockRouter);
 router.use(finaleRouter);
+router.use(pcaVotesRouter);
 // Revenue rejection reasons catalog: admin Config CRUD + queue chips (additive)
 router.use(rejectionReasonsRouter);
 // Leaderboard display config: hide-rank-for-students + banner image (additive)

@@ -38,6 +38,7 @@ import {
   Rocket,
   Sparkles,
   Inbox,
+  Vote,
 } from "lucide-react";
 
 // Student documentation guide (opens in a new tab from the sidebar bottom).
@@ -446,6 +447,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             name: "Demo Day Submissions",
             href: "/admin/demo-day-submissions",
             icon: Rocket,
+          },
+          {
+            name: "People's Choice Votes",
+            href: "/admin/votes/peoples-choice-votes",
+            icon: Vote,
           },
         ],
       },
