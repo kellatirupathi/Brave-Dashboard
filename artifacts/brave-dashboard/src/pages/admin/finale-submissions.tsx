@@ -204,7 +204,6 @@ export default function AdminFinaleSubmissions() {
             <table className="w-full min-w-[1000px] text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-left">
-                  <th className="p-3 font-medium">Status</th>
                   <th className="p-3 font-medium">Team</th>
                   <th className="p-3 font-medium">Campus</th>
                   <th className="p-3 font-medium">Category</th>
@@ -213,6 +212,7 @@ export default function AdminFinaleSubmissions() {
                     Verified revenue
                   </th>
                   <th className="p-3 font-medium">Latest deck</th>
+                  <th className="p-3 font-medium">Status</th>
                   <th className="p-3 font-medium whitespace-nowrap">
                     Submitted
                   </th>
@@ -230,9 +230,6 @@ export default function AdminFinaleSubmissions() {
                       onClick={() => setDetail(r)}
                       data-testid={`finale-row-${r.teamId}`}
                     >
-                      <td className={`p-3 font-semibold ${st.text}`}>
-                        {st.label}
-                      </td>
                       <td className="p-3 font-medium">{r.teamName}</td>
                       <td className="p-3 text-muted-foreground">
                         {r.campusName}
@@ -260,6 +257,9 @@ export default function AdminFinaleSubmissions() {
                           </span>
                           <ExternalLink className="h-3 w-3 opacity-70" />
                         </a>
+                      </td>
+                      <td className={`p-3 font-semibold ${st.text}`}>
+                        {st.label}
                       </td>
                       <td className="p-3 whitespace-nowrap text-muted-foreground">
                         {formatDateTime(r.createdAt)}
