@@ -23,7 +23,7 @@ import { requireAdminPage } from "../lib/require-admin-page";
 import { generateUniqueInviteCode } from "../lib/team-helpers";
 import { sendEmail } from "../lib/email/brevo";
 import { renderTeamNameDuplicateEmail } from "../lib/email/templates/team-name-duplicate";
-import { readGritLevels, computeGritMiles } from "./grit-config";
+import { readGritLevels, computeMaxGritMilestone } from "./grit-config";
 
 const router: IRouter = Router();
 
@@ -685,7 +685,7 @@ async function fetchExportRows(opts: {
       team_verified_revenue: verifiedRevenue,
       team_verified_order_book: Number(r["team_verified_order_book"] ?? 0),
       team_projects_count: Number(r["team_projects_count"] ?? 0),
-      team_grit_miles: computeGritMiles(verifiedRevenue, gritLevels),
+      team_grit_miles: computeMaxGritMilestone(verifiedRevenue, gritLevels),
     };
   }) as unknown as ExportRow[];
 }
