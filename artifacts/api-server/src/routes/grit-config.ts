@@ -60,11 +60,38 @@ async function getConfigRow() {
   return row;
 }
 
-function resolveLevels(raw: unknown): GritLevel[] {
+export function resolveLevels(raw: unknown): GritLevel[] {
   if (!Array.isArray(raw) || raw.length === 0) return DEFAULT_GRIT_LEVELS;
   const parsed = z.array(GritLevelSchema).safeParse(raw);
   if (!parsed.success) return DEFAULT_GRIT_LEVELS;
   return [...parsed.data].sort((a, b) => a.revenueTarget - b.revenueTarget);
+}
+
+// Load the configured GRIT ladder (normalised to defaults when unset) from the
+// singleton programme_config row. Shared by the admin dashboard GRIT cards and
+// the teams export so both derive miles from the exact same ladder the student
+// UI uses. Never throws — falls back to DEFAULT_GRIT_LEVELS on any error.
+export async function readGritLevels(): Promise<GritLevel[]> {
+  try {
+    const [row] = await db
+      .select({ gritLevels: programmeConfigTable.gritLevels })
+      .from(programmeConfigTable)
+      .limit(1);
+    return resolveLevels(row?.gritLevels);
+  } catch {
+    return DEFAULT_GRIT_LEVELS;
+  }
+}
+
+// Total GRIT Miles unlocked for a given verified-revenue amount: sum the `miles`
+// of every level whose revenueTarget is met (mirrors the frontend
+// computeGritProgress / the student GRIT Miles page). Miles are cumulative.
+export function computeGritMiles(revenue: number, levels: GritLevel[]): number {
+  let miles = 0;
+  for (const lvl of levels) {
+    if (revenue >= lvl.revenueTarget) miles += lvl.miles;
+  }
+  return miles;
 }
 
 // Student-readable: the ladder + edit deadline only (no escalation internals).

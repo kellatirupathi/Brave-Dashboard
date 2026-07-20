@@ -34,6 +34,8 @@ import {
   History,
   UserPlus,
   Rocket,
+  Milestone,
+  Award,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -376,6 +378,17 @@ export default function AdminDashboard() {
       summary.pendingAccessRequestCount >
     0;
 
+  // GRIT Miles aggregates are additive fields on /dashboard/summary that the
+  // generated hook type doesn't know about — read them defensively via cast
+  // (customFetch preserves unknown fields), same pattern as other additive
+  // subsystems in this codebase.
+  const gritSummary = summary as unknown as {
+    totalGritMiles?: number;
+    gritAchievedTeams?: number;
+  };
+  const totalGritMiles = gritSummary.totalGritMiles ?? 0;
+  const gritAchievedTeams = gritSummary.gritAchievedTeams ?? 0;
+
   // ── Unified metric band (one hairline-divided grid, no floating cards) ──────
   const metrics: {
     label: string;
@@ -436,6 +449,22 @@ export default function AdminDashboard() {
       icon: Rocket,
       href: "/admin/demo-day-submissions",
       testid: "metric-demo-day",
+    },
+    {
+      label: "GRIT Miles",
+      value: totalGritMiles.toLocaleString(),
+      sub: "Total unlocked program-wide",
+      icon: Milestone,
+      href: "/admin/teams",
+      testid: "metric-grit-miles",
+    },
+    {
+      label: "GRIT Miles achieved",
+      value: gritAchievedTeams.toLocaleString(),
+      sub: "Teams reaching a GRIT level",
+      icon: Award,
+      href: "/admin/teams",
+      testid: "metric-grit-achieved",
     },
     {
       label: "Pending reviews",

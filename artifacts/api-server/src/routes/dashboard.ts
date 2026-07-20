@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { sql, eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
+import { readGritLevels, computeGritMiles } from "./grit-config";
 
 const router: IRouter = Router();
 
@@ -106,6 +107,21 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       )
   `);
 
+  // Per-team verified-revenue totals (active teams only, campus-scoped for
+  // coordinators) so we can compute GRIT Miles in JS against the configured
+  // ladder. One aggregate row per active team.
+  const teamRevenueP = db.execute<{ verified_revenue: string }>(sql`
+    SELECT COALESCE(rev_by_team.total, 0) AS verified_revenue
+    FROM teams t
+    LEFT JOIN (
+      SELECT team_id, SUM(verified_amount) AS total
+      FROM revenue_entries
+      WHERE status = 'verified'
+      GROUP BY team_id
+    ) rev_by_team ON rev_by_team.team_id = t.id
+    WHERE t.status = 'active' ${teamScope}
+  `);
+
   // Top campuses with verified revenue + team counts, joined and grouped in one
   // statement. Ordered by revenue, top 5.
   const topCampusesP = db.execute<{
@@ -172,13 +188,38 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     LIMIT 10
   `);
 
-  const [countersR, demoEligibleR, topCampusesR, recentActivityR] =
-    await Promise.all([
-      countersP,
-      demoEligibleP,
-      topCampusesP,
-      recentActivityP,
-    ]);
+  const [
+    countersR,
+    demoEligibleR,
+    teamRevenueR,
+    topCampusesR,
+    recentActivityR,
+    gritLevels,
+  ] = await Promise.all([
+    countersP,
+    demoEligibleP,
+    teamRevenueP,
+    topCampusesP,
+    recentActivityP,
+    readGritLevels(),
+  ]);
+
+  // GRIT Miles aggregates across active teams: total miles unlocked program-wide
+  // and how many teams have reached at least one GRIT level (miles > 0). Both
+  // derive from the same ladder + revenue the student GRIT Miles page uses.
+  const teamRevenueRows = (
+    teamRevenueR as unknown as { rows: Array<{ verified_revenue: string }> }
+  ).rows;
+  let totalGritMiles = 0;
+  let gritAchievedTeams = 0;
+  for (const tr of teamRevenueRows) {
+    const miles = computeGritMiles(
+      Number(tr.verified_revenue ?? 0),
+      gritLevels,
+    );
+    totalGritMiles += miles;
+    if (miles > 0) gritAchievedTeams += 1;
+  }
 
   const counters = (
     countersR as unknown as {
@@ -238,6 +279,9 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     pendingAccessRequestCount: Number(counters.pending_access_req ?? 0),
     pendingAccessRequestOldestAt: toIso(counters.pending_access_req_oldest),
     totalCampuses: Number(counters.total_campuses ?? 0),
+    // GRIT Miles program-wide totals (active teams; coordinator-scoped).
+    totalGritMiles,
+    gritAchievedTeams,
     topCampuses: topCampusesRows.map((c) => ({
       id: Number(c.id),
       name: c.name,

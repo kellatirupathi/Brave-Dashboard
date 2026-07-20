@@ -23,6 +23,7 @@ import { requireAdminPage } from "../lib/require-admin-page";
 import { generateUniqueInviteCode } from "../lib/team-helpers";
 import { sendEmail } from "../lib/email/brevo";
 import { renderTeamNameDuplicateEmail } from "../lib/email/templates/team-name-duplicate";
+import { readGritLevels, computeGritMiles } from "./grit-config";
 
 const router: IRouter = Router();
 
@@ -565,6 +566,8 @@ type ExportRow = {
   team_verified_revenue: number;
   team_verified_order_book: number;
   team_projects_count: number;
+  // Derived from team_verified_revenue against the configured GRIT ladder.
+  team_grit_miles: number;
 };
 
 const CSV_COLUMNS: Array<{
@@ -582,6 +585,7 @@ const CSV_COLUMNS: Array<{
   { key: "team_status", header: "Team Status" },
   { key: "team_verified_revenue", header: "Verified Revenue (INR)" },
   { key: "team_verified_order_book", header: "Verified Order Book (INR)" },
+  { key: "team_grit_miles", header: "GRIT Miles" },
   { key: "team_projects_count", header: "Projects Count" },
   { key: "team_created_at", header: "Team Created" },
 ];
@@ -617,6 +621,10 @@ async function fetchExportRows(opts: {
     );
   }
   const whereClause = conditions.length === 0 ? sql`TRUE` : and(...conditions);
+
+  // GRIT ladder is loaded once per export so every row's miles derive from the
+  // same admin-configured ladder the student GRIT Miles page uses.
+  const gritLevels = await readGritLevels();
 
   // Single JOIN query with team-level aggregate sub-selects for revenue,
   // order book, and project count. Ordering: campus → team → leader-first
@@ -670,12 +678,16 @@ async function fetchExportRows(opts: {
       sql`${teamMembersTable.joinedAt} ASC`,
     );
 
-  return rows.map((r: Record<string, unknown>) => ({
-    ...r,
-    team_verified_revenue: Number(r["team_verified_revenue"] ?? 0),
-    team_verified_order_book: Number(r["team_verified_order_book"] ?? 0),
-    team_projects_count: Number(r["team_projects_count"] ?? 0),
-  })) as unknown as ExportRow[];
+  return rows.map((r: Record<string, unknown>) => {
+    const verifiedRevenue = Number(r["team_verified_revenue"] ?? 0);
+    return {
+      ...r,
+      team_verified_revenue: verifiedRevenue,
+      team_verified_order_book: Number(r["team_verified_order_book"] ?? 0),
+      team_projects_count: Number(r["team_projects_count"] ?? 0),
+      team_grit_miles: computeGritMiles(verifiedRevenue, gritLevels),
+    };
+  }) as unknown as ExportRow[];
 }
 
 // =============================================================================
@@ -713,6 +725,7 @@ type TeamProjectsRow = {
   team_status: string;
   team_verified_revenue: number;
   team_verified_order_book: number;
+  team_grit_miles: number;
   team_projects_count: number;
   team_created_at: Date;
   projects: ProjectExport[];
@@ -778,6 +791,7 @@ async function fetchTeamProjectsRows(
         team_status: r.team_status,
         team_verified_revenue: r.team_verified_revenue,
         team_verified_order_book: r.team_verified_order_book,
+        team_grit_miles: r.team_grit_miles,
         team_projects_count: r.team_projects_count,
         team_created_at: r.team_created_at,
         projects: [],
@@ -981,6 +995,7 @@ const TEAM_PROJECTS_LEAD_HEADERS = [
   "Team Status",
   "Verified Revenue (INR)",
   "Verified Order Book (INR)",
+  "GRIT Miles",
   "Projects Count",
   "Team Created",
 ] as const;
@@ -1014,6 +1029,7 @@ function buildTeamProjectsSheet(rows: TeamProjectsRow[]): XLSX.WorkSheet {
     r.team_status,
     r.team_verified_revenue,
     r.team_verified_order_book,
+    r.team_grit_miles,
     r.team_projects_count,
     fmtCell(r.team_created_at),
   ];
