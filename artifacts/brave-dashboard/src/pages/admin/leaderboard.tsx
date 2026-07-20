@@ -10,6 +10,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/lib/api-error";
+import {
+  getStudentGritConfig,
+  computeMaxGritMilestone,
+  DEFAULT_GRIT_LEVELS,
+  type GritLevel,
+} from "@/lib/grit-config-api";
 import Leaderboard from "../student/leaderboard";
 
 const MAX_MEMBER_SLOTS = 5;
@@ -57,7 +63,10 @@ function computeCampusRanks(
   return ranks;
 }
 
-function buildNationalSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
+function buildNationalSheet(
+  teams: LeaderboardExportTeam[],
+  levels: GritLevel[],
+): XLSX.WorkSheet {
   const campusRanks = computeCampusRanks(teams);
   const headers = [
     "National Rank",
@@ -66,6 +75,7 @@ function buildNationalSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
     "Tagline",
     "Campus",
     "Verified Revenue",
+    "GRIT Miles",
     "Order Book",
     "Active Projects",
     "Demo Day Eligible",
@@ -80,6 +90,7 @@ function buildNationalSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
       t.tagline ?? "",
       t.campusName ?? "",
       t.totalRevenue,
+      computeMaxGritMilestone(t.totalRevenue, levels),
       t.totalOrderBook,
       t.activeProjects,
       t.isDemoEligible ? "Yes" : "No",
@@ -89,7 +100,10 @@ function buildNationalSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
   return XLSX.utils.aoa_to_sheet(rows);
 }
 
-function buildCampusSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
+function buildCampusSheet(
+  teams: LeaderboardExportTeam[],
+  levels: GritLevel[],
+): XLSX.WorkSheet {
   // Group by campus, then assign campus rank using existing national-order
   // (which is already featured DESC, revenue DESC, id ASC). Sort campuses
   // alphabetically so the sheet is predictable.
@@ -108,6 +122,7 @@ function buildCampusSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
     "National Rank",
     "Team Name",
     "Verified Revenue",
+    "GRIT Miles",
     "Order Book",
     "Active Projects",
     "Demo Day Eligible",
@@ -123,6 +138,7 @@ function buildCampusSheet(teams: LeaderboardExportTeam[]): XLSX.WorkSheet {
         t.nationalRank,
         t.teamName,
         t.totalRevenue,
+        computeMaxGritMilestone(t.totalRevenue, levels),
         t.totalOrderBook,
         t.activeProjects,
         t.isDemoEligible ? "Yes" : "No",
@@ -147,16 +163,22 @@ export default function AdminLeaderboard() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const data: LeaderboardExportResponse = await getLeaderboardExport();
+      // Fetch the export data + the GRIT ladder in parallel. If the ladder
+      // request fails we fall back to the defaults so the export still works.
+      const [data, gritConfig] = await Promise.all([
+        getLeaderboardExport() as Promise<LeaderboardExportResponse>,
+        getStudentGritConfig().catch(() => null),
+      ]);
+      const gritLevels = gritConfig?.levels ?? DEFAULT_GRIT_LEVELS;
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(
         wb,
-        buildNationalSheet(data.teams),
+        buildNationalSheet(data.teams, gritLevels),
         "National",
       );
       XLSX.utils.book_append_sheet(
         wb,
-        buildCampusSheet(data.teams),
+        buildCampusSheet(data.teams, gritLevels),
         "Campus-wise",
       );
       const filename = `brave-leaderboard-${isoDateString(new Date())}.xlsx`;

@@ -75,6 +75,22 @@ export type GritProgress = {
   revenueToNext: number; // 0 when all levels unlocked
 };
 
+// The single HIGHEST ladder milestone (miles value) reached for a given
+// verified-revenue amount — the `miles` of the top level whose revenueTarget is
+// met, NOT a cumulative sum. Returns 0 when no level is reached. Mirrors the
+// server-side computeMaxGritMilestone; used by the leaderboard export columns +
+// admin dashboard GRIT card semantics.
+export function computeMaxGritMilestone(
+  revenue: number,
+  levels: GritLevel[],
+): number {
+  let best = 0;
+  for (const lvl of levels) {
+    if (revenue >= lvl.revenueTarget && lvl.miles > best) best = lvl.miles;
+  }
+  return best;
+}
+
 // Compute current level / miles / next target from verified revenue.
 export function computeGritProgress(
   revenue: number,
