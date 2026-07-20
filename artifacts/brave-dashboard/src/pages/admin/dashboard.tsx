@@ -383,10 +383,10 @@ export default function AdminDashboard() {
   // (customFetch preserves unknown fields), same pattern as other additive
   // subsystems in this codebase.
   const gritSummary = summary as unknown as {
-    totalGritMiles?: number;
+    maxGritMiles?: number;
     gritAchievedTeams?: number;
   };
-  const totalGritMiles = gritSummary.totalGritMiles ?? 0;
+  const maxGritMiles = gritSummary.maxGritMiles ?? 0;
   const gritAchievedTeams = gritSummary.gritAchievedTeams ?? 0;
 
   // ── Unified metric band (one hairline-divided grid, no floating cards) ──────
@@ -452,8 +452,8 @@ export default function AdminDashboard() {
     },
     {
       label: "GRIT Miles",
-      value: totalGritMiles.toLocaleString(),
-      sub: "Total unlocked program-wide",
+      value: maxGritMiles.toLocaleString(),
+      sub: "Highest milestone reached",
       icon: Milestone,
       href: "/admin/teams",
       testid: "metric-grit-miles",

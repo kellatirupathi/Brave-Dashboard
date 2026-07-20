@@ -86,12 +86,29 @@ export async function readGritLevels(): Promise<GritLevel[]> {
 // Total GRIT Miles unlocked for a given verified-revenue amount: sum the `miles`
 // of every level whose revenueTarget is met (mirrors the frontend
 // computeGritProgress / the student GRIT Miles page). Miles are cumulative.
+// Used by the teams export column.
 export function computeGritMiles(revenue: number, levels: GritLevel[]): number {
   let miles = 0;
   for (const lvl of levels) {
     if (revenue >= lvl.revenueTarget) miles += lvl.miles;
   }
   return miles;
+}
+
+// The single highest ladder milestone (miles value) reached for a given
+// verified-revenue amount — i.e. the `miles` of the top level whose
+// revenueTarget is met, NOT a cumulative sum. Returns 0 when no level is
+// reached. Used by the admin dashboard "GRIT Miles" card (highest milestone
+// any team has unlocked program-wide).
+export function computeMaxGritMilestone(
+  revenue: number,
+  levels: GritLevel[],
+): number {
+  let best = 0;
+  for (const lvl of levels) {
+    if (revenue >= lvl.revenueTarget && lvl.miles > best) best = lvl.miles;
+  }
+  return best;
 }
 
 // Student-readable: the ladder + edit deadline only (no escalation internals).
