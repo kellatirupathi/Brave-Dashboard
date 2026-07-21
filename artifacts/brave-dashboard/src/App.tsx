@@ -348,15 +348,8 @@ function RootRedirect() {
 
 // Guidebook renders as its OWN full-screen page (its own sidebar + content),
 // deliberately NOT wrapped in <Layout> so it reads as a separate document app.
-// Auth-gated only — no role restriction.
+// PUBLIC — intentionally viewable by anyone, no login required.
 function GuidebookStandalone() {
-  const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) {
-    return <BraveLoader />;
-  }
-  if (!isAuthenticated) {
-    return <Redirect to="/login" />;
-  }
   return <Guidebook />;
 }
 
