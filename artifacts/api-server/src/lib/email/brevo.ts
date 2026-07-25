@@ -6,6 +6,10 @@
 // nothing else in the codebase needs to change.
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { logger } from "../logger";
+import {
+  isEmailCategoryEnabled,
+  type EmailCategory,
+} from "./email-controls";
 
 export type EmailRecipient = {
   email: string;
@@ -22,6 +26,13 @@ export type SendEmailInput = {
    * that don't render HTML). Omit it for plain-text-only emails.
    */
   html?: string;
+  /**
+   * Optional email-control category. When set, the email is silently skipped
+   * (returns false) if a super admin has toggled that category OFF in
+   * Config → Notifications & Reminders. Omit for emails that must always
+   * send (e.g. the admin test email).
+   */
+  category?: EmailCategory;
 };
 
 /**
@@ -38,6 +49,21 @@ export type SendEmailInput = {
  * - All SES errors are caught and logged — this function never throws.
  */
 export async function sendEmail(input: SendEmailInput): Promise<boolean> {
+  // Per-category kill switch (super-admin controlled). Fails open — if the
+  // check itself errors, the email still sends.
+  if (input.category) {
+    try {
+      if (!(await isEmailCategoryEnabled(input.category))) {
+        logger.info(
+          { subject: input.subject, category: input.category },
+          "Email skipped — category disabled in Notifications & Reminders",
+        );
+        return false;
+      }
+    } catch {
+      // fall through and send
+    }
+  }
   const region = process.env.AWS_REGION || "ap-south-1";
   const fromEmail = process.env.EMAIL_FROM || "brave.niat@nxtwave.in";
   const fromAddress = `BRAVE Dashboard <${fromEmail}>`;

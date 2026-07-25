@@ -545,7 +545,7 @@ router.post(
               teamName: job.teamName,
               appUrl,
             });
-            const ok = await sendEmail({
+            const ok = await sendEmail({ category: "heatmapNudges",
               to: { email: job.email, name: job.firstName || undefined },
               subject: tmpl.subject,
               text: tmpl.text,
@@ -692,7 +692,7 @@ router.post(
       void (async () => {
         let emailed = 0;
         for (const s of emailTargets) {
-          const ok = await sendEmail({
+          const ok = await sendEmail({ category: "heatmapNudges",
             to: { email: s.email, name: s.firstName || undefined },
             subject: "[BRAVE] Log in to your BRAVE Dashboard",
             text: `Hi ${s.firstName || "there"},\n\nWe noticed you haven't logged in to the BRAVE Dashboard yet. Please log in to get started with the programme and submit your weekly journal.\n\nLog in here: ${appUrl}\n\n— BRAVE Dashboard`,

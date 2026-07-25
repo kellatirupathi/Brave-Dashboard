@@ -942,6 +942,10 @@ export const programmeConfigTable = pgTable("programme_config", {
   // Editable template content ({ eyebrow,title,subtitle,timeText,chip1,chip2 }).
   // Null → the UI falls back to DEFAULT_BANNER_CONTENT.
   leaderboardBannerContent: jsonb("leaderboard_banner_content"),
+  // Per-category email kill switches (key -> boolean). Missing key / null
+  // column = enabled. Managed by super admins in Config → Notifications &
+  // Reminders; enforced in the api-server's sendEmail().
+  emailControls: jsonb("email_controls"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

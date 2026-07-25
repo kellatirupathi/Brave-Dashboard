@@ -713,7 +713,7 @@ async function notifyFinaleReview(
       status === "verified"
         ? renderFinaleVerifiedEmail(input)
         : renderFinaleRejectedEmail(input);
-    await sendEmail({ to: recipients, subject, text, html });
+    await sendEmail({ category: "finaleReview", to: recipients, subject, text, html });
   } catch (err) {
     logger.error({ err, teamId, status }, "Finale review email failed");
   }

@@ -522,7 +522,7 @@ export async function applyMembershipRequest(
       "/team",
     );
     if (target?.email) {
-      await sendEmail({
+      await sendEmail({ category: "teamMembership",
         to: { email: target.email, name: targetName },
         subject: `You've joined ${team.name} on BRAVE`,
         text: `Hi ${targetName},\n\nAn admin has approved your request to join "${team.name}". You're now a member of the team.\n\nOpen your team: ${appUrl}/team\n\n— BRAVE Dashboard`,
@@ -591,7 +591,7 @@ export async function applyMembershipRequest(
       "/team",
     );
     if (target?.email) {
-      await sendEmail({
+      await sendEmail({ category: "teamMembership",
         to: { email: target.email, name: targetName },
         subject: `You've left ${team.name}`,
         text: `Hi ${targetName},\n\nAn admin has approved your request to leave "${team.name}". You're no longer a member of the team.\n\nFind or start a new team: ${appUrl}/get-started\n\n— BRAVE Dashboard`,
@@ -627,7 +627,7 @@ export async function applyMembershipRequest(
       "/team",
     );
     if (target?.email) {
-      await sendEmail({
+      await sendEmail({ category: "teamMembership",
         to: { email: target.email, name: targetName },
         subject: `You've been removed from ${team.name}`,
         text: `Hi ${targetName},\n\nAn admin has approved a request to remove you from "${team.name}". You're no longer a member of the team.\n\nFind or start a new team: ${appUrl}/get-started\n\n— BRAVE Dashboard`,
@@ -816,7 +816,7 @@ export async function notifyMembershipRejected(
     .from(usersTable)
     .where(eq(usersTable.id, mr.actorUserId));
   if (actor?.email) {
-    await sendEmail({
+    await sendEmail({ category: "teamMembership",
       to: { email: actor.email, name: displayName(actor) },
       subject: `Your request was not approved — ${teamName}`,
       text: `Hi ${displayName(actor)},\n\nYour request to ${label} for "${teamName}" was not approved by an admin.${noteLine}\n\nOpen BRAVE: ${appUrl}/team\n\n— BRAVE Dashboard`,
@@ -837,7 +837,7 @@ export async function notifyMembershipRejected(
       .from(usersTable)
       .where(eq(usersTable.id, mr.targetUserId));
     if (targetUser?.email) {
-      await sendEmail({
+      await sendEmail({ category: "teamMembership",
         to: { email: targetUser.email, name: displayName(targetUser) },
         subject: `Your request to join ${teamName} was not approved`,
         text: `Hi ${displayName(targetUser)},\n\nYour request to join "${teamName}" was not approved by an admin.${noteLine}\n\nFind or start a team: ${appUrl}/get-started\n\n— BRAVE Dashboard`,

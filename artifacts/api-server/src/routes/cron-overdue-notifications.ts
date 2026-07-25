@@ -154,7 +154,7 @@ router.post(
               totalCount: items.length,
               appUrl,
             });
-            const ok = await sendEmail({
+            const ok = await sendEmail({ category: "overdueReminders",
               to: { email: s.email, name: s.name ?? undefined },
               subject,
               text,

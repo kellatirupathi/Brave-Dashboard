@@ -2437,6 +2437,7 @@ router.post(
         appUrl: getAppUrl(),
       });
       await sendEmail({
+        category: "accessRequestDecision",
         to: { email: result.reqRow.email, name: result.reqRow.fullName },
         subject,
         text,
@@ -2520,6 +2521,7 @@ router.post(
         notes: result.reqRow.notes,
       });
       await sendEmail({
+        category: "accessRequestDecision",
         to: { email: result.reqRow.email, name: result.reqRow.fullName },
         subject,
         text,

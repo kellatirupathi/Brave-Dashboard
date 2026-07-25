@@ -1,8 +1,18 @@
 import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
-import { db, programmeWeeksTable, programmeConfigTable } from "@workspace/db";
+import {
+  db,
+  programmeWeeksTable,
+  programmeConfigTable,
+  usersTable,
+} from "@workspace/db";
 import { z } from "zod/v4";
 import { requireAdminPage } from "../lib/require-admin-page";
+import {
+  EMAIL_CATEGORIES,
+  getEmailControls,
+  invalidateEmailControlsCache,
+} from "../lib/email/email-controls";
 
 /**
  * Helper used by Module 5 cron and the heatmap manual-remind endpoint to
@@ -301,14 +311,29 @@ router.get("/admin/reminder-settings", async (req, res): Promise<void> => {
   }
   const settings = await getReminderSettings();
   const allowPastWeekEdits = await getAllowPastWeekEdits();
-  res.json({ ...settings, allowPastWeekEdits });
+  const emailControls = await getEmailControls();
+  const callerIsSuperAdmin = await isCallerSuperAdmin(req.user.id);
+  res.json({ ...settings, allowPastWeekEdits, emailControls, callerIsSuperAdmin });
 });
+
+async function isCallerSuperAdmin(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ isSuperAdmin: usersTable.isSuperAdmin })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  return row?.isSuperAdmin === true;
+}
 
 const ReminderSettingsBody = z.object({
   notificationsEnabled: z.boolean().optional(),
   emailsEnabled: z.boolean().optional(),
   coordinatorNotificationsEnabled: z.boolean().optional(),
   allowPastWeekEdits: z.boolean().optional(),
+  // Partial map of per-category email kill switches. Super admins only.
+  emailControls: z
+    .partialRecord(z.enum(EMAIL_CATEGORIES), z.boolean())
+    .optional(),
 });
 
 router.patch(
@@ -328,9 +353,24 @@ router.patch(
       parsed.data.notificationsEnabled === undefined &&
       parsed.data.emailsEnabled === undefined &&
       parsed.data.coordinatorNotificationsEnabled === undefined &&
-      parsed.data.allowPastWeekEdits === undefined
+      parsed.data.allowPastWeekEdits === undefined &&
+      (parsed.data.emailControls === undefined ||
+        Object.keys(parsed.data.emailControls).length === 0)
     ) {
       res.status(400).json({ error: "Provide at least one toggle" });
+      return;
+    }
+
+    // Email kill switches are super-admin only.
+    const callerIsSuperAdmin = await isCallerSuperAdmin(req.user.id);
+    if (
+      parsed.data.emailControls !== undefined &&
+      Object.keys(parsed.data.emailControls).length > 0 &&
+      !callerIsSuperAdmin
+    ) {
+      res
+        .status(403)
+        .json({ error: "Only super admins can change email controls" });
       return;
     }
 
@@ -358,15 +398,35 @@ router.patch(
     if (parsed.data.allowPastWeekEdits !== undefined) {
       update.allowPastWeekEdits = parsed.data.allowPastWeekEdits;
     }
+    if (
+      parsed.data.emailControls !== undefined &&
+      Object.keys(parsed.data.emailControls).length > 0
+    ) {
+      // Merge into the stored map so unrelated keys are preserved.
+      const existing =
+        configs[0].emailControls &&
+        typeof configs[0].emailControls === "object" &&
+        !Array.isArray(configs[0].emailControls)
+          ? (configs[0].emailControls as Record<string, boolean>)
+          : {};
+      update.emailControls = { ...existing, ...parsed.data.emailControls };
+    }
 
     await db
       .update(programmeConfigTable)
       .set(update)
       .where(eq(programmeConfigTable.id, configs[0].id));
+    invalidateEmailControlsCache();
 
     const settings = await getReminderSettings();
     const allowPastWeekEdits = await getAllowPastWeekEdits();
-    res.json({ ...settings, allowPastWeekEdits });
+    const emailControls = await getEmailControls();
+    res.json({
+      ...settings,
+      allowPastWeekEdits,
+      emailControls,
+      callerIsSuperAdmin,
+    });
   },
 );
 

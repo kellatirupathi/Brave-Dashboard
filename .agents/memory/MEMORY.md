@@ -7,3 +7,4 @@
 - [Prod applies no schema via push](prod-schema-no-push.md) — prod deploy never runs drizzle-kit push; schema/index changes prod needs must be applied via idempotent CREATE IF NOT EXISTS bootstrap in api-server index.ts (keep in schema too).
 - [Cron locking](cron-locking.md) — multi-instance cron guards use pg advisory locks (cron-lock.ts), NOT in-process booleans; for sync handlers release in try/finally, never on res finish/close (disconnect frees lock early).
 - [Timestamp staleness guards](timestamp-staleness-guards.md) — never eq() a timestamptz to a JS Date snapshot (µs vs ms); use ±1ms epoch compare or the guard discards every result (paid-API leak).
+- [Email kill switches](email-kill-switches.md) — every sendEmail call must be tagged with a category; super-admin toggles in Config gate sending, fail-open, default ON.

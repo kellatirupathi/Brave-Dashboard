@@ -162,7 +162,7 @@ async function fanOutAnnouncementEmails(announcement: {
           appUrl,
         });
         // sendEmail never throws — it returns false on failure.
-        return sendEmail({ to: { email: r.email, name }, subject, text });
+        return sendEmail({ category: "announcementEmails", to: { email: r.email, name }, subject, text });
       }),
     );
     for (const ok of results) {

@@ -880,7 +880,12 @@ router.post(
           adminNotes: parsed.data.adminNotes ?? null,
           appUrl: getAppUrl(),
         });
-        void sendEmail({ to: cappedRecipients, subject, text });
+        void sendEmail({
+          category: "revenueVerified",
+          to: cappedRecipients,
+          subject,
+          text,
+        });
       }
     }
     await logAudit(
@@ -977,7 +982,12 @@ router.post(
           reason: parsed.data.adminNotes,
           appUrl: getAppUrl(),
         });
-        void sendEmail({ to: cappedRecipients, subject, text });
+        void sendEmail({
+          category: "revenueRejected",
+          to: cappedRecipients,
+          subject,
+          text,
+        });
       }
     }
     await logAudit(

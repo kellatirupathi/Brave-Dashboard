@@ -285,7 +285,7 @@ async function runJournalEscalation(
 
     let sent = 0;
     for (const s of subs) {
-      const ok = await sendEmail({
+      const ok = await sendEmail({ category: "journalEscalations",
         to: { email: s.email, name: s.name ?? undefined },
         subject: `[BRAVE] Journal report — ${weekLabel(week)}`,
         text,
@@ -345,7 +345,7 @@ async function runJournalEscalation(
 
     let sent = 0;
     for (const r of recipients) {
-      const ok = await sendEmail({
+      const ok = await sendEmail({ category: "journalEscalations",
         to: { email: r.email, name: r.firstName ?? undefined },
         subject: `[BRAVE] ${LEVEL_LABEL[level]} — ${report.campusName} journals pending (${weekLabel(week)})`,
         text,
@@ -432,7 +432,7 @@ router.post(
 
     let sent = 0;
     for (const s of subs) {
-      const ok = await sendEmail({
+      const ok = await sendEmail({ category: "journalEscalations",
         to: { email: s.email, name: s.name ?? undefined },
         subject: `[BRAVE] Weekly journal report — ${weekLabel(week)}`,
         text,

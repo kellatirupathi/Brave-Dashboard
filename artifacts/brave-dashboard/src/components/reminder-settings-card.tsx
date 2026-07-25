@@ -6,6 +6,8 @@ import {
   AlertTriangle,
   UserCog,
   History,
+  MailX,
+  Lock,
 } from "lucide-react";
 import {
   Card,
@@ -22,6 +24,106 @@ import {
   updateReminderSettings,
   type ReminderSettings,
 } from "@/lib/progress-api";
+
+// Per-category email kill switches — mirrors EMAIL_CATEGORIES on the server.
+// Grouped the way emails are actually triggered. Default ON; super-admin only.
+const EMAIL_CONTROL_GROUPS: {
+  group: string;
+  items: { key: string; label: string; description: string }[];
+}[] = [
+  {
+    group: "Automatic emails (sent on a schedule)",
+    items: [
+      {
+        key: "overdueReminders",
+        label: "Overdue submission reminders",
+        description:
+          "Students with overdue work get an automatic reminder email.",
+      },
+      {
+        key: "journalReminders",
+        label: "Journal silence reminders (day-7)",
+        description:
+          "The scheduled day-7 journal reminder email to silent team members. Also requires the Student email reminders toggle above.",
+      },
+      {
+        key: "journalEscalations",
+        label: "Journal escalation reports",
+        description:
+          "Escalation and weekly journal report emails when journals stay pending (all levels).",
+      },
+    ],
+  },
+  {
+    group: "Emails triggered by admin actions",
+    items: [
+      {
+        key: "revenueVerified",
+        label: "Revenue verified",
+        description:
+          "Email to the team when a revenue entry is approved in the Review Queue.",
+      },
+      {
+        key: "revenueRejected",
+        label: "Revenue rejected",
+        description:
+          "Email to the team when a revenue entry is rejected in the Review Queue.",
+      },
+      {
+        key: "announcementEmails",
+        label: "Announcement emails",
+        description:
+          "Email copy of announcements sent to the targeted students.",
+      },
+      {
+        key: "submissionAccess",
+        label: "Submission access decisions",
+        description:
+          "Emails when a team's submission access is enabled/disabled or an access request is declined (projects lock).",
+      },
+      {
+        key: "accessRequestDecision",
+        label: "Dashboard access decisions",
+        description:
+          "Emails when an admin approves or rejects a student's dashboard access request.",
+      },
+      {
+        key: "teamNameDuplicate",
+        label: "Duplicate team name notices",
+        description:
+          "Email to teams asked to rename because of a duplicate team name.",
+      },
+      {
+        key: "finaleReview",
+        label: "Finale review results",
+        description:
+          "Email to the team when their finale submission is verified or rejected.",
+      },
+      {
+        key: "heatmapNudges",
+        label: "Heatmap manual nudges",
+        description:
+          "Emails sent from the heatmap page (journal status reminders and log-in nudges).",
+      },
+    ],
+  },
+  {
+    group: "Emails triggered by student actions",
+    items: [
+      {
+        key: "teamMembership",
+        label: "Team membership emails",
+        description:
+          "Emails when membership requests (join/add/leave/remove) are approved or rejected.",
+      },
+      {
+        key: "pcaVotes",
+        label: "People's Choice Award emails",
+        description: "Vote receipt emails and voting-open announcements.",
+      },
+    ],
+  },
+];
 
 export function ReminderSettingsCard() {
   const { toast } = useToast();
@@ -55,6 +157,16 @@ export function ReminderSettingsCard() {
       queryClient.setQueryData(QUERY_KEY, { ...data, [field]: value });
     }
     mut.mutate({ [field]: value });
+  }
+
+  function setEmailControl(key: string, value: boolean) {
+    if (data) {
+      queryClient.setQueryData(QUERY_KEY, {
+        ...data,
+        emailControls: { ...data.emailControls, [key]: value },
+      });
+    }
+    mut.mutate({ emailControls: { [key]: value } });
   }
 
   return (
@@ -164,6 +276,52 @@ export function ReminderSettingsCard() {
                 data-testid="allow-past-week-edits-toggle"
               />
             </div>
+
+            <div className="flex items-center justify-between pt-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1.5">
+                <MailX className="w-3.5 h-3.5" />
+                Email controls (per email type)
+              </div>
+              {!data.callerIsSuperAdmin && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Lock className="w-3 h-3" /> Super admin only
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground -mt-1">
+              Turn any email type off to stop those emails app-wide. In-app
+              notifications are not affected. All types are ON by default.
+            </p>
+
+            {EMAIL_CONTROL_GROUPS.map((g) => (
+              <div key={g.group} className="space-y-2">
+                <div className="text-xs font-semibold text-muted-foreground pt-1">
+                  {g.group}
+                </div>
+                {g.items.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between border p-3 rounded-lg"
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <Mail className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium text-sm">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.description}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={data.emailControls?.[item.key] !== false}
+                      disabled={mut.isPending || !data.callerIsSuperAdmin}
+                      onCheckedChange={(c) => setEmailControl(item.key, c)}
+                      data-testid={`email-control-${item.key}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
 
             {!data.notificationsEnabled &&
               !data.emailsEnabled &&

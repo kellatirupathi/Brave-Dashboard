@@ -206,6 +206,10 @@ export type ReminderSettings = {
   emailsEnabled: boolean;
   coordinatorNotificationsEnabled: boolean;
   allowPastWeekEdits: boolean;
+  /** Per-category email kill switches (super-admin controlled, default ON). */
+  emailControls: Record<string, boolean>;
+  /** Whether the current admin is a super admin (may edit emailControls). */
+  callerIsSuperAdmin: boolean;
 };
 
 export function getReminderSettings(): Promise<ReminderSettings> {

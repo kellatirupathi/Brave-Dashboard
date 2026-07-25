@@ -233,7 +233,7 @@ async function sendVoteReceipt(userId: string): Promise<void> {
       return;
     }
     const { subject, text, html } = renderPcaVoteReceiptEmail();
-    await sendEmail({ to: [{ email }], subject, text, html });
+    await sendEmail({ category: "pcaVotes", to: [{ email }], subject, text, html });
   } catch (err) {
     logger.error({ err, userId }, "PCA vote receipt email failed");
   }
@@ -560,7 +560,7 @@ async function notifyVotingOpen(threshold: number): Promise<void> {
         teamName: team.name,
         appUrl,
       });
-      await sendEmail({ to: recipients, subject, text, html });
+      await sendEmail({ category: "pcaVotes", to: recipients, subject, text, html });
     }
   } catch (err) {
     logger.error({ err }, "Failed to send PCA voting-open emails");

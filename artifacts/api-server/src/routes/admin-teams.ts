@@ -1361,7 +1361,7 @@ router.post(
         teamName: teamNameById.get(teamId) ?? "your team",
         appUrl,
       });
-      const ok = await sendEmail({ to: recipients, subject, text, html });
+      const ok = await sendEmail({ category: "teamNameDuplicate", to: recipients, subject, text, html });
       if (ok) emailsSent += 1;
     }
 

@@ -420,7 +420,7 @@ async function notifyTeamsSubmissionToggle(
       const { subject, text, html } = enabled
         ? renderSubmissionEnabledEmail({ teamName, appUrl })
         : renderSubmissionDisabledEmail({ teamName, appUrl });
-      await sendEmail({ to: recipients, subject, text, html });
+      await sendEmail({ category: "submissionAccess", to: recipients, subject, text, html });
     }
   } catch (err) {
     logger.error({ err }, "Failed to send team submission toggle emails");
@@ -668,7 +668,7 @@ async function notifySubmissionRequestRejected(
       appUrl,
       reason,
     });
-    await sendEmail({ to: recipients, subject, text, html });
+    await sendEmail({ category: "submissionAccess", to: recipients, subject, text, html });
   } catch (err) {
     logger.error({ err }, "Failed to send submission-request rejected email");
   }

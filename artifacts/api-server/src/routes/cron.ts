@@ -206,7 +206,7 @@ async function pingTeam(
     }
 
     if (level === "7d" && m.email && channels.emailsEnabled) {
-      const ok = await sendEmail({
+      const ok = await sendEmail({ category: "journalReminders",
         to: { email: m.email, name: m.firstName ?? undefined },
         subject: `[BRAVE] ${title}`,
         text: `Hi ${m.firstName ?? "there"},\n\n${body}\n\nSubmit your weekly journal: ${appUrl}/journal\n\n— BRAVE Dashboard`,

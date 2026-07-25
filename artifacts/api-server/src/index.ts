@@ -413,7 +413,8 @@ async function ensureFinaleSubmissions(): Promise<void> {
         ADD COLUMN IF NOT EXISTS finale_lock_message text,
         ADD COLUMN IF NOT EXISTS finale_content text,
         ADD COLUMN IF NOT EXISTS pca_voting_enabled boolean NOT NULL DEFAULT false,
-        ADD COLUMN IF NOT EXISTS pca_min_verified_revenue integer NOT NULL DEFAULT 200000
+        ADD COLUMN IF NOT EXISTS pca_min_verified_revenue integer NOT NULL DEFAULT 200000,
+        ADD COLUMN IF NOT EXISTS email_controls jsonb
     `);
   } catch (err) {
     logger.error({ err }, "Failed to ensure programme_config finale columns");
