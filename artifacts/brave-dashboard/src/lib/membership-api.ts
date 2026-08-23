@@ -15,7 +15,13 @@ export type MembershipRequestStatus = "pending" | "approved" | "rejected";
 // At-a-glance team activity snapshot shown on each request card. Optional —
 // only the admin list endpoint populates it.
 export type MembershipTeamStats = {
+  /** Verified revenue for the season being viewed. */
   verifiedRevenue: number;
+  /**
+   * Verified revenue keyed by season id. Optional, so a server that has not
+   * been updated simply omits it and the card shows the single figure.
+   */
+  revenueBySeason?: Record<number, number>;
   projectCount: number;
   approvedRevenueCount: number;
   rejectedRevenueCount: number;

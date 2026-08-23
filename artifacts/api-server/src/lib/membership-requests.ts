@@ -295,7 +295,14 @@ export async function sweepAutoApprovePendingRequests(): Promise<{
 // the admin list endpoint; other shape callers leave it undefined.
 export type MembershipTeamStats = {
   // Total verified ("approved") revenue for the team, in rupees.
+  /** Verified revenue for the season being viewed. */
   verifiedRevenue: number;
+  /**
+   * Verified revenue keyed by season id, so a card can show Season 1 and
+   * Season 2 side by side. Optional: absent for any caller that has not been
+   * updated, which then simply shows the single figure as before.
+   */
+  revenueBySeason?: Record<number, number>;
   // Total number of projects the team has created.
   projectCount: number;
   // Revenue entries that have been verified (approved) / rejected by review.

@@ -171,18 +171,21 @@ router.get("/order-book-entries", async (req, res): Promise<void> => {
     return;
   }
   const { projectId, teamId, status } = queryParams.data;
-  let conditions: ReturnType<typeof and>[] = [];
+  // Season-scoped for the same reason as /revenue-entries: filtering by teamId
+  // alone spans seasons, so a Season 2 team page would list Season 1 entries.
+  const conditions: ReturnType<typeof and>[] = [
+    eq(orderBookEntriesTable.seasonId, await resolveSeason(req)),
+  ];
   if (projectId)
     conditions.push(eq(orderBookEntriesTable.projectId, projectId));
   if (teamId) conditions.push(eq(orderBookEntriesTable.teamId, teamId));
   if (status) conditions.push(eq(orderBookEntriesTable.status, status));
-  const entries =
-    conditions.length > 0
-      ? await db
-          .select()
-          .from(orderBookEntriesTable)
-          .where(and(...conditions))
-      : await db.select().from(orderBookEntriesTable);
+  // `conditions` always carries the season predicate, so the unfiltered branch
+  // that used to sit here is unreachable and has been removed.
+  const entries = await db
+    .select()
+    .from(orderBookEntriesTable)
+    .where(and(...conditions));
   const result = await Promise.all(entries.map(enrichOBEntry));
   res.json(result);
 });

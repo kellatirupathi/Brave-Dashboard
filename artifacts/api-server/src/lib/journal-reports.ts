@@ -55,6 +55,13 @@ function todayIso(): string {
 // no programme weeks exist.
 export async function resolveReportWeek(
   weekId?: number,
+  /**
+   * Season to report on. Defaults to the ACTIVE season so background callers
+   * (the escalation cron) behave exactly as before; request handlers pass the
+   * season being VIEWED, which is what makes the Reports page follow the
+   * 1.0 / 2.0 switch instead of always showing the live season.
+   */
+  seasonId?: number,
 ): Promise<WeekRef | null> {
   if (weekId) {
     const [w] = await db
@@ -81,7 +88,12 @@ export async function resolveReportWeek(
     })
     .from(programmeWeeksTable)
     // Reports and escalations run for the season currently in progress.
-    .where(eq(programmeWeeksTable.seasonId, await getActiveSeasonId()))
+    .where(
+      eq(
+        programmeWeeksTable.seasonId,
+        seasonId ?? (await getActiveSeasonId()),
+      ),
+    )
     .orderBy(asc(programmeWeeksTable.weekNumber));
   if (weeks.length === 0) return null;
   const open = weeks.filter((w) => w.isOpen);
@@ -108,7 +120,9 @@ export async function resolveReportWeek(
 //
 // Falls back to resolveReportWeek() when no week has ended yet (e.g. during the
 // programme's very first week) so the crons still resolve a sensible week.
-export async function resolvePreviousReportWeek(): Promise<WeekRef | null> {
+export async function resolvePreviousReportWeek(
+  seasonId?: number,
+): Promise<WeekRef | null> {
   const today = todayIso();
   const weeks = await db
     .select({
@@ -120,7 +134,12 @@ export async function resolvePreviousReportWeek(): Promise<WeekRef | null> {
     })
     .from(programmeWeeksTable)
     // Reports and escalations run for the season currently in progress.
-    .where(eq(programmeWeeksTable.seasonId, await getActiveSeasonId()))
+    .where(
+      eq(
+        programmeWeeksTable.seasonId,
+        seasonId ?? (await getActiveSeasonId()),
+      ),
+    )
     .orderBy(asc(programmeWeeksTable.weekNumber));
   if (weeks.length === 0) return null;
   // Weeks are ordered by weekNumber (so by date too); the last one that ended
@@ -131,7 +150,7 @@ export async function resolvePreviousReportWeek(): Promise<WeekRef | null> {
 }
 
 // All programme weeks (for the report week filter / week grid).
-export async function listAllWeeks(): Promise<WeekRef[]> {
+export async function listAllWeeks(seasonId?: number): Promise<WeekRef[]> {
   return db
     .select({
       id: programmeWeeksTable.id,
@@ -142,7 +161,12 @@ export async function listAllWeeks(): Promise<WeekRef[]> {
     })
     .from(programmeWeeksTable)
     // Reports and escalations run for the season currently in progress.
-    .where(eq(programmeWeeksTable.seasonId, await getActiveSeasonId()))
+    .where(
+      eq(
+        programmeWeeksTable.seasonId,
+        seasonId ?? (await getActiveSeasonId()),
+      ),
+    )
     .orderBy(asc(programmeWeeksTable.weekNumber));
 }
 
@@ -255,7 +279,7 @@ export async function resolveCampusTagRecipients(
 }
 
 // Week-by-week submission grid for every active team (weekly admin report).
-export async function computeWeekGrid(): Promise<{
+export async function computeWeekGrid(seasonId?: number): Promise<{
   weeks: WeekRef[];
   rows: Array<{
     teamId: number;
@@ -289,7 +313,10 @@ export async function computeWeekGrid(): Promise<{
           .from(weeklyJournalsTable)
           .where(
             and(
-              eq(weeklyJournalsTable.seasonId, await getActiveSeasonId()),
+              eq(
+                weeklyJournalsTable.seasonId,
+                seasonId ?? (await getActiveSeasonId()),
+              ),
               inArray(weeklyJournalsTable.teamId, teamIds),
             ),
           )

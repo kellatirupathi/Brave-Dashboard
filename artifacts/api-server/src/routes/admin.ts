@@ -2686,6 +2686,31 @@ async function computeMembershipTeamStats(
     }
   }
 
+  // Per-season verified revenue, so a card can show what a team earned in
+  // Season 1 AND Season 2 rather than only the season being viewed. Additive:
+  // `verifiedRevenue` above still means "this season", and every existing
+  // consumer of it is unchanged.
+  const revBySeason = await db
+    .select({
+      teamId: revenueEntriesTable.teamId,
+      seasonId: revenueEntriesTable.seasonId,
+      total: sql<number>`coalesce(sum(coalesce(${revenueEntriesTable.verifiedAmount}, ${revenueEntriesTable.amount})), 0)`,
+    })
+    .from(revenueEntriesTable)
+    .where(
+      and(
+        inArray(revenueEntriesTable.teamId, unique),
+        eq(revenueEntriesTable.status, "verified"),
+      ),
+    )
+    .groupBy(revenueEntriesTable.teamId, revenueEntriesTable.seasonId);
+  for (const r of revBySeason) {
+    const st = map.get(r.teamId);
+    if (!st) continue;
+    st.revenueBySeason = st.revenueBySeason ?? {};
+    st.revenueBySeason[r.seasonId] = Number(r.total ?? 0);
+  }
+
   // Projects: total count per team.
   const proj = await db
     .select({
