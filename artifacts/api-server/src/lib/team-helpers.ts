@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, teamsTable, milestonesTable } from "@workspace/db";
+import { getActiveSeasonId } from "./season";
 
 export function generateInviteCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -22,9 +23,17 @@ export async function generateUniqueInviteCode(): Promise<string> {
   return generateInviteCode() + generateInviteCode().slice(0, 4);
 }
 
-export async function insertTeamApprovedMilestone(teamId: number): Promise<void> {
+// Currently unreferenced — teams.ts and admin-teams.ts each insert this
+// milestone inline inside their creation transaction. Kept and made
+// season-aware so it stays correct if a caller is ever reintroduced.
+// `seasonId` omitted means the active season.
+export async function insertTeamApprovedMilestone(
+  teamId: number,
+  seasonId?: number,
+): Promise<void> {
   await db.insert(milestonesTable).values({
     teamId,
+    seasonId: seasonId ?? (await getActiveSeasonId()),
     type: "auto",
     title: "Team Registered",
     description: "Your team has been approved and is now active!",

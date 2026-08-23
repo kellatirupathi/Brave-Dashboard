@@ -7,6 +7,7 @@
  * escalation / weekly-report crons.
  */
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { getActiveSeasonId } from "./season";
 import {
   db,
   teamsTable,
@@ -23,6 +24,9 @@ export type WeekRef = {
   weekNumber: number;
   startDate: string;
   endDate: string;
+  // Carried so every downstream journal query derives its season from the week
+  // rather than resolving one independently.
+  seasonId: number;
 };
 
 export type CampusTeamStatus = {
@@ -59,6 +63,7 @@ export async function resolveReportWeek(
         weekNumber: programmeWeeksTable.weekNumber,
         startDate: programmeWeeksTable.startDate,
         endDate: programmeWeeksTable.endDate,
+        seasonId: programmeWeeksTable.seasonId,
       })
       .from(programmeWeeksTable)
       .where(eq(programmeWeeksTable.id, weekId));
@@ -71,9 +76,12 @@ export async function resolveReportWeek(
       weekNumber: programmeWeeksTable.weekNumber,
       startDate: programmeWeeksTable.startDate,
       endDate: programmeWeeksTable.endDate,
+      seasonId: programmeWeeksTable.seasonId,
       isOpen: programmeWeeksTable.isOpen,
     })
     .from(programmeWeeksTable)
+    // Reports and escalations run for the season currently in progress.
+    .where(eq(programmeWeeksTable.seasonId, await getActiveSeasonId()))
     .orderBy(asc(programmeWeeksTable.weekNumber));
   if (weeks.length === 0) return null;
   const open = weeks.filter((w) => w.isOpen);
@@ -108,8 +116,11 @@ export async function resolvePreviousReportWeek(): Promise<WeekRef | null> {
       weekNumber: programmeWeeksTable.weekNumber,
       startDate: programmeWeeksTable.startDate,
       endDate: programmeWeeksTable.endDate,
+      seasonId: programmeWeeksTable.seasonId,
     })
     .from(programmeWeeksTable)
+    // Reports and escalations run for the season currently in progress.
+    .where(eq(programmeWeeksTable.seasonId, await getActiveSeasonId()))
     .orderBy(asc(programmeWeeksTable.weekNumber));
   if (weeks.length === 0) return null;
   // Weeks are ordered by weekNumber (so by date too); the last one that ended
@@ -127,8 +138,11 @@ export async function listAllWeeks(): Promise<WeekRef[]> {
       weekNumber: programmeWeeksTable.weekNumber,
       startDate: programmeWeeksTable.startDate,
       endDate: programmeWeeksTable.endDate,
+      seasonId: programmeWeeksTable.seasonId,
     })
     .from(programmeWeeksTable)
+    // Reports and escalations run for the season currently in progress.
+    .where(eq(programmeWeeksTable.seasonId, await getActiveSeasonId()))
     .orderBy(asc(programmeWeeksTable.weekNumber));
 }
 
@@ -166,7 +180,12 @@ export async function computeCampusWeekReports(
       submittedAt: weeklyJournalsTable.submittedAt,
     })
     .from(weeklyJournalsTable)
-    .where(eq(weeklyJournalsTable.weekStartDate, week.startDate));
+    .where(
+      and(
+        eq(weeklyJournalsTable.seasonId, week.seasonId),
+        eq(weeklyJournalsTable.weekStartDate, week.startDate),
+      ),
+    );
   const byTeam = new Map(journals.map((j) => [j.teamId, j]));
 
   const teamsByCampus = new Map<number, CampusTeamStatus[]>();
@@ -268,7 +287,12 @@ export async function computeWeekGrid(): Promise<{
             weekStartDate: weeklyJournalsTable.weekStartDate,
           })
           .from(weeklyJournalsTable)
-          .where(inArray(weeklyJournalsTable.teamId, teamIds))
+          .where(
+            and(
+              eq(weeklyJournalsTable.seasonId, await getActiveSeasonId()),
+              inArray(weeklyJournalsTable.teamId, teamIds),
+            ),
+          )
       : [];
   const submitted = new Set(
     journals.map((j) => `${j.teamId}|${j.weekStartDate}`),

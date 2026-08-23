@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch screen. Solid Brave-Red with the logo centred, so there is no white
+     flash between the launcher and first paint. A layer-list rather than a PNG
+     means one file covers every density and orientation. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/braveRed" />
+    <item
+        android:gravity="center"
+        android:width="160dp"
+        android:height="160dp">
+        <bitmap
+            android:src="@mipmap/ic_launcher_foreground"
+            android:gravity="center" />
+    </item>
+</layer-list>

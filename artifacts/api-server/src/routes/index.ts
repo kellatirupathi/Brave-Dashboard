@@ -46,6 +46,15 @@ import finaleRouter from "./finale";
 import pcaVotesRouter from "./pca-votes";
 import rejectionReasonsRouter from "./rejection-reasons";
 import leaderboardConfigRouter from "./leaderboard-config";
+import seasonsRouter from "./seasons";
+import leadsRouter from "./leads";
+import pipelineRouter from "./pipeline";
+import cronLeadNudgesRouter from "./cron-lead-nudges";
+import whatsappRouter from "./whatsapp";
+import trustRouter from "./trust";
+import pricingRouter from "./pricing";
+import cronTrustAwardsRouter from "./cron-trust-awards";
+import reviewRouter from "./review";
 
 const router: IRouter = Router();
 
@@ -123,5 +132,27 @@ router.use(pcaVotesRouter);
 router.use(rejectionReasonsRouter);
 // Leaderboard display config: hide-rank-for-students + banner image (additive)
 router.use(leaderboardConfigRouter);
+// Season switching + the Season 1 archive controls (additive, isolated).
+// Deleting seasons.ts means removing this line and its import above.
+router.use(seasonsRouter);
+// Season 2 lead pipeline: capture, dated trail, stage gates (additive,
+// isolated). Deleting leads.ts means removing this line and its import.
+router.use(leadsRouter);
+// Season 2 pipeline stages 3-5: project (Gate B), payments, composed BRD
+// (Gate C). Deleting pipeline.ts means removing this line and its import.
+router.use(pipelineRouter);
+// Season 2 lead nudge / escalation / dormancy sweep (additive, isolated)
+router.use(cronLeadNudgesRouter);
+// WhatsApp broadcasts via Karix (additive, isolated). Super-admin only.
+// Deleting whatsapp.ts means removing this line and its import above.
+router.use(whatsappRouter);
+// Phase 6 trust ledger reads + coordinator adjustment (additive, isolated)
+router.use(trustRouter);
+// Phase 6 pricing categories + recognition caps (additive, isolated)
+router.use(pricingRouter);
+// Phase 6 time-based trust award sweep (additive, isolated)
+router.use(cronTrustAwardsRouter);
+// Phase 7 evaluation: assignment, decisions, appeals, audit (additive, isolated)
+router.use(reviewRouter);
 
 export default router;

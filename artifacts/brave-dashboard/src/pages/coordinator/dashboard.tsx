@@ -36,6 +36,7 @@ import {
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { HelpMenu } from "@/components/help-menu";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -305,6 +306,7 @@ export default function CoordinatorDashboard() {
                 Week of {coverage.currentWeek}
               </Badge>
             )}
+            <SeasonSwitcher />
             <HelpMenu inline />
             <NotificationsBell />
           </div>

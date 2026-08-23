@@ -23,6 +23,7 @@ import {
 } from "@workspace/db";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import { logger } from "../lib/logger";
+import { getActiveSeasonId } from "../lib/season";
 import { tryAcquireCronLock } from "../lib/cron-lock";
 import {
   resolvePreviousReportWeek,
@@ -214,9 +215,11 @@ async function runJournalEscalation(
   req: Request,
   res: Response,
 ): Promise<void> {
+  // A cron has no viewer, so this is always the ACTIVE season's toggle.
   const [cfg] = await db
     .select({ enabled: programmeConfigTable.escalationEnabled })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, await getActiveSeasonId()))
     .limit(1);
   if (cfg && cfg.enabled === false) {
     res.status(202).json({ ok: true, reason: "escalation_disabled" });

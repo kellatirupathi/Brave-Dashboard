@@ -8,6 +8,13 @@ export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
+/**
+ * Supplies the season the dashboard is currently viewing. Returning null means
+ * "don't send a season" — the server then falls back to the session's
+ * remembered choice, and failing that the active season.
+ */
+export type SeasonGetter = () => number | null;
+
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
@@ -17,6 +24,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _seasonGetter: SeasonGetter | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +50,21 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a getter for the season currently being viewed.
+ *
+ * Every request then carries `x-brave-season`, which is how the API knows
+ * whether to answer about Season 1 (the read-only archive) or the live season.
+ * Registering this once makes EVERY generated hook season-aware — there is no
+ * per-hook change and no regenerated client.
+ *
+ * Pass null to clear it, after which the server falls back to the session's
+ * remembered season.
+ */
+export function setSeasonGetter(getter: SeasonGetter | null): void {
+  _seasonGetter = getter;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -347,6 +370,14 @@ export async function customFetch<T = unknown>(
 
   if (responseType === "json" && !headers.has("accept")) {
     headers.set("accept", DEFAULT_JSON_ACCEPT);
+  }
+
+  // Attach the viewed season when a getter is configured and the caller has
+  // not set the header itself. An explicit per-call header always wins, so a
+  // one-off cross-season request stays possible.
+  if (_seasonGetter && !headers.has("x-brave-season")) {
+    const seasonId = _seasonGetter();
+    if (seasonId != null) headers.set("x-brave-season", String(seasonId));
   }
 
   // Attach bearer token when an auth getter is configured and no

@@ -360,3 +360,50 @@
     inset: -1px;
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   Installed-app behaviour (PWA + Capacitor APK).
+   Scoped to touch/standalone so the desktop dashboard is untouched.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  /* Grey flash on every tap reads as a web page, not an app. Components already
+     supply their own :active states. */
+  @media (hover: none) and (pointer: coarse) {
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Stop the whole page rubber-banding past its ends. Individual scroll
+       containers keep their own behaviour. */
+    html,
+    body {
+      overscroll-behavior-y: none;
+    }
+  }
+
+  /* Long-press text selection is useful in content but feels broken on chrome
+     that looks like native UI. */
+  nav[aria-label="Primary"],
+  [data-testid="nav-mobile-bottom"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Running as an installed app: the status bar area is ours to paint, so the
+     sticky top bar has to clear the notch itself. */
+  @media (display-mode: standalone) {
+    header.sticky {
+      padding-top: env(safe-area-inset-top, 0px);
+      height: calc(3.5rem + env(safe-area-inset-top, 0px));
+    }
+  }
+
+  /* Tables are the one thing that genuinely cannot reflow to a phone width;
+     let them scroll inside their own box rather than the page. */
+  @media (max-width: 640px) {
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+}

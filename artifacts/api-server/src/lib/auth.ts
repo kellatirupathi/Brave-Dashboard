@@ -19,6 +19,12 @@ export interface SessionData {
   // which terminates the upstream SSO session (forcing mobile+OTP on next
   // login). Absent for non-OIDC logins (password / dev).
   id_token?: string;
+  // Which season this viewer last selected in the dashboard (additive,
+  // optional). Absent for every pre-existing session, which resolves to the
+  // active season exactly as before. The `x-brave-season` request header still
+  // takes precedence, so a single request can look at another season without
+  // changing what the session remembers.
+  viewingSeasonId?: number;
 }
 
 // Builds the IdP RP-initiated logout (end-session) URL so the upstream SSO

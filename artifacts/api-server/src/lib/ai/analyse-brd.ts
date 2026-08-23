@@ -132,11 +132,13 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
     );
 
     // Programme start date drives the "payment must be on/after programme start"
-    // rule. Read from programme_config (singleton); fall back to 2026-04-15 if
-    // unset or malformed so the rule still applies for the current cohort.
+    // rule. Read from THIS ENTRY'S season, not the active one — a Season 1 entry
+    // must still be judged against Season 1's start date. Falls back to
+    // 2026-04-15 if unset or malformed so the rule still applies.
     const [cfg] = await db
       .select({ startDate: programmeConfigTable.startDate })
       .from(programmeConfigTable)
+      .where(eq(programmeConfigTable.seasonId, entry.seasonId))
       .limit(1);
     const programmeStartDate =
       cfg?.startDate && /^\d{4}-\d{2}-\d{2}$/.test(cfg.startDate)

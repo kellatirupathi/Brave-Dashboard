@@ -35,6 +35,11 @@ import Landing from "@/pages/marketing/landing";
 import TeamDashboard from "@/pages/student/dashboard";
 import ProjectsList from "@/pages/student/projects/list";
 import ProjectDetail from "@/pages/student/projects/detail";
+// Season 2 pipeline (additive — Season 1 keeps the Projects pages above).
+import LeadsList from "@/pages/student/leads/list";
+import LeadDetail from "@/pages/student/leads/detail";
+import LeadProject from "@/pages/student/leads/project";
+import LeadDelivery from "@/pages/student/leads/delivery";
 import Leaderboard from "@/pages/student/leaderboard";
 import TeamProfile from "@/pages/student/team";
 import GetStarted from "@/pages/student/get-started";
@@ -121,6 +126,9 @@ import { AccessGate } from "@/components/access-gate";
 import { TermsGate } from "@/components/terms-gate";
 import { PopupGate } from "@/components/popup-gate";
 import { GritIntroDialog } from "@/components/grit-intro-dialog";
+import { SeasonProvider } from "@/lib/season-context";
+import { InstallPrompt, UpdatePrompt } from "@/components/pwa-prompts";
+import { NativeAuthBridge } from "@/components/native-auth-bridge";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -392,6 +400,22 @@ function Router() {
             component={ProjectDetail}
             allowedRoles={["student"]}
           />
+        </Route>
+        {/* Season 2 pipeline. Additive routes — the Season 1 /projects routes
+            above are untouched, and the sidebar decides which of the two a
+            student is offered based on the season being viewed. The most
+            specific path must be declared first: wouter matches in order. */}
+        <Route path="/leads/:id/delivery/:projectId">
+          <ProtectedRoute component={LeadDelivery} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/leads/:id/project">
+          <ProtectedRoute component={LeadProject} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/leads/:id">
+          <ProtectedRoute component={LeadDetail} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/leads">
+          <ProtectedRoute component={LeadsList} allowedRoles={["student"]} />
         </Route>
         <Route path="/leaderboard">
           <ProtectedRoute component={Leaderboard} allowedRoles={["student"]} />
@@ -751,18 +775,31 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-          {/* Blocking student Terms & Conditions consent gate. Self-gates on
-              role + acceptance; covers the whole app via a portalled overlay. */}
-          <TermsGate />
-          {/* Admin-managed student pop-ups, shown one at a time after T&C.
-              Self-gates on role + terms + pending list. Separate from T&C. */}
-          <PopupGate />
-          {/* One-time GRIT Miles intro pop-up. Self-gates on role + terms +
-              dashboard route + a localStorage "seen" flag. Never blocking. */}
-          <GritIntroDialog />
-        </WouterRouter>
+        {/* Season 1 / Season 2 coexistence. Registers the season header with
+            the API client, so every request below is answered for whichever
+            season the viewer selected. Renders nothing itself. */}
+        <SeasonProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+            {/* Blocking student Terms & Conditions consent gate. Self-gates on
+                role + acceptance; covers the whole app via a portalled overlay. */}
+            <TermsGate />
+            {/* Admin-managed student pop-ups, shown one at a time after T&C.
+                Self-gates on role + terms + pending list. Separate from T&C. */}
+            <PopupGate />
+            {/* One-time GRIT Miles intro pop-up. Self-gates on role + terms +
+                dashboard route + a localStorage "seen" flag. Never blocking. */}
+            <GritIntroDialog />
+            {/* Installable-app prompts. Both self-gate: the install invite is
+                students-only and hidden once installed; the update banner
+                appears only when a new build has been deployed. */}
+            <InstallPrompt />
+            <UpdatePrompt />
+            {/* Catches the SSO deep link that carries the auth token back into
+                the APK. Renders nothing, and no-ops entirely on web. */}
+            <NativeAuthBridge />
+          </WouterRouter>
+        </SeasonProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

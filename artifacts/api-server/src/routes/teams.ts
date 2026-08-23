@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, sql, or, ne, inArray, notInArray } from "drizzle-orm";
+import { resolveSeason } from "../lib/season";
 import { getProjectClientCount } from "../lib/project-stats";
 import { requireAdminPage } from "../lib/require-admin-page";
 import {
@@ -76,7 +77,10 @@ function fullName(
   return `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
 }
 
-async function getTeamWithStats(teamId: number) {
+// Teams are SHARED across seasons, but their revenue / order book / project
+// figures are not. `seasonId` is required so no caller can silently report a
+// team's lifetime totals where a single season's were meant.
+async function getTeamWithStats(teamId: number, seasonId: number) {
   const [team] = await db
     .select()
     .from(teamsTable)
@@ -119,19 +123,31 @@ async function getTeamWithStats(teamId: number) {
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(revenueEntriesTable)
     .where(
-      and(eq(revenueEntriesTable.teamId, teamId), sql`status = 'verified'`),
+      and(
+        eq(revenueEntriesTable.teamId, teamId),
+        eq(revenueEntriesTable.seasonId, seasonId),
+        sql`status = 'verified'`,
+      ),
     );
   const [orderBookStats] = await db
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(orderBookEntriesTable)
     .where(
-      and(eq(orderBookEntriesTable.teamId, teamId), sql`status = 'verified'`),
+      and(
+        eq(orderBookEntriesTable.teamId, teamId),
+        eq(orderBookEntriesTable.seasonId, seasonId),
+        sql`status = 'verified'`,
+      ),
     );
   const [projectCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(projectsTable)
     .where(
-      and(eq(projectsTable.teamId, teamId), eq(projectsTable.status, "active")),
+      and(
+        eq(projectsTable.teamId, teamId),
+        eq(projectsTable.seasonId, seasonId),
+        eq(projectsTable.status, "active"),
+      ),
     );
   return {
     ...team,
@@ -283,6 +299,7 @@ router.get("/teams", async (req, res): Promise<void> => {
         .where(
           and(
             eq(projectsTable.teamId, team.id),
+            eq(projectsTable.seasonId, await resolveSeason(req)),
             eq(projectsTable.status, "active"),
           ),
         );
@@ -292,6 +309,7 @@ router.get("/teams", async (req, res): Promise<void> => {
         .where(
           and(
             eq(revenueEntriesTable.teamId, team.id),
+            eq(revenueEntriesTable.seasonId, await resolveSeason(req)),
             sql`status = 'verified'`,
           ),
         );
@@ -301,6 +319,7 @@ router.get("/teams", async (req, res): Promise<void> => {
         .where(
           and(
             eq(orderBookEntriesTable.teamId, team.id),
+            eq(orderBookEntriesTable.seasonId, await resolveSeason(req)),
             sql`status = 'verified'`,
           ),
         );
@@ -499,6 +518,9 @@ router.post("/teams", async (req, res): Promise<void> => {
       // identical to the legacy admin-approval flow it replaces.
       await tx.insert(milestonesTable).values({
         teamId: createdTeam.id,
+        // Teams are shared across seasons; the milestone is activity, so it
+        // belongs to the season being worked in.
+        seasonId: await resolveSeason(req),
         type: "auto",
         title: "Team Registered",
         description: "Your team is now active!",
@@ -521,7 +543,7 @@ router.post("/teams", async (req, res): Promise<void> => {
     return;
   }
 
-  const teamDetail = await getTeamWithStats(teamId);
+  const teamDetail = await getTeamWithStats(teamId, await resolveSeason(req));
   res.status(201).json(teamDetail);
 });
 
@@ -710,7 +732,7 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
     .where(eq(teamMembersTable.userId, req.user.id));
   if (existing) {
     if (existing.teamId === team.id) {
-      const detail = await getTeamWithStats(team.id);
+      const detail = await getTeamWithStats(team.id, await resolveSeason(req));
       res.json({ ...detail, projects: [] });
       return;
     }
@@ -784,7 +806,7 @@ router.post("/teams/join-by-code", async (req, res): Promise<void> => {
       );
     }
   }
-  const detail = await getTeamWithStats(team.id);
+  const detail = await getTeamWithStats(team.id, await resolveSeason(req));
   res.json({ ...detail, projects: [] });
 });
 
@@ -803,7 +825,7 @@ router.get("/teams/my", async (req, res): Promise<void> => {
     res.status(404).json({ error: "No team found" });
     return;
   }
-  const teamDetail = await getTeamWithStats(member.teamId);
+  const teamDetail = await getTeamWithStats(member.teamId, await resolveSeason(req));
   if (!teamDetail) {
     res.status(404).json({ error: "Team not found" });
     return;
@@ -811,7 +833,12 @@ router.get("/teams/my", async (req, res): Promise<void> => {
   const projects = await db
     .select()
     .from(projectsTable)
-    .where(eq(projectsTable.teamId, member.teamId));
+    .where(
+      and(
+        eq(projectsTable.teamId, member.teamId),
+        eq(projectsTable.seasonId, await resolveSeason(req)),
+      ),
+    );
   const projectsWithStats = await Promise.all(
     projects.map(async (p) => {
       const [revStats] = await db
@@ -855,7 +882,7 @@ router.get("/teams/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const teamDetail = await getTeamWithStats(params.data.id);
+  const teamDetail = await getTeamWithStats(params.data.id, await resolveSeason(req));
   if (!teamDetail) {
     res.status(404).json({ error: "Team not found" });
     return;
@@ -870,7 +897,12 @@ router.get("/teams/:id", async (req, res): Promise<void> => {
   const projects = await db
     .select()
     .from(projectsTable)
-    .where(eq(projectsTable.teamId, params.data.id));
+    .where(
+      and(
+        eq(projectsTable.teamId, params.data.id),
+        eq(projectsTable.seasonId, await resolveSeason(req)),
+      ),
+    );
   const projectsWithStats = await Promise.all(
     projects.map(async (p) => {
       const [revStats] = await db
@@ -963,7 +995,7 @@ router.patch(
         reason ?? JSON.stringify(updateData),
       );
     }
-    const teamData = await getTeamWithStats(team.id);
+    const teamData = await getTeamWithStats(team.id, await resolveSeason(req));
     res.json(teamData);
   },
 );
@@ -1014,6 +1046,10 @@ router.delete(
         // Leaders may only delete a team that has no submitted/verified entries
         // — preserves auditable financial history. Admins keep their wider
         // override (cascade everything).
+        //
+        // DELIBERATELY NOT season-scoped: teams are shared across seasons, so
+        // deleting one would orphan EVERY season's financial history. The guard
+        // must see entries from all seasons, not just the one being viewed.
         if (!isAdmin) {
           const [revHit] = await tx
             .select({ id: revenueEntriesTable.id })
@@ -1186,7 +1222,7 @@ router.post(
       team.id,
       parsed.data.reason,
     );
-    const teamData = await getTeamWithStats(team.id);
+    const teamData = await getTeamWithStats(team.id, await resolveSeason(req));
     res.json(teamData);
   },
 );
@@ -1239,7 +1275,7 @@ router.post(
       "team_changes_requested",
       "/team",
     );
-    const teamData = await getTeamWithStats(team.id);
+    const teamData = await getTeamWithStats(team.id, await resolveSeason(req));
     res.json(teamData);
   },
 );
@@ -1283,7 +1319,7 @@ router.post(
     await db
       .insert(teamMembersTable)
       .values({ teamId: params.data.id, userId: user.id });
-    const teamDetail = await getTeamWithStats(params.data.id);
+    const teamDetail = await getTeamWithStats(params.data.id, await resolveSeason(req));
     res.status(201).json({ ...teamDetail, projects: [] });
   },
 );
@@ -1421,7 +1457,7 @@ router.delete(
       "team_member_removed",
       "/",
     );
-    const teamDetail = await getTeamWithStats(params.data.id);
+    const teamDetail = await getTeamWithStats(params.data.id, await resolveSeason(req));
     res.json({ ...teamDetail, projects: [] });
   },
 );
@@ -1513,7 +1549,7 @@ router.post(
       "team_leadership_transferred",
       "/team",
     );
-    const teamDetail = await getTeamWithStats(params.data.id);
+    const teamDetail = await getTeamWithStats(params.data.id, await resolveSeason(req));
     res.json({ ...teamDetail, projects: [] });
   },
 );
@@ -1848,7 +1884,7 @@ router.post("/invitations/:id/accept", async (req, res): Promise<void> => {
       );
     }
   }
-  const detail = await getTeamWithStats(team.id);
+  const detail = await getTeamWithStats(team.id, await resolveSeason(req));
   res.json({ ...detail, projects: [] });
 });
 
@@ -2231,7 +2267,7 @@ router.post("/join-requests/:id/approve", async (req, res): Promise<void> => {
       );
     }
   }
-  const detail = await getTeamWithStats(team.id);
+  const detail = await getTeamWithStats(team.id, await resolveSeason(req));
   res.json({ ...detail, projects: [] });
 });
 

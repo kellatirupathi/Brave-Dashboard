@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, ilike, inArray, sql, and, or } from "drizzle-orm";
+import { resolveSeason } from "../lib/season";
 import * as XLSX from "xlsx";
 import {
   db,
@@ -172,8 +173,12 @@ async function createActiveTeam(args: {
   leaderUserId: string;
   memberUserIds: string[];
   actorUserId: string;
+  // Teams are shared across seasons; the "Team Registered" milestone created
+  // below is activity, so it needs the season the caller is working in.
+  seasonId: number;
 }): Promise<CreateOk | CreateErr> {
-  const { name, campusId, leaderUserId, memberUserIds, actorUserId } = args;
+  const { name, campusId, leaderUserId, memberUserIds, actorUserId, seasonId } =
+    args;
 
   // Verify campus exists
   const [campus] = await db
@@ -289,6 +294,7 @@ async function createActiveTeam(args: {
 
       await tx.insert(milestonesTable).values({
         teamId: team.id,
+        seasonId,
         type: "auto",
         title: "Team Registered",
         description: "Your team has been approved and is now active!",
@@ -355,6 +361,7 @@ router.post(
       leaderUserId: parsed.data.leaderUserId,
       memberUserIds,
       actorUserId: req.user.id,
+      seasonId: await resolveSeason(req),
     });
 
     if (!result.ok) {
@@ -484,6 +491,7 @@ router.post(
           leaderUserId,
           memberUserIds,
           actorUserId: req.user.id,
+          seasonId: await resolveSeason(req),
         });
 
         if (!result.ok) {
@@ -594,6 +602,8 @@ async function fetchExportRows(opts: {
   status?: string;
   search?: string;
   campusId?: number;
+  // Which season's revenue / order book / project figures to report.
+  seasonId: number;
 }): Promise<ExportRow[]> {
   // Build WHERE clause matching the existing /teams list behaviour:
   //  - status filter narrows to one team status (active / rejected / etc.)
@@ -649,14 +659,17 @@ async function fetchExportRows(opts: {
         SELECT SUM(COALESCE(re.verified_amount, 0))
         FROM revenue_entries re
         WHERE re.team_id = ${teamsTable.id} AND re.status = 'verified'
+          AND re.season_id = ${opts.seasonId}
       ), 0)`,
       team_verified_order_book: sql<string>`COALESCE((
         SELECT SUM(COALESCE(obe.verified_amount, 0))
         FROM order_book_entries obe
         WHERE obe.team_id = ${teamsTable.id} AND obe.status = 'verified'
+          AND obe.season_id = ${opts.seasonId}
       ), 0)`,
       team_projects_count: sql<string>`(
-        SELECT COUNT(*) FROM projects p WHERE p.team_id = ${teamsTable.id}
+        SELECT COUNT(*) FROM projects p
+        WHERE p.team_id = ${teamsTable.id} AND p.season_id = ${opts.seasonId}
       )`,
     })
     .from(teamsTable)
@@ -773,7 +786,13 @@ function inAppBrdLink(objectPath: string, origin: string): string {
 }
 
 async function fetchTeamProjectsRows(
-  opts: { status?: string; search?: string; campusId?: number },
+  // Forwarded wholesale to fetchExportRows, so seasonId travels with it.
+  opts: {
+    status?: string;
+    search?: string;
+    campusId?: number;
+    seasonId: number;
+  },
   origin: string,
 ): Promise<TeamProjectsRow[]> {
   // Reuse the member-level export to get the exact same team set (same filters,
@@ -809,7 +828,12 @@ async function fetchTeamProjectsRows(
       status: projectsTable.status,
     })
     .from(projectsTable)
-    .where(inArray(projectsTable.teamId, teamOrder))
+    .where(
+      and(
+        inArray(projectsTable.teamId, teamOrder),
+        eq(projectsTable.seasonId, opts.seasonId),
+      ),
+    )
     .orderBy(projectsTable.teamId, projectsTable.id);
 
   const projectsByTeam = new Map<number, typeof projectRows>();
@@ -1293,7 +1317,12 @@ router.post(
         total: sql<number>`coalesce(sum(case when status = 'verified' then coalesce(verified_amount, 0) else 0 end), 0)`,
       })
       .from(revenueEntriesTable)
-      .where(inArray(revenueEntriesTable.teamId, dupTeamIds))
+      .where(
+        and(
+          inArray(revenueEntriesTable.teamId, dupTeamIds),
+          eq(revenueEntriesTable.seasonId, await resolveSeason(req)),
+        ),
+      )
       .groupBy(revenueEntriesTable.teamId);
     const revByTeam = new Map(revRows.map((r) => [r.teamId, Number(r.total)]));
 
@@ -1303,7 +1332,12 @@ router.post(
         count: sql<number>`count(*)::int`,
       })
       .from(weeklyJournalsTable)
-      .where(inArray(weeklyJournalsTable.teamId, dupTeamIds))
+      .where(
+        and(
+          inArray(weeklyJournalsTable.teamId, dupTeamIds),
+          eq(weeklyJournalsTable.seasonId, await resolveSeason(req)),
+        ),
+      )
       .groupBy(weeklyJournalsTable.teamId);
     const jrnByTeam = new Map(jrnRows.map((r) => [r.teamId, Number(r.count)]));
 
@@ -1472,6 +1506,7 @@ router.get(
           ? Number(req.query.campusId)
           : undefined;
       const rows = await fetchExportRows({
+        seasonId: await resolveSeason(req),
         status:
           typeof req.query.status === "string" ? req.query.status : undefined,
         search:
@@ -1530,6 +1565,7 @@ router.get(
           ? Number(req.query.campusId)
           : undefined;
       const rows = await fetchExportRows({
+        seasonId: await resolveSeason(req),
         status:
           typeof req.query.status === "string" ? req.query.status : undefined,
         search:
@@ -1600,6 +1636,7 @@ router.get(
         const origin = `${req.protocol}://${req.get("host") ?? ""}`;
         const teamProjectRows = await fetchTeamProjectsRows(
           {
+            seasonId: await resolveSeason(req),
             status:
               typeof req.query.status === "string"
                 ? req.query.status

@@ -48,6 +48,11 @@ declare global {
       isAuthenticated(): this is AuthedRequest;
 
       user?: User | undefined;
+
+      // Season this viewer last selected, lifted off the session so
+      // resolveSeason() can read it without re-fetching the session row.
+      // Undefined for sessions predating the seasons feature.
+      viewingSeasonId?: number | undefined;
     }
 
     export interface AuthedRequest {
@@ -110,6 +115,7 @@ export async function authMiddleware(
   }
 
   req.user = refreshed.user;
+  req.viewingSeasonId = refreshed.viewingSeasonId;
   bumpLastSeen(refreshed.user.id);
   next();
 }

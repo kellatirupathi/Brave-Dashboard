@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brave-Red. The adaptive foreground draws only the white B and amber
+         dot, so this is what fills the launcher's mask shape behind it. -->
+    <color name="ic_launcher_background">#C0392B</color>
+</resources>

@@ -128,6 +128,11 @@ function isRemovalType(type: MembershipRequestType): boolean {
 }
 
 // True when a team has at least one verified ("approved") revenue entry.
+//
+// DELIBERATELY NOT season-scoped. This gates whether a membership change needs
+// admin approval, and the thing it protects is revenue ATTRIBUTION history. A
+// team that earned verified revenue in Season 1 must still be protected when a
+// member tries to leave during Season 2.
 export async function teamHasVerifiedRevenue(teamId: number): Promise<boolean> {
   const [row] = await db
     .select({ n: sql<number>`count(*)` })

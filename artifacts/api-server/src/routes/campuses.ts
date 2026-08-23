@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, sql } from "drizzle-orm";
+import { resolveSeason } from "../lib/season";
 import {
   db,
   campusesTable,
@@ -63,6 +64,8 @@ router.get("/campuses", async (req, res): Promise<void> => {
     arr.push({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() });
     coordinatorsByCampus.set(u.campusId, arr);
   }
+  // Resolved once outside the per-campus map so all rows agree on the season.
+  const campusSeason = await resolveSeason(req);
   const result = await Promise.all(
     campuses.map(async (campus) => {
       const [teamStats] = await db
@@ -73,8 +76,10 @@ router.get("/campuses", async (req, res): Promise<void> => {
           // it has both, so this stays <= totalTeams. (Team.status is always
           // 'active' on creation, so it is meaningless.)
           activeTeams: sql<number>`count(*) filter (where
-            exists (select 1 from weekly_journals wj where wj.team_id = ${teamsTable.id})
-            or exists (select 1 from projects p where p.team_id = ${teamsTable.id})
+            exists (select 1 from weekly_journals wj
+                     where wj.team_id = ${teamsTable.id} and wj.season_id = ${campusSeason})
+            or exists (select 1 from projects p
+                     where p.team_id = ${teamsTable.id} and p.season_id = ${campusSeason})
           )`,
         })
         .from(teamsTable)
@@ -85,7 +90,9 @@ router.get("/campuses", async (req, res): Promise<void> => {
         })
         .from(revenueEntriesTable)
         .where(
-          sql`team_id in (select id from teams where campus_id = ${campus.id}) and status = 'verified'`,
+          sql`team_id in (select id from teams where campus_id = ${campus.id})
+              and season_id = ${campusSeason}
+              and status = 'verified'`,
         );
       const coordinators = orderCoordinators(
         coordinatorsByCampus.get(campus.id) ?? [],

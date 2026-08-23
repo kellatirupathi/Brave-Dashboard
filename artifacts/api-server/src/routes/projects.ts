@@ -21,6 +21,8 @@ import {
 import { createNotification } from "../lib/notifications";
 import { logAudit } from "../lib/audit";
 import { requireTeamLeader } from "../lib/auth";
+import { resolveSeason } from "../lib/season";
+import { requireWritableSeason } from "../middlewares/seasonGuard";
 import { getProjectClientCount } from "../lib/project-stats";
 import { requireAdminPage } from "../lib/require-admin-page";
 
@@ -239,14 +241,15 @@ router.get("/projects", async (req, res): Promise<void> => {
     if (orFilter) conditions.push(orFilter);
   }
 
-  const projects =
-    conditions.length > 0
-      ? await db
-          .select()
-          .from(projectsTable)
-          .where(and(...conditions))
-          .orderBy(projectsTable.createdAt)
-      : await db.select().from(projectsTable).orderBy(projectsTable.createdAt);
+  // The season predicate is unconditional, so the ternary collapses: there is
+  // no longer a branch that reads every season's projects at once.
+  const projects = await db
+    .select()
+    .from(projectsTable)
+    .where(
+      and(eq(projectsTable.seasonId, await resolveSeason(req)), ...conditions),
+    )
+    .orderBy(projectsTable.createdAt);
 
   // Bulk-load the per-project aggregates (team name, verified revenue / order
   // book, and the derived revenue review status) for EVERY matching project in
@@ -383,7 +386,7 @@ router.get("/projects", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/projects", async (req, res): Promise<void> => {
+router.post("/projects", requireWritableSeason("project"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -412,18 +415,32 @@ router.post("/projects", async (req, res): Promise<void> => {
   if (!(await requireTeamLeader(req, res, effectiveTeamId))) {
     return;
   }
+  const season = await resolveSeason(req);
   const [project] = await db
     .insert(projectsTable)
-    .values({ ...parsed.data, teamId: effectiveTeamId, createdBy: req.user.id })
+    .values({
+      ...parsed.data,
+      teamId: effectiveTeamId,
+      createdBy: req.user.id,
+      seasonId: season,
+    })
     .returning();
   // Check if first project
   const [projectCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(projectsTable)
-    .where(eq(projectsTable.teamId, effectiveTeamId));
+    // Per season: a team that built projects in Season 1 should still earn
+    // "First Project Created" for its first Season 2 project.
+    .where(
+      and(
+        eq(projectsTable.teamId, effectiveTeamId),
+        eq(projectsTable.seasonId, season),
+      ),
+    );
   if (Number(projectCount?.count ?? 0) === 1) {
     await db.insert(milestonesTable).values({
       teamId: effectiveTeamId,
+      seasonId: season,
       type: "auto",
       title: "First Project Created",
       description: `First project: "${project.title}"`,
@@ -736,6 +753,8 @@ async function fetchProjectExportRows(opts: {
   status?: string;
   search?: string;
   campusId?: number;
+  // Which season's projects and figures to report.
+  seasonId: number;
 }): Promise<ProjectExportRow[]> {
   // Single SQL with aggregate sub-selects for revenue / order book stats and
   // distinct client counts. Same shape the dashboard uses (dashboard.ts).
@@ -810,6 +829,7 @@ async function fetchProjectExportRows(opts: {
         COUNT(*)                                                AS entry_count,
         COUNT(DISTINCT NULLIF(TRIM(client_name), ''))           AS client_count
       FROM revenue_entries
+      WHERE season_id = ${opts.seasonId}
       GROUP BY project_id
     ) rev ON rev.project_id = p.id
     LEFT JOIN (
@@ -818,12 +838,15 @@ async function fetchProjectExportRows(opts: {
         SUM(CASE WHEN status = 'verified' THEN COALESCE(verified_amount, 0) ELSE 0 END) AS verified_amount,
         COUNT(*)                                                AS entry_count
       FROM order_book_entries
+      WHERE season_id = ${opts.seasonId}
       GROUP BY project_id
     ) ob ON ob.project_id = p.id
     LEFT JOIN (
-      SELECT team_id, COUNT(*) AS cnt FROM projects GROUP BY team_id
+      SELECT team_id, COUNT(*) AS cnt FROM projects
+      WHERE season_id = ${opts.seasonId}
+      GROUP BY team_id
     ) tpc ON tpc.team_id = t.id
-    WHERE TRUE
+    WHERE p.season_id = ${opts.seasonId}
       ${statusClause}
       ${campusClause}
       ${searchClause}
@@ -900,6 +923,7 @@ router.get(
           ? Number(req.query.campusId)
           : undefined;
       const rows = await fetchProjectExportRows({
+        seasonId: await resolveSeason(req),
         status:
           typeof req.query.status === "string" ? req.query.status : undefined,
         search:
@@ -953,6 +977,7 @@ router.get(
           ? Number(req.query.campusId)
           : undefined;
       const rows = await fetchProjectExportRows({
+        seasonId: await resolveSeason(req),
         status:
           typeof req.query.status === "string" ? req.query.status : undefined,
         search:

@@ -12,6 +12,9 @@ import {
 } from "./ui/sheet";
 import { Chatbot } from "./chatbot";
 import { PcaVoteBanner } from "./pca-vote-banner";
+import { SeasonArchiveBanner } from "./season-archive-banner";
+import { MobileNav } from "./mobile-nav";
+import { OfflineBanner } from "./offline-banner";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -56,12 +59,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
 
+        {/* Connectivity notice. Self-gates: renders nothing while online. */}
+        <OfflineBanner />
+
         {/* People's Choice Award nudge — sits above every page's content and
             self-gates (renders nothing unless voting is open, this student is
             eligible, and they haven't voted). */}
         <PcaVoteBanner />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
+        {/* Read-only notice while an archived season is being viewed. Self-gates
+            (renders nothing for the live season), so every page inherits it. */}
+        <SeasonArchiveBanner />
+
+        {/* pb-20 on small screens clears the fixed bottom nav; lg:pb-8 puts
+            the normal padding back where that nav is not rendered. */}
+        <main className="flex-1 p-4 pb-20 sm:p-6 sm:pb-20 lg:p-8 lg:pb-8 overflow-x-hidden">
           {children}
         </main>
       </div>
@@ -71,6 +83,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Floating BRAVE assistant chatbot — visible to all logged-in users. */}
       <Chatbot variant="light" />
+
+      {/* Thumb-reach bottom navigation. Self-gates on role + breakpoint, so it
+          renders nothing for staff or on desktop. */}
+      <MobileNav />
     </div>
   );
 }

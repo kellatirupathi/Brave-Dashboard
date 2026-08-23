@@ -12,7 +12,9 @@
 //   GET  /api/admin/demo-day/submissions     admin   → list all (enriched)
 //   PATCH /api/admin/demo-day/submissions/:id admin  → shortlist/reject + note
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, sql, desc } from "drizzle-orm";
+import { and, eq, sql, desc } from "drizzle-orm";
+import { resolveSeason } from "../lib/season";
+import { requireWritableSeason } from "../middlewares/seasonGuard";
 import {
   db,
   demoDaySubmissionsTable,
@@ -43,7 +45,9 @@ async function enrich(row: typeof demoDaySubmissionsTable.$inferSelect) {
   const [rev] = await db
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(revenueEntriesTable)
-    .where(sql`team_id = ${row.teamId} and status = 'verified'`);
+    .where(
+      sql`team_id = ${row.teamId} and season_id = ${row.seasonId} and status = 'verified'`,
+    );
   return {
     ...row,
     teamName: team?.name ?? `Team #${row.teamId}`,
@@ -87,6 +91,7 @@ router.get(
 // ── Student: create or update (upsert per team) ────────────────────────────
 router.post(
   "/demo-day/submission",
+  requireWritableSeason(),
   async (req: Request, res: Response): Promise<void> => {
     if (!req.isAuthenticated()) {
       res.status(401).json({ error: "Unauthorized" });
@@ -109,10 +114,18 @@ router.post(
     const projectId =
       typeof req.body?.projectId === "number" ? req.body.projectId : null;
 
+    const season = await resolveSeason(req);
+    // Scoped to match the widened unique(team_id, season_id): a team that
+    // submitted in Season 1 must still be able to submit in Season 2.
     const [existing] = await db
       .select()
       .from(demoDaySubmissionsTable)
-      .where(eq(demoDaySubmissionsTable.teamId, teamId));
+      .where(
+        and(
+          eq(demoDaySubmissionsTable.teamId, teamId),
+          eq(demoDaySubmissionsTable.seasonId, season),
+        ),
+      );
 
     let row: typeof demoDaySubmissionsTable.$inferSelect;
     if (existing) {
@@ -134,6 +147,7 @@ router.post(
         .insert(demoDaySubmissionsTable)
         .values({
           teamId,
+          seasonId: season,
           title,
           description,
           link,

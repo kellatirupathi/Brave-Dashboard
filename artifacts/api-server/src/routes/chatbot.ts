@@ -2,6 +2,8 @@ import { Router, type IRouter, type Request } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { db, programmeConfigTable, chatbotHistoryTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { getActiveSeasonId } from "../lib/season";
 // Knowledge base is bundled at build time via esbuild's text loader, so the
 // runtime cwd does not matter and the file cannot silently go missing in dist/.
 import braveKnowledge from "../../../../brave-knowledge.txt";
@@ -377,9 +379,11 @@ async function getActiveProvider(): Promise<"cloudflare" | "cerebras"> {
     return cachedProvider;
   }
   try {
+    // Infra-level setting with no viewer, so it follows the ACTIVE season.
     const [row] = await db
       .select({ provider: programmeConfigTable.chatbotProvider })
       .from(programmeConfigTable)
+      .where(eq(programmeConfigTable.seasonId, await getActiveSeasonId()))
       .limit(1);
     cachedProvider = row?.provider ?? "cloudflare";
   } catch {

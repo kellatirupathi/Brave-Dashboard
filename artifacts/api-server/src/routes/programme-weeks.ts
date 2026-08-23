@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import {
   db,
   programmeWeeksTable,
@@ -9,6 +9,11 @@ import {
 import { z } from "zod/v4";
 import { requireAdminPage } from "../lib/require-admin-page";
 import {
+  getActiveSeasonId,
+  getConfig,
+  resolveSeason,
+} from "../lib/season";
+import {
   EMAIL_CATEGORIES,
   getEmailControls,
   invalidateEmailControlsCache,
@@ -17,18 +22,21 @@ import {
 /**
  * Helper used by Module 5 cron and the heatmap manual-remind endpoint to
  * decide whether a given channel is enabled for the reminder service.
- * Returns all three flags from the singleton programme_config row,
+ * Returns all three flags from a season’s programme_config row,
  * defaulting to enabled when no row exists yet.
  *
  * - notificationsEnabled: in-app notifications to *students*
  * - emailsEnabled:        Brevo emails to *students*
  * - coordinatorNotificationsEnabled: in-app pings to coordinators (day-7 only)
  */
-export async function getReminderSettings(): Promise<{
+// `seasonId` omitted means the ACTIVE season, which is what the reminder crons
+// want. Request handlers should pass `await resolveSeason(req)`.
+export async function getReminderSettings(seasonId?: number): Promise<{
   notificationsEnabled: boolean;
   emailsEnabled: boolean;
   coordinatorNotificationsEnabled: boolean;
 }> {
+  const season = seasonId ?? (await getActiveSeasonId());
   const [config] = await db
     .select({
       notificationsEnabled: programmeConfigTable.reminderNotificationsEnabled,
@@ -37,6 +45,7 @@ export async function getReminderSettings(): Promise<{
         programmeConfigTable.coordinatorNotificationsEnabled,
     })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, season))
     .limit(1);
   return {
     notificationsEnabled: config?.notificationsEnabled ?? true,
@@ -50,10 +59,14 @@ export async function getReminderSettings(): Promise<{
  * Returns whether students are allowed to edit/delete past-week journals.
  * Defaults to false (read-only past weeks for students) when no config row.
  */
-export async function getAllowPastWeekEdits(): Promise<boolean> {
+export async function getAllowPastWeekEdits(
+  seasonId?: number,
+): Promise<boolean> {
+  const season = seasonId ?? (await getActiveSeasonId());
   const [config] = await db
     .select({ allow: programmeConfigTable.allowPastWeekEdits })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, season))
     .limit(1);
   return config?.allow ?? false;
 }
@@ -83,13 +96,23 @@ function todayIso(): string {
  * - Otherwise we recompute isOpen = (startDate <= today).
  * - Removes any weeks that no longer fit between the new start and end dates.
  */
-export async function regenerateProgrammeWeeks(): Promise<{
+export async function regenerateProgrammeWeeks(seasonId?: number): Promise<{
   created: number;
   updated: number;
   removed: number;
   total: number;
 }> {
-  const [config] = await db.select().from(programmeConfigTable).limit(1);
+  // SCOPED TO ONE SEASON, and that is load-bearing. Week numbers repeat across
+  // seasons, so an unscoped run would match Season 1's "week 1" against
+  // Season 2's dates and then DELETE every Season 1 week whose number falls
+  // outside Season 2's range (S1 ran 14 weeks, S2 runs 12). That would orphan
+  // Season 1 journals. Every read, write and delete below is filtered.
+  const season = seasonId ?? (await getActiveSeasonId());
+  const [config] = await db
+    .select()
+    .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, season))
+    .limit(1);
   if (!config) {
     return { created: 0, updated: 0, removed: 0, total: 0 };
   }
@@ -99,7 +122,10 @@ export async function regenerateProgrammeWeeks(): Promise<{
     return { created: 0, updated: 0, removed: 0, total: 0 };
   }
 
-  const existing = await db.select().from(programmeWeeksTable);
+  const existing = await db
+    .select()
+    .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, season));
   const existingByNum = new Map(existing.map((w) => [w.weekNumber, w]));
   const today = todayIso();
 
@@ -128,6 +154,7 @@ export async function regenerateProgrammeWeeks(): Promise<{
     const prior = existingByNum.get(w.weekNumber);
     if (!prior) {
       await db.insert(programmeWeeksTable).values({
+        seasonId: season,
         weekNumber: w.weekNumber,
         startDate: w.startDate,
         endDate: w.endDate,
@@ -175,12 +202,20 @@ export async function regenerateProgrammeWeeks(): Promise<{
  * Auto-open weeks whose startDate has arrived. Admin's manual overrides
  * are respected (skipped). Returns count of weeks flipped.
  */
-export async function autoOpenDueWeeks(): Promise<number> {
+// Scoped to one season (default: the active one) so an archived season's weeks
+// are never re-opened by the scheduler.
+export async function autoOpenDueWeeks(seasonId?: number): Promise<number> {
   const today = todayIso();
+  const season = seasonId ?? (await getActiveSeasonId());
   const all = await db
     .select()
     .from(programmeWeeksTable)
-    .where(eq(programmeWeeksTable.manualOverride, false));
+    .where(
+      and(
+        eq(programmeWeeksTable.seasonId, season),
+        eq(programmeWeeksTable.manualOverride, false),
+      ),
+    );
   let flipped = 0;
   for (const w of all) {
     const shouldBeOpen = w.startDate <= today;
@@ -374,15 +409,12 @@ router.patch(
       return;
     }
 
-    // Ensure a programme_config row exists.
-    let configs = await db.select().from(programmeConfigTable).limit(1);
-    if (configs.length === 0) {
-      const [created] = await db
-        .insert(programmeConfigTable)
-        .values({})
-        .returning();
-      configs = [created];
-    }
+    // Reminders, journal-edit permission and the email kill switches are
+    // OPERATIONAL settings for the season that is actually running — the crons
+    // that consume them have no viewer. So this page always reads and writes the
+    // ACTIVE season's row, never the one the admin happens to be browsing.
+    // getEmailControls() reads the same row for the same reason.
+    const configs = [await getConfig(await getActiveSeasonId())];
 
     const update: Partial<typeof programmeConfigTable.$inferInsert> = {};
     if (parsed.data.notificationsEnabled !== undefined) {

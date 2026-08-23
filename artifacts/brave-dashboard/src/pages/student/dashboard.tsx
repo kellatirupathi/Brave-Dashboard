@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { HelpMenu } from "@/components/help-menu";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SubmitAsapBanner } from "@/components/projects-lock-banner";
 import { getLeaderboardConfig } from "@/lib/leaderboard-config-api";
@@ -335,6 +336,7 @@ export default function TeamDashboard() {
                   Demo Day Eligible
                 </Badge>
               )}
+              <SeasonSwitcher />
               <HelpMenu inline />
               <NotificationsBell />
             </div>

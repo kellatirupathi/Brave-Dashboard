@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
+import { resolveSeason } from "../lib/season";
+import { requireWritableSeason } from "../middlewares/seasonGuard";
 import {
   db,
   demoDayApplicationsTable,
@@ -28,7 +30,11 @@ async function enrichApplication(
   const [revStats] = await db
     .select({ total: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(revenueEntriesTable)
-    .where(sql`team_id = ${app.teamId} and status = 'verified'`);
+    // The application's own season, so an archived application keeps showing
+    // the revenue it was actually judged on.
+    .where(
+      sql`team_id = ${app.teamId} and season_id = ${app.seasonId} and status = 'verified'`,
+    );
   return {
     ...app,
     teamName: team?.name ?? "",
@@ -60,7 +66,7 @@ router.get("/demo-day/application", async (req, res): Promise<void> => {
   res.json(await enrichApplication(app));
 });
 
-router.post("/demo-day/application", async (req, res): Promise<void> => {
+router.post("/demo-day/application", requireWritableSeason(), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -83,6 +89,7 @@ router.post("/demo-day/application", async (req, res): Promise<void> => {
     .values({
       ...parsed.data,
       teamId: member.teamId,
+      seasonId: await resolveSeason(req),
       status: "draft",
       submittedAt: new Date(),
     })
@@ -90,7 +97,7 @@ router.post("/demo-day/application", async (req, res): Promise<void> => {
   res.status(201).json(await enrichApplication(app));
 });
 
-router.patch("/demo-day/application", async (req, res): Promise<void> => {
+router.patch("/demo-day/application", requireWritableSeason(), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;

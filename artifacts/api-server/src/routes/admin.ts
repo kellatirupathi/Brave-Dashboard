@@ -42,6 +42,7 @@ import {
   UpdateAccessRequestParams,
 } from "@workspace/api-zod";
 import { logAudit } from "../lib/audit";
+import { getActiveSeasonId, getConfig, resolveSeason } from "../lib/season";
 import { requireAdminPage } from "../lib/require-admin-page";
 import {
   shapeMembershipRequest,
@@ -1074,9 +1075,12 @@ router.get("/admin/leaderboard-export", async (req, res): Promise<void> => {
     return;
   }
 
+  // Export reflects the season being viewed.
+  const season = await resolveSeason(req);
   const [config] = await db
     .select({ threshold: programmeConfigTable.demoEligibilityThreshold })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, season))
     .limit(1);
   const threshold = config?.threshold ?? 200000;
 
@@ -1098,19 +1102,19 @@ router.get("/admin/leaderboard-export", async (req, res): Promise<void> => {
     LEFT JOIN (
       SELECT team_id, SUM(verified_amount) AS total
       FROM revenue_entries
-      WHERE status = 'verified'
+      WHERE status = 'verified' AND season_id = ${season}
       GROUP BY team_id
     ) rev ON rev.team_id = t.id
     LEFT JOIN (
       SELECT team_id, SUM(verified_amount) AS total
       FROM order_book_entries
-      WHERE status = 'verified'
+      WHERE status = 'verified' AND season_id = ${season}
       GROUP BY team_id
     ) ob ON ob.team_id = t.id
     LEFT JOIN (
       SELECT team_id, COUNT(*) AS active_count
       FROM projects
-      WHERE status = 'active'
+      WHERE status = 'active' AND season_id = ${season}
       GROUP BY team_id
     ) p ON p.team_id = t.id
     WHERE t.status = 'active'
@@ -1370,15 +1374,9 @@ router.get("/admin/programme-config", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  let configs = await db.select().from(programmeConfigTable).limit(1);
-  if (configs.length === 0) {
-    const [config] = await db
-      .insert(programmeConfigTable)
-      .values({})
-      .returning();
-    configs = [config];
-  }
-  res.json(configs[0]);
+  // The config of the season being viewed, created on first access. An admin
+  // looking at Season 1 sees Season 1's settings, not the live season's.
+  res.json(await getConfig(await resolveSeason(req)));
 });
 
 router.patch(
@@ -1394,22 +1392,14 @@ router.patch(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    let configs = await db.select().from(programmeConfigTable).limit(1);
-    let config;
-    if (configs.length === 0) {
-      [config] = await db
-        .insert(programmeConfigTable)
-        .values(
-          parsed.data as Partial<typeof programmeConfigTable.$inferInsert>,
-        )
-        .returning();
-    } else {
-      [config] = await db
-        .update(programmeConfigTable)
-        .set(parsed.data as Partial<typeof programmeConfigTable.$inferInsert>)
-        .where(eq(programmeConfigTable.id, configs[0].id))
-        .returning();
-    }
+    // Edit the viewed season's row. getConfig creates it if this is the first
+    // touch, so the update below always has a row to target.
+    const existing = await getConfig(await resolveSeason(req));
+    const [config] = await db
+      .update(programmeConfigTable)
+      .set(parsed.data as Partial<typeof programmeConfigTable.$inferInsert>)
+      .where(eq(programmeConfigTable.id, existing.id))
+      .returning();
     await logAudit(
       req.user.id,
       "update_programme_config",
@@ -1432,9 +1422,13 @@ router.get("/admin/chatbot-provider", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  // Infra-level setting: the chatbot itself always reads the ACTIVE season, so
+  // this admin view must read the same row or the toggle would appear to do
+  // nothing while an admin is viewing an archived season.
   const [row] = await db
     .select({ provider: programmeConfigTable.chatbotProvider })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, await getActiveSeasonId()))
     .limit(1);
   res.json({ provider: row?.provider ?? "cloudflare" });
 });
@@ -1454,22 +1448,15 @@ router.patch(
     }
     const newProvider = parsed.data.provider;
 
-    let configs = await db.select().from(programmeConfigTable).limit(1);
-    const oldProvider = configs[0]?.chatbotProvider ?? "cloudflare";
+    // Writes to the ACTIVE season's row — the one the chatbot reads.
+    const existing = await getConfig(await getActiveSeasonId());
+    const oldProvider = existing.chatbotProvider ?? "cloudflare";
 
-    let config;
-    if (configs.length === 0) {
-      [config] = await db
-        .insert(programmeConfigTable)
-        .values({ chatbotProvider: newProvider })
-        .returning();
-    } else {
-      [config] = await db
-        .update(programmeConfigTable)
-        .set({ chatbotProvider: newProvider })
-        .where(eq(programmeConfigTable.id, configs[0].id))
-        .returning();
-    }
+    const [config] = await db
+      .update(programmeConfigTable)
+      .set({ chatbotProvider: newProvider })
+      .where(eq(programmeConfigTable.id, existing.id))
+      .returning();
 
     invalidateChatbotProviderCache();
 
@@ -2660,6 +2647,7 @@ router.post("/admin/test-email", async (req, res): Promise<void> => {
 // by teamId; teams with no activity get an all-zero entry.
 async function computeMembershipTeamStats(
   teamIds: number[],
+  seasonId: number,
 ): Promise<Map<number, MembershipTeamStats>> {
   const map = new Map<number, MembershipTeamStats>();
   const unique = Array.from(new Set(teamIds));
@@ -2682,7 +2670,12 @@ async function computeMembershipTeamStats(
       rejected: sql<number>`count(*) filter (where ${revenueEntriesTable.status} = 'rejected')`,
     })
     .from(revenueEntriesTable)
-    .where(inArray(revenueEntriesTable.teamId, unique))
+    .where(
+      and(
+        inArray(revenueEntriesTable.teamId, unique),
+        eq(revenueEntriesTable.seasonId, seasonId),
+      ),
+    )
     .groupBy(revenueEntriesTable.teamId);
   for (const r of rev) {
     const s = map.get(r.teamId);
@@ -2700,7 +2693,12 @@ async function computeMembershipTeamStats(
       count: sql<number>`count(*)`,
     })
     .from(projectsTable)
-    .where(inArray(projectsTable.teamId, unique))
+    .where(
+      and(
+        inArray(projectsTable.teamId, unique),
+        eq(projectsTable.seasonId, seasonId),
+      ),
+    )
     .groupBy(projectsTable.teamId);
   for (const p of proj) {
     const s = map.get(p.teamId);
@@ -2754,6 +2752,7 @@ router.get("/admin/membership-requests", async (req, res): Promise<void> => {
   // Enrich each card with its team's activity snapshot (batched — no N+1).
   const statsByTeam = await computeMembershipTeamStats(
     shaped.map((s) => s.teamId),
+    await resolveSeason(req),
   );
   for (const s of shaped) {
     s.teamStats = statsByTeam.get(s.teamId) ?? null;

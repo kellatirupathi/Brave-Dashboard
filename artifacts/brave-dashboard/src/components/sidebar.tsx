@@ -17,6 +17,7 @@ import {
   Building2,
   Settings,
   FolderKanban,
+  Handshake,
   Award,
   LogOut,
   CheckSquare,
@@ -39,6 +40,7 @@ import {
   Sparkles,
   Inbox,
   Vote,
+  Lock,
 } from "lucide-react";
 
 // Student documentation guide (opens in a new tab from the sidebar bottom).
@@ -49,6 +51,7 @@ import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { getFinaleMe } from "@/lib/finale-api";
 import { cn } from "@/lib/utils";
+import { useSeason } from "@/lib/season-context";
 import { BraveLogo } from "./brave-logo";
 import {
   AlertDialog,
@@ -79,6 +82,11 @@ type NavLeaf = {
   // When true, render a small shining "NEW" badge to draw attention to a newly
   // launched section (e.g. GRIT Miles, Demo Day).
   isNew?: boolean;
+  // Which write capability this section needs. When the viewed season is a
+  // read-only archive and that capability is not re-opened, the entry gets a
+  // padlock. The page itself stays reachable — students should still be able
+  // to READ their archived work, which is the whole point of keeping it.
+  writes?: "journal" | "revenue" | "project";
 };
 type NavGroup = {
   name: string;
@@ -91,6 +99,24 @@ type NavItem = NavLeaf | NavGroup;
 
 function isGroup(item: NavItem): item is NavGroup {
   return (item as NavGroup).children !== undefined;
+}
+
+/**
+ * Padlock shown beside a nav entry whose section is read-only in the season
+ * being viewed. Deliberately not a disabled link: the page still opens, it
+ * just cannot be written to, and the server enforces that independently.
+ */
+function ArchiveLock({ name }: { name: string }) {
+  return (
+    <span
+      title="Read-only in this season"
+      aria-label="Read-only in this season"
+      data-testid={`sidebar-archive-lock-${name}`}
+      className="inline-flex shrink-0"
+    >
+      <Lock className="h-3 w-3 opacity-50" aria-hidden="true" />
+    </span>
+  );
 }
 
 /** The shining "NEW" badge shared by leaf links and group triggers. */
@@ -228,6 +254,51 @@ function GroupFlyout({
  * mobile Sheet drawer. Pass `onNavigate` so mobile callers can close the
  * drawer when a link is clicked.
  */
+/**
+ * The "1.0" / "2.0" pill under the wordmark. Shown for every role.
+ *
+ * Renders the previous static label until the season list resolves, so the
+ * sidebar header never flickers between two different strings.
+ */
+function SeasonBadge() {
+  const { viewing, isLoading } = useSeason();
+
+  if (isLoading || !viewing) {
+    return (
+      <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-2">
+        Dashboard
+      </p>
+    );
+  }
+
+  const isLive = !viewing.isReadOnly;
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <span
+        data-testid="sidebar-season-badge"
+        title={
+          isLive
+            ? `${viewing.name} — live`
+            : `${viewing.name} — read-only archive`
+        }
+        className={cn(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest",
+          isLive
+            ? "bg-sidebar-primary text-sidebar-primary-foreground"
+            : "border border-sidebar-foreground/30 text-sidebar-foreground/60",
+        )}
+      >
+        {viewing.slug}
+      </span>
+      {!isLive && (
+        <span className="text-[10px] uppercase tracking-widest text-sidebar-foreground/50">
+          Archive
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
@@ -311,6 +382,16 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   // hidden pages filtered out of the nav below.
   const { data: adminAccess } = useMyAdminAccess(user?.role === "admin");
 
+  // Mirrors the server-side guard, so a padlock appears exactly where a write
+  // would actually be refused.
+  const { canWrite, viewingId } = useSeason();
+
+  // Season 1 keeps its Projects page; from Season 2 on, a project can only
+  // exist behind a converted lead, so the pipeline entry replaces it. Keyed on
+  // the season NUMBER rather than a feature flag because the two flows are
+  // genuinely different products, and Season 1's must never change.
+  const usesLeadPipeline = viewingId != null && viewingId >= 2;
+
   if (!user) return null;
 
   const role = user.role;
@@ -319,8 +400,26 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     student: hasTeam
       ? [
           { name: "Dashboard", href: "/", icon: LayoutDashboard },
-          { name: "Weekly Journal", href: "/journal", icon: BookOpenCheck },
-          { name: "Projects", href: "/projects", icon: FolderKanban },
+          {
+            name: "Weekly Journal",
+            href: "/journal",
+            icon: BookOpenCheck,
+            writes: "journal",
+          },
+          usesLeadPipeline
+            ? {
+                name: "Leads",
+                href: "/leads",
+                icon: Handshake,
+                writes: "project",
+                isNew: true,
+              }
+            : {
+                name: "Projects",
+                href: "/projects",
+                icon: FolderKanban,
+                writes: "revenue",
+              },
           { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
           {
             name: "GRIT Miles",
@@ -548,9 +647,12 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       <div className="flex h-full flex-col text-sidebar-foreground">
         <div className="p-6">
           <BraveLogo className="text-2xl" />
-          <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-2">
-            Dashboard
-          </p>
+          {/* Season badge. Replaces the old static "Dashboard" label so a
+              viewer can never be unsure which season they are looking at.
+              Live season reads as amber and current; the archive reads as a
+              muted outline, deliberately quieter. Falls back to the old label
+              while the season list is still loading, so nothing flashes. */}
+          <SeasonBadge />
         </div>
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto overflow-x-visible py-4">
@@ -619,6 +721,9 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 >
                   <Icon className="w-4 h-4" />
                   <span className="flex-1">{leaf.name}</span>
+                  {leaf.writes && !canWrite(leaf.writes) && (
+                    <ArchiveLock name={leaf.name} />
+                  )}
                   {leaf.isNew && <NewBadge name={leaf.name} />}
                 </span>
               </Link>

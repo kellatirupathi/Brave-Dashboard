@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
+import { isNativeApp, startNativeLogin } from "@/lib/native-auth";
 import { Chatbot } from "@/components/chatbot";
 
 /* Dark "AI Value Engineering" theme — Sora + Inter, tuned for smooth render. */
@@ -169,7 +170,21 @@ const STATS = [
 ];
 
 export default function Login() {
-  const { login, isAuthenticated, isLoading, user, error } = useAuth();
+  const { login, isAuthenticated, isLoading, user, error, refresh } = useAuth();
+
+  /**
+   * Inside the APK the SSO lives on another origin, so a plain redirect hands
+   * the student to Chrome and the returning token never reaches the app. Open
+   * it in an in-app Custom Tab instead; `startNativeLogin` returns false on
+   * web (and if the plugin is missing), where we fall through to login().
+   */
+  const handleSignIn = async () => {
+    const loginUrl = (
+      import.meta as unknown as { env?: Record<string, string | undefined> }
+    ).env?.["VITE_FORMS_LOGIN_URL"];
+    if (loginUrl && (await startNativeLogin(loginUrl))) return;
+    login();
+  };
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -540,7 +555,7 @@ export default function Login() {
                     </div>
                   )}
                   <button
-                    onClick={() => login()}
+                    onClick={() => void handleSignIn()}
                     data-testid="button-sign-in"
                     className="bl-cta group"
                   >
