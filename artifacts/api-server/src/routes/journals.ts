@@ -259,6 +259,10 @@ router.get("/journals/by-week/:weekId", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid weekId" });
     return;
   }
+  // DELIBERATELY UNSCOPED, and safe: the week row itself carries a season, and
+  // weekly_journals has unique(team_id, week_start_date), so team + that week's
+  // start date identifies exactly one journal. Adding a season predicate here
+  // would be redundant, not safer.
   const week = await getOpenWeekById(weekId);
   if (!week) {
     res.status(404).json({ error: "Week not found" });
@@ -809,8 +813,13 @@ router.get("/admin/journals", async (req, res): Promise<void> => {
     if (!Number.isNaN(cid)) campusFilter = cid;
   }
 
-  const conditions =
-    campusFilter != null ? [eq(teamsTable.campusId, campusFilter)] : [];
+  // Scoped to the season being viewed. Without this the admin dashboard showed
+  // Season 1's journals under the 2.0 badge, with no way to tell them apart.
+  const season = await resolveSeason(req);
+  const conditions = [eq(weeklyJournalsTable.seasonId, season)];
+  if (campusFilter != null) {
+    conditions.push(eq(teamsTable.campusId, campusFilter));
+  }
 
   const rows = await db
     .select({

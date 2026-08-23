@@ -50,6 +50,7 @@ import {
   getRejectedResubmitError,
 } from "./projects-lock";
 import { requireWritableSeason } from "../middlewares/seasonGuard";
+import { resolveSeason } from "../lib/season";
 
 const router: IRouter = Router();
 
@@ -373,17 +374,22 @@ router.get("/revenue-entries", async (req, res): Promise<void> => {
     return;
   }
   const { projectId, teamId, status } = queryParams.data;
-  let conditions: ReturnType<typeof and>[] = [];
+  // Scoped to the season being viewed: filtering by teamId alone spans seasons,
+  // so a Season 2 team page would list its Season 1 entries too. A projectId
+  // filter is already transitively scoped (a project belongs to one season),
+  // but the predicate is harmless there and keeps one rule for every caller.
+  const conditions: ReturnType<typeof and>[] = [
+    eq(revenueEntriesTable.seasonId, await resolveSeason(req)),
+  ];
   if (projectId) conditions.push(eq(revenueEntriesTable.projectId, projectId));
   if (teamId) conditions.push(eq(revenueEntriesTable.teamId, teamId));
   if (status) conditions.push(eq(revenueEntriesTable.status, status));
-  const entries =
-    conditions.length > 0
-      ? await db
-          .select()
-          .from(revenueEntriesTable)
-          .where(and(...conditions))
-      : await db.select().from(revenueEntriesTable);
+  // `conditions` always carries the season predicate, so there is no longer an
+  // unfiltered branch — an unscoped read here is what leaked other seasons.
+  const entries = await db
+    .select()
+    .from(revenueEntriesTable)
+    .where(and(...conditions));
   const result = await Promise.all(entries.map(enrichRevEntry));
   res.json(result);
 });

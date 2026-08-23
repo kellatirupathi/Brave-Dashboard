@@ -863,11 +863,9 @@ function TemplatesTab({
 
   const createMut = useMutation({
     mutationFn: () =>
-      createTemplate({
-        ...form,
-        variableLabels: null,
-        isActive: true,
-      } as never),
+      // variableLabels is OMITTED, not null: the server's schema accepts an
+      // array or nothing at all, and sending null failed validation.
+      createTemplate({ ...form, isActive: true } as never),
     onSuccess: () => {
       toast({ title: "Template registered" });
       setOpen(false);

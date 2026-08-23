@@ -182,7 +182,9 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
     .select({ totalRevenue: sql<number>`coalesce(sum(verified_amount), 0)` })
     .from(revenueEntriesTable)
     .where(
-      sql`team_id in (select id from teams where campus_id = ${campus.id}) and status = 'verified'`,
+      // Season-scoped: without the predicate this summed every season's
+      // verified revenue into one campus figure.
+      sql`season_id = ${await resolveSeason(req)} and team_id in (select id from teams where campus_id = ${campus.id}) and status = 'verified'`,
     );
   const detailCoordinatorRows = await db
     .select({

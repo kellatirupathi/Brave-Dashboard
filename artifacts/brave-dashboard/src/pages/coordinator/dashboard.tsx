@@ -25,7 +25,6 @@ import {
   BookOpenCheck,
   Activity,
   Bell,
-  Calendar,
   Megaphone,
   Briefcase,
   ChevronRight,
@@ -300,12 +299,6 @@ export default function CoordinatorDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-center">
-            {coverage && (
-              <Badge variant="outline" className="gap-1.5 text-xs font-normal">
-                <Calendar className="h-3 w-3" />
-                Week of {coverage.currentWeek}
-              </Badge>
-            )}
             <SeasonSwitcher />
             <HelpMenu inline />
             <NotificationsBell />
