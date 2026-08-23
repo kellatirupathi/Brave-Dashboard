@@ -284,6 +284,9 @@ importers:
       '@capacitor/geolocation':
         specifier: ^8.2.2
         version: 8.2.2(@capacitor/core@8.5.0)
+      '@capacitor/inappbrowser':
+        specifier: ^4.0.3
+        version: 4.0.3(@capacitor/core@8.5.0)
       '@capacitor/network':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.5.0)
@@ -1487,6 +1490,11 @@ packages:
 
   '@capacitor/geolocation@8.2.2':
     resolution: {integrity: sha512-X8ryw6CfL4LspJnnfVL4++DUKKZVfdUIA9JljWVRljEDIQxZQZtz6xf7qstht+ymc+le6oa5EaUChVA6KsCYlA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capacitor/inappbrowser@4.0.3':
+    resolution: {integrity: sha512-Jnl6Ssp2QZByncO6QhDKzNpi3yeum1aSQM+70VMVh8TJ16HOwOrcTnf8E4+7FpT9ruSRGyhqQu1yBSrpl+wD1g==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -6885,6 +6893,10 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.5.0
       '@capacitor/synapse': 1.0.4
+
+  '@capacitor/inappbrowser@4.0.3(@capacitor/core@8.5.0)':
+    dependencies:
+      '@capacitor/core': 8.5.0
 
   '@capacitor/network@8.0.1(@capacitor/core@8.5.0)':
     dependencies:

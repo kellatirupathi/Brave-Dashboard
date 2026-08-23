@@ -50,6 +50,33 @@ export function selectSeason(seasonId: number): Promise<{ viewing: number }> {
   });
 }
 
+export type ReadinessCheck = {
+  key: "dates" | "weeks" | "config";
+  label: string;
+  ok: boolean;
+  detail: string;
+};
+
+export type SeasonReadiness = {
+  seasonId: number;
+  checks: ReadinessCheck[];
+  ready: boolean;
+};
+
+/**
+ * Is this season set up enough to be made live? The Seasons card renders this
+ * as a checklist, and the server runs the same check before allowing an
+ * activation — so the checklist can never promise something the API refuses.
+ */
+export function getSeasonReadiness(
+  seasonId: number,
+): Promise<SeasonReadiness> {
+  return customFetch<SeasonReadiness>(
+    `/api/seasons/${seasonId}/readiness`,
+    { method: "GET" },
+  );
+}
+
 /** Admin: rename a season or adjust its dates. */
 export function saveSeason(
   seasonId: number,
@@ -64,6 +91,8 @@ export function saveSeason(
     allowJournalWrites?: boolean;
     allowRevenueWrites?: boolean;
     allowProjectWrites?: boolean;
+    /** Skip the readiness guard when activating. Use only after reading it. */
+    force?: boolean;
   },
 ): Promise<Season> {
   return customFetch<Season>(`/api/admin/seasons/${seasonId}`, {

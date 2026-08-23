@@ -85,17 +85,42 @@ async function validateToken(token: string): Promise<boolean> {
  */
 export async function startNativeLogin(loginUrl: string): Promise<boolean> {
   if (!isNativeApp() || !loginUrl) return false;
+
+  const url = new URL(loginUrl);
+  url.searchParams.set("redirect_uri", NATIVE_REDIRECT_URI);
+
+  // PREFERRED: a WebView INSIDE the app. Chrome never appears, and the student
+  // stays in BRAVE the whole way through.
+  //
+  // Deliberately NOT `server.allowNavigation`, which would load the SSO in the
+  // main WebView: Capacitor then reports the app as a *web* platform (losing
+  // the native APIs) and its proxy drops set-cookie headers, which is exactly
+  // what a session-cookie login depends on.
+  try {
+    const { InAppBrowser } = await import("@capacitor/inappbrowser");
+    await InAppBrowser.openInWebView({
+      url: url.toString(),
+      options: {
+        showURL: false,
+        showToolbar: true,
+        clearCache: false,
+        clearSessionCache: false,
+        closeButtonText: "Cancel",
+        toolbarType: "navigation" as never,
+      } as never,
+    });
+    return true;
+  } catch {
+    // Plugin unavailable in this build — fall through.
+  }
+
+  // FALLBACK: Chrome Custom Tab. Still inside the app's task and still returns
+  // via the deep link, just with the browser's chrome rather than ours.
   try {
     const { Browser } = await import("@capacitor/browser");
-    // Tell the SSO to come back to the app rather than to the website. A
-    // provider that ignores the parameter simply redirects to its default,
-    // which is the current (broken) behaviour — never worse than today.
-    const url = new URL(loginUrl);
-    url.searchParams.set("redirect_uri", NATIVE_REDIRECT_URI);
     await Browser.open({ url: url.toString(), presentationStyle: "popover" });
     return true;
   } catch {
-    // Plugin missing or the tab refused to open — let the caller fall back.
     return false;
   }
 }
@@ -122,10 +147,17 @@ export function registerAuthDeepLink(onSignedIn: () => void): () => void {
         if (!token) return;
         // Close the Custom Tab first, so the student sees the app rather than
         // a browser tab sitting on a redirect page.
+        // Close whichever surface was used to show the SSO.
+        try {
+          const { InAppBrowser } = await import("@capacitor/inappbrowser");
+          await InAppBrowser.close();
+        } catch {
+          /* not the in-app view, or already closed */
+        }
         try {
           await Browser.close();
         } catch {
-          /* already closed */
+          /* not a Custom Tab, or already closed */
         }
         if (await validateToken(token)) onSignedIn();
       });

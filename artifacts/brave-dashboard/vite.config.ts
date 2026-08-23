@@ -74,7 +74,9 @@ export default defineConfig({
         // SPA fallback, minus the API — a navigation request must never be
         // answered from the app-shell cache when it was meant for the server.
         navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api\//],
+        // /api is the server's, and the APK is a real file — answering either
+        // from the app-shell cache would hand back index.html instead.
+        navigateFallbackDenylist: [/^\/api\//, /^\/brave-app\.apk$/],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
 import { isNativeApp, startNativeLogin } from "@/lib/native-auth";
+import MobileLogin from "./mobile-login";
 import { Chatbot } from "@/components/chatbot";
 
 /* Dark "AI Value Engineering" theme — Sora + Inter, tuned for smooth render. */
@@ -169,7 +170,17 @@ const STATS = [
   { value: "15 Jul", label: "Demo Day" },
 ];
 
+/**
+ * The installed app gets its own sign-in screen; the browser gets the
+ * marketing page. Split at this boundary rather than inside WebLogin, so the
+ * two components never share a hook order.
+ */
 export default function Login() {
+  if (isNativeApp()) return <MobileLogin />;
+  return <WebLogin />;
+}
+
+function WebLogin() {
   const { login, isAuthenticated, isLoading, user, error, refresh } = useAuth();
 
   /**

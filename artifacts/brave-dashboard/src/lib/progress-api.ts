@@ -171,14 +171,19 @@ export function listAdminProgrammeWeeks(): Promise<ProgrammeWeek[]> {
   return customFetch<ProgrammeWeek[]>("/api/admin/programme-weeks");
 }
 
-export function regenerateProgrammeWeeks(): Promise<{
+export function regenerateProgrammeWeeks(confirm = false): Promise<{
   created: number;
   updated: number;
   removed: number;
   total: number;
+  seasonId?: number;
 }> {
+  // `confirm` is required by the server when the rebuild would drop weeks that
+  // journals were submitted against. Sending it only after the admin has seen
+  // the warning is the whole point of the flag.
   return customFetch("/api/admin/programme-weeks/regenerate", {
     method: "POST",
+    body: JSON.stringify({ confirm }),
   });
 }
 

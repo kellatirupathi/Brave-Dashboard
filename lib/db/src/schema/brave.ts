@@ -982,6 +982,9 @@ export type Notification = typeof notificationsTable.$inferSelect;
 // Announcements
 export const announcementsTable = pgTable("announcements", {
   id: serial("id").primaryKey(),
+  // Which season this announcement belongs to. DEFAULT 1 so every existing
+  // announcement remains a Season 1 announcement and nothing moves.
+  seasonId: integer("season_id").notNull().default(1),
   authorId: text("author_id").notNull(),
   target: announcementTargetEnum("target").notNull().default("all"),
   campusId: integer("campus_id"),
@@ -1823,6 +1826,9 @@ export const popupTemplatesTable = pgTable(
   "popup_templates",
   {
     id: serial("id").primaryKey(),
+    // Which season this pop-up belongs to. DEFAULT 1 so every pop-up that
+    // existed before seasons stays exactly where it was — a Season 1 pop-up.
+    seasonId: integer("season_id").notNull().default(1),
     name: text("name").notNull(),
     message: text("message").notNull(),
     // require_checkbox = true → a confirmation checkbox must be ticked before

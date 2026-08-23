@@ -7,6 +7,7 @@ import {
   usersTable,
   campusesTable,
 } from "@workspace/db";
+import { resolveSeason } from "../lib/season";
 import { logAudit } from "../lib/audit";
 import { requireAdminPage } from "../lib/require-admin-page";
 
@@ -36,9 +37,13 @@ function requireAdmin(
 // List all templates (with acknowledgement counts) for the admin Config page.
 router.get("/admin/popups", async (req, res): Promise<void> => {
   if (!requireAdmin(req, res)) return;
+  // Scoped to the season being viewed, so a Season 2 pop-up never appears in
+  // Season 1's list and vice versa.
+  const season = await resolveSeason(req);
   const templates = await db
     .select()
     .from(popupTemplatesTable)
+    .where(eq(popupTemplatesTable.seasonId, season))
     .orderBy(desc(popupTemplatesTable.createdAt));
   const counts = await db
     .select({
@@ -73,6 +78,8 @@ router.post("/admin/popups", async (req, res): Promise<void> => {
   const [created] = await db
     .insert(popupTemplatesTable)
     .values({
+      // Belongs to whichever season the admin was looking at when they wrote it.
+      seasonId: await resolveSeason(req),
       name,
       message,
       requireCheckbox: body.requireCheckbox === true,
@@ -360,13 +367,21 @@ router.get("/popups/pending", async (req, res): Promise<void> => {
     .from(popupAcknowledgementsTable)
     .where(eq(popupAcknowledgementsTable.userId, req.user.id));
   const ackedIds = acked.map((a) => a.popupId);
+  // Only pop-ups belonging to the season this student is viewing. Without
+  // this, a Season 2 announcement would interrupt someone reading their
+  // Season 1 archive.
+  const season = await resolveSeason(req);
   const whereClause =
     ackedIds.length > 0
       ? and(
           eq(popupTemplatesTable.enabled, true),
+          eq(popupTemplatesTable.seasonId, season),
           notInArray(popupTemplatesTable.id, ackedIds),
         )
-      : eq(popupTemplatesTable.enabled, true);
+      : and(
+          eq(popupTemplatesTable.enabled, true),
+          eq(popupTemplatesTable.seasonId, season),
+        );
   const pending = await db
     .select({
       id: popupTemplatesTable.id,

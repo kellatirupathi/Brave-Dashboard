@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   programmeWeeksTable,
   programmeConfigTable,
   usersTable,
+  weeklyJournalsTable,
 } from "@workspace/db";
 import { z } from "zod/v4";
 import { requireAdminPage } from "../lib/require-admin-page";
@@ -232,29 +233,115 @@ export async function autoOpenDueWeeks(seasonId?: number): Promise<number> {
 
 // ----------------- HTTP routes -----------------
 
-// Admin: list all weeks (regenerates first if empty so admin always sees something).
+// Admin: list the weeks OF THE SEASON BEING VIEWED.
+//
+// The season filter is load-bearing. Without it this returned every season's
+// weeks, so an admin viewing Season 2 saw Season 1's dates and could not tell
+// that Season 2 had none — which is exactly how Season 2 was activated with no
+// weeks at all.
+//
+// It also no longer auto-regenerates on an empty list. Silently creating weeks
+// as a side effect of opening a page is how a season ends up with dates nobody
+// chose; the admin clicks Regenerate deliberately instead.
 router.get("/admin/programme-weeks", async (req, res): Promise<void> => {
   if (!req.isAuthenticated() || req.user.role !== "admin") {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  const season = await resolveSeason(req);
   const existing = await db
     .select()
     .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, season))
     .orderBy(asc(programmeWeeksTable.weekNumber));
-  if (existing.length === 0) {
-    await regenerateProgrammeWeeks();
-    const fresh = await db
-      .select()
-      .from(programmeWeeksTable)
-      .orderBy(asc(programmeWeeksTable.weekNumber));
-    res.json(fresh);
-    return;
-  }
   res.json(existing);
 });
 
-// Admin: rebuild from current programme_config (call after editing start/end).
+/**
+ * How many journals would be orphaned if this season's weeks were rebuilt.
+ *
+ * Journals store their own week_start_date rather than a foreign key, so a
+ * rebuild never DELETES a journal — but it can leave one pointing at a week
+ * that no longer exists, which breaks the 14-week strip. Counting them first
+ * lets the UI warn before that happens.
+ */
+async function countOrphanedByRegenerate(
+  seasonId: number,
+): Promise<{ wouldRemove: number; journalsAffected: number }> {
+  const [cfg] = await db
+    .select({
+      startDate: programmeConfigTable.startDate,
+      endDate: programmeConfigTable.endDate,
+    })
+    .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, seasonId))
+    .limit(1);
+  if (!cfg?.startDate || !cfg?.endDate) {
+    return { wouldRemove: 0, journalsAffected: 0 };
+  }
+
+  const existing = await db
+    .select()
+    .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, seasonId));
+
+  // Mirror regenerateProgrammeWeeks' own arithmetic: strict 7-day chunks from
+  // the start date, continuing while the chunk starts on or before the end.
+  const start = cfg.startDate.slice(0, 10);
+  const end = cfg.endDate.slice(0, 10);
+  const desired = new Set<number>();
+  let cursor = new Date(`${start}T00:00:00Z`);
+  const endAt = new Date(`${end}T00:00:00Z`);
+  let n = 1;
+  while (cursor <= endAt && n <= 60) {
+    desired.add(n);
+    cursor = new Date(cursor.getTime() + 7 * 86_400_000);
+    n += 1;
+  }
+
+  const doomed = existing.filter((w) => !desired.has(w.weekNumber));
+  if (doomed.length === 0) return { wouldRemove: 0, journalsAffected: 0 };
+
+  const starts = doomed.map((w) => w.startDate);
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(weeklyJournalsTable)
+    .where(
+      and(
+        eq(weeklyJournalsTable.seasonId, seasonId),
+        inArray(weeklyJournalsTable.weekStartDate, starts),
+      ),
+    );
+  return {
+    wouldRemove: doomed.length,
+    journalsAffected: Number(row?.n ?? 0),
+  };
+}
+
+/** Dry run: what would a rebuild do? Changes nothing. */
+router.get(
+  "/admin/programme-weeks/regenerate/preview",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const season = await resolveSeason(req);
+    try {
+      const impact = await countOrphanedByRegenerate(season);
+      res.json({ seasonId: season, ...impact });
+    } catch (err) {
+      req.log.error({ err, season }, "regenerate preview failed");
+      res.json({ seasonId: season, wouldRemove: 0, journalsAffected: 0 });
+    }
+  },
+);
+
+// Admin: rebuild the weeks OF THE SEASON BEING VIEWED from its own config.
+//
+// Scoped to the viewed season, not the active one: an admin setting Season 2 up
+// is looking at 2.0 while Season 1 is still live, and rebuilding Season 1's
+// weeks in that moment would orphan its journals.
 router.post(
   "/admin/programme-weeks/regenerate",
   requireAdminPage("/admin/journals", "edit"),
@@ -263,8 +350,31 @@ router.post(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const result = await regenerateProgrammeWeeks();
-    res.json(result);
+    const season = await resolveSeason(req);
+
+    // Refuse when the rebuild would orphan journals, unless the admin has
+    // explicitly confirmed. `confirm` is deliberately required rather than
+    // assumed: this is the one action here that can degrade existing data.
+    const confirmed = req.body?.confirm === true;
+    if (!confirmed) {
+      try {
+        const impact = await countOrphanedByRegenerate(season);
+        if (impact.journalsAffected > 0) {
+          res.status(409).json({
+            error: `Rebuilding would drop ${impact.wouldRemove} week(s) that ${impact.journalsAffected} journal(s) were submitted against.`,
+            code: "REGENERATE_WOULD_ORPHAN",
+            ...impact,
+          });
+          return;
+        }
+      } catch (err) {
+        // Fail OPEN — a failed safety count must not block a legitimate rebuild.
+        req.log.error({ err, season }, "regenerate impact check failed");
+      }
+    }
+
+    const result = await regenerateProgrammeWeeks(season);
+    res.json({ ...result, seasonId: season });
   },
 );
 

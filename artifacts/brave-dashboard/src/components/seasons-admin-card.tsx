@@ -12,10 +12,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
-import { CalendarRange, Lock, Unlock } from "lucide-react";
+import { CalendarRange, Lock, Unlock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { getSeasons, saveSeason, type Season } from "@/lib/seasons-api";
+import {
+  getSeasons,
+  getSeasonReadiness,
+  saveSeason,
+  type Season,
+} from "@/lib/seasons-api";
 import { SEASONS_QUERY_KEY } from "@/lib/season-context";
 
 export function SeasonsAdminCard({
@@ -41,11 +46,24 @@ export function SeasonsAdminCard({
       await queryClient.invalidateQueries();
       toast({ title: `${season.name} updated` });
     } catch (err) {
-      toast({
-        title: "Could not update season",
-        description: err instanceof Error ? err.message : "Please try again.",
-        variant: "destructive",
-      });
+      // The server refuses to activate a season that has no programme weeks.
+      // Show WHICH check failed rather than a generic error, so the admin knows
+      // what to go and fix.
+      const data = (err as { data?: { code?: string; failing?: string[] } })
+        ?.data;
+      if (data?.code === "SEASON_NOT_READY") {
+        toast({
+          title: `${season.name} is not ready yet`,
+          description: `Still needed: ${(data.failing ?? []).join(", ")}.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Could not update season",
+          description: err instanceof Error ? err.message : "Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setSavingId(null);
     }
@@ -125,6 +143,10 @@ export function SeasonsAdminCard({
                 </span>
               </div>
 
+              {/* Setup checklist. Shown only for a season that is NOT live —
+                  once it is running there is nothing left to prepare. */}
+              {!s.isActive && <ReadinessChecklist seasonId={s.id} />}
+
               <div className="mt-3 space-y-2">
                 <ToggleRow
                   label="Live season"
@@ -202,6 +224,62 @@ function ToggleRow({
         onCheckedChange={onChange}
         aria-label={label}
       />
+    </div>
+  );
+}
+
+/**
+ * Pre-flight checklist for a season that is not yet live.
+ *
+ * Reads the SAME endpoint the activation guard uses, so it can never show a
+ * green tick for something the server would then refuse. Renders nothing while
+ * loading or if the check errors — a broken checklist must not imply a broken
+ * season.
+ */
+function ReadinessChecklist({ seasonId }: { seasonId: number }) {
+  const { data } = useQuery({
+    queryKey: ["season-readiness", seasonId],
+    queryFn: () => getSeasonReadiness(seasonId),
+  });
+
+  if (!data || data.checks.length === 0) return null;
+  if (data.ready) {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-md border border-emerald-600/30 bg-emerald-50 p-2.5 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+        <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>Ready to go live.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mt-3 rounded-md border border-amber-600/30 bg-amber-50 p-3 dark:bg-amber-950/30"
+      data-testid={`readiness-${seasonId}`}
+    >
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        Set this up before making it live
+      </p>
+      <ul className="space-y-1.5">
+        {data.checks.map((c) => (
+          <li key={c.key} className="flex items-start gap-2 text-xs">
+            <span
+              className={cn(
+                "mt-0.5 shrink-0",
+                c.ok ? "text-emerald-600" : "text-amber-700 dark:text-amber-400",
+              )}
+              aria-hidden="true"
+            >
+              {c.ok ? "✓" : "○"}
+            </span>
+            <span>
+              <span className="font-medium">{c.label}</span>
+              <span className="block text-muted-foreground">{c.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

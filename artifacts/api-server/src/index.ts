@@ -1444,6 +1444,28 @@ async function ensureWhatsApp(): Promise<void> {
   } catch (err) {
     logger.error({ err }, "Failed to ensure whatsapp_sends table");
   }
+
+  // 4) Per-season pop-ups and announcements.
+  //
+  // Both were programme-wide before seasons. DEFAULT 1 puts every existing row
+  // in Season 1, which is where it was written, so nothing moves and nothing
+  // disappears from the admin lists.
+  try {
+    await db.execute(
+      sql`ALTER TABLE popup_templates ADD COLUMN IF NOT EXISTS season_id integer NOT NULL DEFAULT 1`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS popup_templates_season_idx ON popup_templates (season_id)`,
+    );
+    await db.execute(
+      sql`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS season_id integer NOT NULL DEFAULT 1`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS announcements_season_idx ON announcements (season_id)`,
+    );
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure season_id on popups/announcements");
+  }
 }
 
 async function backfillOrderBookEntries(): Promise<void> {

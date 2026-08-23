@@ -1,5 +1,9 @@
 ext {
-    minSdkVersion = 24
+    // Android 8.0. Raised from 24 because @capacitor/inappbrowser requires it,
+    // and that plugin is what keeps the NIAT SSO inside the app instead of
+    // handing the student to Chrome. Android 7.x is ~1% of devices and falling;
+    // those students use the website or the PWA, which are unaffected.
+    minSdkVersion = 26
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'

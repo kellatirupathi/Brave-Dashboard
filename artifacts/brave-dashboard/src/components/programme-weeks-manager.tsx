@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, RotateCcw, AlertTriangle, Lock } from "lucide-react";
 import {
@@ -11,6 +12,16 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -42,8 +53,14 @@ export function ProgrammeWeeksManager() {
     queryFn: listAdminProgrammeWeeks,
   });
 
+  // Set when the server reports that a rebuild would orphan journals.
+  const [orphanWarning, setOrphanWarning] = useState<{
+    wouldRemove: number;
+    journalsAffected: number;
+  } | null>(null);
+
   const regenMut = useMutation({
-    mutationFn: regenerateProgrammeWeeks,
+    mutationFn: (confirm: boolean) => regenerateProgrammeWeeks(confirm),
     onSuccess: (r) => {
       toast({
         title: "Weeks regenerated",
@@ -52,6 +69,25 @@ export function ProgrammeWeeksManager() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
     onError: (err: Error) => {
+      // The server refuses a rebuild that would strand journals. Turn that into
+      // an explicit confirmation rather than a dead end — journals are never
+      // deleted, but they would point at weeks that no longer exist.
+      const data = (
+        err as unknown as {
+          data?: {
+            code?: string;
+            wouldRemove?: number;
+            journalsAffected?: number;
+          };
+        }
+      )?.data;
+      if (data?.code === "REGENERATE_WOULD_ORPHAN") {
+        setOrphanWarning({
+          wouldRemove: data.wouldRemove ?? 0,
+          journalsAffected: data.journalsAffected ?? 0,
+        });
+        return;
+      }
       toast({
         title: "Regenerate failed",
         description: err.message,
@@ -109,7 +145,7 @@ export function ProgrammeWeeksManager() {
             variant="outline"
             size="sm"
             disabled={regenMut.isPending}
-            onClick={() => regenMut.mutate()}
+            onClick={() => regenMut.mutate(false)}
             data-testid="regenerate-weeks"
           >
             <RotateCcw className="w-4 h-4 mr-1" />
@@ -207,6 +243,52 @@ export function ProgrammeWeeksManager() {
           </div>
         )}
       </CardContent>
+
+      {/* Shown only when the server reports the rebuild would strand journals.
+          Journals are never deleted — but they would point at weeks that no
+          longer exist, which breaks the week strip on the student dashboard. */}
+      <AlertDialog
+        open={!!orphanWarning}
+        onOpenChange={(open) => !open && setOrphanWarning(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rebuild these weeks?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  This removes{" "}
+                  <strong>{orphanWarning?.wouldRemove} week(s)</strong> that{" "}
+                  <strong>
+                    {orphanWarning?.journalsAffected} journal(s)
+                  </strong>{" "}
+                  were submitted against.
+                </p>
+                <p>
+                  The journals themselves are kept, but they will no longer line
+                  up with a week, so the week strip will look wrong for those
+                  teams.
+                </p>
+                <p className="font-medium text-foreground">
+                  Only continue if you meant to change this season&rsquo;s dates.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                setOrphanWarning(null);
+                regenMut.mutate(true);
+              }}
+            >
+              Rebuild anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

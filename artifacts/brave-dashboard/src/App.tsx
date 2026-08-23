@@ -40,6 +40,7 @@ import LeadsList from "@/pages/student/leads/list";
 import LeadDetail from "@/pages/student/leads/detail";
 import LeadProject from "@/pages/student/leads/project";
 import LeadDelivery from "@/pages/student/leads/delivery";
+import GetApp from "@/pages/student/get-app";
 import Leaderboard from "@/pages/student/leaderboard";
 import TeamProfile from "@/pages/student/team";
 import GetStarted from "@/pages/student/get-started";
@@ -128,6 +129,7 @@ import { PopupGate } from "@/components/popup-gate";
 import { GritIntroDialog } from "@/components/grit-intro-dialog";
 import { SeasonProvider } from "@/lib/season-context";
 import { InstallPrompt, UpdatePrompt } from "@/components/pwa-prompts";
+import { isNativeApp } from "@/lib/native-auth";
 import { NativeAuthBridge } from "@/components/native-auth-bridge";
 
 const queryClient = new QueryClient({
@@ -142,9 +144,17 @@ const queryClient = new QueryClient({
 function ProtectedRoute({
   component: Component,
   allowedRoles,
+  bare = false,
 }: {
   component: React.ComponentType;
   allowedRoles: string[];
+  /**
+   * Render WITHOUT the app shell (sidebar, bottom nav, banners). For pages
+   * opened in their own tab that are read rather than navigated from — the
+   * mobile install guide is the only one today. Every auth and role check
+   * above still applies.
+   */
+  bare?: boolean;
 }) {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
@@ -189,6 +199,8 @@ function ProtectedRoute({
       return <Redirect to={dashboardBlocked ? "/profile" : "/admin"} />;
     }
   }
+
+  if (bare) return <Component />;
 
   return (
     <Layout>
@@ -333,6 +345,10 @@ function RootRedirect() {
   }
 
   if (!isAuthenticated || !user) {
+    // The installed app skips the marketing landing page: the student tapped a
+    // BRAVE icon on their own home screen, so selling them the programme again
+    // is a page in the way. Straight to sign-in.
+    if (isNativeApp()) return <Redirect to="/login" />;
     return <Landing />;
   }
 
@@ -416,6 +432,16 @@ function Router() {
         </Route>
         <Route path="/leads">
           <ProtectedRoute component={LeadsList} allowedRoles={["student"]} />
+        </Route>
+        {/* Mobile app install guide. Opened in a new tab from the dashboard,
+            so it renders WITHOUT the sidebar — a student following steps on a
+            phone does not need the whole shell around them. */}
+        <Route path="/get-app">
+          <ProtectedRoute
+            component={GetApp}
+            allowedRoles={["student"]}
+            bare
+          />
         </Route>
         <Route path="/leaderboard">
           <ProtectedRoute component={Leaderboard} allowedRoles={["student"]} />

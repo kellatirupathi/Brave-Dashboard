@@ -27,6 +27,7 @@ import {
   Lock,
 } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { BraveAppButton } from "@/components/brave-app-button";
 import { HelpMenu } from "@/components/help-menu";
 import { SeasonSwitcher } from "@/components/season-switcher";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
@@ -727,6 +728,10 @@ export default function TeamDashboard() {
             <InstagramLink />
           </aside>
         </div>
+
+        {/* Mobile app. Self-gates on Season 2 + student + not-already-installed,
+            so it renders nothing for anyone it does not apply to. */}
+        <BraveAppButton />
       </div>
     </>
   );

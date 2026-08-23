@@ -19,7 +19,13 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { asc, eq } from "drizzle-orm";
-import { db, seasonsTable, usersTable } from "@workspace/db";
+import {
+  db,
+  programmeConfigTable,
+  programmeWeeksTable,
+  seasonsTable,
+  usersTable,
+} from "@workspace/db";
 import { invalidateSeasonCache, resolveSeason } from "../lib/season";
 import {
   getSessionId,
@@ -139,6 +145,109 @@ router.post(
   },
 );
 
+
+// ── Readiness ────────────────────────────────────────────────────────────
+//
+// A season with no programme weeks is not usable: a student opening Weekly
+// Journal has nothing to submit against. That is exactly what happened the
+// first time Season 2 was activated, so the check below runs BEFORE an
+// activation is allowed rather than being left to the admin to remember.
+
+export type ReadinessCheck = {
+  key: "dates" | "weeks" | "config";
+  label: string;
+  ok: boolean;
+  detail: string;
+};
+
+/**
+ * Is this season set up enough to be made live?
+ *
+ * Read-only and side-effect free — the Seasons card calls it to render a
+ * checklist, and the activation handler calls the same function so the two can
+ * never disagree about what "ready" means.
+ */
+async function checkReadiness(seasonId: number): Promise<ReadinessCheck[]> {
+  const checks: ReadinessCheck[] = [];
+
+  const [cfg] = await db
+    .select({
+      startDate: programmeConfigTable.startDate,
+      endDate: programmeConfigTable.endDate,
+    })
+    .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, seasonId))
+    .limit(1);
+
+  checks.push({
+    key: "config",
+    label: "Programme settings exist",
+    ok: !!cfg,
+    detail: cfg
+      ? "This season has its own settings row."
+      : "No settings row — restart the server to create one.",
+  });
+
+  const start = cfg?.startDate ?? "";
+  const end = cfg?.endDate ?? "";
+  // A season whose dates still sit in the past is almost certainly showing the
+  // seeded defaults rather than dates anyone chose.
+  const datesLookSet = !!start && !!end && end > start;
+  checks.push({
+    key: "dates",
+    label: "Start and end dates set",
+    ok: datesLookSet,
+    detail: datesLookSet
+      ? `${start} to ${end}`
+      : "Set them in Config -> Programme Schedule while viewing this season.",
+  });
+
+  const weeks = await db
+    .select({ id: programmeWeeksTable.id })
+    .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, seasonId));
+
+  checks.push({
+    key: "weeks",
+    label: "Programme weeks generated",
+    ok: weeks.length > 0,
+    detail:
+      weeks.length > 0
+        ? `${weeks.length} week${weeks.length === 1 ? "" : "s"}.`
+        : "None yet. Use Regenerate from dates in Config -> Programme Weeks.",
+  });
+
+  return checks;
+}
+
+/**
+ * Readiness for one season. Any authenticated admin may read it; it exposes
+ * nothing a season row does not already.
+ */
+router.get(
+  "/seasons/:id/readiness",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const id = Number(req.params["id"]);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid season id" });
+      return;
+    }
+    try {
+      const checks = await checkReadiness(id);
+      res.json({ seasonId: id, checks, ready: checks.every((c) => c.ok) });
+    } catch (err) {
+      logger.error({ err, seasonId: id }, "[seasons] readiness check failed");
+      // Fail OPEN: a readiness check that errors must not make a season look
+      // broken, and the activation guard has its own independent check.
+      res.json({ seasonId: id, checks: [], ready: true });
+    }
+  },
+);
+
 // ── Writes: admin only, and the student-facing flags super-admin only ────
 
 const UpdateBody = z.object({
@@ -159,6 +268,9 @@ const UpdateBody = z.object({
   allowJournalWrites: z.boolean().optional(),
   allowRevenueWrites: z.boolean().optional(),
   allowProjectWrites: z.boolean().optional(),
+  /** Bypass the readiness guard. Deliberately not part of SUPER_ADMIN_ONLY —
+   *  it changes nothing on its own, it only skips a warning. */
+  force: z.boolean().optional(),
 });
 
 /**
@@ -191,7 +303,9 @@ router.patch(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const patch = parsed.data;
+    // `force` is a request option, not a column — pulled out here so it is
+    // never written to the seasons row.
+    const { force: forceActivate, ...patch } = parsed.data;
     if (Object.keys(patch).length === 0) {
       res.status(400).json({ error: "No fields to update" });
       return;
@@ -216,6 +330,36 @@ router.patch(
     if (!existing) {
       res.status(404).json({ error: "Season not found" });
       return;
+    }
+
+    // ACTIVATION GUARD. Making a season live with no programme weeks leaves
+    // every student unable to submit a journal, which is what happened the
+    // first time Season 2 was switched on. Refuse rather than let it repeat.
+    //
+    // Only blocks ACTIVATION. Renaming, editing dates, or marking a season
+    // read-only are all unaffected, and `force` is honoured for the rare case
+    // where an admin genuinely knows better.
+    if (patch.isActive === true && !forceActivate) {
+      try {
+        const checks = await checkReadiness(id);
+        const failing = checks.filter((c) => !c.ok);
+        if (failing.length > 0) {
+          res.status(409).json({
+            error: `${existing.name} is not ready to go live yet.`,
+            code: "SEASON_NOT_READY",
+            checks,
+            failing: failing.map((c) => c.label),
+          });
+          return;
+        }
+      } catch (err) {
+        // Fail OPEN — an infrastructure error must not block an admin from
+        // running the programme.
+        logger.error(
+          { err, seasonId: id },
+          "[seasons] readiness check errored; allowing activation",
+        );
+      }
     }
 
     // Exactly one season is active. Activating one stands the others down in
