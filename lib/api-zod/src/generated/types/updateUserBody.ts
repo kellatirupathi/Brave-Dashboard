@@ -17,6 +17,8 @@ export interface UpdateUserBody {
   niatId?: string | null;
   /** @nullable */
   profileImage?: string | null;
+  /** @nullable */
+  mobileNumber?: string | null;
   role?: UpdateUserBodyRole;
   /** @nullable */
   campusId?: number | null;

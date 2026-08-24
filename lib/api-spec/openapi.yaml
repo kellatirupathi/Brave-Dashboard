@@ -2467,6 +2467,8 @@ components:
           type: ["integer", "null"]
         campusName:
           type: ["string", "null"]
+        mobileNumber:
+          type: ["string", "null"]
         isActive:
           type: boolean
         provisionedVia:
@@ -2510,6 +2512,8 @@ components:
           type: ["string", "null"]
         batchSectionName:
           type: ["string", "null"]
+        mobileNumber:
+          type: ["string", "null"]
         password:
           type: ["string", "null"]
       required:
@@ -2533,6 +2537,8 @@ components:
         niatId:
           type: ["string", "null"]
         profileImage:
+          type: ["string", "null"]
+        mobileNumber:
           type: ["string", "null"]
         role:
           type: string
@@ -4014,6 +4020,8 @@ components:
           type: ["string", "null"]
         batchSectionName:
           type: ["string", "null"]
+        mobileNumber:
+          type: ["string", "null"]
         isWhitelisted:
           type: boolean
         createdAt:
@@ -4102,6 +4110,8 @@ components:
           type: ["string", "null"]
         batchSectionName:
           type: ["string", "null"]
+        mobileNumber:
+          type: ["string", "null"]
         isWhitelisted:
           type: boolean
       required:
@@ -4130,6 +4140,8 @@ components:
               email:
                 type: string
                 format: email
+              mobileNumber:
+                type: ["string", "null"]
             required:
               - studentUserId
       required:
@@ -4140,12 +4152,15 @@ components:
       properties:
         inserted:
           type: integer
+        updated:
+          type: integer
         skipped:
           type: integer
         total:
           type: integer
       required:
         - inserted
+        - updated
         - skipped
         - total
 
@@ -4163,6 +4178,8 @@ components:
         niatId:
           type: ["string", "null"]
         batchSectionName:
+          type: ["string", "null"]
+        mobileNumber:
           type: ["string", "null"]
         isWhitelisted:
           type: ["boolean", "null"]

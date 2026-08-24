@@ -128,6 +128,7 @@ type AnyUser = {
   campusId?: number | null;
   campusName?: string | null;
   niatId?: string | null;
+  mobileNumber?: string | null;
   profileImage?: string | null;
   isActive: boolean;
   provisionedVia: ProvisionedVia;
@@ -717,6 +718,7 @@ export default function AdminUsers() {
         "First Name": u.firstName ?? "",
         "Last Name": u.lastName ?? "",
         Email: u.email,
+        "Mobile Number": u.mobileNumber ?? "",
         Role: u.role,
         Campus: u.campusName ?? "",
         Source: SOURCE_LABEL[u.provisionedVia] ?? u.provisionedVia,
@@ -1489,6 +1491,7 @@ export default function AdminUsers() {
                   <TableHead>User</TableHead>
                   <TableHead>NIAT ID</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Mobile Number</TableHead>
                   <TableHead>Forms User ID</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Tags</TableHead>
@@ -1535,6 +1538,9 @@ export default function AdminUsers() {
                       >
                         {user.email}
                       </span>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs whitespace-nowrap">
+                      {user.mobileNumber || "—"}
                     </TableCell>
                     {/* Forms User ID — long UUID, truncate + select-all */}
                     <TableCell className="font-mono text-xs text-muted-foreground">
@@ -1700,7 +1706,7 @@ export default function AdminUsers() {
                 {allUsers.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={14}
+                      colSpan={15}
                       className="h-24 text-center text-muted-foreground"
                     >
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />

@@ -26,7 +26,8 @@ const HEADER_COLOR = "#5D1414";
  */
 async function styleStatusBar(): Promise<void> {
   try {
-    const { StatusBar, Style } = await import("@capacitor/status-bar");
+      const nativePlugin = "@capacitor/status-bar";
+      const { StatusBar, Style } = await import(/* @vite-ignore */ nativePlugin);
     // Light TEXT on our dark header — the enum is named for the content, not
     // the background, which is the usual source of confusion here.
     await StatusBar.setStyle({ style: Style.Dark });

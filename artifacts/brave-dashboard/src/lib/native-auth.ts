@@ -97,7 +97,8 @@ export async function startNativeLogin(loginUrl: string): Promise<boolean> {
   // the native APIs) and its proxy drops set-cookie headers, which is exactly
   // what a session-cookie login depends on.
   try {
-    const { InAppBrowser } = await import("@capacitor/inappbrowser");
+      const nativePlugin = "@capacitor/inappbrowser";
+      const { InAppBrowser } = await import(/* @vite-ignore */ nativePlugin);
     await InAppBrowser.openInWebView({
       url: url.toString(),
       options: {
@@ -168,7 +169,8 @@ export function registerAuthDeepLink(onSignedIn: () => void): () => void {
         // a browser tab sitting on a redirect page.
         // Close whichever surface was used to show the SSO.
         try {
-          const { InAppBrowser } = await import("@capacitor/inappbrowser");
+          const nativePlugin = "@capacitor/inappbrowser";
+          const { InAppBrowser } = await import(/* @vite-ignore */ nativePlugin);
           await InAppBrowser.close();
         } catch {
           /* not the in-app view, or already closed */

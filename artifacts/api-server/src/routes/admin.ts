@@ -557,6 +557,46 @@ router.get("/admin/users", async (req, res): Promise<void> => {
         .limit(effectivePageSize)
         .offset(offset);
 
+  // Roster is the source of student mobile numbers. Match by Forms/User ID
+  // first; only use NIAT ID when it maps to exactly one roster entry.
+  const formsUserIds = users
+    .map((u) => u.formsUserId)
+    .filter((id): id is string => !!id);
+  const niatIds = users
+    .map((u) => u.niatId)
+    .filter((id): id is string => !!id);
+  const rosterMatches =
+    formsUserIds.length > 0 || niatIds.length > 0
+      ? await db
+          .select({
+            studentId: rosterTable.studentId,
+            niatId: rosterTable.niatId,
+            mobileNumber: rosterTable.mobileNumber,
+          })
+          .from(rosterTable)
+          .where(
+            formsUserIds.length > 0 && niatIds.length > 0
+              ? or(
+                  inArray(rosterTable.studentId, formsUserIds),
+                  inArray(rosterTable.niatId, niatIds),
+                )
+              : formsUserIds.length > 0
+                ? inArray(rosterTable.studentId, formsUserIds)
+                : inArray(rosterTable.niatId, niatIds),
+          )
+      : [];
+  const rosterMobileByStudentId = new Map<string, string | null>();
+  const rosterMobileByNiatId = new Map<string, string | null | undefined>();
+  for (const roster of rosterMatches) {
+    rosterMobileByStudentId.set(roster.studentId, roster.mobileNumber);
+    if (!roster.niatId) continue;
+    if (!rosterMobileByNiatId.has(roster.niatId)) {
+      rosterMobileByNiatId.set(roster.niatId, roster.mobileNumber);
+    } else if (rosterMobileByNiatId.get(roster.niatId) !== roster.mobileNumber) {
+      rosterMobileByNiatId.set(roster.niatId, undefined);
+    }
+  }
+
   const items = await Promise.all(
     users.map(async (u) => {
       let campusName: string | null = null;
@@ -581,6 +621,11 @@ router.get("/admin/users", async (req, res): Promise<void> => {
         campusId: u.role === "admin" ? null : safe.campusId,
         campusName,
         niatId: u.niatId ?? null,
+        mobileNumber:
+          rosterMobileByStudentId.get(u.formsUserId ?? "") ??
+          rosterMobileByNiatId.get(u.niatId ?? "") ??
+          safe.mobileNumber ??
+          null,
         // Surface auth-method to the admin UI without leaking the hash itself.
         // True iff this account can log in with email + password.
         hasPassword: !!passwordHash,
@@ -744,6 +789,7 @@ router.post(
           campusId: resolvedCampusId ?? null,
           niatId: niatId ?? null,
           batchSectionName: batchSectionName ?? null,
+          mobileNumber: user.mobileNumber ?? null,
           isWhitelisted: true,
         })
         .onConflictDoNothing();
@@ -814,6 +860,10 @@ router.patch(
       const v = updates.profileImage.trim();
       updates.profileImage = v.length === 0 ? null : v;
     }
+    if (typeof updates.mobileNumber === "string") {
+      const v = updates.mobileNumber.trim();
+      updates.mobileNumber = v.length === 0 ? null : v;
+    }
     if (updates.firstName === "") {
       res.status(400).json({ error: "First name cannot be empty." });
       return;
@@ -852,6 +902,23 @@ router.patch(
     if (!user) {
       res.status(404).json({ error: "User not found" });
       return;
+    }
+    if (user.role === "student" && updates.mobileNumber !== undefined) {
+      const rosterConditions = [];
+      if (user.formsUserId)
+        rosterConditions.push(eq(rosterTable.studentId, user.formsUserId));
+      if (user.niatId)
+        rosterConditions.push(eq(rosterTable.niatId, user.niatId));
+      if (rosterConditions.length > 0) {
+        await db
+          .update(rosterTable)
+          .set({ mobileNumber: user.mobileNumber ?? null })
+          .where(
+            rosterConditions.length === 1
+              ? rosterConditions[0]
+              : or(...rosterConditions),
+          );
+      }
     }
     // If role or active status changed, kill the target user's existing
     // sessions so they can't keep using stale (possibly elevated) permissions.
@@ -1536,6 +1603,7 @@ router.get("/admin/roster", async (req, res): Promise<void> => {
         ilike(rosterTable.niatId, needle),
         ilike(rosterTable.batchSectionName, needle),
         ilike(rosterTable.campusName, needle),
+        ilike(rosterTable.mobileNumber, needle),
       )!,
     );
   }
@@ -1607,6 +1675,7 @@ router.post(
         .values({
           ...data,
           email: data.email ?? null,
+          mobileNumber: data.mobileNumber?.trim() || null,
           campusId,
           isWhitelisted: data.isWhitelisted ?? true,
         })
@@ -1646,8 +1715,15 @@ router.post(
           lastName,
           role: "student",
           campusId,
+          mobileNumber: data.mobileNumber?.trim() || null,
         })
         .onConflictDoNothing({ target: usersTable.formsUserId });
+      if (data.mobileNumber?.trim()) {
+        await db
+          .update(usersTable)
+          .set({ mobileNumber: data.mobileNumber.trim() })
+          .where(eq(usersTable.formsUserId, data.studentId));
+      }
     }
 
     await logAudit(
@@ -1718,6 +1794,8 @@ router.patch(
     if (updates.niatId !== undefined) set.niatId = updates.niatId;
     if (updates.batchSectionName !== undefined)
       set.batchSectionName = updates.batchSectionName;
+    if (updates.mobileNumber !== undefined)
+      set.mobileNumber = updates.mobileNumber?.trim() || null;
     if (updates.isWhitelisted !== undefined && updates.isWhitelisted !== null)
       set.isWhitelisted = updates.isWhitelisted;
 
@@ -1800,6 +1878,8 @@ router.patch(
         userSet.email = updates.email;
       if (updates.studentId !== undefined && updates.studentId !== null)
         userSet.formsUserId = updates.studentId;
+      if (updates.mobileNumber !== undefined)
+        userSet.mobileNumber = updated.mobileNumber ?? null;
       if (Object.keys(userSet).length > 0) {
         await db
           .update(usersTable)
@@ -1958,6 +2038,7 @@ router.post(
       campusId: number | null;
       niatId: string | null;
       batchSectionName: string | null;
+      mobileNumber: string | null;
       isWhitelisted: true;
     };
     const prepared: Prepared[] = [];
@@ -1965,15 +2046,17 @@ router.post(
     let skipped = 0;
     for (const s of students) {
       const studentUserId = (s.studentUserId ?? "").trim();
-      if (!studentUserId) {
+      const niatId = s.niatId?.trim() || null;
+      if (!studentUserId && !niatId) {
         skipped++;
         continue;
       }
-      if (seenInPayload.has(studentUserId)) {
+      const dedupeKey = studentUserId || `niat:${niatId}`;
+      if (seenInPayload.has(dedupeKey)) {
         skipped++;
         continue;
       }
-      seenInPayload.add(studentUserId);
+      seenInPayload.add(dedupeKey);
       const campus = s.instituteName
         ? campusByName.get(s.instituteName.trim().toLowerCase())
         : undefined;
@@ -1984,8 +2067,9 @@ router.post(
         email,
         campusName: campus?.name ?? s.instituteName?.trim() ?? "",
         campusId: campus?.id ?? null,
-        niatId: s.niatId?.trim() || null,
+        niatId,
         batchSectionName: s.batchSectionName?.trim() || null,
+        mobileNumber: s.mobileNumber?.trim() || null,
         isWhitelisted: true,
       });
     }
@@ -1998,24 +2082,113 @@ router.post(
     // are allowed.
     // ---------------------------------------------------------------------
     const ID_LOOKUP_CHUNK = 1000;
-    const existingIds = new Set<string>();
-    const allIds = prepared.map((p) => p.studentId);
+    const existingByStudentId = new Map<
+      string,
+      { id: number; studentId: string; niatId: string | null }
+    >();
+    const existingByNiatId = new Map<
+      string,
+      { id: number; studentId: string; niatId: string | null }[]
+    >();
+    const allIds = prepared.map((p) => p.studentId).filter(Boolean);
     for (let i = 0; i < allIds.length; i += ID_LOOKUP_CHUNK) {
       const slice = allIds.slice(i, i + ID_LOOKUP_CHUNK);
       if (slice.length === 0) continue;
       const rows = await db
-        .select({ s: rosterTable.studentId })
+        .select({
+          id: rosterTable.id,
+          studentId: rosterTable.studentId,
+          niatId: rosterTable.niatId,
+        })
         .from(rosterTable)
         .where(inArray(rosterTable.studentId, slice));
-      for (const r of rows) existingIds.add(r.s);
+      for (const r of rows) existingByStudentId.set(r.studentId, r);
     }
-    const fresh = prepared.filter((p) => {
-      if (existingIds.has(p.studentId)) {
-        skipped++;
-        return false;
+    const allNiatIds = prepared
+      .map((p) => p.niatId)
+      .filter((id): id is string => !!id);
+    for (let i = 0; i < allNiatIds.length; i += ID_LOOKUP_CHUNK) {
+      const slice = allNiatIds.slice(i, i + ID_LOOKUP_CHUNK);
+      if (slice.length === 0) continue;
+      const rows = await db
+        .select({
+          id: rosterTable.id,
+          studentId: rosterTable.studentId,
+          niatId: rosterTable.niatId,
+        })
+        .from(rosterTable)
+        .where(inArray(rosterTable.niatId, slice));
+      for (const r of rows) {
+        if (!r.niatId) continue;
+        const bucket = existingByNiatId.get(r.niatId);
+        if (bucket) bucket.push(r);
+        else existingByNiatId.set(r.niatId, [r]);
       }
-      return true;
-    });
+    }
+    const existingMobileUpdates: {
+      id: number;
+      studentId: string;
+      mobileNumber: string;
+    }[] = [];
+    const fresh: Prepared[] = [];
+    for (const p of prepared) {
+      const byStudentId = p.studentId
+        ? existingByStudentId.get(p.studentId)
+        : undefined;
+      const byNiatId = p.niatId
+        ? existingByNiatId.get(p.niatId) ?? []
+        : [];
+      const matched = byStudentId ?? (byNiatId.length === 1 ? byNiatId[0] : undefined);
+      if (!byStudentId && p.mobileNumber && byNiatId.length > 1) {
+        // Never guess when a phone-number import can only be matched to a
+        // duplicate NIAT ID. The row is safely reported as skipped instead.
+        skipped++;
+        continue;
+      }
+      if (matched) {
+        if (p.mobileNumber) {
+          existingMobileUpdates.push({
+            id: matched.id,
+            studentId: matched.studentId,
+            mobileNumber: p.mobileNumber,
+          });
+        } else {
+          skipped++;
+        }
+        continue;
+      }
+      if (!p.studentId) {
+        skipped++;
+        continue;
+      }
+      fresh.push(p);
+    }
+
+    // Existing records are left unchanged by a normal roster import, except for
+    // a supplied mobile number. That lets a phone-number CSV safely enrich the
+    // roster while preserving the rest of each enrolled student's details.
+    const rosterIdsByMobile = new Map<string, number[]>();
+    const studentIdsByMobile = new Map<string, string[]>();
+    for (const update of existingMobileUpdates) {
+      const rosterIds = rosterIdsByMobile.get(update.mobileNumber);
+      if (rosterIds) rosterIds.push(update.id);
+      else rosterIdsByMobile.set(update.mobileNumber, [update.id]);
+      const studentIds = studentIdsByMobile.get(update.mobileNumber);
+      if (studentIds) studentIds.push(update.studentId);
+      else studentIdsByMobile.set(update.mobileNumber, [update.studentId]);
+    }
+    for (const [mobileNumber, rosterIds] of rosterIdsByMobile) {
+      await db
+        .update(rosterTable)
+        .set({ mobileNumber })
+        .where(inArray(rosterTable.id, rosterIds));
+    }
+    for (const [mobileNumber, studentIds] of studentIdsByMobile) {
+      await db
+        .update(usersTable)
+        .set({ mobileNumber })
+        .where(inArray(usersTable.formsUserId, studentIds));
+    }
 
     // ---------------------------------------------------------------------
     // Pass 3: chunked INSERT inside a transaction. onConflictDoNothing on
@@ -2050,7 +2223,8 @@ router.post(
     }
 
     // ---------------------------------------------------------------------
-    // Pass 4: mirror email onto linked user rows that match by formsUserId.
+    // Pass 4: mirror email and mobile number onto linked user rows that match
+    // by formsUserId.
     // Bulk: load all matching users in one query, then issue a single
     // UPDATE per (email -> userIds) bucket. Multiple students may share a
     // college mailbox, so matching is keyed strictly by formsUserId.
@@ -2059,11 +2233,12 @@ router.post(
     // dropped by onConflictDoNothing belongs to another import / admin and
     // shouldn't have its mirrored email overwritten by ours.
     // ---------------------------------------------------------------------
-    const idsWithEmail = fresh.filter(
-      (p) => p.email && insertedStudentIds.has(p.studentId),
+    const insertedForSync = fresh.filter(
+      (p) =>
+        (p.email || p.mobileNumber) && insertedStudentIds.has(p.studentId),
     );
-    if (idsWithEmail.length > 0) {
-      const lookupIds = idsWithEmail.map((p) => p.studentId);
+    if (insertedForSync.length > 0) {
+      const lookupIds = insertedForSync.map((p) => p.studentId);
       const linkedUsers: { id: string; formsUserId: string | null }[] = [];
       for (let i = 0; i < lookupIds.length; i += ID_LOOKUP_CHUNK) {
         const slice = lookupIds.slice(i, i + ID_LOOKUP_CHUNK);
@@ -2081,12 +2256,20 @@ router.post(
         // Group user ids by the new email value so each distinct email
         // becomes one UPDATE … WHERE id IN (…) instead of one per row.
         const idsByEmail = new Map<string, string[]>();
-        for (const p of idsWithEmail) {
+        const idsByMobile = new Map<string, string[]>();
+        for (const p of insertedForSync) {
           const userId = userIdByFormsId.get(p.studentId);
-          if (!userId || !p.email) continue;
-          const bucket = idsByEmail.get(p.email);
-          if (bucket) bucket.push(userId);
-          else idsByEmail.set(p.email, [userId]);
+          if (!userId) continue;
+          if (p.email) {
+            const bucket = idsByEmail.get(p.email);
+            if (bucket) bucket.push(userId);
+            else idsByEmail.set(p.email, [userId]);
+          }
+          if (p.mobileNumber) {
+            const bucket = idsByMobile.get(p.mobileNumber);
+            if (bucket) bucket.push(userId);
+            else idsByMobile.set(p.mobileNumber, [userId]);
+          }
         }
         for (const [email, userIds] of idsByEmail) {
           for (let i = 0; i < userIds.length; i += ID_LOOKUP_CHUNK) {
@@ -2094,6 +2277,15 @@ router.post(
             await db
               .update(usersTable)
               .set({ email })
+              .where(inArray(usersTable.id, slice));
+          }
+        }
+        for (const [mobileNumber, userIds] of idsByMobile) {
+          for (let i = 0; i < userIds.length; i += ID_LOOKUP_CHUNK) {
+            const slice = userIds.slice(i, i + ID_LOOKUP_CHUNK);
+            await db
+              .update(usersTable)
+              .set({ mobileNumber })
               .where(inArray(usersTable.id, slice));
           }
         }
@@ -2105,9 +2297,14 @@ router.post(
       "bulk_import_roster",
       "roster",
       undefined,
-      `Imported ${inserted} students, skipped ${skipped}`,
+      `Imported ${inserted} students, updated ${existingMobileUpdates.length} mobile numbers, skipped ${skipped}`,
     );
-    res.json({ inserted, skipped, total: students.length });
+    res.json({
+      inserted,
+      updated: existingMobileUpdates.length,
+      skipped,
+      total: students.length,
+    });
   },
 );
 
