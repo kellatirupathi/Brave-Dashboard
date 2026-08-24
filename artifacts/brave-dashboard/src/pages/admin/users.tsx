@@ -347,6 +347,7 @@ export default function AdminUsers() {
   const [editFirstName, setEditFirstName] = useState<string>("");
   const [editLastName, setEditLastName] = useState<string>("");
   const [editEmail, setEditEmail] = useState<string>("");
+  const [editMobileNumber, setEditMobileNumber] = useState<string>("");
   const [editNiatId, setEditNiatId] = useState<string>("");
   const [editProfileImage, setEditProfileImage] = useState<string>("");
   const [editIsActive, setEditIsActive] = useState<boolean>(true);
@@ -518,6 +519,7 @@ export default function AdminUsers() {
     setEditFirstName(u.firstName ?? "");
     setEditLastName(u.lastName ?? "");
     setEditEmail(u.email ?? "");
+    setEditMobileNumber(u.mobileNumber ?? "");
     setEditNiatId(u.niatId ?? "");
     setEditProfileImage(u.profileImage ?? "");
     setEditIsActive(u.isActive);
@@ -528,6 +530,7 @@ export default function AdminUsers() {
     const trimmedFirst = editFirstName.trim();
     const trimmedLast = editLastName.trim();
     const trimmedEmail = editEmail.trim();
+    const trimmedMobileNumber = editMobileNumber.trim();
     if (!trimmedFirst) {
       toast({ title: "First name is required", variant: "destructive" });
       return;
@@ -559,6 +562,8 @@ export default function AdminUsers() {
           firstName: trimmedFirst,
           lastName: trimmedLast,
           email: trimmedEmail,
+          mobileNumber:
+            trimmedMobileNumber.length === 0 ? null : trimmedMobileNumber,
           niatId: trimmedNiat.length === 0 ? null : trimmedNiat,
           profileImage:
             trimmedProfileImage.length === 0 ? null : trimmedProfileImage,
@@ -1815,6 +1820,18 @@ export default function AdminUsers() {
                 value={editEmail}
                 onChange={(e) => setEditEmail(e.target.value)}
                 data-testid="input-edit-email"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">
+                Mobile Number
+              </label>
+              <Input
+                type="tel"
+                value={editMobileNumber}
+                onChange={(e) => setEditMobileNumber(e.target.value)}
+                placeholder="Optional"
+                data-testid="input-edit-mobileNumber"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
