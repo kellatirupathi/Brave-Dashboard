@@ -407,3 +407,69 @@
     }
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Native shell only (Capacitor APK).
+   Scoped to .native-app, which main.tsx stamps on <html>, so the browser and
+   the PWA are completely unaffected by anything below.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  /* Text selection on a long-press is a document behaviour. In an app it reads
+     as a bug — you meant to scroll and got a highlight instead. Inputs and
+     genuine content keep it. */
+  .native-app body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .native-app input,
+  .native-app textarea,
+  .native-app [contenteditable="true"],
+  .native-app p,
+  .native-app li,
+  .native-app td {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Momentum scrolling inside cards and tables, as the platform does. */
+  .native-app * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* No focus ring on tap — it lingers after touch and looks stuck. Keyboard
+     focus is preserved, which is what the ring is actually for. */
+  .native-app *:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* Links inside the app must never look like web links: no underline creep,
+     no visited colour. */
+  .native-app a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* A tap should feel like it registered. 60ms is below the threshold where a
+     transition reads as animation, so it feels immediate rather than laggy. */
+  .native-app button:active,
+  .native-app a:active,
+  .native-app [role="button"]:active {
+    transform: scale(0.98);
+    transition: transform 60ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .native-app button:active,
+    .native-app a:active,
+    .native-app [role="button"]:active {
+      transform: none;
+    }
+  }
+
+  /* Pull-to-refresh reloads the WebView and throws away unsaved form state —
+     a student mid-way through a lead capture would lose it. */
+  .native-app body {
+    overscroll-behavior-y: contain;
+  }
+}

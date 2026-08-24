@@ -24,7 +24,10 @@ import {
   teamMembersTable,
 } from "@workspace/db";
 import { resolveSeason } from "../lib/season";
-import { requireWritableSeason } from "../middlewares/seasonGuard";
+import {
+  requireWritableSeason,
+  requireLeadPipelineSeason,
+} from "../middlewares/seasonGuard";
 import { logger } from "../lib/logger";
 import {
   buildPipelineStatus,
@@ -39,6 +42,11 @@ import {
 } from "../lib/lead-pipeline";
 
 const router: IRouter = Router();
+
+// EVERY endpoint below belongs to the Season 2 pipeline. Mounted here rather
+// than tagged per-route so a new endpoint added later cannot forget it —
+// the guard is a property of the router, not of each handler.
+router.use(requireLeadPipelineSeason());
 
 // ── shared helpers ──────────────────────────────────────────────────────────
 

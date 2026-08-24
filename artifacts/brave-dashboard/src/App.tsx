@@ -127,7 +127,7 @@ import { AccessGate } from "@/components/access-gate";
 import { TermsGate } from "@/components/terms-gate";
 import { PopupGate } from "@/components/popup-gate";
 import { GritIntroDialog } from "@/components/grit-intro-dialog";
-import { SeasonProvider } from "@/lib/season-context";
+import { SeasonProvider, useSeason } from "@/lib/season-context";
 import { InstallPrompt, UpdatePrompt } from "@/components/pwa-prompts";
 import { isNativeApp } from "@/lib/native-auth";
 import { NativeAuthBridge } from "@/components/native-auth-bridge";
@@ -337,6 +337,36 @@ function StudentPcaGuard() {
   return <VotePeoplesChoice />;
 }
 
+/**
+ * Sends a student to the flow that actually exists in the season they are
+ * viewing.
+ *
+ * Season 1 ran on free-form Projects; Season 2 replaced that with the lead
+ * pipeline. Hiding the sidebar entry was never enough — the URL is guessable
+ * and stays in browser history, so a Season 1 student could open /leads and be
+ * shown a pipeline their season has no data for. The API refuses those calls
+ * independently (requireLeadPipelineSeason); this only makes the landing
+ * graceful rather than an error page.
+ *
+ * Renders children unchanged while the season is still resolving, so there is
+ * no redirect flash on first paint.
+ */
+function SeasonFlowRoute({
+  children,
+  requires,
+}: {
+  children: React.ReactNode;
+  /** "pipeline" = Season 2 onwards. "projects" = Season 1 only. */
+  requires: "pipeline" | "projects";
+}) {
+  const { viewingId, isLoading } = useSeason();
+  if (isLoading || viewingId == null) return <>{children}</>;
+  const usesPipeline = viewingId >= 2;
+  if (requires === "pipeline" && !usesPipeline) return <Redirect to="/projects" />;
+  if (requires === "projects" && usesPipeline) return <Redirect to="/leads" />;
+  return <>{children}</>;
+}
+
 function RootRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -409,29 +439,41 @@ function Router() {
 
         {/* Student Routes */}
         <Route path="/projects">
-          <ProtectedRoute component={ProjectsList} allowedRoles={["student"]} />
+          <SeasonFlowRoute requires="projects">
+            <ProtectedRoute component={ProjectsList} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
         </Route>
         <Route path="/projects/:id">
-          <ProtectedRoute
-            component={ProjectDetail}
-            allowedRoles={["student"]}
-          />
+          <SeasonFlowRoute requires="projects">
+            <ProtectedRoute
+              component={ProjectDetail}
+              allowedRoles={["student"]}
+            />
+          </SeasonFlowRoute>
         </Route>
         {/* Season 2 pipeline. Additive routes — the Season 1 /projects routes
             above are untouched, and the sidebar decides which of the two a
             student is offered based on the season being viewed. The most
             specific path must be declared first: wouter matches in order. */}
         <Route path="/leads/:id/delivery/:projectId">
-          <ProtectedRoute component={LeadDelivery} allowedRoles={["student"]} />
+          <SeasonFlowRoute requires="pipeline">
+            <ProtectedRoute component={LeadDelivery} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
         </Route>
         <Route path="/leads/:id/project">
-          <ProtectedRoute component={LeadProject} allowedRoles={["student"]} />
+          <SeasonFlowRoute requires="pipeline">
+            <ProtectedRoute component={LeadProject} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
         </Route>
         <Route path="/leads/:id">
-          <ProtectedRoute component={LeadDetail} allowedRoles={["student"]} />
+          <SeasonFlowRoute requires="pipeline">
+            <ProtectedRoute component={LeadDetail} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
         </Route>
         <Route path="/leads">
-          <ProtectedRoute component={LeadsList} allowedRoles={["student"]} />
+          <SeasonFlowRoute requires="pipeline">
+            <ProtectedRoute component={LeadsList} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
         </Route>
         {/* Mobile app install guide. Opened in a new tab from the dashboard,
             so it renders WITHOUT the sidebar — a student following steps on a

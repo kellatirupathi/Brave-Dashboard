@@ -1,0 +1,68 @@
+// Native shell setup (additive, isolated).
+//
+// Small platform touches that a browser cannot do and that an installed app is
+// judged on: the status bar matching the app's own header rather than showing
+// a stray white strip, and the back button behaving the way Android users
+// expect at the root of a task.
+//
+// Every call is guarded and swallowed — a missing plugin must never stop the
+// app rendering. No-ops entirely on web.
+//
+// Deleting this file means removing its one call in main.tsx.
+import { isNativeApp } from "./native-auth";
+
+/**
+ * Exactly --sidebar from index.css, hsl(0 65% 22%), converted to hex because
+ * the native API takes no hsl. Keep the two in step: a status bar a shade off
+ * the header is more noticeable than one that clearly differs.
+ */
+const HEADER_COLOR = "#5D1414";
+
+/**
+ * Paint the status bar to match the header.
+ *
+ * Without this Android leaves a white strip above a dark maroon header, which
+ * is the single most obvious "this is a web page in a shell" tell.
+ */
+async function styleStatusBar(): Promise<void> {
+  try {
+    const { StatusBar, Style } = await import("@capacitor/status-bar");
+    // Light TEXT on our dark header — the enum is named for the content, not
+    // the background, which is the usual source of confusion here.
+    await StatusBar.setStyle({ style: Style.Dark });
+    await StatusBar.setBackgroundColor({ color: HEADER_COLOR });
+    // The header already reserves space via env(safe-area-inset-top), so the
+    // bar must not additionally push content down.
+    await StatusBar.setOverlaysWebView({ overlay: false });
+  } catch {
+    /* plugin unavailable; the app still renders */
+  }
+}
+
+/**
+ * Android's back button at the root of the app should EXIT, not navigate into
+ * browser history and reveal the login screen the student already passed.
+ */
+async function wireBackButton(): Promise<void> {
+  try {
+    const { App } = await import("@capacitor/app");
+    await App.addListener("backButton", ({ canGoBack }) => {
+      // Anywhere below the top level, go back a screen.
+      if (canGoBack && window.location.pathname !== "/") {
+        window.history.back();
+        return;
+      }
+      // At the root, leave the app rather than unwinding to /login.
+      void App.exitApp();
+    });
+  } catch {
+    /* listener unavailable; the system default still applies */
+  }
+}
+
+/** Call once, as early as possible. Safe on web, where it does nothing. */
+export function initNativeShell(): void {
+  if (!isNativeApp()) return;
+  void styleStatusBar();
+  void wireBackButton();
+}

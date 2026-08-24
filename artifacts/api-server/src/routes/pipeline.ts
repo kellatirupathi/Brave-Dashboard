@@ -26,7 +26,10 @@ import {
   teamMembersTable,
 } from "@workspace/db";
 import { resolveSeason } from "../lib/season";
-import { requireWritableSeason } from "../middlewares/seasonGuard";
+import {
+  requireWritableSeason,
+  requireLeadPipelineSeason,
+} from "../middlewares/seasonGuard";
 import { requireTeamLeader } from "../lib/auth";
 import { composeBrd, renderBrdText } from "../lib/brd-composer";
 import { blockingLinkFailures, checkLinks } from "../lib/link-check";
@@ -34,6 +37,11 @@ import { computeRecognition } from "../lib/trust-score";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+// EVERY endpoint below belongs to the Season 2 pipeline. Mounted here rather
+// than tagged per-route so a new endpoint added later cannot forget it —
+// the guard is a property of the router, not of each handler.
+router.use(requireLeadPipelineSeason());
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 const OptionalUrl = z.string().trim().url().max(2000).optional().or(z.literal(""));

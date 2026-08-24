@@ -8,7 +8,7 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build:app": "PORT=5000 BASE_PATH=/ pnpm build && cap sync android",
+    "build:app": "cap sync android && rm -f android/app/src/main/assets/public/brave-app.apk",
     "apk:debug": "pnpm build:app && cd android && ./gradlew assembleDebug",
     "apk:release": "pnpm build:app && cd android && ./gradlew assembleRelease",
     "app:open": "cap open android"
@@ -94,6 +94,7 @@
     "@capacitor/geolocation": "^8.2.2",
     "@capacitor/inappbrowser": "^4.0.3",
     "@capacitor/network": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.3",
     "@uppy/aws-s3": "^5.1.0",
     "@uppy/core": "^5.2.0",
     "@uppy/dashboard": "^5.1.1",

@@ -529,7 +529,14 @@ export default function LeadsList() {
       ) : leads.isError ? (
         <Card className="flex items-center gap-3 p-6 text-sm">
           <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
-          Could not load your leads. Refresh and try again.
+          {/* The server refuses pipeline calls from an earlier season. The
+              route redirects before this normally shows, but a season switched
+              in another tab can land here — say why rather than "try again",
+              which would never work. */}
+          {(leads.error as { data?: { code?: string } } | undefined)?.data
+            ?.code === "SEASON_NOT_SUPPORTED"
+            ? "Leads are part of Season 2. Switch to Season 2 to use them."
+            : "Could not load your leads. Refresh and try again."}
         </Card>
       ) : rows.length === 0 ? (
         <Card className="p-10 text-center">

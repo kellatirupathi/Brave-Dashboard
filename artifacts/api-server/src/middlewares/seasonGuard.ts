@@ -90,3 +90,60 @@ export function requireWritableSeason(capability?: ArchiveCapability) {
     if (await allowSeasonWrite(req, res, capability)) next();
   };
 }
+
+/**
+ * Refuse anything that belongs to the Season 2 lead pipeline when the request
+ * is about an earlier season.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM requireWritableSeason
+ * That guard asks "is this season accepting writes?" — and Season 1 is, because
+ * it is still the live season. This one asks a different question: "does this
+ * FEATURE exist in this season at all?" The pipeline was introduced in Season
+ * 2; Season 1 ran on free-form projects and has no leads, no gates and no
+ * composed BRD. Without this, a Season 1 student who typed /leads could create
+ * leads, interactions, projects and payments stamped season_id = 1 — rows in a
+ * season whose UI can never show them.
+ *
+ * Hiding the sidebar entry is not a control. This is.
+ *
+ * FAILS OPEN, deliberately: if the season cannot be resolved we allow the
+ * request rather than break the live pipeline over an infrastructure blip. The
+ * data itself is still season-scoped either way.
+ *
+ * Applies to reads as well as writes — a Season 1 student has no business
+ * listing Season 2 leads, and an empty list would imply the feature exists.
+ */
+export const SEASON_2_MIN = 2;
+
+export function requireLeadPipelineSeason() {
+  return async function leadPipelineGuard(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const seasonId = await resolveSeason(req);
+      if (seasonId >= SEASON_2_MIN) {
+        next();
+        return;
+      }
+      logger.info(
+        { seasonId, path: req.path, userId: req.user?.id },
+        "[season-guard] blocked lead-pipeline access from an earlier season",
+      );
+      res.status(409).json({
+        error:
+          "The lead pipeline is part of Season 2. Switch to Season 2 to use it.",
+        code: "SEASON_NOT_SUPPORTED",
+        seasonId,
+        requiredSeason: SEASON_2_MIN,
+      });
+    } catch (err) {
+      logger.error(
+        { err, path: req.path },
+        "[season-guard] pipeline season check failed; allowing",
+      );
+      next();
+    }
+  };
+}

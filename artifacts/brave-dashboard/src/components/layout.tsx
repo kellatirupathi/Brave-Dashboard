@@ -14,10 +14,15 @@ import { Chatbot } from "./chatbot";
 import { PcaVoteBanner } from "./pca-vote-banner";
 import { SeasonArchiveBanner } from "./season-archive-banner";
 import { MobileNav } from "./mobile-nav";
+import { AppHeader } from "./app-header";
+import { isNativeApp } from "@/lib/native-auth";
+import { cn } from "@/lib/utils";
 import { OfflineBanner } from "./offline-banner";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Computed once: the shell does not change between renders.
+  const nativeApp = isNativeApp();
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -26,7 +31,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile/tablet top bar with hamburger. Hidden on desktop. */}
-        <header className="lg:hidden sticky top-0 z-30 flex h-14 items-center justify-between border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground">
+        {/* Native app gets a Material top app bar instead — a screen title and
+            a back arrow, not a hamburger duplicating the bottom bar. */}
+        <AppHeader />
+
+        <header
+          className={cn(
+            "lg:hidden sticky top-0 z-30 flex h-14 items-center justify-between border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground",
+            nativeApp && "hidden",
+          )}
+        >
           <Button
             variant="ghost"
             size="icon"

@@ -102,13 +102,32 @@ export async function startNativeLogin(loginUrl: string): Promise<boolean> {
       url: url.toString(),
       options: {
         showURL: false,
-        showToolbar: true,
+        // No toolbar at all. "navigation" added +/- zoom buttons along the
+        // bottom and a Cancel button on top — browser chrome that makes the
+        // sign-in look like a web page rather than part of the app. Pinch to
+        // zoom still works; that is the platform gesture, not a toolbar
+        // feature.
+        showToolbar: false,
         clearCache: false,
         clearSessionCache: false,
-        closeButtonText: "Cancel",
-        toolbarType: "navigation" as never,
       } as never,
     });
+    // Removing the toolbar also removed the only visible way out, so wire the
+    // hardware back button to close the view. Without this a student whose SSO
+    // stalls would be stuck with no affordance at all.
+    try {
+      const { App } = await import("@capacitor/app");
+      const handle = await App.addListener("backButton", async () => {
+        try {
+          await InAppBrowser.close();
+        } catch {
+          /* already closed */
+        }
+        void handle.remove();
+      });
+    } catch {
+      /* listener unavailable; the deep link still closes the view on success */
+    }
     return true;
   } catch {
     // Plugin unavailable in this build — fall through.
