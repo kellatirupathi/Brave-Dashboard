@@ -20,7 +20,7 @@
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -575,7 +575,18 @@ router.post(
       if (e && !errors.includes(e)) errors.push(e);
     };
 
-    /** Mark a set of phones with one outcome. */
+    /**
+     * Mark a set of phones with one outcome.
+     *
+     * `inArray`, NOT sql`… = ANY(${phones})`. Interpolating a JS array into a
+     * sql template does not bind it as one array parameter — Drizzle expands it
+     * into a parenthesised parameter LIST, so `ANY(${phones})` became
+     * `ANY(($1))` for one phone and `ANY(($1, $2))` for a chunk. Postgres wants
+     * an array on the right of ANY, so the first form raised a type error and
+     * the second was a syntax error, and every send failed here AFTER Karix had
+     * already accepted the message — the row stayed `pending`, the admin got a
+     * 500, and retrying re-sent to students who had already received it.
+     */
     const record = async (
       phones: string[],
       result: {
@@ -586,20 +597,34 @@ router.post(
         error?: string;
       },
     ) => {
-      await db
-        .update(whatsappSendsTable)
-        .set({
-          status: result.ok ? "sent" : "failed",
-          statusCode: result.statusCode ?? null,
-          statusDesc: result.error ?? result.statusDesc ?? null,
-          messageId: result.messageId ?? null,
-        })
-        .where(
-          and(
-            eq(whatsappSendsTable.batchId, batchId),
-            sql`${whatsappSendsTable.recipientPhone} = ANY(${phones})`,
-          ),
+      if (phones.length === 0) return;
+      // NEVER let bookkeeping abort a broadcast. By the time this runs the
+      // message has already left for Karix, so throwing here would fail the
+      // whole request over a row that could not be updated — and the only
+      // recovery an admin has is to press Send again, which re-sends to every
+      // student who already got it. A lost status row is recoverable; a
+      // duplicate WhatsApp message to 7,500 students is not.
+      try {
+        await db
+          .update(whatsappSendsTable)
+          .set({
+            status: result.ok ? "sent" : "failed",
+            statusCode: result.statusCode ?? null,
+            statusDesc: result.error ?? result.statusDesc ?? null,
+            messageId: result.messageId ?? null,
+          })
+          .where(
+            and(
+              eq(whatsappSendsTable.batchId, batchId),
+              inArray(whatsappSendsTable.recipientPhone, phones),
+            ),
+          );
+      } catch (err) {
+        logger.error(
+          { err, batchId, count: phones.length, messageId: result.messageId },
+          "[whatsapp] could not record send status; message WAS sent",
         );
+      }
     };
 
     if (hasMergeFields(bindings)) {
