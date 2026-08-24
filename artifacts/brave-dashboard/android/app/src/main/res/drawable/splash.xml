@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Launch screen. Solid Brave-Red with the logo centred, so there is no white
      flash between the launcher and first paint. A layer-list rather than a PNG
-     means one file covers every density and orientation. -->
+     means one file covers every density and orientation.
+
+     Uses @mipmap/ic_launcher — the full mark on its white tile — NOT the
+     adaptive foreground. The foreground is a red "B" on transparency (it
+     matches the web tab logo), which on this red background would be invisible. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/braveRed" />
     <item
@@ -9,7 +13,7 @@
         android:width="160dp"
         android:height="160dp">
         <bitmap
-            android:src="@mipmap/ic_launcher_foreground"
+            android:src="@mipmap/ic_launcher"
             android:gravity="center" />
     </item>
 </layer-list>
