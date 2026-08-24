@@ -17,7 +17,7 @@ import {
   generateAuthToken,
   validateAndConsumeToken,
 } from "@workspace/db";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, sql } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
@@ -36,6 +36,7 @@ import {
   getBootstrapAdminEmails,
 } from "../bootstrap-admins";
 import { logAudit } from "../lib/audit";
+import { logger } from "../lib/logger";
 
 // Returns a roster entry that resolves to a real campus for the given
 // formsUserId / email — used to decide whether SSO is allowed to provision
@@ -923,14 +924,48 @@ router.post("/auth/password-login", async (req: Request, res: Response) => {
   }
   const email = parsed.data.email.trim().toLowerCase();
 
-  const [dbUser] = await db
+  // Case-INSENSITIVE lookup. Email is not case-sensitive in practice, and rows
+  // created before this route normalised them can carry capitals — matching
+  // exactly against the lowercased input locked those accounts out with no way
+  // back, because the stored value could never equal the value searched for.
+  // Migration 0006 lowercases the data; this keeps login working whether or
+  // not it has been run, and for any insert path that still slips through.
+  const matches = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.email, email));
+    .where(sql`lower(${usersTable.email}) = ${email}`);
+
+  // Two rows differing only in case can exist because the email index is not
+  // unique. Prefer the already-normalised one rather than picking arbitrarily,
+  // and refuse if that is still ambiguous — signing someone into whichever row
+  // sorted first would be worse than refusing.
+  const dbUser =
+    matches.length > 1
+      ? (matches.find((u) => u.email === email) ?? null)
+      : (matches[0] ?? null);
+
   // Generic message — don't leak whether email exists.
   const invalid = () =>
     res.status(401).json({ error: "Invalid email or password." });
-  if (!dbUser || !dbUser.passwordHash) {
+
+  // The client is told one thing for all three failures, deliberately. The LOG
+  // separates them, so an admin reporting "invalid password" can be diagnosed
+  // without guessing which of the three it was.
+  if (!dbUser) {
+    logger.warn(
+      { email, caseVariants: matches.length },
+      matches.length > 1
+        ? "[auth] password login: several accounts differ only by email case"
+        : "[auth] password login: no account with that email",
+    );
+    invalid();
+    return;
+  }
+  if (!dbUser.passwordHash) {
+    logger.warn(
+      { email, userId: dbUser.id },
+      "[auth] password login: account has no password set (SSO-only account)",
+    );
     invalid();
     return;
   }
@@ -952,6 +987,10 @@ router.post("/auth/password-login", async (req: Request, res: Response) => {
     ok = false;
   }
   if (!ok) {
+    logger.warn(
+      { email, userId: dbUser.id },
+      "[auth] password login: password does not match",
+    );
     invalid();
     return;
   }

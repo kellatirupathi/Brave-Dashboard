@@ -479,7 +479,11 @@ export default function AdminUsers() {
     const payload = {
       formsUserId:
         useMethod === "sso" ? values.formsUserId?.trim() || null : null,
-      email: values.email,
+      // Lowercased here as well as on the server, so the address shown in the
+      // list afterwards is the one actually stored and sign-in is matched
+      // against. Typing "Firstname.Lastname@…" must not create an account
+      // whose email reads differently from the one that works.
+      email: values.email.trim().toLowerCase(),
       firstName: values.firstName,
       lastName: values.lastName,
       role: values.role,

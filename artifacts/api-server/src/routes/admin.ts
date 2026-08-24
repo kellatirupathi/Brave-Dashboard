@@ -743,6 +743,15 @@ router.post(
       return;
     }
 
+    // Normalise the email exactly as the update route (below) and the CSV
+    // import already do. Without this a user created as "Firstname.Lastname@…"
+    // was stored with those capitals, while /auth/password-login lowercases
+    // before it looks up — so the account could never be found and every sign
+    // in came back "Invalid email or password", whatever the password was.
+    if (typeof userData.email === "string") {
+      userData.email = userData.email.trim().toLowerCase();
+    }
+
     const passwordHash = password ? await bcrypt.hash(password, 10) : null;
     const insertValues: Partial<typeof usersTable.$inferInsert> = {
       ...userData,
