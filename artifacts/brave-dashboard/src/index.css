@@ -473,3 +473,64 @@
     overscroll-behavior-y: contain;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phone layout chrome.
+
+   The bottom bar is FIXED, so it sits over the document rather than in it.
+   Anything that also anchors to the bottom has to be told the bar is there —
+   otherwise the last row of every list, and the floating assistant, end up
+   underneath it. `data-bottom-nav` is stamped on the layout root by
+   layout.tsx only when that bar is actually rendered.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* Content clears the bar AND the Android gesture pill below it. Native only:
+     the browser has no gesture inset to account for. */
+  .native-app .app-main {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@layer base {
+  @media (max-width: 1023px) {
+    /* The floating assistant is anchored bottom-right, which is exactly where
+       the bar's last slot is. Lift it clear rather than hiding it — it is the
+       same button students already know from the web. */
+    [data-bottom-nav="true"] [data-testid="button-open-chatbot"] {
+      transform: translateY(calc(-3.75rem - env(safe-area-inset-bottom, 0px)));
+    }
+    [data-bottom-nav="true"] [data-testid="chatbot-panel"] {
+      bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  /* ── Native touch ergonomics ─────────────────────────────────────────── */
+
+  /* Removes the ~300ms wait a WebView spends deciding whether a tap was the
+     first half of a double-tap-to-zoom. That delay is the single clearest
+     "this is a web page" tell on a phone. */
+  .native-app button,
+  .native-app a[href],
+  .native-app [role="button"],
+  .native-app input,
+  .native-app select,
+  .native-app textarea {
+    touch-action: manipulation;
+  }
+
+  /* Android inflates text in landscape unless told not to; an app is expected
+     to hold its own type scale. */
+  .native-app html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Inputs must not be smaller than 16px or the WebView zooms the viewport on
+     focus and never fully zooms back — the classic mobile-web form jump. */
+  .native-app input,
+  .native-app select,
+  .native-app textarea {
+    font-size: max(16px, 1rem);
+  }
+}

@@ -237,6 +237,17 @@ function StudentResourcesLibraryGuarded() {
   return <StudentResourcesLibrary />;
 }
 
+/**
+ * Has the installed app already routed THIS launch to its landing screen?
+ *
+ * Module scope rather than component state on purpose: the redirect unmounts
+ * the component that would hold the state, so state would reset and the
+ * redirect would fire again every time the student tapped Dashboard. A module
+ * variable lives exactly as long as the page load does — which, in a Capacitor
+ * shell, is exactly one app launch.
+ */
+let nativeLaunchLanded = false;
+
 function StudentDashboardOrGetStarted() {
   const { user } = useAuth();
   const { data: team, isLoading } = useGetMyTeam({
@@ -264,6 +275,29 @@ function StudentDashboardOrGetStarted() {
     return <Redirect to="/profile" />;
   }
   if (!team) return <Redirect to="/get-started" />;
+
+  // ── Installed app: open on the work, not on a summary ──────────────────
+  //
+  // The session cookie lives in the WebView, so a student who signed in last
+  // week is still signed in when they tap the icon today. Landing them on the
+  // dashboard makes them navigate before they can do anything; a student opens
+  // BRAVE on their phone to log a lead.
+  //
+  // Deliberately placed AFTER the roster, profile and team gates above, so it
+  // cannot skip a student past onboarding into a pipeline they have no team
+  // for. And it targets /leads unconditionally — SeasonFlowRoute redirects a
+  // Season 1 student on to /projects, so the season rule stays in ONE place.
+  //
+  // Fires once per launch, so tapping Dashboard afterwards behaves normally.
+  //
+  // `replace` matters: a pushed entry would leave "/" underneath /leads, so
+  // the hardware back button would surface the dashboard the student never
+  // asked for instead of leaving the app.
+  if (isNativeApp() && !nativeLaunchLanded) {
+    nativeLaunchLanded = true;
+    return <Redirect to="/leads" replace />;
+  }
+
   return gritConfig?.gritMilesDashboardEnabled ? (
     <TeamDashboard />
   ) : (
@@ -362,8 +396,13 @@ function SeasonFlowRoute({
   const { viewingId, isLoading } = useSeason();
   if (isLoading || viewingId == null) return <>{children}</>;
   const usesPipeline = viewingId >= 2;
-  if (requires === "pipeline" && !usesPipeline) return <Redirect to="/projects" />;
-  if (requires === "projects" && usesPipeline) return <Redirect to="/leads" />;
+  // `replace`, not push: the URL being corrected must not stay in history, or
+  // the hardware back button would land on it and be redirected forward again,
+  // trapping the student in a loop they cannot back out of.
+  if (requires === "pipeline" && !usesPipeline)
+    return <Redirect to="/projects" replace />;
+  if (requires === "projects" && usesPipeline)
+    return <Redirect to="/leads" replace />;
   return <>{children}</>;
 }
 

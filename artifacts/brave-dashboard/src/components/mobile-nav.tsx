@@ -1,12 +1,19 @@
 // Bottom navigation for phones (additive, isolated).
 //
-// Five slots, which is Material's maximum before labels start truncating:
+// FOUR slots — the three screens a student works in, plus More:
 //
-//   1-3  the screens a student uses in the field, season-aware
-//   4    Profile
-//   5    More — everything else, in a sheet that slides up from the bar
+//   1  Dashboard
+//   2  Journal
+//   3  Leads (Season 2) / Projects (Season 1)
+//   4  More — everything else, in a sheet that slides up from the bar
 //
-// The "More" sheet is what makes five slots enough. A student has up to ten
+// Four rather than five. Material allows five, but the fifth was Profile, and
+// profile is not a *task* — it is something you visit once at signup and then
+// almost never. Spending a permanent thumb-reach slot on it crowded the three
+// screens that actually carry the work; it now lives at the top of the More
+// sheet, where settings-shaped things belong.
+//
+// The "More" sheet is what makes four slots enough. A student has up to ten
 // destinations depending on which features an admin has switched on, and
 // hiding the surplus behind a hamburger at the OPPOSITE end of the screen
 // (top-left, where the thumb cannot reach) is the thing that makes a web app
@@ -114,15 +121,19 @@ export function MobileNav() {
 
   /** Slots 1-3: what a student opens most while working. */
   const primary: Item[] = [
-    { name: "Home", href: "/", icon: LayoutDashboard },
+    { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Journal", href: "/journal", icon: BookOpenCheck },
     usesLeadPipeline
       ? { name: "Leads", href: "/leads", icon: Handshake }
       : { name: "Projects", href: "/projects", icon: FolderKanban },
   ];
 
-  /** Everything else, behind More. Order matches the sidebar. */
+  /**
+   * Everything else, behind More. Profile leads because it is the one a
+   * student reaches for deliberately; the rest follow the sidebar's order.
+   */
   const overflow: Item[] = [
+    { name: "Profile", href: "/profile", icon: User },
     { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
     { name: "GRIT Miles", href: "/grit-miles", icon: Award },
     ...(gritConfig?.demoDayMenuEnabled !== false
@@ -156,9 +167,20 @@ export function MobileNav() {
     cn(
       // 56px is Material's bottom-nav height; below that it gets genuinely
       // hard to hit while walking.
-      "flex min-h-[56px] w-full flex-col items-center justify-center gap-0.5 px-1 py-1.5",
-      "transition-colors active:bg-sidebar-accent",
+      "flex min-h-[56px] w-full flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2",
+      "transition-colors",
       active ? "text-sidebar-primary" : "text-sidebar-foreground/65",
+    );
+
+  /**
+   * Material's active indicator: a pill behind the icon, not a colour change
+   * alone. It is what makes the selected tab readable at a glance on a phone
+   * held at arm's length, and it gives the tap something to land on.
+   */
+  const pillClass = (active: boolean) =>
+    cn(
+      "flex h-7 w-[3.25rem] items-center justify-center rounded-full transition-colors",
+      active ? "bg-sidebar-primary/15" : "bg-transparent",
     );
 
   const labelClass = (active: boolean) =>
@@ -282,36 +304,22 @@ export function MobileNav() {
                   data-testid={`link-mobile-${item.name.toLowerCase()}`}
                   className={slotClass(active)}
                 >
-                  <Icon
-                    className={cn("h-5 w-5 shrink-0", active && "stroke-[2.5]")}
-                    aria-hidden="true"
-                  />
+                  <span className={pillClass(active)}>
+                    <Icon
+                      className={cn(
+                        "h-5 w-5 shrink-0",
+                        active && "stroke-[2.5]",
+                      )}
+                      aria-hidden="true"
+                    />
+                  </span>
                   <span className={labelClass(active)}>{item.name}</span>
                 </Link>
               </li>
             );
           })}
 
-          {/* Slot 4 — Profile */}
-          <li className="flex-1">
-            <Link
-              href="/profile"
-              aria-current={isActive("/profile") ? "page" : undefined}
-              data-testid="link-mobile-profile"
-              className={slotClass(isActive("/profile"))}
-            >
-              <User
-                className={cn(
-                  "h-5 w-5 shrink-0",
-                  isActive("/profile") && "stroke-[2.5]",
-                )}
-                aria-hidden="true"
-              />
-              <span className={labelClass(isActive("/profile"))}>Profile</span>
-            </Link>
-          </li>
-
-          {/* Slot 5 — More */}
+          {/* Slot 4 — More */}
           <li className="flex-1">
             <button
               type="button"
@@ -321,13 +329,15 @@ export function MobileNav() {
               data-testid="button-mobile-more"
               className={slotClass(moreOpen || inOverflow)}
             >
-              <MoreHorizontal
-                className={cn(
-                  "h-5 w-5 shrink-0",
-                  (moreOpen || inOverflow) && "stroke-[2.5]",
-                )}
-                aria-hidden="true"
-              />
+              <span className={pillClass(moreOpen || inOverflow)}>
+                <MoreHorizontal
+                  className={cn(
+                    "h-5 w-5 shrink-0",
+                    (moreOpen || inOverflow) && "stroke-[2.5]",
+                  )}
+                  aria-hidden="true"
+                />
+              </span>
               <span className={labelClass(moreOpen || inOverflow)}>More</span>
             </button>
           </li>

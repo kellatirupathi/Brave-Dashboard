@@ -41,6 +41,17 @@ async function styleStatusBar(): Promise<void> {
 }
 
 /**
+ * The screens the bottom bar can reach directly. Back on one of these EXITS,
+ * which is what Android users expect at the start of a task — unwinding
+ * instead would surface the dashboard, or worse the login screen, that the
+ * student already passed through.
+ *
+ * Anything deeper (/leads/12, /leads/12/project) is a drill-down and goes back
+ * a screen normally.
+ */
+const TOP_LEVEL = ["/", "/leads", "/projects", "/journal"];
+
+/**
  * Android's back button at the root of the app should EXIT, not navigate into
  * browser history and reveal the login screen the student already passed.
  */
@@ -48,12 +59,16 @@ async function wireBackButton(): Promise<void> {
   try {
     const { App } = await import("@capacitor/app");
     await App.addListener("backButton", ({ canGoBack }) => {
+      const path = window.location.pathname;
+      // Trailing slashes and nothing else must still count as top level.
+      const normalised = path.length > 1 ? path.replace(/\/+$/, "") : path;
+      const atTopLevel = TOP_LEVEL.includes(normalised);
       // Anywhere below the top level, go back a screen.
-      if (canGoBack && window.location.pathname !== "/") {
+      if (canGoBack && !atTopLevel) {
         window.history.back();
         return;
       }
-      // At the root, leave the app rather than unwinding to /login.
+      // At a start destination, leave the app rather than unwinding.
       void App.exitApp();
     });
   } catch {

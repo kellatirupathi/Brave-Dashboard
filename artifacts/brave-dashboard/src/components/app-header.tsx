@@ -42,7 +42,9 @@ function describe(path: string): { title: string; topLevel: boolean } {
     [/^\/finale/, "Finale", false],
     [/^\/team/, "My Team", false],
     [/^\/resources-library/, "Resources", false],
-    [/^\/profile/, "Profile", true],
+    // Reached from the More sheet, not the bottom bar, so it is a drill-down
+    // and gets a back arrow like any other.
+    [/^\/profile/, "Profile", false],
     [/^\/notifications/, "Notifications", false],
     [/^\/get-app/, "Get the app", false],
   ];
