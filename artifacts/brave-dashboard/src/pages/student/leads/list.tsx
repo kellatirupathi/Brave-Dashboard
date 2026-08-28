@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import { ListSkeleton } from "@/components/skeletons";
+import { isNativeApp } from "@/lib/native-auth";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +45,7 @@ import {
   type LeadListRow,
   type TrailBand,
 } from "@/lib/leads-api";
+import { successFeedback, errorFeedback } from "@/lib/haptics";
 
 const SOURCES = [
   { value: "walk_in", label: "Walked in / I visited them" },
@@ -170,6 +173,7 @@ function CaptureDialog({
   const mutation = useMutation({
     mutationFn: () => createLead(form),
     onSuccess: (res) => {
+      successFeedback();
       void qc.invalidateQueries({ queryKey: leadKeys.list(seasonId) });
       void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
       onOpenChange(false);
@@ -193,12 +197,14 @@ function CaptureDialog({
         toast({ title: "Lead saved" });
       }
     },
-    onError: (err: Error) =>
+    onError: (err: Error) => {
+      errorFeedback();
       toast({
         title: "Could not save the lead",
         description: err.message,
         variant: "destructive",
-      }),
+      });
+    },
   });
 
   const useMyLocation = () => {
@@ -523,9 +529,17 @@ export default function LeadsList() {
       ) : null}
 
       {leads.isLoading ? (
-        <div className="flex justify-center py-16">
-          <Spinner />
-        </div>
+        <>
+          {/* In the app, show the shape of what is arriving. ListSkeleton
+              renders null on web, so the spinner below stays the browser's
+              behaviour and nothing familiar changes there. */}
+          <ListSkeleton />
+          {!isNativeApp() && (
+            <div className="flex justify-center py-16">
+              <Spinner />
+            </div>
+          )}
+        </>
       ) : leads.isError ? (
         <Card className="flex items-center gap-3 p-6 text-sm">
           <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />

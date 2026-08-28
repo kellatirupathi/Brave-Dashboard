@@ -51,6 +51,7 @@ import { useSeason } from "@/lib/season-context";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { getFinaleMe } from "@/lib/finale-api";
 import { cn } from "@/lib/utils";
+import { tapFeedback } from "@/lib/haptics";
 
 type Item = {
   name: string;
@@ -323,7 +324,12 @@ export function MobileNav() {
           <li className="flex-1">
             <button
               type="button"
-              onClick={() => setMoreOpen((v) => !v)}
+              onClick={() => {
+                // A sheet opening is a physical thing; the tap acknowledges
+                // the gesture before the animation confirms it.
+                tapFeedback("light");
+                setMoreOpen((v) => !v);
+              }}
               aria-expanded={moreOpen}
               aria-haspopup="dialog"
               data-testid="button-mobile-more"
