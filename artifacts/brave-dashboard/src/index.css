@@ -534,3 +534,63 @@
     font-size: max(16px, 1rem);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE APP DESIGN SYSTEM
+   
+   The pages were laid out for a desktop and then made to fit a phone. That is
+   why they read as a shrunk website: desktop padding eats the narrow width,
+   desktop type sizes force wrapping, and rows built as `justify-between` get
+   squeezed until the label collides with its value.
+   
+   These rules retune the SAME markup for a phone rather than restructuring it,
+   so no page logic changes and the desktop is untouched. Scoped to the native
+   shell plus small viewports.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  @layer components {
+    /* ── Density ───────────────────────────────────────────────────────────
+       Desktop card padding (24px) costs 48px of a 360px screen — 13% of the
+       width, spent on nothing. 16px keeps cards breathing without starving
+       the content. */
+    .native-app [class*="rounded-2xl"][class*="border"] > div,
+    .native-app .p-6 { padding: 1rem; }
+    .native-app .p-5 { padding: 0.875rem; }
+    .native-app .px-6 { padding-left: 1rem; padding-right: 1rem; }
+    .native-app .py-8 { padding-top: 1.25rem; padding-bottom: 1.25rem; }
+    .native-app .px-8 { padding-left: 1rem; padding-right: 1rem; }
+    .native-app .gap-8 { gap: 1.25rem; }
+    .native-app .gap-14 { gap: 1.5rem; }
+
+    /* ── Type scale ────────────────────────────────────────────────────────
+       Figures are the thing a student opens the app to read, so they stay
+       large — but a 5xl radial number pushes everything below the fold on a
+       small screen. These are one step down, not shrunk. */
+    .native-app .text-5xl { font-size: 2.5rem; }
+    .native-app .text-\[1\.7rem\] { font-size: 1.5rem; }
+    .native-app .text-2xl { font-size: 1.375rem; }
+
+    /* ── The squeeze fix ───────────────────────────────────────────────────
+       A `justify-between` row with a long label and a value has nowhere to go
+       on a narrow screen: the two collide or clip. Letting them wrap is the
+       one-line fix that keeps every such row readable. */
+    .native-app .flex.items-center.justify-between,
+    .native-app .flex.items-start.justify-between {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    /* ── Cards ─────────────────────────────────────────────────────────────
+       Full-bleed-ish corners read as native; a 16px radius on a 328px card
+       looks like a web widget. */
+    .native-app [class*="rounded-2xl"] { border-radius: 1rem; }
+
+    /* ── Sections ──────────────────────────────────────────────────────────
+       Vertical rhythm tightens so more than one section is visible at once —
+       on a phone, scrolling past a single card to reach the next is the
+       difference between an app and a page. */
+    .native-app .space-y-5 > * + * { margin-top: 0.875rem; }
+    .native-app .space-y-6 > * + * { margin-top: 1rem; }
+  }
+}
