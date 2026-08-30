@@ -549,6 +549,10 @@ router.get("/admin/campus-insights-weeks", async (req, res): Promise<void> => {
       endDate: programmeWeeksTable.endDate,
     })
     .from(programmeWeeksTable)
+    // Season-scoped: this feeds the week filter on Campus Insights, which
+    // otherwise offered both seasons' weeks in one list with no way to tell
+    // them apart.
+    .where(eq(programmeWeeksTable.seasonId, await resolveSeason(req)))
     .orderBy(programmeWeeksTable.weekNumber);
   res.json(rows);
 });

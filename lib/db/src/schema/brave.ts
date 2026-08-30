@@ -1929,6 +1929,9 @@ export const submissionAccessRequestsTable = pgTable(
   "submission_access_requests",
   {
     id: serial("id").primaryKey(),
+    // Which season this request belongs to. DEFAULT 1 so every request made
+    // before seasons existed stays a Season 1 request and nothing moves.
+    seasonId: integer("season_id").notNull().default(1),
     teamId: integer("team_id").notNull(),
     requestedBy: text("requested_by").notNull(),
     purpose: text("purpose"),
@@ -1943,6 +1946,7 @@ export const submissionAccessRequestsTable = pgTable(
   },
   (t) => [
     index("submission_access_requests_team_idx").on(t.teamId),
+    index("submission_access_requests_season_idx").on(t.seasonId),
     index("submission_access_requests_status_idx").on(t.status),
     index("submission_access_requests_created_idx").on(t.createdAt),
   ],

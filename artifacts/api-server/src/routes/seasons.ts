@@ -18,7 +18,7 @@
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import {
   db,
   programmeConfigTable,
@@ -38,7 +38,72 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 /** Shape sent to the dashboard. Deliberately excludes nothing — no secrets here. */
-function serialize(row: typeof seasonsTable.$inferSelect) {
+/**
+ * What ACTUALLY governs a season, as opposed to what its own row happens to
+ * hold.
+ *
+ * Season dates live in two places, which is the root of a confusing bug:
+ * `seasons.start_date` is set once at seeding and edited from the Seasons card,
+ * while `programme_config.start_date` is what Config -> Programme Schedule
+ * edits AND what programme weeks are generated from. An admin who set up
+ * Season 2 through Programme Schedule therefore saw its weeks generate
+ * correctly while the Seasons card still read "— → — · 12 weeks", because the
+ * season row had never been touched.
+ *
+ * Rather than keep two copies in sync — which fails the first time someone
+ * edits one and not the other — the card now shows the derived truth.
+ */
+type SeasonEffective = {
+  effectiveStartDate: string | null;
+  effectiveEndDate: string | null;
+  actualWeekCount: number;
+};
+
+async function effectiveBySeason(): Promise<Map<number, SeasonEffective>> {
+  const map = new Map<number, SeasonEffective>();
+  try {
+    const cfgs = await db
+      .select({
+        seasonId: programmeConfigTable.seasonId,
+        startDate: programmeConfigTable.startDate,
+        endDate: programmeConfigTable.endDate,
+      })
+      .from(programmeConfigTable);
+    for (const c of cfgs) {
+      map.set(c.seasonId, {
+        effectiveStartDate: c.startDate ?? null,
+        effectiveEndDate: c.endDate ?? null,
+        actualWeekCount: 0,
+      });
+    }
+    const weeks = await db
+      .select({
+        seasonId: programmeWeeksTable.seasonId,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(programmeWeeksTable)
+      .groupBy(programmeWeeksTable.seasonId);
+    for (const w of weeks) {
+      const entry = map.get(w.seasonId) ?? {
+        effectiveStartDate: null,
+        effectiveEndDate: null,
+        actualWeekCount: 0,
+      };
+      entry.actualWeekCount = Number(w.n ?? 0);
+      map.set(w.seasonId, entry);
+    }
+  } catch (err) {
+    // Fail soft: the card falls back to the season row's own values, which is
+    // exactly the behaviour before this existed.
+    logger.error({ err }, "[seasons] could not derive effective season dates");
+  }
+  return map;
+}
+
+function serialize(
+  row: typeof seasonsTable.$inferSelect,
+  effective?: SeasonEffective,
+) {
   return {
     id: row.id,
     name: row.name,
@@ -46,6 +111,11 @@ function serialize(row: typeof seasonsTable.$inferSelect) {
     startDate: row.startDate,
     endDate: row.endDate,
     weekCount: row.weekCount,
+    // Derived — what the programme actually runs on. Falls back to the row's
+    // own values so a season with no config row still renders.
+    effectiveStartDate: effective?.effectiveStartDate ?? row.startDate,
+    effectiveEndDate: effective?.effectiveEndDate ?? row.endDate,
+    actualWeekCount: effective?.actualWeekCount ?? 0,
     isActive: row.isActive,
     isReadOnly: row.isReadOnly,
     allowJournalWrites: row.allowJournalWrites,
@@ -76,8 +146,9 @@ router.get("/seasons", async (req: Request, res: Response): Promise<void> => {
     return;
   }
   const rows = await db.select().from(seasonsTable).orderBy(asc(seasonsTable.id));
+  const effective = await effectiveBySeason();
   res.json({
-    seasons: rows.map(serialize),
+    seasons: rows.map((r) => serialize(r, effective.get(r.id))),
     viewing: await resolveSeason(req),
   });
 });

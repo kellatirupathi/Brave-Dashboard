@@ -139,7 +139,15 @@ export function SeasonsAdminCard({
                   <Unlock className="h-3.5 w-3.5 text-muted-foreground" />
                 )}
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {s.startDate ?? "—"} → {s.endDate ?? "—"} · {s.weekCount} weeks
+                  {/* Shows what the programme actually runs on. The season
+                      row's own dates are seeded once and rarely edited, so
+                      reading them made a fully configured season look empty. */}
+                  {(s.effectiveStartDate ?? s.startDate) ?? "—"} →{" "}
+                  {(s.effectiveEndDate ?? s.endDate) ?? "—"} ·{" "}
+                  {s.actualWeekCount && s.actualWeekCount > 0
+                    ? s.actualWeekCount
+                    : s.weekCount}{" "}
+                  weeks
                 </span>
               </div>
 

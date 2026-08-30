@@ -80,6 +80,9 @@ router.get("/heatmap", async (req, res): Promise<void> => {
   }
 
   const weeksBack = Math.min(Math.max(Number(req.query.weeksBack) || 8, 1), 24);
+  // The season being viewed governs which weeks form the columns AND which
+  // journals fill the cells; resolved once so the two cannot disagree.
+  const season = await resolveSeason(req);
 
   let campusFilter: number | null = null;
   if (role === "coordinator") {
@@ -110,6 +113,10 @@ router.get("/heatmap", async (req, res): Promise<void> => {
       endDate: programmeWeeksTable.endDate,
     })
     .from(programmeWeeksTable)
+    // Season-scoped. Without this the columns came from every season's weeks
+    // pooled together, so an admin viewing 2.0 saw Season 1's May-July dates —
+    // its weeks sort later only because Season 1 ran first.
+    .where(eq(programmeWeeksTable.seasonId, season))
     .orderBy(asc(programmeWeeksTable.startDate));
 
   // Find the week containing today (or most recent past week if today is
@@ -172,7 +179,7 @@ router.get("/heatmap", async (req, res): Promise<void> => {
     .from(weeklyJournalsTable)
     .where(
       and(
-        eq(weeklyJournalsTable.seasonId, await resolveSeason(req)),
+        eq(weeklyJournalsTable.seasonId, season),
         gte(weeklyJournalsTable.submittedAt, earliest),
       ),
     );

@@ -102,7 +102,18 @@ export async function resolveReportWeek(
   );
   if (containing) return containing;
   if (open.length > 0) return open[open.length - 1];
-  return weeks[weeks.length - 1];
+  // The most recent week that has ALREADY ENDED. Reporting on a week that has
+  // not happened yet is meaningless, and for the escalation cron it is actively
+  // harmful: it would chase every team for a journal that is not due.
+  const ended = weeks.filter((w) => w.endDate < today);
+  if (ended.length > 0) return ended[ended.length - 1];
+  // Nothing has started. Deliberately null rather than the last week of the
+  // season — a season configured to run Sep-Nov and viewed in August was
+  // resolving to its FINAL week, so the Reports page showed "Week 13" with
+  // every team marked not-submitted, and the cron would have emailed all of
+  // them about a deadline three months away. Both callers already treat null
+  // as "nothing to report on".
+  return null;
 }
 
 // Resolve the week that the escalation / weekly-report crons should target: the
@@ -146,7 +157,9 @@ export async function resolvePreviousReportWeek(
   // before today is the week that just closed.
   const ended = weeks.filter((w) => w.endDate < today);
   if (ended.length > 0) return ended[ended.length - 1];
-  return resolveReportWeek();
+  // Pass the season through: without it the fallback silently reported on the
+  // ACTIVE season instead of the one asked for.
+  return resolveReportWeek(undefined, seasonId);
 }
 
 // All programme weeks (for the report week filter / week grid).

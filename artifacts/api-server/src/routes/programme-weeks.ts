@@ -586,7 +586,16 @@ router.get("/journals/open-weeks", async (req, res): Promise<void> => {
       endDate: programmeWeeksTable.endDate,
     })
     .from(programmeWeeksTable)
-    .where(eq(programmeWeeksTable.isOpen, true))
+    // Season-scoped. This is the picker a student chooses a week from when
+    // submitting a journal; without the filter it offered the OTHER season's
+    // open weeks, and a Season 2 student would have submitted against a
+    // Season 1 week's dates.
+    .where(
+      and(
+        eq(programmeWeeksTable.isOpen, true),
+        eq(programmeWeeksTable.seasonId, await resolveSeason(req)),
+      ),
+    )
     .orderBy(asc(programmeWeeksTable.weekNumber));
   res.json(rows);
 });

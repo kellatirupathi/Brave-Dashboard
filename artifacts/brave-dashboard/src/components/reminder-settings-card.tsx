@@ -176,6 +176,14 @@ export function ReminderSettingsCard() {
           <Bell className="w-5 h-5 text-primary" />
           Notifications &amp; Reminders
         </CardTitle>
+        {/* These switches govern the LIVE season, whichever one that is, and
+            are read the same way by sendEmail(). Said plainly here because an
+            admin browsing an archived season would otherwise assume they were
+            editing that season's switches. */}
+        <CardDescription>
+          These settings apply to the live season. Reminders and reports are
+          only ever sent for the season currently running.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {isLoading || !data ? (

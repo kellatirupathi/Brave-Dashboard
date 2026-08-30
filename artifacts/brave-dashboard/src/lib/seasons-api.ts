@@ -14,6 +14,15 @@ export type Season = {
   startDate: string | null;
   endDate: string | null;
   weekCount: number;
+  /**
+   * What the season ACTUALLY runs on, derived from programme_config and the
+   * generated weeks rather than the season row's own copy. The two can
+   * disagree: Programme Schedule edits the config, the Seasons card edits the
+   * row, and only the config drives week generation.
+   */
+  effectiveStartDate?: string | null;
+  effectiveEndDate?: string | null;
+  actualWeekCount?: number;
   /** Exactly one season is active; new activity is written against it. */
   isActive: boolean;
   /** When true, student writes are blocked unless an override below is on. */

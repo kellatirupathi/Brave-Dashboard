@@ -508,10 +508,17 @@ function buildAdminQuery(opts: {
   from?: string;
   to?: string;
   sort: FinaleSort;
+  /** Season being viewed. A deck belongs to the season it was submitted in. */
+  seasonId?: number;
 }) {
   // Soft-deleted decks are invisible everywhere — this sits in the shared
   // builder so the list and the CSV export can't drift apart.
   const conds: Array<SQL<unknown> | undefined> = [
+    // Season first, for the same reason the soft-delete check sits here: the
+    // list and the CSV export share this builder and must not drift apart.
+    ...(typeof opts.seasonId === "number"
+      ? [eq(finaleSubmissionsTable.seasonId, opts.seasonId)]
+      : []),
     isNull(finaleSubmissionsTable.deletedAt),
   ];
   if (opts.search) {
@@ -556,6 +563,7 @@ async function fetchAdminRows(opts: {
   from?: string;
   to?: string;
   sort: FinaleSort;
+  seasonId?: number;
   limit?: number;
   offset?: number;
 }) {
@@ -755,7 +763,13 @@ router.get(
       Math.max(1, Number(req.query["pageSize"] ?? 50) || 50),
     );
 
-    const all = await fetchAdminRows({ search, from, to, sort });
+    const all = await fetchAdminRows({
+      search,
+      from,
+      to,
+      sort,
+      seasonId: await resolveSeason(req),
+    });
     const totalCount = all.length;
     const items = all.slice((page - 1) * pageSize, page * pageSize);
 
@@ -837,7 +851,13 @@ router.get(
     const to = String(req.query["to"] ?? "").trim() || undefined;
     const sort = String(req.query["sort"] ?? "newest") as FinaleSort;
 
-    const where = buildAdminQuery({ search, from, to, sort });
+    const where = buildAdminQuery({
+      search,
+      from,
+      to,
+      sort,
+      seasonId: await resolveSeason(req),
+    });
     const rows = await db
       .select({
         id: finaleSubmissionsTable.id,

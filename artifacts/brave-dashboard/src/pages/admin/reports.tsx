@@ -197,12 +197,19 @@ function CampusReportsTab() {
         </Button>
       </div>
 
-      {summary?.week && (
+      {summary?.week ? (
         <p className="text-sm text-muted-foreground">
           Week {summary.week.weekNumber} · {summary.week.startDate} →{" "}
           {summary.week.endDate}
         </p>
-      )}
+      ) : weekFilter !== "all" && !isLoading ? (
+        /* No week has started in this season yet. Saying so is far better than
+           rendering nothing, or — as it did before — reporting on the season's
+           FINAL week with every team marked not-submitted. */
+        <p className="text-sm text-muted-foreground">
+          This season has not started yet, so there is nothing to report on.
+        </p>
+      ) : null}
       {weekFilter === "all" && summary?.weeksCount ? (
         <p className="text-sm text-muted-foreground">
           Aggregated across {summary.weeksCount} weeks.

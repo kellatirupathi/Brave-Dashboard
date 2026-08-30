@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { resolveSeason } from "../lib/season";
 import { requireWritableSeason } from "../middlewares/seasonGuard";
 import {
@@ -58,7 +58,15 @@ router.get("/demo-day/application", async (req, res): Promise<void> => {
   const [app] = await db
     .select()
     .from(demoDayApplicationsTable)
-    .where(eq(demoDayApplicationsTable.teamId, member.teamId));
+    // Season-scoped, same reasoning as the submission view: a team that
+    // applied in Season 1 must not see that application while working in
+    // Season 2, or it looks as though they have already applied.
+    .where(
+      and(
+        eq(demoDayApplicationsTable.teamId, member.teamId),
+        eq(demoDayApplicationsTable.seasonId, await resolveSeason(req)),
+      ),
+    );
   if (!app) {
     res.status(404).json({ error: "No application found" });
     return;
@@ -145,7 +153,11 @@ router.get("/admin/demo-day/applications", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  const apps = await db.select().from(demoDayApplicationsTable);
+  // Season-scoped: an application belongs to the season it was made in.
+  const apps = await db
+    .select()
+    .from(demoDayApplicationsTable)
+    .where(eq(demoDayApplicationsTable.seasonId, await resolveSeason(req)));
   const result = await Promise.all(apps.map(enrichApplication));
   res.json(result);
 });

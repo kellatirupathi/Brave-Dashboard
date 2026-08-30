@@ -300,10 +300,20 @@ type VoteFilters = {
   role?: string;
   from?: string;
   to?: string;
+  /**
+   * Season being viewed. Required in practice — a vote belongs to the season it
+   * was cast in, and the admin list showed every season's votes pooled.
+   */
+  seasonId?: number;
 };
 
 function buildVoteWhere(f: VoteFilters): SQL<unknown> | undefined {
   const conds: Array<SQL<unknown> | undefined> = [];
+  // Season first: every caller passes it, and a vote cast in Season 1 must not
+  // appear while viewing Season 2.
+  if (typeof f.seasonId === "number") {
+    conds.push(eq(pcaVotesTable.seasonId, f.seasonId));
+  }
   if (f.role === "leader" || f.role === "member") {
     conds.push(eq(pcaVotesTable.voterRole, f.role));
   }
@@ -368,6 +378,7 @@ router.get(
       role: String(req.query["role"] ?? "") || undefined,
       from: String(req.query["from"] ?? "") || undefined,
       to: String(req.query["to"] ?? "") || undefined,
+      seasonId: await resolveSeason(req),
     });
     res.json({ items, totalCount: items.length });
   },
@@ -459,6 +470,7 @@ router.get(
       role: String(req.query["role"] ?? "") || undefined,
       from: String(req.query["from"] ?? "") || undefined,
       to: String(req.query["to"] ?? "") || undefined,
+      seasonId: await resolveSeason(req),
     });
     const header = [
       "Voter",

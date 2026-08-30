@@ -1466,6 +1466,25 @@ async function ensureWhatsApp(): Promise<void> {
   } catch (err) {
     logger.error({ err }, "Failed to ensure season_id on popups/announcements");
   }
+
+  // 5) Per-season submission access requests.
+  //
+  // These were programme-wide before seasons. DEFAULT 1 puts every existing
+  // request in Season 1 — where it was actually made — so nothing moves and
+  // nothing disappears from the admin list.
+  try {
+    await db.execute(
+      sql`ALTER TABLE submission_access_requests ADD COLUMN IF NOT EXISTS season_id integer NOT NULL DEFAULT 1`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS submission_access_requests_season_idx ON submission_access_requests (season_id)`,
+    );
+  } catch (err) {
+    logger.error(
+      { err },
+      "Failed to ensure season_id on submission_access_requests",
+    );
+  }
 }
 
 async function backfillOrderBookEntries(): Promise<void> {

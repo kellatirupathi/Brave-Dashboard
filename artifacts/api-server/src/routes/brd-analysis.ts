@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import {
   db,
   revenueEntriesTable,
@@ -8,6 +8,7 @@ import {
   projectsTable,
   campusesTable,
 } from "@workspace/db";
+import { resolveSeason } from "../lib/season";
 
 const router: IRouter = Router();
 
@@ -139,7 +140,14 @@ router.get("/brd-analysis/all", async (req, res): Promise<void> => {
         projectsTable,
         eq(projectsTable.id, revenueEntriesTable.projectId),
       )
-      .where(isNotNull(revenueEntriesTable.aiAnalysedAt))
+      // Season-scoped, same reasoning as the review queue it is reached from:
+      // an analysis belongs to the season whose entry it audited.
+      .where(
+        and(
+          isNotNull(revenueEntriesTable.aiAnalysedAt),
+          eq(revenueEntriesTable.seasonId, await resolveSeason(req)),
+        ),
+      )
       .orderBy(desc(revenueEntriesTable.aiAnalysedAt));
 
     res.json({

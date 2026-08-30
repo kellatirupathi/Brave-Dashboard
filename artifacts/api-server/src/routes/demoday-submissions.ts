@@ -79,7 +79,14 @@ router.get(
     const [row] = await db
       .select()
       .from(demoDaySubmissionsTable)
-      .where(eq(demoDaySubmissionsTable.teamId, teamId));
+      // Season-scoped: a team that submitted in Season 1 must not see that
+      // submission while working in Season 2, or it looks already done.
+      .where(
+        and(
+          eq(demoDaySubmissionsTable.teamId, teamId),
+          eq(demoDaySubmissionsTable.seasonId, await resolveSeason(req)),
+        ),
+      );
     if (!row) {
       res.json(null);
       return;
@@ -174,6 +181,11 @@ router.get(
     const rows = await db
       .select()
       .from(demoDaySubmissionsTable)
+      // Season-scoped: a submission belongs to the season it was made in, and
+      // the admin list pooled every season's together.
+      .where(
+        eq(demoDaySubmissionsTable.seasonId, await resolveSeason(req)),
+      )
       .orderBy(desc(demoDaySubmissionsTable.createdAt));
     res.json(await Promise.all(rows.map(enrich)));
   },

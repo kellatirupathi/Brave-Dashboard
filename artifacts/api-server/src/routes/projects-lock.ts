@@ -374,6 +374,12 @@ router.put(
         .where(
           and(
             inArray(submissionAccessRequestsTable.teamId, uniqueIds),
+            // Only the season being worked in — exempting a team today must
+            // not retroactively approve a request it made in Season 1.
+            eq(
+              submissionAccessRequestsTable.seasonId,
+              await resolveSeason(req),
+            ),
             eq(submissionAccessRequestsTable.status, "pending"),
           ),
         );
@@ -500,6 +506,9 @@ router.post(
       .where(
         and(
           eq(submissionAccessRequestsTable.teamId, teamId),
+          // Scoped, so a request left pending in Season 1 does not block a
+          // team from asking again in Season 2.
+          eq(submissionAccessRequestsTable.seasonId, await resolveSeason(req)),
           eq(submissionAccessRequestsTable.status, "pending"),
         ),
       )
@@ -512,6 +521,9 @@ router.post(
       .insert(submissionAccessRequestsTable)
       .values({
         teamId,
+        // Stamped with the season the request was made in, so an admin working
+        // Season 2 never sees a Season 1 request still sitting as pending.
+        seasonId: await resolveSeason(req),
         requestedBy: req.user.id,
         purpose: parsed.data.purpose?.trim() || null,
       })
@@ -539,6 +551,9 @@ router.get(
       .where(
         and(
           eq(submissionAccessRequestsTable.teamId, teamId),
+          // Scoped, so a request left pending in Season 1 does not block a
+          // team from asking again in Season 2.
+          eq(submissionAccessRequestsTable.seasonId, await resolveSeason(req)),
           eq(submissionAccessRequestsTable.status, "pending"),
         ),
       )
@@ -575,7 +590,18 @@ router.get(
       .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
       .leftJoin(leader, eq(leader.id, teamsTable.leaderId))
       .where(
-        inArray(submissionAccessRequestsTable.status, ["pending", "rejected"]),
+        and(
+          // Season-scoped: the admin list pooled every season's requests, so
+          // Season 1's decided ones sat under the 2.0 badge.
+          eq(
+            submissionAccessRequestsTable.seasonId,
+            await resolveSeason(req),
+          ),
+          inArray(submissionAccessRequestsTable.status, [
+            "pending",
+            "rejected",
+          ]),
+        ),
       )
       .orderBy(desc(submissionAccessRequestsTable.createdAt));
     // Which of these teams are already exempted (so the UI can show state).

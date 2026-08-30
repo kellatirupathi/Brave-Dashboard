@@ -171,7 +171,13 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
 
   // Build the shared WHERE used by the page, count, and overdue-count queries.
   // The team leader is treated as the submitter context (joined via leaderId).
-  const conditions = [eq(revenueEntriesTable.status, status)];
+  // Season-scoped. A reviewer working Season 2 has no business seeing Season
+  // 1's queue: those entries were already decided, by different rules, in a
+  // season that is closed. Switching the badge back to 1.0 shows them again.
+  const conditions = [
+    eq(revenueEntriesTable.status, status),
+    eq(revenueEntriesTable.seasonId, await resolveSeason(req)),
+  ];
   if (campusId) conditions.push(eq(teamsTable.campusId, campusId));
   if (search) {
     const like = `%${searchLower}%`;
@@ -335,7 +341,13 @@ router.get(
     // Coordinator with no campus sees nothing — emit an empty (header-only) CSV.
     const noScope = isCoordinator && req.user.campusId == null;
 
-    const conditions = [eq(revenueEntriesTable.status, status)];
+    // Season-scoped. A reviewer working Season 2 has no business seeing Season
+  // 1's queue: those entries were already decided, by different rules, in a
+  // season that is closed. Switching the badge back to 1.0 shows them again.
+  const conditions = [
+    eq(revenueEntriesTable.status, status),
+    eq(revenueEntriesTable.seasonId, await resolveSeason(req)),
+  ];
     if (campusId) conditions.push(eq(teamsTable.campusId, campusId));
     if (search) {
       const like = `%${searchLower}%`;
