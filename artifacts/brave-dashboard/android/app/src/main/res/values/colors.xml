@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BRAVE brand marks, matching the primary token in the web app's index.css. -->
+    <color name="braveRed">#C0392B</color>
+    <color name="braveAmber">#EF9F27</color>
+
+    <!-- Capacitor's AppTheme expects these three. -->
+    <color name="colorPrimary">#C0392B</color>
+    <color name="colorPrimaryDark">#9B2D22</color>
+    <color name="colorAccent">#EF9F27</color>
+</resources>

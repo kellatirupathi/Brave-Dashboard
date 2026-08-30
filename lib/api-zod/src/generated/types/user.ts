@@ -24,6 +24,8 @@ export interface User {
   campusId?: number | null;
   /** @nullable */
   campusName?: string | null;
+  /** @nullable */
+  mobileNumber?: string | null;
   isActive: boolean;
   provisionedVia: UserProvisionedVia;
   createdAt: Date;

@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   Mail,
   CalendarDays,
+  CalendarRange,
+  MessageCircle,
   Trophy,
   Bell,
   GraduationCap,
@@ -48,6 +50,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ProgrammeWeeksManager } from "@/components/programme-weeks-manager";
 import { ReminderSettingsCard } from "@/components/reminder-settings-card";
+import { SeasonsAdminCard } from "@/components/seasons-admin-card";
+import { WhatsAppAdminCard } from "@/components/whatsapp-admin-card";
+import { useMyAdminAccess } from "@/lib/admin-access";
 import { ResourcesSettingsCard } from "@/components/resources-settings-card";
 import { CoordinatorTagsCard } from "@/components/coordinator-tags-card";
 import { TeamNameUniquenessCard } from "@/components/team-name-uniqueness-card";
@@ -206,6 +211,9 @@ export default function AdminConfig() {
   const [reseeding, setReseeding] = useState<boolean>(false);
   // Which config section is shown in the right pane (left-menu navigation).
   const [activeSection, setActiveSection] = useState<string>("schedule");
+  // Super-admin flag for the Seasons card. Cached + shared with the sidebar
+  // and ProtectedRoute, so this adds no extra request.
+  const { data: adminAccess } = useMyAdminAccess(true);
 
   // SES test-email state.
   const [testEmail, setTestEmail] = useState<string>("");
@@ -379,6 +387,7 @@ export default function AdminConfig() {
   // Left-menu sections. Each id maps to a block in the right pane below.
   // "developer" is only listed when dev tools are enabled.
   const SECTIONS: Array<{ id: string; label: string; icon: any }> = [
+    { id: "seasons", label: "Seasons", icon: CalendarRange },
     { id: "schedule", label: "Programme Schedule", icon: Calendar },
     { id: "weeks", label: "Programme Weeks", icon: CalendarDays },
     { id: "grit", label: "GRIT Miles", icon: Trophy },
@@ -389,6 +398,7 @@ export default function AdminConfig() {
     { id: "pca", label: "People's Choice Award", icon: Trophy },
     { id: "queue", label: "Review Queue", icon: XCircle },
     { id: "teams", label: "Teams & Coordinators", icon: Users },
+    { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
     { id: "integrations", label: "Integrations", icon: Plug },
     ...(devEnabled
       ? [{ id: "developer", label: "Developer Tools", icon: Wrench }]
@@ -594,6 +604,18 @@ export default function AdminConfig() {
           {activeSection === "grit" && <GritConfigCard />}
 
           {/* ── Notifications & Reminders ── */}
+          {activeSection === "whatsapp" && (
+            <WhatsAppAdminCard
+              callerIsSuperAdmin={!!adminAccess?.isSuperAdmin}
+            />
+          )}
+
+          {activeSection === "seasons" && (
+            <SeasonsAdminCard
+              callerIsSuperAdmin={!!adminAccess?.isSuperAdmin}
+            />
+          )}
+
           {activeSection === "reminders" && <ReminderSettingsCard />}
 
           {/* ── Student Content ── */}

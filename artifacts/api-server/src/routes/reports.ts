@@ -17,6 +17,7 @@ import {
   listAllWeeks,
   computeCampusWeekReports,
 } from "../lib/journal-reports";
+import { resolveSeason } from "../lib/season";
 
 const router: IRouter = Router();
 
@@ -44,7 +45,7 @@ router.get(
   "/admin/reports/weeks",
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAdmin(req, res)) return;
-    const weeks = await listAllWeeks();
+    const weeks = await listAllWeeks(await resolveSeason(req));
     res.json({ weeks });
   },
 );
@@ -58,7 +59,7 @@ router.get(
     const isAll = req.query.weekId === "all";
 
     if (isAll) {
-      const weeks = await listAllWeeks();
+      const weeks = await listAllWeeks(await resolveSeason(req));
       // Aggregate submitted counts across all weeks per campus.
       const agg = new Map<
         number,
@@ -97,6 +98,7 @@ router.get(
     const weekId = req.query.weekId ? Number(req.query.weekId) : undefined;
     const week = await resolveReportWeek(
       weekId && Number.isFinite(weekId) ? weekId : undefined,
+      await resolveSeason(req),
     );
     if (!week) {
       res.json({ week: null, rows: [] });
@@ -150,6 +152,7 @@ router.get(
     const weekId = req.query.weekId ? Number(req.query.weekId) : undefined;
     const week = await resolveReportWeek(
       weekId && Number.isFinite(weekId) ? weekId : undefined,
+      await resolveSeason(req),
     );
     if (!week) {
       res.json({ week: null, campus: null });
@@ -181,6 +184,7 @@ router.get(
     const weekId = req.query.weekId ? Number(req.query.weekId) : undefined;
     const week = await resolveReportWeek(
       weekId && Number.isFinite(weekId) ? weekId : undefined,
+      await resolveSeason(req),
     );
     if (!week) {
       res.status(404).json({ error: "No week to export" });

@@ -99,6 +99,8 @@ export interface User {
   campusId?: number | null;
   /** @nullable */
   campusName?: string | null;
+  /** @nullable */
+  mobileNumber?: string | null;
   isActive: boolean;
   provisionedVia: UserProvisionedVia;
   createdAt: string;
@@ -134,6 +136,8 @@ export interface CreateUserBody {
   /** @nullable */
   batchSectionName?: string | null;
   /** @nullable */
+  mobileNumber?: string | null;
+  /** @nullable */
   password?: string | null;
 }
 
@@ -156,6 +160,8 @@ export interface UpdateUserBody {
   niatId?: string | null;
   /** @nullable */
   profileImage?: string | null;
+  /** @nullable */
+  mobileNumber?: string | null;
   role?: UpdateUserBodyRole;
   /** @nullable */
   campusId?: number | null;
@@ -1092,6 +1098,8 @@ export interface RosterEntry {
   niatId?: string | null;
   /** @nullable */
   batchSectionName?: string | null;
+  /** @nullable */
+  mobileNumber?: string | null;
   isWhitelisted: boolean;
   createdAt: string;
 }
@@ -1129,6 +1137,8 @@ export interface AddRosterEntryBody {
   niatId?: string | null;
   /** @nullable */
   batchSectionName?: string | null;
+  /** @nullable */
+  mobileNumber?: string | null;
   isWhitelisted?: boolean;
 }
 
@@ -1139,6 +1149,8 @@ export type BulkImportRosterBodyStudentsItem = {
   instituteName?: string;
   batchSectionName?: string;
   email?: string;
+  /** @nullable */
+  mobileNumber?: string | null;
 };
 
 export interface BulkImportRosterBody {
@@ -1147,6 +1159,7 @@ export interface BulkImportRosterBody {
 
 export interface BulkImportRosterResponse {
   inserted: number;
+  updated: number;
   skipped: number;
   total: number;
 }
@@ -1164,6 +1177,8 @@ export interface UpdateRosterEntryBody {
   niatId?: string | null;
   /** @nullable */
   batchSectionName?: string | null;
+  /** @nullable */
+  mobileNumber?: string | null;
   /** @nullable */
   isWhitelisted?: boolean | null;
 }

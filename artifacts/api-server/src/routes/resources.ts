@@ -17,6 +17,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdminPage } from "../lib/require-admin-page";
+import { getConfig, resolveSeason } from "../lib/season";
 import {
   db,
   resourcesTable,
@@ -181,24 +182,23 @@ router.patch(
 // always available regardless of this flag.
 // ---------------------------------------------------------------------------
 
-// Helper: read the flag, creating a default config row on first use.
-async function readResourcesVisibility(): Promise<boolean> {
-  const rows = await db.select().from(programmeConfigTable).limit(1);
-  if (rows.length === 0) {
-    const [created] = await db
-      .insert(programmeConfigTable)
-      .values({})
-      .returning();
-    return created.resourcesEnabledForStudents;
-  }
-  return rows[0].resourcesEnabledForStudents;
+// Helper: read the flag, creating the season's config row on first use.
+//
+// Resource *content* is shared across seasons; only this visibility toggle is
+// per-season, because it lives on programme_config. The flag therefore follows
+// whichever season the viewer is looking at.
+async function readResourcesVisibility(seasonId: number): Promise<boolean> {
+  const config = await getConfig(seasonId);
+  return config.resourcesEnabledForStudents;
 }
 
 // Public — anyone (including students) can ask "is the Resources area
 // enabled for students right now?". Used by the sidebar to conditionally
 // render the menu item and by the route guard.
-router.get("/resources-settings", async (_req, res): Promise<void> => {
-  const enabledForStudents = await readResourcesVisibility();
+router.get("/resources-settings", async (req, res): Promise<void> => {
+  const enabledForStudents = await readResourcesVisibility(
+    await resolveSeason(req),
+  );
   res.json({ enabledForStudents });
 });
 
@@ -220,23 +220,11 @@ router.patch(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const rows = await db.select().from(programmeConfigTable).limit(1);
-    if (rows.length === 0) {
-      const [created] = await db
-        .insert(programmeConfigTable)
-        .values({
-          resourcesEnabledForStudents: parsed.data.enabledForStudents,
-        })
-        .returning();
-      res.json({
-        enabledForStudents: created.resourcesEnabledForStudents,
-      });
-      return;
-    }
+    const existing = await getConfig(await resolveSeason(req));
     const [updated] = await db
       .update(programmeConfigTable)
       .set({ resourcesEnabledForStudents: parsed.data.enabledForStudents })
-      .where(eq(programmeConfigTable.id, rows[0].id))
+      .where(eq(programmeConfigTable.id, existing.id))
       .returning();
     res.json({ enabledForStudents: updated.resourcesEnabledForStudents });
   },

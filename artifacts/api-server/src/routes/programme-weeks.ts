@@ -1,13 +1,19 @@
 import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   programmeWeeksTable,
   programmeConfigTable,
   usersTable,
+  weeklyJournalsTable,
 } from "@workspace/db";
 import { z } from "zod/v4";
 import { requireAdminPage } from "../lib/require-admin-page";
+import {
+  getActiveSeasonId,
+  getConfig,
+  resolveSeason,
+} from "../lib/season";
 import {
   EMAIL_CATEGORIES,
   getEmailControls,
@@ -17,18 +23,21 @@ import {
 /**
  * Helper used by Module 5 cron and the heatmap manual-remind endpoint to
  * decide whether a given channel is enabled for the reminder service.
- * Returns all three flags from the singleton programme_config row,
+ * Returns all three flags from a season’s programme_config row,
  * defaulting to enabled when no row exists yet.
  *
  * - notificationsEnabled: in-app notifications to *students*
  * - emailsEnabled:        Brevo emails to *students*
  * - coordinatorNotificationsEnabled: in-app pings to coordinators (day-7 only)
  */
-export async function getReminderSettings(): Promise<{
+// `seasonId` omitted means the ACTIVE season, which is what the reminder crons
+// want. Request handlers should pass `await resolveSeason(req)`.
+export async function getReminderSettings(seasonId?: number): Promise<{
   notificationsEnabled: boolean;
   emailsEnabled: boolean;
   coordinatorNotificationsEnabled: boolean;
 }> {
+  const season = seasonId ?? (await getActiveSeasonId());
   const [config] = await db
     .select({
       notificationsEnabled: programmeConfigTable.reminderNotificationsEnabled,
@@ -37,6 +46,7 @@ export async function getReminderSettings(): Promise<{
         programmeConfigTable.coordinatorNotificationsEnabled,
     })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, season))
     .limit(1);
   return {
     notificationsEnabled: config?.notificationsEnabled ?? true,
@@ -50,10 +60,14 @@ export async function getReminderSettings(): Promise<{
  * Returns whether students are allowed to edit/delete past-week journals.
  * Defaults to false (read-only past weeks for students) when no config row.
  */
-export async function getAllowPastWeekEdits(): Promise<boolean> {
+export async function getAllowPastWeekEdits(
+  seasonId?: number,
+): Promise<boolean> {
+  const season = seasonId ?? (await getActiveSeasonId());
   const [config] = await db
     .select({ allow: programmeConfigTable.allowPastWeekEdits })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, season))
     .limit(1);
   return config?.allow ?? false;
 }
@@ -83,13 +97,23 @@ function todayIso(): string {
  * - Otherwise we recompute isOpen = (startDate <= today).
  * - Removes any weeks that no longer fit between the new start and end dates.
  */
-export async function regenerateProgrammeWeeks(): Promise<{
+export async function regenerateProgrammeWeeks(seasonId?: number): Promise<{
   created: number;
   updated: number;
   removed: number;
   total: number;
 }> {
-  const [config] = await db.select().from(programmeConfigTable).limit(1);
+  // SCOPED TO ONE SEASON, and that is load-bearing. Week numbers repeat across
+  // seasons, so an unscoped run would match Season 1's "week 1" against
+  // Season 2's dates and then DELETE every Season 1 week whose number falls
+  // outside Season 2's range (S1 ran 14 weeks, S2 runs 12). That would orphan
+  // Season 1 journals. Every read, write and delete below is filtered.
+  const season = seasonId ?? (await getActiveSeasonId());
+  const [config] = await db
+    .select()
+    .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, season))
+    .limit(1);
   if (!config) {
     return { created: 0, updated: 0, removed: 0, total: 0 };
   }
@@ -99,7 +123,10 @@ export async function regenerateProgrammeWeeks(): Promise<{
     return { created: 0, updated: 0, removed: 0, total: 0 };
   }
 
-  const existing = await db.select().from(programmeWeeksTable);
+  const existing = await db
+    .select()
+    .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, season));
   const existingByNum = new Map(existing.map((w) => [w.weekNumber, w]));
   const today = todayIso();
 
@@ -128,6 +155,7 @@ export async function regenerateProgrammeWeeks(): Promise<{
     const prior = existingByNum.get(w.weekNumber);
     if (!prior) {
       await db.insert(programmeWeeksTable).values({
+        seasonId: season,
         weekNumber: w.weekNumber,
         startDate: w.startDate,
         endDate: w.endDate,
@@ -175,12 +203,20 @@ export async function regenerateProgrammeWeeks(): Promise<{
  * Auto-open weeks whose startDate has arrived. Admin's manual overrides
  * are respected (skipped). Returns count of weeks flipped.
  */
-export async function autoOpenDueWeeks(): Promise<number> {
+// Scoped to one season (default: the active one) so an archived season's weeks
+// are never re-opened by the scheduler.
+export async function autoOpenDueWeeks(seasonId?: number): Promise<number> {
   const today = todayIso();
+  const season = seasonId ?? (await getActiveSeasonId());
   const all = await db
     .select()
     .from(programmeWeeksTable)
-    .where(eq(programmeWeeksTable.manualOverride, false));
+    .where(
+      and(
+        eq(programmeWeeksTable.seasonId, season),
+        eq(programmeWeeksTable.manualOverride, false),
+      ),
+    );
   let flipped = 0;
   for (const w of all) {
     const shouldBeOpen = w.startDate <= today;
@@ -197,29 +233,115 @@ export async function autoOpenDueWeeks(): Promise<number> {
 
 // ----------------- HTTP routes -----------------
 
-// Admin: list all weeks (regenerates first if empty so admin always sees something).
+// Admin: list the weeks OF THE SEASON BEING VIEWED.
+//
+// The season filter is load-bearing. Without it this returned every season's
+// weeks, so an admin viewing Season 2 saw Season 1's dates and could not tell
+// that Season 2 had none — which is exactly how Season 2 was activated with no
+// weeks at all.
+//
+// It also no longer auto-regenerates on an empty list. Silently creating weeks
+// as a side effect of opening a page is how a season ends up with dates nobody
+// chose; the admin clicks Regenerate deliberately instead.
 router.get("/admin/programme-weeks", async (req, res): Promise<void> => {
   if (!req.isAuthenticated() || req.user.role !== "admin") {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  const season = await resolveSeason(req);
   const existing = await db
     .select()
     .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, season))
     .orderBy(asc(programmeWeeksTable.weekNumber));
-  if (existing.length === 0) {
-    await regenerateProgrammeWeeks();
-    const fresh = await db
-      .select()
-      .from(programmeWeeksTable)
-      .orderBy(asc(programmeWeeksTable.weekNumber));
-    res.json(fresh);
-    return;
-  }
   res.json(existing);
 });
 
-// Admin: rebuild from current programme_config (call after editing start/end).
+/**
+ * How many journals would be orphaned if this season's weeks were rebuilt.
+ *
+ * Journals store their own week_start_date rather than a foreign key, so a
+ * rebuild never DELETES a journal — but it can leave one pointing at a week
+ * that no longer exists, which breaks the 14-week strip. Counting them first
+ * lets the UI warn before that happens.
+ */
+async function countOrphanedByRegenerate(
+  seasonId: number,
+): Promise<{ wouldRemove: number; journalsAffected: number }> {
+  const [cfg] = await db
+    .select({
+      startDate: programmeConfigTable.startDate,
+      endDate: programmeConfigTable.endDate,
+    })
+    .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, seasonId))
+    .limit(1);
+  if (!cfg?.startDate || !cfg?.endDate) {
+    return { wouldRemove: 0, journalsAffected: 0 };
+  }
+
+  const existing = await db
+    .select()
+    .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, seasonId));
+
+  // Mirror regenerateProgrammeWeeks' own arithmetic: strict 7-day chunks from
+  // the start date, continuing while the chunk starts on or before the end.
+  const start = cfg.startDate.slice(0, 10);
+  const end = cfg.endDate.slice(0, 10);
+  const desired = new Set<number>();
+  let cursor = new Date(`${start}T00:00:00Z`);
+  const endAt = new Date(`${end}T00:00:00Z`);
+  let n = 1;
+  while (cursor <= endAt && n <= 60) {
+    desired.add(n);
+    cursor = new Date(cursor.getTime() + 7 * 86_400_000);
+    n += 1;
+  }
+
+  const doomed = existing.filter((w) => !desired.has(w.weekNumber));
+  if (doomed.length === 0) return { wouldRemove: 0, journalsAffected: 0 };
+
+  const starts = doomed.map((w) => w.startDate);
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(weeklyJournalsTable)
+    .where(
+      and(
+        eq(weeklyJournalsTable.seasonId, seasonId),
+        inArray(weeklyJournalsTable.weekStartDate, starts),
+      ),
+    );
+  return {
+    wouldRemove: doomed.length,
+    journalsAffected: Number(row?.n ?? 0),
+  };
+}
+
+/** Dry run: what would a rebuild do? Changes nothing. */
+router.get(
+  "/admin/programme-weeks/regenerate/preview",
+  async (req, res): Promise<void> => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const season = await resolveSeason(req);
+    try {
+      const impact = await countOrphanedByRegenerate(season);
+      res.json({ seasonId: season, ...impact });
+    } catch (err) {
+      req.log.error({ err, season }, "regenerate preview failed");
+      res.json({ seasonId: season, wouldRemove: 0, journalsAffected: 0 });
+    }
+  },
+);
+
+// Admin: rebuild the weeks OF THE SEASON BEING VIEWED from its own config.
+//
+// Scoped to the viewed season, not the active one: an admin setting Season 2 up
+// is looking at 2.0 while Season 1 is still live, and rebuilding Season 1's
+// weeks in that moment would orphan its journals.
 router.post(
   "/admin/programme-weeks/regenerate",
   requireAdminPage("/admin/journals", "edit"),
@@ -228,8 +350,31 @@ router.post(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const result = await regenerateProgrammeWeeks();
-    res.json(result);
+    const season = await resolveSeason(req);
+
+    // Refuse when the rebuild would orphan journals, unless the admin has
+    // explicitly confirmed. `confirm` is deliberately required rather than
+    // assumed: this is the one action here that can degrade existing data.
+    const confirmed = req.body?.confirm === true;
+    if (!confirmed) {
+      try {
+        const impact = await countOrphanedByRegenerate(season);
+        if (impact.journalsAffected > 0) {
+          res.status(409).json({
+            error: `Rebuilding would drop ${impact.wouldRemove} week(s) that ${impact.journalsAffected} journal(s) were submitted against.`,
+            code: "REGENERATE_WOULD_ORPHAN",
+            ...impact,
+          });
+          return;
+        }
+      } catch (err) {
+        // Fail OPEN — a failed safety count must not block a legitimate rebuild.
+        req.log.error({ err, season }, "regenerate impact check failed");
+      }
+    }
+
+    const result = await regenerateProgrammeWeeks(season);
+    res.json({ ...result, seasonId: season });
   },
 );
 
@@ -374,15 +519,12 @@ router.patch(
       return;
     }
 
-    // Ensure a programme_config row exists.
-    let configs = await db.select().from(programmeConfigTable).limit(1);
-    if (configs.length === 0) {
-      const [created] = await db
-        .insert(programmeConfigTable)
-        .values({})
-        .returning();
-      configs = [created];
-    }
+    // Reminders, journal-edit permission and the email kill switches are
+    // OPERATIONAL settings for the season that is actually running — the crons
+    // that consume them have no viewer. So this page always reads and writes the
+    // ACTIVE season's row, never the one the admin happens to be browsing.
+    // getEmailControls() reads the same row for the same reason.
+    const configs = [await getConfig(await getActiveSeasonId())];
 
     const update: Partial<typeof programmeConfigTable.$inferInsert> = {};
     if (parsed.data.notificationsEnabled !== undefined) {
@@ -444,7 +586,16 @@ router.get("/journals/open-weeks", async (req, res): Promise<void> => {
       endDate: programmeWeeksTable.endDate,
     })
     .from(programmeWeeksTable)
-    .where(eq(programmeWeeksTable.isOpen, true))
+    // Season-scoped. This is the picker a student chooses a week from when
+    // submitting a journal; without the filter it offered the OTHER season's
+    // open weeks, and a Season 2 student would have submitted against a
+    // Season 1 week's dates.
+    .where(
+      and(
+        eq(programmeWeeksTable.isOpen, true),
+        eq(programmeWeeksTable.seasonId, await resolveSeason(req)),
+      ),
+    )
     .orderBy(asc(programmeWeeksTable.weekNumber));
   res.json(rows);
 });

@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { resolveSeason } from "../lib/season";
 import { db, milestonesTable } from "@workspace/db";
 import {
   ListMilestonesQueryParams,
@@ -23,7 +24,12 @@ router.get("/milestones", async (req, res): Promise<void> => {
   const milestones = await db
     .select()
     .from(milestonesTable)
-    .where(eq(milestonesTable.teamId, queryParams.data.teamId))
+    .where(
+      and(
+        eq(milestonesTable.teamId, queryParams.data.teamId),
+        eq(milestonesTable.seasonId, await resolveSeason(req)),
+      ),
+    )
     .orderBy(milestonesTable.date);
   res.json(milestones);
 });
@@ -41,7 +47,13 @@ router.post("/milestones", async (req, res): Promise<void> => {
   const dateVal = typeof parsed.data.date === "string" ? new Date(parsed.data.date) : (parsed.data.date as Date);
   const [milestone] = await db
     .insert(milestonesTable)
-    .values({ ...parsed.data, date: dateVal, type: "manual", isPinned: false })
+    .values({
+      ...parsed.data,
+      date: dateVal,
+      type: "manual",
+      isPinned: false,
+      seasonId: await resolveSeason(req),
+    })
     .returning();
   res.status(201).json(milestone);
 });

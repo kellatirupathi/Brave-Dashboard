@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <title>Brave Dashboard</title>
     <meta
@@ -27,6 +27,17 @@
     />
     <meta name="twitter:image" content="/opengraph.jpg" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <!-- Installed-app appearance. theme-color paints the Android status bar
+         and the desktop title bar in BRAVE red. -->
+    <meta name="theme-color" content="#C0392B" />
+    <!-- iOS ignores the web manifest, so the home-screen behaviour and icon
+         come from these three tags instead. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BRAVE" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Stops iOS Safari turning NIAT IDs and amounts into tel: links. -->
+    <meta name="format-detection" content="telephone=no" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

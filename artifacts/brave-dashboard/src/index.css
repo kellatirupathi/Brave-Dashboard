@@ -360,3 +360,299 @@
     inset: -1px;
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   Installed-app behaviour (PWA + Capacitor APK).
+   Scoped to touch/standalone so the desktop dashboard is untouched.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  /* Grey flash on every tap reads as a web page, not an app. Components already
+     supply their own :active states. */
+  @media (hover: none) and (pointer: coarse) {
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Stop the whole page rubber-banding past its ends. Individual scroll
+       containers keep their own behaviour. */
+    html,
+    body {
+      overscroll-behavior-y: none;
+    }
+  }
+
+  /* Long-press text selection is useful in content but feels broken on chrome
+     that looks like native UI. */
+  nav[aria-label="Primary"],
+  [data-testid="nav-mobile-bottom"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Running as an installed app: the status bar area is ours to paint, so the
+     sticky top bar has to clear the notch itself. */
+  @media (display-mode: standalone) {
+    header.sticky {
+      padding-top: env(safe-area-inset-top, 0px);
+      height: calc(3.5rem + env(safe-area-inset-top, 0px));
+    }
+  }
+
+  /* Tables are the one thing that genuinely cannot reflow to a phone width;
+     let them scroll inside their own box rather than the page. */
+  @media (max-width: 640px) {
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Native shell only (Capacitor APK).
+   Scoped to .native-app, which main.tsx stamps on <html>, so the browser and
+   the PWA are completely unaffected by anything below.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  /* Text selection on a long-press is a document behaviour. In an app it reads
+     as a bug — you meant to scroll and got a highlight instead. Inputs and
+     genuine content keep it. */
+  .native-app body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .native-app input,
+  .native-app textarea,
+  .native-app [contenteditable="true"],
+  .native-app p,
+  .native-app li,
+  .native-app td {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Momentum scrolling inside cards and tables, as the platform does. */
+  .native-app * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* No focus ring on tap — it lingers after touch and looks stuck. Keyboard
+     focus is preserved, which is what the ring is actually for. */
+  .native-app *:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* Links inside the app must never look like web links: no underline creep,
+     no visited colour. */
+  .native-app a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* A tap should feel like it registered. 60ms is below the threshold where a
+     transition reads as animation, so it feels immediate rather than laggy. */
+  .native-app button:active,
+  .native-app a:active,
+  .native-app [role="button"]:active {
+    transform: scale(0.98);
+    transition: transform 60ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .native-app button:active,
+    .native-app a:active,
+    .native-app [role="button"]:active {
+      transform: none;
+    }
+  }
+
+  /* Pull-to-refresh reloads the WebView and throws away unsaved form state —
+     a student mid-way through a lead capture would lose it. */
+  .native-app body {
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phone layout chrome.
+
+   The bottom bar is FIXED, so it sits over the document rather than in it.
+   Anything that also anchors to the bottom has to be told the bar is there —
+   otherwise the last row of every list, and the floating assistant, end up
+   underneath it. `data-bottom-nav` is stamped on the layout root by
+   layout.tsx only when that bar is actually rendered.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* Content clears the bar AND the Android gesture pill below it. Native only:
+     the browser has no gesture inset to account for. */
+  .native-app .app-main {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@layer base {
+  @media (max-width: 1023px) {
+    /* The floating assistant is anchored bottom-right, which is exactly where
+       the bar's last slot is. Lift it clear rather than hiding it — it is the
+       same button students already know from the web. */
+    [data-bottom-nav="true"] [data-testid="button-open-chatbot"] {
+      transform: translateY(calc(-3.75rem - env(safe-area-inset-bottom, 0px)));
+    }
+    [data-bottom-nav="true"] [data-testid="chatbot-panel"] {
+      bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  /* ── Native touch ergonomics ─────────────────────────────────────────── */
+
+  /* Removes the ~300ms wait a WebView spends deciding whether a tap was the
+     first half of a double-tap-to-zoom. That delay is the single clearest
+     "this is a web page" tell on a phone. */
+  .native-app button,
+  .native-app a[href],
+  .native-app [role="button"],
+  .native-app input,
+  .native-app select,
+  .native-app textarea {
+    touch-action: manipulation;
+  }
+
+  /* Android inflates text in landscape unless told not to; an app is expected
+     to hold its own type scale. */
+  .native-app html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Inputs must not be smaller than 16px or the WebView zooms the viewport on
+     focus and never fully zooms back — the classic mobile-web form jump. */
+  .native-app input,
+  .native-app select,
+  .native-app textarea {
+    font-size: max(16px, 1rem);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE APP DESIGN SYSTEM
+   
+   The pages were laid out for a desktop and then made to fit a phone. That is
+   why they read as a shrunk website: desktop padding eats the narrow width,
+   desktop type sizes force wrapping, and rows built as `justify-between` get
+   squeezed until the label collides with its value.
+   
+   These rules retune the SAME markup for a phone rather than restructuring it,
+   so no page logic changes and the desktop is untouched. Scoped to the native
+   shell plus small viewports.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  @layer components {
+    /* ── Density ───────────────────────────────────────────────────────────
+       Desktop card padding (24px) costs 48px of a 360px screen — 13% of the
+       width, spent on nothing. 16px keeps cards breathing without starving
+       the content. */
+    .native-app [class*="rounded-2xl"][class*="border"] > div,
+    .native-app .p-6 { padding: 1rem; }
+    .native-app .p-5 { padding: 0.875rem; }
+    .native-app .px-6 { padding-left: 1rem; padding-right: 1rem; }
+    .native-app .py-8 { padding-top: 1.25rem; padding-bottom: 1.25rem; }
+    .native-app .px-8 { padding-left: 1rem; padding-right: 1rem; }
+    .native-app .gap-8 { gap: 1.25rem; }
+    .native-app .gap-14 { gap: 1.5rem; }
+
+    /* ── Type scale ────────────────────────────────────────────────────────
+       Figures are the thing a student opens the app to read, so they stay
+       large — but a 5xl radial number pushes everything below the fold on a
+       small screen. These are one step down, not shrunk. */
+    .native-app .text-5xl { font-size: 2.5rem; }
+    .native-app .text-\[1\.7rem\] { font-size: 1.5rem; }
+    .native-app .text-2xl { font-size: 1.375rem; }
+
+    /* ── The squeeze fix ───────────────────────────────────────────────────
+       A `justify-between` row with a long label and a value has nowhere to go
+       on a narrow screen: the two collide or clip. Letting them wrap is the
+       one-line fix that keeps every such row readable. */
+    .native-app .flex.items-center.justify-between,
+    .native-app .flex.items-start.justify-between {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    /* ── Cards ─────────────────────────────────────────────────────────────
+       Full-bleed-ish corners read as native; a 16px radius on a 328px card
+       looks like a web widget. */
+    .native-app [class*="rounded-2xl"] { border-radius: 1rem; }
+
+    /* ── Sections ──────────────────────────────────────────────────────────
+       Vertical rhythm tightens so more than one section is visible at once —
+       on a phone, scrolling past a single card to reach the next is the
+       difference between an app and a page. */
+    .native-app .space-y-5 > * + * { margin-top: 0.875rem; }
+    .native-app .space-y-6 > * + * { margin-top: 1rem; }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NATIVE MOTION
+   
+   Page transitions and loading states. These are most of what separates an app
+   from a page: content that MOVES between screens, and a loading state that
+   shows the shape of what is coming rather than a spinner that shows nothing.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* Android's convention: forward enters from the right, back from the left.
+     140ms because anything slower starts to feel like waiting — Material's
+     own guidance for a full-screen transition on a phone. */
+  .page-enter-forward {
+    animation: page-in-right 140ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  .page-enter-back {
+    animation: page-in-left 140ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  @keyframes page-in-right {
+    from { opacity: 0; transform: translate3d(1.5rem, 0, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+  @keyframes page-in-left {
+    from { opacity: 0; transform: translate3d(-1.5rem, 0, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+
+  /* A skeleton tells a student what is arriving; a spinner tells them only to
+     wait. Apps use the former because the screen keeps its shape and nothing
+     jumps when the data lands. */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 25%,
+      hsl(var(--muted-foreground) / 0.12) 37%,
+      hsl(var(--muted)) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+    border-radius: 0.5rem;
+  }
+  @keyframes skeleton-sweep {
+    from { background-position: 100% 50%; }
+    to   { background-position: 0 50%; }
+  }
+
+  /* The sheet already slides; giving it the same easing as the page keeps the
+     whole app moving in one language rather than several. */
+  .native-app [data-testid="sheet-mobile-more"] {
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-forward,
+  .page-enter-back,
+  .skeleton {
+    animation: none;
+  }
+}

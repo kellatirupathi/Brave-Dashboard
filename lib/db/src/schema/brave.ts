@@ -49,6 +49,128 @@ export const entryStatusEnum = pgEnum("entry_status", [
   "rejected",
 ]);
 export const enteredByEnum = pgEnum("entered_by", ["student", "admin"]);
+
+// ── Season 2 lead-pipeline enums ─────────────────────────────────────────
+// Declared here with the other enums because projectsTable (far below)
+// references revenueTypeEnum / recurringFrequencyEnum. `const` is not
+// hoisted, so declaring them after that table would be a TDZ error at
+// module-evaluation time, not a compile error.
+// How the student came by this client. The last two mark the relationship as
+// related-party — allowed and not discouraged, but flagged for deeper checks.
+// Keeping them as first-class options is deliberate: if the product punished
+// them, students would misreport the source and the signal would be lost.
+export const leadSourceEnum = pgEnum("lead_source", [
+  "walk_in",
+  "online",
+  "referral",
+  "known_contact",
+]);
+export const leadStageEnum = pgEnum("lead_stage", [
+  "new",
+  "qualified",
+  "proposal_sent",
+  "converted",
+  "lost",
+  // Set by the dormancy cron at 30 days of silence, not by the student.
+  "dormant",
+]);
+export const businessCategoryEnum = pgEnum("business_category", [
+  "retail",
+  "food_beverage",
+  "clinic",
+  "salon",
+  "education",
+  "services",
+  "manufacturing",
+  "other",
+]);
+export const meetingModeEnum = pgEnum("meeting_mode", [
+  "in_person",
+  "phone",
+  "video",
+  "whatsapp",
+]);
+export const interactionTypeEnum = pgEnum("interaction_type", [
+  "call",
+  "whatsapp",
+  "email",
+  "site_visit",
+  "demo",
+  "proposal_sent",
+  "negotiation",
+  "payment_discussion",
+]);
+export const interactionOutcomeEnum = pgEnum("interaction_outcome", [
+  "positive",
+  "neutral",
+  "objection",
+  "no_response",
+]);
+export const paymentModeEnum = pgEnum("payment_mode", [
+  "upi",
+  "bank_transfer",
+  "cash",
+  "cheque",
+]);
+export const revenueTypeEnum = pgEnum("revenue_type", ["one_time", "recurring"]);
+export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
+  "monthly",
+  "quarterly",
+  "annual",
+]);
+
+// -- Phase 6: trust score and price recognition ------------------------------
+// Trust is earned by verified behaviour and lost by proven misreporting. The
+// event kinds are fixed and published so a team can always account for its own
+// score - a score nobody can explain is worse than no score at all.
+export const trustEventKindEnum = pgEnum("trust_event_kind", [
+  // Earned
+  "revenue_verified",
+  "client_confirmed",
+  "journal_streak",
+  "trail_strong",
+  "geo_verified",
+  "phase_delivered_on_time",
+  // Lost
+  "client_disputed",
+  "duplicate_client",
+  "amount_overstated",
+  "evidence_missing",
+  "link_dead",
+  "backdated_trail",
+  // Escape hatch for a coordinator decision no rule covers. Requires a reason,
+  // and is the only kind whose points are entered by hand.
+  "manual_adjustment",
+]);
+export const trustTierEnum = pgEnum("trust_tier", [
+  "watch",
+  "bronze",
+  "silver",
+  "gold",
+]);
+
+// -- Phase 7: evaluation ------------------------------------------------------
+// Five states, not two. "approved"/"rejected" are terminal; the middle three
+// each describe a different reason the decision is not yet made, and they carry
+// different SLA behaviour (see review_assignments.clock_paused_at).
+export const reviewDecisionEnum = pgEnum("review_decision", [
+  // Assigned, not yet opened or not yet decided.
+  "pending",
+  // Waiting on something the EVALUATOR or programme must do (a second opinion,
+  // a coordinator call). The clock keeps running - the delay is ours.
+  "hold",
+  // Waiting on the STUDENT to supply something. The clock pauses, because
+  // penalising the evaluator for a student's response time would be wrong.
+  "changes_requested",
+  "approved",
+  "rejected",
+]);
+export const appealStatusEnum = pgEnum("appeal_status", [
+  "open",
+  "upheld",
+  "declined",
+  "withdrawn",
+]);
 export const milestoneTypeEnum = pgEnum("milestone_type", ["auto", "manual"]);
 export const demoDayStatusEnum = pgEnum("demo_day_status", [
   "draft",
@@ -178,12 +300,21 @@ export const usersTable = pgTable(
     lastName: text("last_name").notNull().default(""),
     profileImage: text("profile_image_url"),
     role: userRoleEnum("role").notNull().default("student"),
+    // WhatsApp contact number (additive, nullable). Roster covers students
+    // only, so coordinators and admins need their own column to be reachable
+    // by a WhatsApp send. Null means "skip this recipient", never an error.
+    mobileNumber: text("mobile_number"),
     campusId: integer("campus_id"),
     passwordHash: text("password_hash"),
     isActive: boolean("is_active").notNull().default(true),
     // Super Admin capability (additive). A super admin is an `admin` with this
     // flag set — all existing `role === "admin"` checks still pass unchanged.
     isSuperAdmin: boolean("is_super_admin").notNull().default(false),
+    // Phase 7 evaluation capability. A FLAG, deliberately not a fourth
+    // user_role value: adding a role would force a review of every
+    // `role === "..."` check in the codebase, whereas a flag composes with the
+    // three existing roles and leaves them all behaving exactly as before.
+    isEvaluator: boolean("is_evaluator").notNull().default(false),
     // Per-page permission map for normal admins. NULL means FULL access
     // (DEFAULT-ALLOW) — every existing admin keeps full access automatically.
     adminPermissions: jsonb("admin_permissions"),
@@ -259,6 +390,12 @@ export const rosterTable = pgTable(
     campusId: integer("campus_id"),
     niatId: text("niat_id"),
     batchSectionName: text("batch_section_name"),
+    // WhatsApp contact number (additive, nullable). Populated by admins via the
+    // roster import; a null number simply means the student is skipped by any
+    // WhatsApp send, never that the send fails. Stored exactly as supplied —
+    // normalisation to a 12-digit 91XXXXXXXXXX happens at send time in
+    // lib/whatsapp/karix.ts, so a re-import cannot corrupt what was entered.
+    mobileNumber: text("mobile_number"),
     isWhitelisted: boolean("is_whitelisted").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -268,6 +405,7 @@ export const rosterTable = pgTable(
     index("roster_campus_idx").on(t.campusId),
     index("roster_full_name_idx").on(t.fullName),
     index("roster_email_idx").on(t.email),
+    index("roster_mobile_idx").on(t.mobileNumber),
   ],
 );
 
@@ -483,8 +621,38 @@ export const projectsTable = pgTable(
     teamId: integer("team_id").notNull(),
     title: text("title").notNull(),
     description: text("description").notNull(),
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     status: projectStatusEnum("status").notNull().default("active"),
     createdBy: text("created_by").notNull(),
+
+    // ── Season 2 project definition (all nullable; Season 1 rows keep NULL) ──
+    // Gate B: a Season 2 project may only descend from a CONVERTED lead. Null
+    // means a Season 1 project, which is why the column is nullable rather
+    // than defaulted — the distinction is meaningful, not missing data.
+    leadId: integer("lead_id"),
+    // Drives the AI price band and the revenue recognition cap.
+    serviceCategory: text("service_category"),
+    problemStatement: text("problem_statement"),
+    solutionDescription: text("solution_description"),
+    techStack: jsonb("tech_stack"),
+    // Product links. Validated for reachability on save — a Drive video left
+    // on "Restricted" is the commonest way a good team loses marks for no
+    // reason, so the form refuses to store a broken one.
+    liveProductUrl: text("live_product_url"),
+    demoVideoUrl: text("demo_video_url"),
+    sourceCodeUrl: text("source_code_url"),
+    prototypeUrl: text("prototype_url"),
+    // Test login for a gated product, so a reviewer is never locked out.
+    demoCredentials: text("demo_credentials"),
+    revenueType: revenueTypeEnum("revenue_type"),
+    recurringFrequency: recurringFrequencyEnum("recurring_frequency"),
+    // Auto-summed from payment_schedule; stored so the review queue can sort
+    // and filter on it without re-aggregating.
+    totalContractValue: integer("total_contract_value"),
+    agreementDoc: text("agreement_doc"),
     // Free-form admin note for this specific project (admin-only; shown on the
     // admin team-detail page's project card).
     adminNotes: text("admin_notes"),
@@ -498,10 +666,12 @@ export const projectsTable = pgTable(
   },
   (t) => [
     index("projects_team_idx").on(t.teamId),
+    index("projects_season_team_idx").on(t.seasonId, t.teamId),
     index("projects_team_status_idx").on(t.teamId, t.status),
     index("projects_active_team_idx")
       .on(t.teamId)
       .where(sql`${t.status} = 'active'`),
+    index("projects_lead_idx").on(t.leadId),
   ],
 );
 
@@ -523,6 +693,10 @@ export const orderBookEntriesTable = pgTable(
     clientName: text("client_name").notNull(),
     amount: integer("amount").notNull(),
     verifiedAmount: integer("verified_amount"),
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     status: entryStatusEnum("status").notNull().default("verified"),
     supportingDocUrl: text("supporting_doc_url"),
     notes: text("notes"),
@@ -540,6 +714,7 @@ export const orderBookEntriesTable = pgTable(
   },
   (t) => [
     index("order_book_team_idx").on(t.teamId),
+    index("order_book_season_team_idx").on(t.seasonId, t.teamId),
     index("order_book_project_idx").on(t.projectId),
     index("order_book_team_status_idx").on(t.teamId, t.status),
     index("order_book_verified_team_idx")
@@ -565,6 +740,10 @@ export const revenueEntriesTable = pgTable(
     amount: integer("amount").notNull(),
     verifiedAmount: integer("verified_amount"),
     paymentDate: text("payment_date").notNull(),
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     status: entryStatusEnum("status").notNull().default("draft"),
     brdUrl: text("brd_url"),
     testimonialUrl: text("testimonial_url"),
@@ -595,6 +774,27 @@ export const revenueEntriesTable = pgTable(
       withTimezone: true,
     }),
     brdDriveMigrationError: text("brd_drive_migration_error"),
+    // Season 2 composed BRD. A Season 2 team never uploads a document: the BRD
+    // is assembled from the lead trail, so there is no file to point brdUrl at.
+    // brdComposed holds the structured snapshot taken AT SUBMISSION (it must
+    // not drift afterwards); brdText is the rendered prose the AI auditor and
+    // the reviewer read. Both NULL on every Season 1 row, which is how the
+    // reviewer UI decides which of the two shapes to render.
+    brdComposed: jsonb("brd_composed"),
+    brdText: text("brd_text"),
+    // Phase 6 price recognition. `amount` stays the CLAIMED figure and is never
+    // rewritten - the audit trail depends on it. recognisedAmount is the claim
+    // after the category cap is applied; weightedAmount is what the leaderboard
+    // actually counts, after the recurring multiplier.
+    //
+    // Both NULL on every Season 1 row. Every read coalesces back to
+    // verified_amount / amount, so Season 1 needs NO backfill and its totals
+    // cannot move.
+    recognisedAmount: integer("recognised_amount"),
+    weightedAmount: integer("weighted_amount"),
+    // Which cap was applied, so a student can be told WHY their figure was
+    // trimmed rather than just seeing a smaller number.
+    pricingCategoryId: integer("pricing_category_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -605,6 +805,7 @@ export const revenueEntriesTable = pgTable(
   },
   (t) => [
     index("revenue_team_idx").on(t.teamId),
+    index("revenue_season_team_idx").on(t.seasonId, t.teamId),
     index("revenue_project_idx").on(t.projectId),
     index("revenue_status_idx").on(t.status),
     index("revenue_team_status_idx").on(t.teamId, t.status),
@@ -626,6 +827,10 @@ export const milestonesTable = pgTable(
   {
     id: serial("id").primaryKey(),
     teamId: integer("team_id").notNull(),
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     type: milestoneTypeEnum("type").notNull().default("manual"),
     title: text("title").notNull(),
     description: text("description"),
@@ -637,7 +842,10 @@ export const milestonesTable = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("milestones_team_idx").on(t.teamId)],
+  (t) => [
+    index("milestones_team_idx").on(t.teamId),
+    index("milestones_season_team_idx").on(t.seasonId, t.teamId),
+  ],
 );
 
 export const insertMilestoneSchema = createInsertSchema(milestonesTable).omit({
@@ -650,7 +858,11 @@ export type Milestone = typeof milestonesTable.$inferSelect;
 // Demo Day Applications
 export const demoDayApplicationsTable = pgTable("demo_day_applications", {
   id: serial("id").primaryKey(),
-  teamId: integer("team_id").notNull().unique(),
+  // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+  // (Season 1) row valid and makes any un-migrated insert path degrade to
+  // Season 1 instead of failing.
+  seasonId: integer("season_id").notNull().default(1),
+  teamId: integer("team_id").notNull(),
   demoUrl: text("demo_url"),
   pitchDeckUrl: text("pitch_deck_url"),
   growthPlan: text("growth_plan"),
@@ -665,7 +877,13 @@ export const demoDayApplicationsTable = pgTable("demo_day_applications", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+  },
+  (t) => [
+    // Widened for Season 2: one application per team PER SEASON.
+    unique("demo_day_applications_team_season_unique").on(t.teamId, t.seasonId),
+    index("demo_day_applications_season_idx").on(t.seasonId),
+  ],
+);
 
 export const insertDemoDayApplicationSchema = createInsertSchema(
   demoDayApplicationsTable,
@@ -691,6 +909,10 @@ export const demoDaySubmissionsTable = pgTable(
   {
     id: serial("id").primaryKey(),
     teamId: integer("team_id").notNull(),
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     // Optional link to an existing project the team picked as their best work.
     projectId: integer("project_id"),
     title: text("title").notNull(),
@@ -716,8 +938,9 @@ export const demoDaySubmissionsTable = pgTable(
   },
   (t) => [
     // One active submission per team — re-submitting edits the same row.
-    unique("demo_day_submissions_team_unique").on(t.teamId),
+    unique("demo_day_submissions_team_season_unique").on(t.teamId, t.seasonId),
     index("demo_day_submissions_status_idx").on(t.status),
+    index("demo_day_submissions_season_idx").on(t.seasonId),
   ],
 );
 
@@ -759,6 +982,9 @@ export type Notification = typeof notificationsTable.$inferSelect;
 // Announcements
 export const announcementsTable = pgTable("announcements", {
   id: serial("id").primaryKey(),
+  // Which season this announcement belongs to. DEFAULT 1 so every existing
+  // announcement remains a Season 1 announcement and nothing moves.
+  seasonId: integer("season_id").notNull().default(1),
   authorId: text("author_id").notNull(),
   target: announcementTargetEnum("target").notNull().default("all"),
   campusId: integer("campus_id"),
@@ -801,6 +1027,10 @@ export type AnnouncementDismissal =
 // Programme Config
 export const programmeConfigTable = pgTable("programme_config", {
   id: serial("id").primaryKey(),
+  // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+  // (Season 1) row valid and makes any un-migrated insert path degrade to
+  // Season 1 instead of failing.
+  seasonId: integer("season_id").notNull().default(1).unique(),
   startDate: text("start_date").notNull().default("2025-04-15"),
   endDate: text("end_date").notNull().default("2025-07-15"),
   demoDayDate: text("demo_day_date"),
@@ -952,6 +1182,193 @@ export const programmeConfigTable = pgTable("programme_config", {
     .$onUpdate(() => new Date()),
 });
 
+// ── Phase 6: pricing categories ─────────────────────────────────────────────
+// A published price band per kind of work, with a recognition cap. The cap
+// exists because a team can charge a friend anything they like; what the
+// programme RECOGNISES is bounded by what that work is plausibly worth.
+//
+// Season-scoped: Season 2's catalogue must not retroactively cap Season 1.
+export const pricingCategoriesTable = pgTable(
+  "pricing_categories",
+  {
+    id: serial("id").primaryKey(),
+    seasonId: integer("season_id").notNull().default(2),
+    name: text("name").notNull(),
+    description: text("description"),
+    // Guidance shown to students when they price the work.
+    typicalMin: integer("typical_min"),
+    typicalMax: integer("typical_max"),
+    // The hard ceiling on what one project in this category can contribute.
+    // NULL means uncapped, which is the safe default for a category nobody has
+    // set a number for yet.
+    recognitionCap: integer("recognition_cap"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("pricing_categories_season_idx").on(t.seasonId),
+    uniqueIndex("pricing_categories_season_name_unique").on(t.seasonId, t.name),
+  ],
+);
+
+// ── Phase 6: trust score events ─────────────────────────────────────────────
+// An append-only ledger. A team's score is the SUM of its events, never a
+// stored mutable number - so the score can always be explained line by line,
+// and recomputing it is a query rather than a migration.
+export const trustScoreEventsTable = pgTable(
+  "trust_score_events",
+  {
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id").notNull(),
+    seasonId: integer("season_id").notNull().default(2),
+    kind: trustEventKindEnum("kind").notNull(),
+    // The points AS AWARDED. Deliberately stored rather than re-derived from
+    // the published table: changing a published value later must not silently
+    // rewrite history.
+    points: integer("points").notNull(),
+    // Shown verbatim to the team. Required for manual_adjustment.
+    reason: text("reason"),
+    // What triggered it, for a clickable trail back to the evidence.
+    refType: text("ref_type"),
+    refId: integer("ref_id"),
+    // NULL for automated awards; set for a coordinator's manual adjustment.
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("trust_score_events_team_idx").on(t.teamId),
+    index("trust_score_events_season_team_idx").on(t.seasonId, t.teamId),
+    // Automated awards must fire once per underlying fact. A partial unique
+    // index over (team, kind, ref) makes a repeat award a database error rather
+    // than a silently inflated score.
+    uniqueIndex("trust_score_events_dedup")
+      .on(t.seasonId, t.teamId, t.kind, t.refType, t.refId)
+      .where(sql`${t.refId} IS NOT NULL`),
+  ],
+);
+
+// ── Phase 7: review assignments ─────────────────────────────────────────────
+// One row per (submission, evaluator). Conflict-of-interest is enforced when
+// the row is created, not when the decision is made - by then the evaluator has
+// already read the submission.
+export const reviewAssignmentsTable = pgTable(
+  "review_assignments",
+  {
+    id: serial("id").primaryKey(),
+    seasonId: integer("season_id").notNull().default(2),
+    // The submission under review. This is a revenue_entries row, because
+    // Season 2 submissions deliberately reuse the existing queue.
+    revenueEntryId: integer("revenue_entry_id").notNull(),
+    teamId: integer("team_id").notNull(),
+    evaluatorId: text("evaluator_id").notNull(),
+    decision: reviewDecisionEnum("decision").notNull().default("pending"),
+    // -- SLA. Two clocks, deliberately.
+    assignedAt: timestamp("assigned_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // The original deadline. Never moved; adjustments live in pausedSeconds so
+    // the original commitment stays auditable.
+    slaDueAt: timestamp("sla_due_at", { withTimezone: true }),
+    // Non-null while the clock is paused (changes_requested only).
+    clockPausedAt: timestamp("clock_paused_at", { withTimezone: true }),
+    // Accumulated pause. Effective deadline = sla_due_at + paused_seconds.
+    pausedSeconds: integer("paused_seconds").notNull().default(0),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    // Shown to the team verbatim on a rejection or a change request, so a
+    // decision is never delivered without a reason.
+    decisionNote: text("decision_note"),
+    // The six automated signals as computed AT ASSIGNMENT, so the evaluator's
+    // view and any later audit see the same numbers.
+    signals: jsonb("signals"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("review_assignments_evaluator_idx").on(t.evaluatorId, t.decision),
+    index("review_assignments_entry_idx").on(t.revenueEntryId),
+    index("review_assignments_season_idx").on(t.seasonId, t.decision),
+    // One live assignment per submission per evaluator. Re-assigning to a
+    // different evaluator is allowed; assigning the same one twice is a bug.
+    uniqueIndex("review_assignments_entry_evaluator_unique").on(
+      t.revenueEntryId,
+      t.evaluatorId,
+    ),
+  ],
+);
+
+// ── Phase 7: appeals ────────────────────────────────────────────────────────
+// A rejected team can ask for the decision to be looked at again. Separate from
+// the assignment so an appeal never overwrites the original decision - both
+// must remain readable.
+export const reviewAppealsTable = pgTable(
+  "review_appeals",
+  {
+    id: serial("id").primaryKey(),
+    seasonId: integer("season_id").notNull().default(2),
+    revenueEntryId: integer("revenue_entry_id").notNull(),
+    teamId: integer("team_id").notNull(),
+    // The assignment being appealed, so the original decision is one join away.
+    assignmentId: integer("assignment_id"),
+    reason: text("reason").notNull(),
+    evidence: jsonb("evidence"),
+    status: appealStatusEnum("status").notNull().default("open"),
+    raisedBy: text("raised_by").notNull(),
+    raisedAt: timestamp("raised_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // Must be someone other than the original evaluator - enforced in the route.
+    decidedBy: text("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    outcomeNote: text("outcome_note"),
+  },
+  (t) => [
+    index("review_appeals_team_idx").on(t.teamId),
+    index("review_appeals_status_idx").on(t.status),
+    // One open appeal per submission. A team cannot stack appeals to stall a
+    // decision; the partial index lets a NEW appeal be raised once the previous
+    // one is closed.
+    uniqueIndex("review_appeals_open_unique")
+      .on(t.revenueEntryId)
+      .where(sql`${t.status} = 'open'`),
+  ],
+);
+
+// ── Phase 7: audit sampling ─────────────────────────────────────────────────
+// A percentage of APPROVED submissions is independently re-checked. This is how
+// the review process itself is measured, rather than only the students.
+export const reviewAuditSamplesTable = pgTable(
+  "review_audit_samples",
+  {
+    id: serial("id").primaryKey(),
+    seasonId: integer("season_id").notNull().default(2),
+    assignmentId: integer("assignment_id").notNull(),
+    revenueEntryId: integer("revenue_entry_id").notNull(),
+    sampledAt: timestamp("sampled_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    auditorId: text("auditor_id"),
+    // NULL until the auditor decides. true = the auditor reached the same
+    // conclusion as the evaluator.
+    agreed: boolean("agreed"),
+    note: text("note"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("review_audit_samples_season_idx").on(t.seasonId),
+    // A submission is sampled at most once.
+    uniqueIndex("review_audit_samples_entry_unique").on(t.revenueEntryId),
+  ],
+);
+
 export const insertProgrammeConfigSchema = createInsertSchema(
   programmeConfigTable,
 ).omit({ id: true, updatedAt: true });
@@ -1039,6 +1456,10 @@ export const weeklyJournalsTable = pgTable(
   {
     id: serial("id").primaryKey(),
     teamId: integer("team_id").notNull(),
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     weekStartDate: text("week_start_date").notNull(), // YYYY-MM-DD (Monday)
     weekEndDate: text("week_end_date").notNull(), // YYYY-MM-DD (Sunday)
     whatWeDid: text("what_we_did").notNull(),
@@ -1088,6 +1509,7 @@ export const weeklyJournalsTable = pgTable(
   (t) => [
     unique("weekly_journals_team_week_unique").on(t.teamId, t.weekStartDate),
     index("weekly_journals_team_idx").on(t.teamId),
+    index("weekly_journals_season_team_idx").on(t.seasonId, t.teamId),
     index("weekly_journals_week_idx").on(t.weekStartDate),
     index("weekly_journals_blocker_priority_idx").on(t.blockerPriority),
   ],
@@ -1107,6 +1529,10 @@ export const programmeWeeksTable = pgTable(
   "programme_weeks",
   {
     id: serial("id").primaryKey(),
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     weekNumber: integer("week_number").notNull(),
     startDate: text("start_date").notNull(), // YYYY-MM-DD inclusive
     endDate: text("end_date").notNull(), // YYYY-MM-DD inclusive
@@ -1121,7 +1547,9 @@ export const programmeWeeksTable = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    unique("programme_weeks_week_number_unique").on(t.weekNumber),
+    // Widened for Season 2: week numbers repeat per season, so "week 1"
+    // must be able to exist once per season rather than once overall.
+    unique("programme_weeks_season_week_unique").on(t.seasonId, t.weekNumber),
     index("programme_weeks_start_date_idx").on(t.startDate),
   ],
 );
@@ -1398,6 +1826,9 @@ export const popupTemplatesTable = pgTable(
   "popup_templates",
   {
     id: serial("id").primaryKey(),
+    // Which season this pop-up belongs to. DEFAULT 1 so every pop-up that
+    // existed before seasons stays exactly where it was — a Season 1 pop-up.
+    seasonId: integer("season_id").notNull().default(1),
     name: text("name").notNull(),
     message: text("message").notNull(),
     // require_checkbox = true → a confirmation checkbox must be ticked before
@@ -1498,6 +1929,9 @@ export const submissionAccessRequestsTable = pgTable(
   "submission_access_requests",
   {
     id: serial("id").primaryKey(),
+    // Which season this request belongs to. DEFAULT 1 so every request made
+    // before seasons existed stays a Season 1 request and nothing moves.
+    seasonId: integer("season_id").notNull().default(1),
     teamId: integer("team_id").notNull(),
     requestedBy: text("requested_by").notNull(),
     purpose: text("purpose"),
@@ -1512,6 +1946,7 @@ export const submissionAccessRequestsTable = pgTable(
   },
   (t) => [
     index("submission_access_requests_team_idx").on(t.teamId),
+    index("submission_access_requests_season_idx").on(t.seasonId),
     index("submission_access_requests_status_idx").on(t.status),
     index("submission_access_requests_created_idx").on(t.createdAt),
   ],
@@ -1535,6 +1970,10 @@ export const finaleSubmissionsTable = pgTable(
     id: serial("id").primaryKey(),
     teamId: integer("team_id").notNull(),
     submittedBy: text("submitted_by").notNull(),
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     // Object-storage path (/objects/<id>) of the uploaded .pptx.
     fileUrl: text("file_url").notNull(),
     fileName: text("file_name"),
@@ -1566,6 +2005,7 @@ export const finaleSubmissionsTable = pgTable(
   },
   (t) => [
     index("finale_submissions_team_idx").on(t.teamId),
+    index("finale_submissions_season_team_idx").on(t.seasonId, t.teamId),
     index("finale_submissions_created_at_idx").on(t.createdAt),
     index("finale_submissions_deleted_at_idx").on(t.deletedAt),
   ],
@@ -1587,6 +2027,10 @@ export const pcaVotesTable = pgTable(
     id: serial("id").primaryKey(),
     voterId: text("voter_id").notNull(),
     // The voter's OWN team — used for the admin tag and the self-vote check.
+    // Season this row belongs to. DEFAULT 1 keeps every pre-existing
+    // (Season 1) row valid and makes any un-migrated insert path degrade to
+    // Season 1 instead of failing.
+    seasonId: integer("season_id").notNull().default(1),
     voterTeamId: integer("voter_team_id").notNull(),
     voterRole: text("voter_role").notNull(), // 'leader' | 'member'
     // The team they voted FOR. Never equal to voterTeamId.
@@ -1600,11 +2044,480 @@ export const pcaVotesTable = pgTable(
     updatedBy: text("updated_by"),
   },
   (t) => [
-    unique("pca_votes_voter_unique").on(t.voterId),
+    unique("pca_votes_voter_season_unique").on(t.voterId, t.seasonId),
     index("pca_votes_voted_team_idx").on(t.votedTeamId),
+    index("pca_votes_season_idx").on(t.seasonId),
     index("pca_votes_voter_team_idx").on(t.voterTeamId),
     index("pca_votes_created_idx").on(t.createdAt),
   ],
 );
 
 export type PcaVote = typeof pcaVotesTable.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEASONS (additive, isolated — Season 1 / Season 2 coexistence)
+//
+// A season is a single run of the BRAVE programme. Season 1 (id 1) is the
+// completed, read-only archive; Season 2 (id 2) is the live season. Identity
+// data (users, roster, campuses, teams, team_members, invite codes) is SHARED
+// across seasons and is deliberately NOT season-scoped — the same teams carry
+// forward and nobody re-registers. Only *activity* carries a season_id.
+//
+// Exactly one row should have isActive = true. `resolveSeason()` in the
+// api-server reads it; every scoped table defaults season_id to 1 so any write
+// path that has not been updated still produces a valid Season 1 row rather
+// than failing.
+//
+// The three allow* override flags live here rather than on programme_config so
+// the read-only guard can decide with the single season row it already loaded.
+// ─────────────────────────────────────────────────────────────────────────────
+export const seasonsTable = pgTable(
+  "seasons",
+  {
+    id: serial("id").primaryKey(),
+    // Display name, e.g. "BRAVE Season 2".
+    name: text("name").notNull(),
+    // Short badge label shown in the sidebar, e.g. "1.0" / "2.0".
+    slug: text("slug").notNull(),
+    startDate: text("start_date"), // YYYY-MM-DD
+    endDate: text("end_date"), // YYYY-MM-DD
+    weekCount: integer("week_count").notNull().default(12),
+    // Exactly one season is active. New activity is written against it.
+    isActive: boolean("is_active").notNull().default(false),
+    // When true, student write paths are blocked for this season unless the
+    // matching allow* override below is switched on by a super admin.
+    isReadOnly: boolean("is_read_only").notNull().default(false),
+    // Per-capability archive overrides. All default false = fully read-only.
+    // Flipping any of these is audit-logged by the route that changes it.
+    allowJournalWrites: boolean("allow_journal_writes").notNull().default(false),
+    allowRevenueWrites: boolean("allow_revenue_writes").notNull().default(false),
+    allowProjectWrites: boolean("allow_project_writes").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    unique("seasons_slug_unique").on(t.slug),
+    index("seasons_active_idx").on(t.isActive),
+  ],
+);
+
+export const insertSeasonSchema = createInsertSchema(seasonsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSeason = z.infer<typeof insertSeasonSchema>;
+export type Season = typeof seasonsTable.$inferSelect;
+
+// Stable ids. Season 1 is the archive; Season 2 is the live season. These are
+// the values the `season_id` DEFAULT and the bootstrap seed rely on.
+export const SEASON_1_ID = 1;
+export const SEASON_2_ID = 2;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SEASON 2 LEAD PIPELINE (additive, isolated — Season 1 never reads any of it)
+//
+// The structural change of Season 2: a revenue claim must descend from a
+// traceable relationship. Nothing here exists in Season 1, so every table
+// carries season_id and every Season 1 code path is untouched.
+//
+//   Lead  ──Gate A──>  Qualified/Converted  ──Gate B──>  Project
+//         3 dated interactions                only from a Converted lead
+//         spanning 7+ days
+//
+//   Project ──> phases + payment schedule ──> payments ──Gate C──> BRD
+//
+// The BRD is COMPOSED from these rows rather than uploaded, which is what
+// removes the fabrication surface: it cannot contain anything that was not
+// recorded as it happened.
+// ═════════════════════════════════════════════════════════════════════════════
+
+
+
+
+
+
+
+
+
+
+// ── leads ───────────────────────────────────────────────────────────────────
+// 17 student-supplied fields (9 mandatory) plus derived state. Filled the day
+// the student meets someone, ideally at the client's premises.
+export const leadsTable = pgTable(
+  "leads",
+  {
+    id: serial("id").primaryKey(),
+    teamId: integer("team_id").notNull(),
+    seasonId: integer("season_id").notNull().default(2),
+
+    // -- how they met (asked FIRST, because it decides related-party status)
+    source: leadSourceEnum("source").notNull(),
+    // Required when source = referral.
+    referrerName: text("referrer_name"),
+    // Required when source = known_contact.
+    relationshipNote: text("relationship_note"),
+
+    // -- who the client is
+    businessName: text("business_name").notNull(),
+    ownerName: text("owner_name").notNull(),
+    // Primary dedup key across the whole programme. Stored as given; the
+    // normalised form lives on client_registry for cross-team matching.
+    phone: text("phone").notNull(),
+    altPhone: text("alt_phone"),
+    businessCategory: businessCategoryEnum("business_category").notNull(),
+    city: text("city").notNull(),
+    areaLocality: text("area_locality"),
+    // "Use my location" at the client's premises. Strongest available evidence
+    // that the student was physically there, and impossible to fake from a
+    // desk — which is why the mobile capture flow exists.
+    geoLat: text("geo_lat"),
+    geoLng: text("geo_lng"),
+
+    // -- first meeting
+    firstMeetingDate: text("first_meeting_date").notNull(), // YYYY-MM-DD
+    meetingMode: meetingModeEnum("meeting_mode").notNull(),
+
+    // -- what was said (voice-to-text on the client)
+    conversationNote: text("conversation_note").notNull(),
+    painPoint: text("pain_point"),
+    estimatedValue: integer("estimated_value"),
+
+    // -- evidence: photo with client, visiting card, shopfront, screenshot
+    evidence: jsonb("evidence"),
+
+    // -- derived / system-owned
+    stage: leadStageEnum("stage").notNull().default("new"),
+    // Mirrors source ∈ {referral, known_contact}. Denormalised so the fraud
+    // console can filter on it without re-deriving.
+    isRelatedParty: boolean("is_related_party").notNull().default(false),
+    // 0-100, recomputed on every interaction. Gate C requires Moderate+.
+    trailStrength: integer("trail_strength").notNull().default(0),
+    // Drives the 10/21/30-day nudge, escalation and dormancy crons.
+    lastContactAt: timestamp("last_contact_at", { withTimezone: true }),
+    nextActionDate: text("next_action_date"), // YYYY-MM-DD
+    // Nudge ladder position: 0 = none sent, 10 = student nudged,
+    // 21 = coordinator escalated. Stored so the daily sweep is idempotent —
+    // without it every run would re-notify the same silent lead.
+    lastNudgeLevel: integer("last_nudge_level").notNull().default(0),
+    lastNudgeAt: timestamp("last_nudge_at", { withTimezone: true }),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("leads_team_idx").on(t.teamId),
+    index("leads_season_team_idx").on(t.seasonId, t.teamId),
+    index("leads_stage_idx").on(t.stage),
+    // The cross-team duplicate-client fraud signal.
+    index("leads_phone_idx").on(t.phone),
+    index("leads_related_party_idx").on(t.isRelatedParty),
+    // Cron sweeps order by silence.
+    index("leads_last_contact_idx").on(t.lastContactAt),
+  ],
+);
+
+export const insertLeadSchema = createInsertSchema(leadsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertLead = z.infer<typeof insertLeadSchema>;
+export type Lead = typeof leadsTable.$inferSelect;
+
+// ── lead_interactions ───────────────────────────────────────────────────────
+// The dated trail. This is what later composes the BRD, and what Gate A counts.
+export const leadInteractionsTable = pgTable(
+  "lead_interactions",
+  {
+    id: serial("id").primaryKey(),
+    leadId: integer("lead_id").notNull(),
+    // Denormalised so Gate A and the coordinator oversight table can filter by
+    // team without joining leads on every query.
+    teamId: integer("team_id").notNull(),
+    seasonId: integer("season_id").notNull().default(2),
+
+    // When the contact actually happened.
+    interactionDate: text("interaction_date").notNull(), // YYYY-MM-DD
+    interactionType: interactionTypeEnum("interaction_type").notNull(),
+    summary: text("summary").notNull(),
+    outcome: interactionOutcomeEnum("outcome").notNull(),
+    // Present when outcome = objection. Feeds mentor coaching topics.
+    objectionNote: text("objection_note"),
+    nextActionDate: text("next_action_date"), // YYYY-MM-DD
+    // Screenshot / photo / quotation. An entry WITH evidence fills the trail
+    // dot solid and counts for more in trail strength.
+    attachments: jsonb("attachments"),
+    // Optional stage move recorded with this interaction.
+    stageChange: leadStageEnum("stage_change"),
+
+    // When the row was WRITTEN, as opposed to when the contact happened. The
+    // gap between the two is the backdating signal, so both are kept.
+    loggedAt: timestamp("logged_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    loggedBy: text("logged_by").notNull(),
+  },
+  (t) => [
+    index("lead_interactions_lead_idx").on(t.leadId),
+    index("lead_interactions_team_idx").on(t.teamId),
+    index("lead_interactions_season_team_idx").on(t.seasonId, t.teamId),
+    index("lead_interactions_date_idx").on(t.interactionDate),
+  ],
+);
+
+export const insertLeadInteractionSchema = createInsertSchema(
+  leadInteractionsTable,
+).omit({ id: true, loggedAt: true });
+export type InsertLeadInteraction = z.infer<typeof insertLeadInteractionSchema>;
+export type LeadInteraction = typeof leadInteractionsTable.$inferSelect;
+
+// ── project_phases ──────────────────────────────────────────────────────────
+// Phase-wise delivery plan. Mandatory in Season 2 (minimum 2 phases) — it was
+// the commonest gap in Season 1 BRDs.
+export const projectPhasesTable = pgTable(
+  "project_phases",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    name: text("name").notNull(),
+    deliverables: text("deliverables"),
+    startDate: text("start_date"), // YYYY-MM-DD
+    endDate: text("end_date"), // YYYY-MM-DD
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("project_phases_project_idx").on(t.projectId, t.sortOrder)],
+);
+
+export type ProjectPhase = typeof projectPhasesTable.$inferSelect;
+
+// ── payment_schedule ────────────────────────────────────────────────────────
+// Phase-wise PAYMENT plan, the planned counterpart to `payments`. Every row
+// maps to a phase, so a schedule can never describe money for work that was
+// never scoped.
+export const paymentScheduleTable = pgTable(
+  "payment_schedule",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id").notNull(),
+    phaseId: integer("phase_id").notNull(),
+    amount: integer("amount").notNull(),
+    dueDate: text("due_date"), // YYYY-MM-DD
+    revenueType: revenueTypeEnum("revenue_type").notNull().default("one_time"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("payment_schedule_project_idx").on(t.projectId),
+    index("payment_schedule_phase_idx").on(t.phaseId),
+  ],
+);
+
+export type PaymentScheduleRow = typeof paymentScheduleTable.$inferSelect;
+
+// ── payments ────────────────────────────────────────────────────────────────
+// Money actually received, recorded against a specific PHASE rather than the
+// project as a whole. Partial delivery is normal and must be recordable
+// without penalty — honestly logging 2 of 4 phases should score better than
+// claiming 4 with no evidence.
+export const paymentsTable = pgTable(
+  "payments",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id").notNull(),
+    phaseId: integer("phase_id").notNull(),
+    teamId: integer("team_id").notNull(),
+    seasonId: integer("season_id").notNull().default(2),
+
+    amountReceived: integer("amount_received").notNull(),
+    paymentDate: text("payment_date").notNull(), // YYYY-MM-DD
+    paymentMode: paymentModeEnum("payment_mode").notNull(),
+    // UTR / reference. Mandatory for everything except cash — enforced in the
+    // route, not the column, so a legitimate cash payment is still recordable.
+    transactionRef: text("transaction_ref"),
+    paymentProof: text("payment_proof").notNull(),
+    invoiceDoc: text("invoice_doc").notNull(),
+    deliveryProof: jsonb("delivery_proof"),
+
+    // Set by the automated post-delivery NPS call, never by the student. Kept
+    // read-only in the UI for exactly that reason.
+    clientConfirmed: boolean("client_confirmed").notNull().default(false),
+    clientConfirmedAt: timestamp("client_confirmed_at", { withTimezone: true }),
+
+    recordedBy: text("recorded_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("payments_project_idx").on(t.projectId),
+    index("payments_phase_idx").on(t.phaseId),
+    index("payments_season_team_idx").on(t.seasonId, t.teamId),
+    // The duplicate-UTR fraud check cannot work without this. Partial index so
+    // cash payments (no reference) are exempt rather than colliding on NULL.
+    uniqueIndex("payments_transaction_ref_unique")
+      .on(t.transactionRef)
+      .where(sql`${t.transactionRef} IS NOT NULL`),
+  ],
+);
+
+export const insertPaymentSchema = createInsertSchema(paymentsTable).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type Payment = typeof paymentsTable.$inferSelect;
+
+// ── client_registry ─────────────────────────────────────────────────────────
+// One row per real SMB across the whole programme, populated from lead capture.
+// Two jobs: the cross-team duplicate-client fraud signal, and the record the
+// automated satisfaction call writes back to.
+export const clientRegistryTable = pgTable(
+  "client_registry",
+  {
+    id: serial("id").primaryKey(),
+    // Digits only, country code stripped — so "+91 98490 12345" and
+    // "9849012345" collide as they should.
+    phoneNormalised: text("phone_normalised").notNull(),
+    businessName: text("business_name").notNull(),
+    ownerName: text("owner_name"),
+    businessCategory: businessCategoryEnum("business_category"),
+    city: text("city"),
+
+    // Verification by the automated call.
+    verifiedByCall: boolean("verified_by_call").notNull().default(false),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    callTranscript: text("call_transcript"),
+    npsScore: integer("nps_score"),
+    npsComment: text("nps_comment"),
+    unreachable: boolean("unreachable").notNull().default(false),
+
+    // Raised when the client disputes delivery, or the student reports
+    // non-payment. Routed to the Pod for safeguarding.
+    disputeOpen: boolean("dispute_open").notNull().default(false),
+    disputeNote: text("dispute_note"),
+
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // One registry row per real business. The whole dedup signal rests on this.
+    uniqueIndex("client_registry_phone_unique").on(t.phoneNormalised),
+    index("client_registry_dispute_idx").on(t.disputeOpen),
+  ],
+);
+
+export type ClientRegistryEntry = typeof clientRegistryTable.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WhatsApp (additive, isolated — Karix RCM).
+//
+// Two tables, both new and unread by anything that existed before. Deleting
+// this block means dropping routes/whatsapp.ts and its one mount line.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Templates approved in the Karix/Konverse console.
+ *
+ * This table exists because Karix exposes NO API for listing the templates an
+ * account has registered — verified against both of their published Postman
+ * collections (190 + 46 endpoints, none of them a template list). So an admin
+ * records each approved template here once and the dashboard sends against it.
+ *
+ * `templateId` must match the template NAME in Konverse exactly. A mismatch is
+ * Karix status code 210 ("Invalid HSM Data") at send time, which is why the
+ * send path surfaces that code's meaning rather than the raw number.
+ */
+export const whatsappTemplatesTable = pgTable(
+  "whatsapp_templates",
+  {
+    id: serial("id").primaryKey(),
+    /** Template name exactly as registered in Konverse. */
+    templateId: text("template_id").notNull(),
+    /** Human label shown in the admin picker. */
+    displayName: text("display_name").notNull(),
+    /** marketing | utility | authentication — mirrors Meta's categories. */
+    category: text("category").notNull().default("utility"),
+    language: text("language").notNull().default("en"),
+    /** How many {{n}} placeholders the body carries. */
+    variableCount: integer("variable_count").notNull().default(0),
+    /** Optional per-variable labels, so the send form can name its inputs. */
+    variableLabels: jsonb("variable_labels").$type<string[]>(),
+    /** Body text copied from Konverse, for the preview. */
+    sampleBody: text("sample_body"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("whatsapp_templates_template_id_unique").on(t.templateId)],
+);
+
+export type WhatsappTemplate = typeof whatsappTemplatesTable.$inferSelect;
+
+/**
+ * One row per send ATTEMPT per recipient.
+ *
+ * WhatsApp has no unsend. If a broadcast goes to the wrong audience, this table
+ * is the only way to reconstruct who was messaged, with what, and by whom — so
+ * a row is written for every recipient regardless of outcome, including
+ * failures and skips.
+ */
+export const whatsappSendsTable = pgTable(
+  "whatsapp_sends",
+  {
+    id: serial("id").primaryKey(),
+    /** Groups every recipient of one broadcast. */
+    batchId: text("batch_id").notNull(),
+    templateId: text("template_id").notNull(),
+    recipientPhone: text("recipient_phone").notNull(),
+    recipientUserId: text("recipient_user_id"),
+    recipientName: text("recipient_name"),
+    recipientRole: text("recipient_role"),
+    campusId: integer("campus_id"),
+    parameterValues: jsonb("parameter_values"),
+    /** pending | sent | failed | skipped */
+    status: text("status").notNull().default("pending"),
+    /** Karix statusCode, kept as TEXT because their API returns it as a string. */
+    statusCode: text("status_code"),
+    statusDesc: text("status_desc"),
+    /** Karix `mid`, for correlating delivery webhooks later. */
+    messageId: text("message_id"),
+    seasonId: integer("season_id").notNull().default(1),
+    sentBy: text("sent_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("whatsapp_sends_batch_idx").on(t.batchId),
+    index("whatsapp_sends_created_idx").on(t.createdAt),
+    index("whatsapp_sends_phone_idx").on(t.recipientPhone),
+  ],
+);
+
+export type WhatsappSend = typeof whatsappSendsTable.$inferSelect;

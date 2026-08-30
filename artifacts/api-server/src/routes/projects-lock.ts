@@ -5,7 +5,7 @@
  * adding revenue entries, or submitting revenue for verification (i.e. the
  * BRD-upload flows on the student Projects page). While locked, the student
  * Projects pages show the configured message in a banner. Admins are never
- * blocked. Stored on the singleton programme_config row (added columns).
+ * blocked. Stored on the per-season programme_config row (added columns).
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
@@ -21,6 +21,12 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
+import {
+  getActiveConfig,
+  getConfig,
+  isSeasonWritable,
+  resolveSeason,
+} from "../lib/season";
 import { requireTeamLeader } from "../lib/auth";
 import { logAudit } from "../lib/audit";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
@@ -49,12 +55,15 @@ export const SUBMISSION_REQUEST_DISABLED_ERROR =
 export const REJECTED_RESUBMIT_DISABLED_ERROR =
   "Editing and resubmitting rejected entries is currently disabled. Please check back later.";
 
-async function getConfigRow() {
-  let [row] = await db.select().from(programmeConfigTable).limit(1);
-  if (!row) {
-    [row] = await db.insert(programmeConfigTable).values({}).returning();
-  }
-  return row;
+// Season-aware read of the programme_config row, created on first access.
+//
+// Omitting `seasonId` means the ACTIVE season. That is correct for background
+// work, but a request handler should pass `await resolveSeason(req)` so that an
+// admin viewing Season 1 edits Season 1's settings rather than the live
+// season's. Before seasons existed this read an unqualified `.limit(1)`, which
+// becomes nondeterministic as soon as a second season's row exists.
+async function getConfigRow(seasonId?: number) {
+  return seasonId == null ? getActiveConfig() : getConfig(seasonId);
 }
 
 function serialize(row: typeof programmeConfigTable.$inferSelect) {
@@ -92,6 +101,7 @@ export async function getProjectSubmissionsLockError(
       message: programmeConfigTable.projectSubmissionsLockMessage,
     })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, await resolveSeason(req)))
     .limit(1);
   if (!row?.locked) return null;
   // Global lock is ON — allow this team only if it is specifically exempted.
@@ -118,6 +128,7 @@ export async function getRejectedResubmitError(
   const [row] = await db
     .select({ enabled: programmeConfigTable.rejectedResubmitEnabled })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, await resolveSeason(req)))
     .limit(1);
   // Default-allow when the row/column is missing.
   if (row?.enabled === false) return REJECTED_RESUBMIT_DISABLED_ERROR;
@@ -135,7 +146,16 @@ router.get(
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const row = await getConfigRow();
+    const season = await resolveSeason(req);
+    const row = await getConfigRow(season);
+    // Whether this season accepts revenue/order-book writes at all. Mirrors the
+    // server-side guard on the financials routes so the student Projects page
+    // never renders an add button that would 409. Admins and coordinators
+    // bypass the archive, matching the guard.
+    const seasonWritable =
+      req.user.role === "admin" ||
+      req.user.role === "coordinator" ||
+      (await isSeasonWritable(season, "revenue"));
     // Resolve the caller's team and check whether it's exempted. Admins are
     // never locked; treat them as exempted so the UI never shows the banner.
     let exempted = req.user.role === "admin";
@@ -150,7 +170,7 @@ router.get(
         exempted = !!ex;
       }
     }
-    res.json({ ...serialize(row), exempted });
+    res.json({ ...serialize(row), exempted, seasonId: season, seasonWritable });
   },
 );
 
@@ -167,7 +187,7 @@ router.put(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const row = await getConfigRow();
+    const row = await getConfigRow(await resolveSeason(req));
     const patch: Record<string, unknown> = {};
     if (parsed.data.locked !== undefined) {
       patch.projectSubmissionsLocked = parsed.data.locked;
@@ -354,6 +374,12 @@ router.put(
         .where(
           and(
             inArray(submissionAccessRequestsTable.teamId, uniqueIds),
+            // Only the season being worked in — exempting a team today must
+            // not retroactively approve a request it made in Season 1.
+            eq(
+              submissionAccessRequestsTable.seasonId,
+              await resolveSeason(req),
+            ),
             eq(submissionAccessRequestsTable.status, "pending"),
           ),
         );
@@ -464,7 +490,7 @@ router.post(
     // Only the team leader (or an admin override) may request.
     if (!(await requireTeamLeader(req, res, teamId))) return;
     // Admin can close the request channel entirely (Config toggle).
-    const config = await getConfigRow();
+    const config = await getConfigRow(await resolveSeason(req));
     if (!config.submissionRequestEnabled) {
       res.status(403).json({ error: SUBMISSION_REQUEST_DISABLED_ERROR });
       return;
@@ -480,6 +506,9 @@ router.post(
       .where(
         and(
           eq(submissionAccessRequestsTable.teamId, teamId),
+          // Scoped, so a request left pending in Season 1 does not block a
+          // team from asking again in Season 2.
+          eq(submissionAccessRequestsTable.seasonId, await resolveSeason(req)),
           eq(submissionAccessRequestsTable.status, "pending"),
         ),
       )
@@ -492,6 +521,9 @@ router.post(
       .insert(submissionAccessRequestsTable)
       .values({
         teamId,
+        // Stamped with the season the request was made in, so an admin working
+        // Season 2 never sees a Season 1 request still sitting as pending.
+        seasonId: await resolveSeason(req),
         requestedBy: req.user.id,
         purpose: parsed.data.purpose?.trim() || null,
       })
@@ -519,6 +551,9 @@ router.get(
       .where(
         and(
           eq(submissionAccessRequestsTable.teamId, teamId),
+          // Scoped, so a request left pending in Season 1 does not block a
+          // team from asking again in Season 2.
+          eq(submissionAccessRequestsTable.seasonId, await resolveSeason(req)),
           eq(submissionAccessRequestsTable.status, "pending"),
         ),
       )
@@ -555,7 +590,18 @@ router.get(
       .leftJoin(campusesTable, eq(campusesTable.id, teamsTable.campusId))
       .leftJoin(leader, eq(leader.id, teamsTable.leaderId))
       .where(
-        inArray(submissionAccessRequestsTable.status, ["pending", "rejected"]),
+        and(
+          // Season-scoped: the admin list pooled every season's requests, so
+          // Season 1's decided ones sat under the 2.0 badge.
+          eq(
+            submissionAccessRequestsTable.seasonId,
+            await resolveSeason(req),
+          ),
+          inArray(submissionAccessRequestsTable.status, [
+            "pending",
+            "rejected",
+          ]),
+        ),
       )
       .orderBy(desc(submissionAccessRequestsTable.createdAt));
     // Which of these teams are already exempted (so the UI can show state).

@@ -7,13 +7,14 @@
  *  - imageUrl: an optional banner image shown at the top of the leaderboard
  *    (e.g. the finalised leaderboard graphic).
  *
- * Stored on the singleton programme_config row (added columns).
+ * Stored on the per-season programme_config row (added columns).
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { db, programmeConfigTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
+import { getActiveConfig, getConfig, resolveSeason } from "../lib/season";
 import { logAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -37,12 +38,15 @@ const UpdateBody = z.object({
   bannerContent: BannerContent.nullable().optional(),
 });
 
-async function getConfigRow() {
-  let [row] = await db.select().from(programmeConfigTable).limit(1);
-  if (!row) {
-    [row] = await db.insert(programmeConfigTable).values({}).returning();
-  }
-  return row;
+// Season-aware read of the programme_config row, created on first access.
+//
+// Omitting `seasonId` means the ACTIVE season. That is correct for background
+// work, but a request handler should pass `await resolveSeason(req)` so that an
+// admin viewing Season 1 edits Season 1's settings rather than the live
+// season's. Before seasons existed this read an unqualified `.limit(1)`, which
+// becomes nondeterministic as soon as a second season's row exists.
+async function getConfigRow(seasonId?: number) {
+  return seasonId == null ? getActiveConfig() : getConfig(seasonId);
 }
 
 function serialize(row: typeof programmeConfigTable.$inferSelect) {
@@ -71,7 +75,7 @@ router.get(
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const row = await getConfigRow();
+    const row = await getConfigRow(await resolveSeason(req));
     res.json(serialize(row));
   },
 );
@@ -89,7 +93,7 @@ router.put(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const row = await getConfigRow();
+    const row = await getConfigRow(await resolveSeason(req));
     const patch: Record<string, unknown> = {};
     if (parsed.data.hideRankForStudents !== undefined) {
       patch.hideLeaderboardRankForStudents = parsed.data.hideRankForStudents;

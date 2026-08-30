@@ -4,16 +4,21 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
 import {
   useGetTeam,
-  useListOrderBookEntries,
-  useListRevenueEntries,
   useDeleteTeam,
   getGetTeamQueryKey,
   getListTeamsQueryKey,
-  getListOrderBookEntriesQueryKey,
-  getListRevenueEntriesQueryKey,
   type ErrorType,
 } from "@workspace/api-client-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
+import { useSeason } from "@/lib/season-context";
+import {
+  fetchTeamProjects,
+  fetchTeamRevenue,
+  fetchTeamOrderBook,
+  teamSeasonKeys,
+  type SeasonView,
+} from "@/lib/team-season-api";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR, formatDateTime } from "@/lib/format";
 import { useAdminPageAccess } from "@/lib/admin-access";
@@ -241,24 +246,37 @@ export default function AdminTeamDetail() {
       enabled: Number.isFinite(teamId),
     },
   });
-  const { data: orderBook = [] } = useListOrderBookEntries(
-    { teamId },
-    {
-      query: {
-        queryKey: getListOrderBookEntriesQueryKey({ teamId }),
-        enabled: Number.isFinite(teamId),
-      },
-    },
-  );
-  const { data: revenue = [] } = useListRevenueEntries(
-    { teamId },
-    {
-      query: {
-        queryKey: getListRevenueEntriesQueryKey({ teamId }),
-        enabled: Number.isFinite(teamId),
-      },
-    },
-  );
+  // Which season's rows this page is showing. Defaults to the season being
+  // viewed, so a 2.0 admin sees 2.0 work and a 1.0 admin sees 1.0 work — the
+  // "All" tab is opt-in rather than the default, because mixing seasons is
+  // what made this page confusing in the first place.
+  const { seasons, viewingId } = useSeason();
+  const [seasonView, setSeasonView] = useState<SeasonView>(viewingId ?? 1);
+  // Follow the global switcher when it changes, unless the admin has chosen
+  // "All" — that choice is theirs to undo.
+  useEffect(() => {
+    if (viewingId != null) {
+      setSeasonView((prev) => (prev === "all" ? prev : viewingId));
+    }
+  }, [viewingId]);
+
+  const allSeasonIds = seasons.map((s) => s.id);
+
+  const { data: orderBook = [] } = useQuery({
+    queryKey: teamSeasonKeys.orderBook(teamId, seasonView),
+    queryFn: () => fetchTeamOrderBook(teamId, seasonView, allSeasonIds),
+    enabled: Number.isFinite(teamId) && allSeasonIds.length > 0,
+  });
+  const { data: revenue = [] } = useQuery({
+    queryKey: teamSeasonKeys.revenue(teamId, seasonView),
+    queryFn: () => fetchTeamRevenue(teamId, seasonView, allSeasonIds),
+    enabled: Number.isFinite(teamId) && allSeasonIds.length > 0,
+  });
+  const { data: seasonProjects = [] } = useQuery({
+    queryKey: teamSeasonKeys.projects(teamId, seasonView),
+    queryFn: () => fetchTeamProjects(teamId, seasonView, allSeasonIds),
+    enabled: Number.isFinite(teamId) && allSeasonIds.length > 0,
+  });
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -314,7 +332,10 @@ export default function AdminTeamDetail() {
     );
   }
 
-  const projects: any[] = (team as any).projects ?? [];
+  // Season-filtered projects. Falls back to the nested list while the query is
+  // in flight, so the count does not flash to zero on first paint.
+  const projects: any[] =
+    seasonProjects.length > 0 ? seasonProjects : ((team as any).projects ?? []);
 
   // Group order book + revenue entries by project. Anything orphaned
   // (project missing or unknown) lands in an "Unassigned" bucket.
@@ -448,6 +469,38 @@ export default function AdminTeamDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Season filter. Only rendered once more than one season exists, so a
+          single-season deployment sees the page exactly as before. */}
+      {seasons.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            Showing
+          </span>
+          {[
+            ...seasons.map((s) => ({ key: s.id as SeasonView, label: s.slug })),
+            { key: "all" as SeasonView, label: "All" },
+          ].map((opt) => {
+            const active = seasonView === opt.key;
+            return (
+              <button
+                key={String(opt.key)}
+                type="button"
+                onClick={() => setSeasonView(opt.key)}
+                data-testid={`team-season-${opt.label.toLowerCase()}`}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           icon={<Users className="w-4 h-4" />}
@@ -552,6 +605,13 @@ export default function AdminTeamDetail() {
                 revenue={revByProject.get(p.id) ?? []}
                 canEdit={canEditNotes}
                 onSaveNotes={(value) => saveProjectNotes(p.id, value)}
+                // Only tagged in the "All" view; a single-season view would
+                // repeat the same badge on every card.
+                seasonSlug={
+                  seasonView === "all"
+                    ? seasons.find((s) => s.id === p.seasonId)?.slug
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -592,12 +652,15 @@ function ProjectCard({
   revenue,
   canEdit,
   onSaveNotes,
+  seasonSlug,
 }: {
   project: any;
   orderBook: any[];
   revenue: any[];
   canEdit: boolean;
   onSaveNotes: (value: string) => Promise<void>;
+  /** "1.0" / "2.0", or undefined when the page shows a single season. */
+  seasonSlug?: string;
 }) {
   const { toast } = useToast();
   const [noteOpen, setNoteOpen] = useState(false);
@@ -629,6 +692,14 @@ function ProjectCard({
           <div className="min-w-0">
             <CardTitle className="text-base flex items-center gap-2">
               {project.title}
+              {/* Season tag. Only meaningful when the page is showing more
+                  than one season, which is the "All" view — otherwise every
+                  card carries the same tag and it is just noise. */}
+              {seasonSlug && (
+                <Badge className="bg-primary text-primary-foreground text-[10px]">
+                  {seasonSlug}
+                </Badge>
+              )}
               <Badge variant="outline" className="text-[10px] capitalize">
                 {project.status}
               </Badge>

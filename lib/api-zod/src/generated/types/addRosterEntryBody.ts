@@ -18,5 +18,7 @@ export interface AddRosterEntryBody {
   niatId?: string | null;
   /** @nullable */
   batchSectionName?: string | null;
+  /** @nullable */
+  mobileNumber?: string | null;
   isWhitelisted?: boolean;
 }

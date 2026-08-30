@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
+import { logger } from "../lib/logger";
+import { awardTrust } from "../lib/trust-score";
 import {
   db,
   orderBookEntriesTable,
@@ -47,6 +49,8 @@ import {
   getProjectSubmissionsLockError,
   getRejectedResubmitError,
 } from "./projects-lock";
+import { requireWritableSeason } from "../middlewares/seasonGuard";
+import { resolveSeason } from "../lib/season";
 
 const router: IRouter = Router();
 
@@ -167,23 +171,26 @@ router.get("/order-book-entries", async (req, res): Promise<void> => {
     return;
   }
   const { projectId, teamId, status } = queryParams.data;
-  let conditions: ReturnType<typeof and>[] = [];
+  // Season-scoped for the same reason as /revenue-entries: filtering by teamId
+  // alone spans seasons, so a Season 2 team page would list Season 1 entries.
+  const conditions: ReturnType<typeof and>[] = [
+    eq(orderBookEntriesTable.seasonId, await resolveSeason(req)),
+  ];
   if (projectId)
     conditions.push(eq(orderBookEntriesTable.projectId, projectId));
   if (teamId) conditions.push(eq(orderBookEntriesTable.teamId, teamId));
   if (status) conditions.push(eq(orderBookEntriesTable.status, status));
-  const entries =
-    conditions.length > 0
-      ? await db
-          .select()
-          .from(orderBookEntriesTable)
-          .where(and(...conditions))
-      : await db.select().from(orderBookEntriesTable);
+  // `conditions` always carries the season predicate, so the unfiltered branch
+  // that used to sit here is unreachable and has been removed.
+  const entries = await db
+    .select()
+    .from(orderBookEntriesTable)
+    .where(and(...conditions));
   const result = await Promise.all(entries.map(enrichOBEntry));
   res.json(result);
 });
 
-router.post("/order-book-entries", async (req, res): Promise<void> => {
+router.post("/order-book-entries", requireWritableSeason("revenue"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -221,6 +228,9 @@ router.post("/order-book-entries", async (req, res): Promise<void> => {
     .values({
       ...parsed.data,
       teamId: project.teamId,
+      // An entry belongs to the season its project belongs to, never to
+      // whatever season happens to be active when it is filed.
+      seasonId: project.seasonId,
       status: "verified",
       verifiedAmount: parsed.data.amount,
       submittedAt: now,
@@ -234,12 +244,14 @@ router.post("/order-book-entries", async (req, res): Promise<void> => {
     .where(
       and(
         eq(orderBookEntriesTable.teamId, project.teamId),
+        eq(orderBookEntriesTable.seasonId, project.seasonId),
         sql`status = 'verified'`,
       ),
     );
   if (Number(obCount?.count ?? 0) === 1) {
     await db.insert(milestonesTable).values({
       teamId: project.teamId,
+      seasonId: project.seasonId,
       type: "auto",
       title: "First Order Book Entry",
       description: `First order book entry added for ₹${parsed.data.amount.toLocaleString("en-IN")}`,
@@ -270,7 +282,7 @@ router.get("/order-book-entries/:id", async (req, res): Promise<void> => {
   res.json(await enrichOBEntry(entry));
 });
 
-router.patch("/order-book-entries/:id", async (req, res): Promise<void> => {
+router.patch("/order-book-entries/:id", requireWritableSeason("revenue"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -319,7 +331,7 @@ router.patch("/order-book-entries/:id", async (req, res): Promise<void> => {
   res.json(await enrichOBEntry(entry));
 });
 
-router.delete("/order-book-entries/:id", async (req, res): Promise<void> => {
+router.delete("/order-book-entries/:id", requireWritableSeason("revenue"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -365,22 +377,27 @@ router.get("/revenue-entries", async (req, res): Promise<void> => {
     return;
   }
   const { projectId, teamId, status } = queryParams.data;
-  let conditions: ReturnType<typeof and>[] = [];
+  // Scoped to the season being viewed: filtering by teamId alone spans seasons,
+  // so a Season 2 team page would list its Season 1 entries too. A projectId
+  // filter is already transitively scoped (a project belongs to one season),
+  // but the predicate is harmless there and keeps one rule for every caller.
+  const conditions: ReturnType<typeof and>[] = [
+    eq(revenueEntriesTable.seasonId, await resolveSeason(req)),
+  ];
   if (projectId) conditions.push(eq(revenueEntriesTable.projectId, projectId));
   if (teamId) conditions.push(eq(revenueEntriesTable.teamId, teamId));
   if (status) conditions.push(eq(revenueEntriesTable.status, status));
-  const entries =
-    conditions.length > 0
-      ? await db
-          .select()
-          .from(revenueEntriesTable)
-          .where(and(...conditions))
-      : await db.select().from(revenueEntriesTable);
+  // `conditions` always carries the season predicate, so there is no longer an
+  // unfiltered branch — an unscoped read here is what leaked other seasons.
+  const entries = await db
+    .select()
+    .from(revenueEntriesTable)
+    .where(and(...conditions));
   const result = await Promise.all(entries.map(enrichRevEntry));
   res.json(result);
 });
 
-router.post("/revenue-entries", async (req, res): Promise<void> => {
+router.post("/revenue-entries", requireWritableSeason("revenue"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -439,6 +456,7 @@ router.post("/revenue-entries", async (req, res): Promise<void> => {
       ...parsed.data,
       paymentDate: paymentDateStr,
       teamId: project.teamId,
+      seasonId: project.seasonId,
     })
     .returning();
   res.status(201).json(await enrichRevEntry(entry));
@@ -465,7 +483,7 @@ router.get("/revenue-entries/:id", async (req, res): Promise<void> => {
   res.json(await enrichRevEntry(entry));
 });
 
-router.patch("/revenue-entries/:id", async (req, res): Promise<void> => {
+router.patch("/revenue-entries/:id", requireWritableSeason("revenue"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -548,7 +566,7 @@ router.patch("/revenue-entries/:id", async (req, res): Promise<void> => {
 // so moving the row to status = 'revoked' drops it out of all of those totals
 // automatically. Available to the team leader (or an admin override); only a
 // currently verified entry can be revoked.
-router.post("/revenue-entries/:id/revoke", async (req, res): Promise<void> => {
+router.post("/revenue-entries/:id/revoke", requireWritableSeason("revenue"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -607,7 +625,7 @@ router.post("/revenue-entries/:id/revoke", async (req, res): Promise<void> => {
   res.json(await enrichRevEntry(result.entry));
 });
 
-router.post("/revenue-entries/:id/submit", async (req, res): Promise<void> => {
+router.post("/revenue-entries/:id/submit", requireWritableSeason("revenue"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -750,6 +768,41 @@ router.post(
       res.status(404).json({ error: "Entry not found" });
       return;
     }
+
+    // Trust ledger (additive, non-blocking). Verification is the core honest
+    // outcome, so it earns points; a materially trimmed claim also records the
+    // overstatement. Both carry refType/refId so the partial unique index makes
+    // a re-verify idempotent rather than doubling the award.
+    //
+    // The 10% threshold is deliberate: a coordinator correcting Rs 200 on a
+    // Rs 40,000 claim is bookkeeping, not overstatement, and penalising it
+    // would teach teams to argue with small corrections.
+    try {
+      await awardTrust({
+        teamId: entry.teamId,
+        seasonId: entry.seasonId,
+        kind: "revenue_verified",
+        refType: "revenue_entry",
+        refId: entry.id,
+      });
+      const verified = parsed.data.verifiedAmount;
+      if (verified < entry.amount * 0.9) {
+        await awardTrust({
+          teamId: entry.teamId,
+          seasonId: entry.seasonId,
+          kind: "amount_overstated",
+          refType: "revenue_entry",
+          refId: entry.id,
+          reason: `Claimed ${entry.amount}, verified ${verified}.`,
+          createdBy: req.user?.id,
+        });
+      }
+    } catch (err) {
+      // A trust-ledger failure must never fail the verification itself - the
+      // money being confirmed is the important outcome here.
+      logger.error({ err, entryId: entry.id }, "[trust] verify award failed");
+    }
+
     // Milestone checks
     const [team] = await db
       .select()
@@ -761,12 +814,17 @@ router.post(
       .where(
         and(
           eq(revenueEntriesTable.teamId, entry.teamId),
+          // Season-scoped: without this a team carrying Rs 1L from Season 1
+          // would re-trigger every revenue milestone in Season 2 having
+          // earned nothing new.
+          eq(revenueEntriesTable.seasonId, entry.seasonId),
           sql`status = 'verified'`,
         ),
       );
     if (Number(revCount?.count ?? 0) === 1) {
       await db.insert(milestonesTable).values({
         teamId: entry.teamId,
+        seasonId: entry.seasonId,
         type: "auto",
         title: "First Revenue Received Verified",
         description: `First revenue entry verified for ₹${parsed.data.verifiedAmount?.toLocaleString("en-IN")}`,
@@ -780,15 +838,26 @@ router.post(
       .where(
         and(
           eq(revenueEntriesTable.teamId, entry.teamId),
+          // Season-scoped: without this a team carrying Rs 1L from Season 1
+          // would re-trigger every revenue milestone in Season 2 having
+          // earned nothing new.
+          eq(revenueEntriesTable.seasonId, entry.seasonId),
           sql`status = 'verified'`,
         ),
       );
     const total = Number(totalRev?.total ?? 0);
-    const configs = await db.select().from(programmeConfigTable).limit(1);
+    // Threshold comes from THIS ENTRY'S season: a Season 1 entry's milestones
+    // must be judged against Season 1's threshold even after Season 2 opens.
+    const configs = await db
+      .select()
+      .from(programmeConfigTable)
+      .where(eq(programmeConfigTable.seasonId, entry.seasonId))
+      .limit(1);
     const threshold = configs[0]?.demoEligibilityThreshold ?? 200000;
     if (total >= 50000 && total - (parsed.data.verifiedAmount ?? 0) < 50000) {
       await db.insert(milestonesTable).values({
         teamId: entry.teamId,
+        seasonId: entry.seasonId,
         type: "auto",
         title: "₹50,000 Revenue Reached",
         date: new Date(),
@@ -797,6 +866,7 @@ router.post(
     if (total >= 100000 && total - (parsed.data.verifiedAmount ?? 0) < 100000) {
       await db.insert(milestonesTable).values({
         teamId: entry.teamId,
+        seasonId: entry.seasonId,
         type: "auto",
         title: "₹1,00,000 Revenue Reached",
         date: new Date(),
@@ -808,6 +878,7 @@ router.post(
     ) {
       await db.insert(milestonesTable).values({
         teamId: entry.teamId,
+        seasonId: entry.seasonId,
         type: "auto",
         title: `Demo Day Eligible — ₹${(threshold / 100000).toFixed(0)} Lakh Reached`,
         date: new Date(),
@@ -924,6 +995,26 @@ router.post(
       res.status(404).json({ error: "Entry not found" });
       return;
     }
+
+    // Trust ledger. A rejection is recorded as evidence_missing rather than
+    // amount_overstated: the coordinator has declined the claim, but nothing
+    // here establishes the amount was inflated - only that the submission did
+    // not stand up. The heavier overstatement penalty is reserved for a verify
+    // that materially trims the figure, where the shortfall is measured.
+    try {
+      await awardTrust({
+        teamId: entry.teamId,
+        seasonId: entry.seasonId,
+        kind: "evidence_missing",
+        refType: "revenue_entry_rejected",
+        refId: entry.id,
+        reason: parsed.data.adminNotes,
+        createdBy: req.user?.id,
+      });
+    } catch (err) {
+      logger.error({ err, entryId: entry.id }, "[trust] reject award failed");
+    }
+
     const [team] = await db
       .select()
       .from(teamsTable)

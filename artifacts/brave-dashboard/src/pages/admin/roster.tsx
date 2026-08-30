@@ -119,6 +119,7 @@ type RosterRow = {
   campusId?: number | null;
   niatId?: string | null;
   batchSectionName?: string | null;
+  mobileNumber?: string | null;
   isWhitelisted: boolean;
 };
 
@@ -129,6 +130,7 @@ type ImportStudent = {
   instituteName: string;
   batchSectionName: string;
   email?: string;
+  mobileNumber?: string;
 };
 
 const PAGE_SIZE = 100;
@@ -282,6 +284,7 @@ export default function AdminRoster() {
   const [studentId, setStudentId] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
   const [campusName, setCampusName] = useState("");
   const [niatId, setNiatId] = useState("");
   const [batchSectionName, setBatchSectionName] = useState("");
@@ -304,6 +307,7 @@ export default function AdminRoster() {
   const [editStudentId, setEditStudentId] = useState("");
   const [editFullName, setEditFullName] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editMobileNumber, setEditMobileNumber] = useState("");
   const [editCampusName, setEditCampusName] = useState("");
   const [editNiatId, setEditNiatId] = useState("");
   const [editBatchSection, setEditBatchSection] = useState("");
@@ -322,6 +326,7 @@ export default function AdminRoster() {
           studentId,
           fullName,
           email: email || null,
+          mobileNumber: mobileNumber.trim() || null,
           campusName,
           niatId: niatId || null,
           batchSectionName: batchSectionName || null,
@@ -335,6 +340,7 @@ export default function AdminRoster() {
           setStudentId("");
           setFullName("");
           setEmail("");
+          setMobileNumber("");
           setCampusName("");
           setNiatId("");
           setBatchSectionName("");
@@ -365,6 +371,7 @@ export default function AdminRoster() {
     setEditStudentId(r.studentId ?? "");
     setEditFullName(r.fullName ?? "");
     setEditEmail(r.email ?? "");
+    setEditMobileNumber(r.mobileNumber ?? "");
     setEditCampusName(r.campusName ?? "");
     setEditNiatId(r.niatId ?? "");
     setEditBatchSection(r.batchSectionName ?? "");
@@ -380,6 +387,7 @@ export default function AdminRoster() {
           studentId: editStudentId,
           fullName: editFullName,
           email: editEmail || null,
+          mobileNumber: editMobileNumber.trim() || null,
           campusName: editCampusName,
           niatId: editNiatId || null,
           batchSectionName: editBatchSection || null,
@@ -583,6 +591,7 @@ export default function AdminRoster() {
         "Institute Name": r.campusName ?? "",
         "Batch Section Name": r.batchSectionName ?? "",
         Email: r.email ?? "",
+        "Mobile Number": r.mobileNumber ?? "",
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -623,6 +632,13 @@ export default function AdminRoster() {
             const emailValue = String(
               row["Email"] || row["email"] || "",
             ).trim();
+            const mobileNumber = String(
+              row["Mobile Number"] ||
+                row["Mobile"] ||
+                row["mobileNumber"] ||
+                row["mobile_number"] ||
+                "",
+            ).trim();
             return {
               studentUserId: String(
                 row["Student User ID"] || row["studentUserId"] || "",
@@ -638,18 +654,18 @@ export default function AdminRoster() {
                 row["Batch Section Name"] || row["batchSectionName"] || "",
               ).trim(),
               ...(emailValue ? { email: emailValue } : {}),
+              ...(mobileNumber ? { mobileNumber } : {}),
             };
           })
-          // Student User ID is the only mandatory column. Rows missing it are
-          // dropped here; rows missing any other column are kept and imported
-          // with whatever cells do have values.
-          .filter((s) => s.studentUserId);
+          // A Student User ID is preferred. A NIAT ID can be used as the
+          // fallback match for mobile-number updates when the user ID is absent.
+          .filter((s) => s.studentUserId || s.niatId);
 
         if (students.length === 0) {
           toast({
             title: "No valid rows found in the file",
             description:
-              "Every row needs a Student User ID. Other columns (Student Name, NIAT ID, Institute Name, Batch Section Name, Email) are optional.",
+              "Every row needs a Student User ID or NIAT ID. Other columns (Student Name, Institute Name, Batch Section Name, Email, Mobile Number) are optional.",
             variant: "destructive",
           });
           return;
@@ -657,6 +673,7 @@ export default function AdminRoster() {
 
         const total = students.length;
         let inserted = 0;
+        let updated = 0;
         let skipped = 0;
         let processed = 0;
 
@@ -672,6 +689,7 @@ export default function AdminRoster() {
               data: { students: chunk },
             });
             inserted += result.inserted;
+            updated += result.updated;
             skipped += result.skipped;
             processed += chunk.length;
 
@@ -696,7 +714,7 @@ export default function AdminRoster() {
         progressToast.update({
           id: progressToast.id,
           title: "Import complete",
-          description: `${inserted} students added, ${skipped} skipped (duplicates).`,
+          description: `${inserted} added, ${updated} mobile number${updated === 1 ? "" : "s"} updated, ${skipped} skipped.`,
         });
       } catch {
         if (progressToast) {
@@ -877,6 +895,17 @@ export default function AdminRoster() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Mobile Number (optional)
+                  </label>
+                  <Input
+                    type="tel"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                    placeholder="e.g. 9876543210"
+                  />
+                </div>
+                <div className="space-y-2">
                   <label className="text-sm font-medium">Campus</label>
                   <Select
                     value={campusName}
@@ -933,10 +962,10 @@ export default function AdminRoster() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
+                <Input
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search by name, email, student ID, NIAT ID, batch, or campus"
+                placeholder="Search by name, email, mobile, student ID, NIAT ID, batch, or campus"
                 className="pl-9"
                 data-testid="input-roster-search"
               />
@@ -978,6 +1007,7 @@ export default function AdminRoster() {
                       <TableHead>Campus ID</TableHead>
                       <TableHead>Batch / Section</TableHead>
                       <TableHead className="w-[180px]">Email</TableHead>
+                      <TableHead className="min-w-[150px]">Mobile Number</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -1023,6 +1053,9 @@ export default function AdminRoster() {
                           title={entry.email ?? undefined}
                         >
                           {entry.email || "—"}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">
+                          {entry.mobileNumber || "—"}
                         </TableCell>
                         <TableCell>
                           {entry.isWhitelisted ? (
@@ -1076,7 +1109,7 @@ export default function AdminRoster() {
                     {roster?.items.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={9}
+                          colSpan={10}
                           className="h-24 text-center text-muted-foreground"
                         >
                           <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -1300,6 +1333,15 @@ export default function AdminRoster() {
                 type="email"
                 value={editEmail}
                 onChange={(e) => setEditEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Mobile Number</label>
+              <Input
+                type="tel"
+                value={editMobileNumber}
+                onChange={(e) => setEditMobileNumber(e.target.value)}
+                placeholder="e.g. 9876543210"
               />
             </div>
             <div className="space-y-2">

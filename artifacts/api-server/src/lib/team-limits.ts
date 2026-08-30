@@ -1,5 +1,6 @@
 import { sql, eq } from "drizzle-orm";
 import { db, programmeConfigTable, teamMembersTable } from "@workspace/db";
+import { getActiveSeasonId } from "./season";
 
 const DEFAULT_TEAM_MEMBER_LIMIT = 5;
 
@@ -9,10 +10,19 @@ const DEFAULT_TEAM_MEMBER_LIMIT = 5;
 // generic instantiations (NodePgDatabase vs PgTransaction).
 type Querier = Pick<typeof db, "select">;
 
-export async function getTeamMemberLimit(querier: Querier = db): Promise<number> {
+// Reads the ACTIVE season's limit, which is the correct semantics: teams carry
+// forward across seasons unchanged, so whether a student may join right now is
+// governed by the season currently running (Season 1 allowed 5, Season 2
+// allows 4). Pass `seasonId` explicitly to check a specific season's limit.
+export async function getTeamMemberLimit(
+  querier: Querier = db,
+  seasonId?: number,
+): Promise<number> {
+  const season = seasonId ?? (await getActiveSeasonId());
   const [cfg] = await querier
     .select({ limit: programmeConfigTable.teamMemberLimit })
     .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, season))
     .limit(1);
   return cfg?.limit ?? DEFAULT_TEAM_MEMBER_LIMIT;
 }

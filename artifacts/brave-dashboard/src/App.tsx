@@ -35,6 +35,12 @@ import Landing from "@/pages/marketing/landing";
 import TeamDashboard from "@/pages/student/dashboard";
 import ProjectsList from "@/pages/student/projects/list";
 import ProjectDetail from "@/pages/student/projects/detail";
+// Season 2 pipeline (additive — Season 1 keeps the Projects pages above).
+import LeadsList from "@/pages/student/leads/list";
+import LeadDetail from "@/pages/student/leads/detail";
+import LeadProject from "@/pages/student/leads/project";
+import LeadDelivery from "@/pages/student/leads/delivery";
+import GetApp from "@/pages/student/get-app";
 import Leaderboard from "@/pages/student/leaderboard";
 import TeamProfile from "@/pages/student/team";
 import GetStarted from "@/pages/student/get-started";
@@ -121,6 +127,11 @@ import { AccessGate } from "@/components/access-gate";
 import { TermsGate } from "@/components/terms-gate";
 import { PopupGate } from "@/components/popup-gate";
 import { GritIntroDialog } from "@/components/grit-intro-dialog";
+import { SeasonProvider, useSeason } from "@/lib/season-context";
+import { InstallPrompt, UpdatePrompt } from "@/components/pwa-prompts";
+import { isNativeApp } from "@/lib/native-auth";
+import { PageTransition } from "@/components/page-transition";
+import { NativeAuthBridge } from "@/components/native-auth-bridge";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -134,9 +145,17 @@ const queryClient = new QueryClient({
 function ProtectedRoute({
   component: Component,
   allowedRoles,
+  bare = false,
 }: {
   component: React.ComponentType;
   allowedRoles: string[];
+  /**
+   * Render WITHOUT the app shell (sidebar, bottom nav, banners). For pages
+   * opened in their own tab that are read rather than navigated from — the
+   * mobile install guide is the only one today. Every auth and role check
+   * above still applies.
+   */
+  bare?: boolean;
 }) {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
@@ -182,6 +201,8 @@ function ProtectedRoute({
     }
   }
 
+  if (bare) return <Component />;
+
   return (
     <Layout>
       <Component />
@@ -217,6 +238,17 @@ function StudentResourcesLibraryGuarded() {
   return <StudentResourcesLibrary />;
 }
 
+/**
+ * Has the installed app already routed THIS launch to its landing screen?
+ *
+ * Module scope rather than component state on purpose: the redirect unmounts
+ * the component that would hold the state, so state would reset and the
+ * redirect would fire again every time the student tapped Dashboard. A module
+ * variable lives exactly as long as the page load does — which, in a Capacitor
+ * shell, is exactly one app launch.
+ */
+let nativeLaunchLanded = false;
+
 function StudentDashboardOrGetStarted() {
   const { user } = useAuth();
   const { data: team, isLoading } = useGetMyTeam({
@@ -244,6 +276,29 @@ function StudentDashboardOrGetStarted() {
     return <Redirect to="/profile" />;
   }
   if (!team) return <Redirect to="/get-started" />;
+
+  // ── Installed app: open on the work, not on a summary ──────────────────
+  //
+  // The session cookie lives in the WebView, so a student who signed in last
+  // week is still signed in when they tap the icon today. Landing them on the
+  // dashboard makes them navigate before they can do anything; a student opens
+  // BRAVE on their phone to log a lead.
+  //
+  // Deliberately placed AFTER the roster, profile and team gates above, so it
+  // cannot skip a student past onboarding into a pipeline they have no team
+  // for. And it targets /leads unconditionally — SeasonFlowRoute redirects a
+  // Season 1 student on to /projects, so the season rule stays in ONE place.
+  //
+  // Fires once per launch, so tapping Dashboard afterwards behaves normally.
+  //
+  // `replace` matters: a pushed entry would leave "/" underneath /leads, so
+  // the hardware back button would surface the dashboard the student never
+  // asked for instead of leaving the app.
+  if (isNativeApp() && !nativeLaunchLanded) {
+    nativeLaunchLanded = true;
+    return <Redirect to="/leads" replace />;
+  }
+
   return gritConfig?.gritMilesDashboardEnabled ? (
     <TeamDashboard />
   ) : (
@@ -317,6 +372,41 @@ function StudentPcaGuard() {
   return <VotePeoplesChoice />;
 }
 
+/**
+ * Sends a student to the flow that actually exists in the season they are
+ * viewing.
+ *
+ * Season 1 ran on free-form Projects; Season 2 replaced that with the lead
+ * pipeline. Hiding the sidebar entry was never enough — the URL is guessable
+ * and stays in browser history, so a Season 1 student could open /leads and be
+ * shown a pipeline their season has no data for. The API refuses those calls
+ * independently (requireLeadPipelineSeason); this only makes the landing
+ * graceful rather than an error page.
+ *
+ * Renders children unchanged while the season is still resolving, so there is
+ * no redirect flash on first paint.
+ */
+function SeasonFlowRoute({
+  children,
+  requires,
+}: {
+  children: React.ReactNode;
+  /** "pipeline" = Season 2 onwards. "projects" = Season 1 only. */
+  requires: "pipeline" | "projects";
+}) {
+  const { viewingId, isLoading } = useSeason();
+  if (isLoading || viewingId == null) return <>{children}</>;
+  const usesPipeline = viewingId >= 2;
+  // `replace`, not push: the URL being corrected must not stay in history, or
+  // the hardware back button would land on it and be redirected forward again,
+  // trapping the student in a loop they cannot back out of.
+  if (requires === "pipeline" && !usesPipeline)
+    return <Redirect to="/projects" replace />;
+  if (requires === "projects" && usesPipeline)
+    return <Redirect to="/leads" replace />;
+  return <>{children}</>;
+}
+
 function RootRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -325,6 +415,10 @@ function RootRedirect() {
   }
 
   if (!isAuthenticated || !user) {
+    // The installed app skips the marketing landing page: the student tapped a
+    // BRAVE icon on their own home screen, so selling them the programme again
+    // is a page in the way. Straight to sign-in.
+    if (isNativeApp()) return <Redirect to="/login" />;
     return <Landing />;
   }
 
@@ -372,6 +466,9 @@ function Router() {
   return (
     <>
       <PageViewTracker />
+      {/* Screens move between each other in the installed app, the way Android
+          expects. Renders children untouched on web. */}
+      <PageTransition>
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/admin/login" component={AdminLogin} />
@@ -385,12 +482,50 @@ function Router() {
 
         {/* Student Routes */}
         <Route path="/projects">
-          <ProtectedRoute component={ProjectsList} allowedRoles={["student"]} />
+          <SeasonFlowRoute requires="projects">
+            <ProtectedRoute component={ProjectsList} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
         </Route>
         <Route path="/projects/:id">
+          <SeasonFlowRoute requires="projects">
+            <ProtectedRoute
+              component={ProjectDetail}
+              allowedRoles={["student"]}
+            />
+          </SeasonFlowRoute>
+        </Route>
+        {/* Season 2 pipeline. Additive routes — the Season 1 /projects routes
+            above are untouched, and the sidebar decides which of the two a
+            student is offered based on the season being viewed. The most
+            specific path must be declared first: wouter matches in order. */}
+        <Route path="/leads/:id/delivery/:projectId">
+          <SeasonFlowRoute requires="pipeline">
+            <ProtectedRoute component={LeadDelivery} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
+        </Route>
+        <Route path="/leads/:id/project">
+          <SeasonFlowRoute requires="pipeline">
+            <ProtectedRoute component={LeadProject} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
+        </Route>
+        <Route path="/leads/:id">
+          <SeasonFlowRoute requires="pipeline">
+            <ProtectedRoute component={LeadDetail} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
+        </Route>
+        <Route path="/leads">
+          <SeasonFlowRoute requires="pipeline">
+            <ProtectedRoute component={LeadsList} allowedRoles={["student"]} />
+          </SeasonFlowRoute>
+        </Route>
+        {/* Mobile app install guide. Opened in a new tab from the dashboard,
+            so it renders WITHOUT the sidebar — a student following steps on a
+            phone does not need the whole shell around them. */}
+        <Route path="/get-app">
           <ProtectedRoute
-            component={ProjectDetail}
+            component={GetApp}
             allowedRoles={["student"]}
+            bare
           />
         </Route>
         <Route path="/leaderboard">
@@ -743,6 +878,7 @@ function Router() {
 
         <Route component={NotFound} />
       </Switch>
+      </PageTransition>
     </>
   );
 }
@@ -751,18 +887,31 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-          {/* Blocking student Terms & Conditions consent gate. Self-gates on
-              role + acceptance; covers the whole app via a portalled overlay. */}
-          <TermsGate />
-          {/* Admin-managed student pop-ups, shown one at a time after T&C.
-              Self-gates on role + terms + pending list. Separate from T&C. */}
-          <PopupGate />
-          {/* One-time GRIT Miles intro pop-up. Self-gates on role + terms +
-              dashboard route + a localStorage "seen" flag. Never blocking. */}
-          <GritIntroDialog />
-        </WouterRouter>
+        {/* Season 1 / Season 2 coexistence. Registers the season header with
+            the API client, so every request below is answered for whichever
+            season the viewer selected. Renders nothing itself. */}
+        <SeasonProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+            {/* Blocking student Terms & Conditions consent gate. Self-gates on
+                role + acceptance; covers the whole app via a portalled overlay. */}
+            <TermsGate />
+            {/* Admin-managed student pop-ups, shown one at a time after T&C.
+                Self-gates on role + terms + pending list. Separate from T&C. */}
+            <PopupGate />
+            {/* One-time GRIT Miles intro pop-up. Self-gates on role + terms +
+                dashboard route + a localStorage "seen" flag. Never blocking. */}
+            <GritIntroDialog />
+            {/* Installable-app prompts. Both self-gate: the install invite is
+                students-only and hidden once installed; the update banner
+                appears only when a new build has been deployed. */}
+            <InstallPrompt />
+            <UpdatePrompt />
+            {/* Catches the SSO deep link that carries the auth token back into
+                the APK. Renders nothing, and no-ops entirely on web. */}
+            <NativeAuthBridge />
+          </WouterRouter>
+        </SeasonProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

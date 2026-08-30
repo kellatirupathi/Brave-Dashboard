@@ -38,6 +38,7 @@ import {
   Wallet,
   FolderKanban,
 } from "lucide-react";
+import { useSeason } from "@/lib/season-context";
 
 const PENDING_KEY = ["admin", "membership-requests", "pending"] as const;
 const HISTORY_KEY = ["admin", "membership-requests", "history"] as const;
@@ -110,6 +111,9 @@ function RequestSummary({ mr }: { mr: MembershipRequest }) {
 // revenue entries have been approved vs rejected. Renders nothing when the
 // backend hasn't provided stats (keeps the card layout unchanged).
 function TeamStatsBlock({ mr }: { mr: MembershipRequest }) {
+  // Season list drives the per-season split below. useSeason returns a neutral
+  // shape outside the provider, so this is safe everywhere the card renders.
+  const { seasons } = useSeason();
   const stats = mr.teamStats;
   if (!stats) return null;
   return (
@@ -126,6 +130,21 @@ function TeamStatsBlock({ mr }: { mr: MembershipRequest }) {
           <span className="text-muted-foreground">None</span>
         )}
       </div>
+      {/* Per-season split. A team that earned in Season 1 shows ₹0 for the
+          season being viewed, which reads as "never earned anything" — this
+          line is what tells an admin the difference. Only rendered once more
+          than one season has revenue, so a single-season deployment is
+          unchanged. */}
+      {seasons.length > 1 && stats.revenueBySeason && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-5 text-[11px] text-muted-foreground">
+          {seasons.map((s) => (
+            <span key={s.id} className="tabular-nums">
+              <span className="font-semibold">{s.slug}</span>{" "}
+              {formatINR(stats.revenueBySeason?.[s.id] ?? 0)}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
         <span className="flex items-center gap-1 text-muted-foreground">
           <FolderKanban className="h-3.5 w-3.5 shrink-0" />

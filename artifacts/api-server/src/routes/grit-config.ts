@@ -3,7 +3,7 @@
  *
  * Additive + isolated (hand-written, bypasses Orval codegen) so it can be read
  * by students (the GRIT ladder) without round-tripping the generated programme
- * config. Levels/deadline/escalation are stored on the singleton
+ * config. Levels/deadline/escalation are stored on the per-season
  * programme_config row (added columns) and surfaced/edited here.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
@@ -11,6 +11,12 @@ import { z } from "zod";
 import { db, programmeConfigTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
+import {
+  getActiveConfig,
+  getActiveSeasonId,
+  getConfig,
+  resolveSeason,
+} from "../lib/season";
 
 const router: IRouter = Router();
 
@@ -50,14 +56,15 @@ const UpdateBody = z.object({
   demoDayMenuEnabled: z.boolean().optional(),
 });
 
-// Read/seed the singleton row, normalising the GRIT ladder to defaults when
-// unset so callers never have to special-case null.
-async function getConfigRow() {
-  let [row] = await db.select().from(programmeConfigTable).limit(1);
-  if (!row) {
-    [row] = await db.insert(programmeConfigTable).values({}).returning();
-  }
-  return row;
+// Season-aware read of the programme_config row, created on first access.
+//
+// Omitting `seasonId` means the ACTIVE season. That is correct for background
+// work, but a request handler should pass `await resolveSeason(req)` so that an
+// admin viewing Season 1 edits Season 1's settings rather than the live
+// season's. Before seasons existed this read an unqualified `.limit(1)`, which
+// becomes nondeterministic as soon as a second season's row exists.
+async function getConfigRow(seasonId?: number) {
+  return seasonId == null ? getActiveConfig() : getConfig(seasonId);
 }
 
 export function resolveLevels(raw: unknown): GritLevel[] {
@@ -67,15 +74,22 @@ export function resolveLevels(raw: unknown): GritLevel[] {
   return [...parsed.data].sort((a, b) => a.revenueTarget - b.revenueTarget);
 }
 
-// Load the configured GRIT ladder (normalised to defaults when unset) from the
-// singleton programme_config row. Shared by the admin dashboard GRIT cards and
+// Load the configured GRIT ladder (normalised to defaults when unset) from a
+// season’s programme_config row. Shared by the admin dashboard GRIT cards and
 // the teams export so both derive miles from the exact same ladder the student
 // UI uses. Never throws — falls back to DEFAULT_GRIT_LEVELS on any error.
-export async function readGritLevels(): Promise<GritLevel[]> {
+// `seasonId` omitted means the active season. Callers that have a request
+// should pass `await resolveSeason(req)` so the ladder shown matches the season
+// the user is looking at.
+export async function readGritLevels(
+  seasonId?: number,
+): Promise<GritLevel[]> {
   try {
+    const season = seasonId ?? (await getActiveSeasonId());
     const [row] = await db
       .select({ gritLevels: programmeConfigTable.gritLevels })
       .from(programmeConfigTable)
+      .where(eq(programmeConfigTable.seasonId, season))
       .limit(1);
     return resolveLevels(row?.gritLevels);
   } catch {
@@ -107,7 +121,7 @@ router.get(
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const row = await getConfigRow();
+    const row = await getConfigRow(await resolveSeason(req));
     res.json({
       levels: resolveLevels(row.gritLevels),
       journalEditDeadline: row.journalEditDeadline ?? null,
@@ -130,7 +144,7 @@ router.get(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const row = await getConfigRow();
+    const row = await getConfigRow(await resolveSeason(req));
     res.json({
       levels: resolveLevels(row.gritLevels),
       journalEditDeadline: row.journalEditDeadline ?? null,
@@ -155,7 +169,7 @@ router.put(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const row = await getConfigRow();
+    const row = await getConfigRow(await resolveSeason(req));
     const patch: Record<string, unknown> = {};
     if (parsed.data.levels !== undefined) {
       patch.gritLevels = [...parsed.data.levels].sort(

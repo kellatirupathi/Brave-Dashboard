@@ -22,6 +22,8 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
+import { getActiveConfig, getConfig, resolveSeason } from "../lib/season";
+import { requireWritableSeason } from "../middlewares/seasonGuard";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import {
   renderPcaVotingOpenEmail,
@@ -33,12 +35,15 @@ const router: IRouter = Router();
 
 const ADMIN_PAGE = "/admin/votes/peoples-choice-votes";
 
-async function getConfigRow() {
-  let [row] = await db.select().from(programmeConfigTable).limit(1);
-  if (!row) {
-    [row] = await db.insert(programmeConfigTable).values({}).returning();
-  }
-  return row;
+// Season-aware read of the programme_config row, created on first access.
+//
+// Omitting `seasonId` means the ACTIVE season. That is correct for background
+// work, but a request handler should pass `await resolveSeason(req)` so that an
+// admin viewing Season 1 edits Season 1's settings rather than the live
+// season's. Before seasons existed this read an unqualified `.limit(1)`, which
+// becomes nondeterministic as soon as a second season's row exists.
+async function getConfigRow(seasonId?: number) {
+  return seasonId == null ? getActiveConfig() : getConfig(seasonId);
 }
 
 /** Admin-only guard — requireAdminPage does NOT authenticate on its own. */
@@ -54,7 +59,7 @@ function requireAdmin(req: Request, res: Response): boolean {
  * Every team at/above the PCA revenue bar, with its verified total. This is
  * both the candidate list and the eligibility source for voters.
  */
-async function getEligibleTeams(threshold: number) {
+async function getEligibleTeams(threshold: number, seasonId: number) {
   const rows = await db
     .select({
       id: teamsTable.id,
@@ -64,6 +69,7 @@ async function getEligibleTeams(threshold: number) {
         SELECT SUM(COALESCE(re.verified_amount, 0))
         FROM revenue_entries re
         WHERE re.team_id = ${teamsTable.id} AND re.status = 'verified'
+          AND re.season_id = ${seasonId}
       ), 0)`,
     })
     .from(teamsTable)
@@ -103,7 +109,7 @@ router.get("/pca/me", async (req: Request, res: Response): Promise<void> => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const config = await getConfigRow();
+  const config = await getConfigRow(await resolveSeason(req));
   if (!config.pcaVotingEnabled) {
     res.json({
       enabled: false,
@@ -115,14 +121,22 @@ router.get("/pca/me", async (req: Request, res: Response): Promise<void> => {
   }
 
   const mine = await getMyTeam(req.user.id);
-  const eligibleTeams = await getEligibleTeams(config.pcaMinVerifiedRevenue);
+  const eligibleTeams = await getEligibleTeams(config.pcaMinVerifiedRevenue, await resolveSeason(req));
   const eligible =
     mine != null && eligibleTeams.some((t) => t.id === mine.teamId);
 
+  const votingSeason = await resolveSeason(req);
+  // Scoped to match the widened unique(voter_id, season_id): one vote per
+  // person PER SEASON, so a Season 1 voter can vote again in Season 2.
   const [existing] = await db
     .select({ id: pcaVotesTable.id })
     .from(pcaVotesTable)
-    .where(eq(pcaVotesTable.voterId, req.user.id))
+    .where(
+      and(
+        eq(pcaVotesTable.voterId, req.user.id),
+        eq(pcaVotesTable.seasonId, votingSeason),
+      ),
+    )
     .limit(1);
 
   res.json({
@@ -144,12 +158,12 @@ const VoteBody = z.object({
   comments: z.string().trim().max(2000).optional(),
 });
 
-router.post("/pca/vote", async (req: Request, res: Response): Promise<void> => {
+router.post("/pca/vote", requireWritableSeason(), async (req: Request, res: Response): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const config = await getConfigRow();
+  const config = await getConfigRow(await resolveSeason(req));
   if (!config.pcaVotingEnabled) {
     res.status(403).json({ error: "Voting is not open." });
     return;
@@ -171,7 +185,7 @@ router.post("/pca/vote", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const eligibleTeams = await getEligibleTeams(config.pcaMinVerifiedRevenue);
+  const eligibleTeams = await getEligibleTeams(config.pcaMinVerifiedRevenue, await resolveSeason(req));
   if (!eligibleTeams.some((t) => t.id === mine.teamId)) {
     res.status(403).json({ error: "Your team isn't eligible to vote." });
     return;
@@ -181,10 +195,18 @@ router.post("/pca/vote", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  const votingSeason = await resolveSeason(req);
+  // Scoped to match the widened unique(voter_id, season_id): one vote per
+  // person PER SEASON, so a Season 1 voter can vote again in Season 2.
   const [existing] = await db
     .select({ id: pcaVotesTable.id })
     .from(pcaVotesTable)
-    .where(eq(pcaVotesTable.voterId, req.user.id))
+    .where(
+      and(
+        eq(pcaVotesTable.voterId, req.user.id),
+        eq(pcaVotesTable.seasonId, votingSeason),
+      ),
+    )
     .limit(1);
   if (existing) {
     // One vote per person, and students can't change it — only admins can.
@@ -195,6 +217,7 @@ router.post("/pca/vote", async (req: Request, res: Response): Promise<void> => {
   try {
     await db.insert(pcaVotesTable).values({
       voterId: req.user.id,
+      seasonId: votingSeason,
       voterTeamId: mine.teamId,
       voterRole: mine.role,
       votedTeamId: parsed.data.votedTeamId,
@@ -247,8 +270,8 @@ router.get(
   requireAdminPage(ADMIN_PAGE, "view"),
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAdmin(req, res)) return;
-    const config = await getConfigRow();
-    const eligible = await getEligibleTeams(config.pcaMinVerifiedRevenue);
+    const config = await getConfigRow(await resolveSeason(req));
+    const eligible = await getEligibleTeams(config.pcaMinVerifiedRevenue, await resolveSeason(req));
     const tallies = await db
       .select({
         teamId: pcaVotesTable.votedTeamId,
@@ -277,10 +300,20 @@ type VoteFilters = {
   role?: string;
   from?: string;
   to?: string;
+  /**
+   * Season being viewed. Required in practice — a vote belongs to the season it
+   * was cast in, and the admin list showed every season's votes pooled.
+   */
+  seasonId?: number;
 };
 
 function buildVoteWhere(f: VoteFilters): SQL<unknown> | undefined {
   const conds: Array<SQL<unknown> | undefined> = [];
+  // Season first: every caller passes it, and a vote cast in Season 1 must not
+  // appear while viewing Season 2.
+  if (typeof f.seasonId === "number") {
+    conds.push(eq(pcaVotesTable.seasonId, f.seasonId));
+  }
   if (f.role === "leader" || f.role === "member") {
     conds.push(eq(pcaVotesTable.voterRole, f.role));
   }
@@ -345,6 +378,7 @@ router.get(
       role: String(req.query["role"] ?? "") || undefined,
       from: String(req.query["from"] ?? "") || undefined,
       to: String(req.query["to"] ?? "") || undefined,
+      seasonId: await resolveSeason(req),
     });
     res.json({ items, totalCount: items.length });
   },
@@ -436,6 +470,7 @@ router.get(
       role: String(req.query["role"] ?? "") || undefined,
       from: String(req.query["from"] ?? "") || undefined,
       to: String(req.query["to"] ?? "") || undefined,
+      seasonId: await resolveSeason(req),
     });
     const header = [
       "Voter",
@@ -492,7 +527,7 @@ router.get(
   requireAdminPage("/admin/config", "view"),
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAdmin(req, res)) return;
-    res.json(serializeConfig(await getConfigRow()));
+    res.json(serializeConfig(await getConfigRow(await resolveSeason(req))));
   },
 );
 
@@ -506,7 +541,7 @@ router.put(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const row = await getConfigRow();
+    const row = await getConfigRow(await resolveSeason(req));
     const patch: Record<string, unknown> = {};
     if (parsed.data.pcaVotingEnabled !== undefined) {
       patch.pcaVotingEnabled = parsed.data.pcaVotingEnabled;
@@ -531,6 +566,7 @@ router.put(
     if (justOpened) {
       void notifyVotingOpen(
         updated?.pcaMinVerifiedRevenue ?? row.pcaMinVerifiedRevenue,
+        await resolveSeason(req),
       );
     }
     res.json(serializeConfig(updated ?? row));
@@ -538,12 +574,17 @@ router.put(
 );
 
 /** Email every leader + member of every eligible team that voting is open. */
-async function notifyVotingOpen(threshold: number): Promise<void> {
+// `seasonId` is threaded from the config handler rather than resolved here:
+// this runs detached (void-called) so it has no request of its own.
+async function notifyVotingOpen(
+  threshold: number,
+  seasonId: number,
+): Promise<void> {
   try {
     const appUrl = getAppUrl();
     const isRealEmail = (e: string | null | undefined): e is string =>
       !!e && !/@forms\.local$/i.test(e) && !/^sso_/i.test(e) && e.includes("@");
-    const eligible = await getEligibleTeams(threshold);
+    const eligible = await getEligibleTeams(threshold, seasonId);
     for (const team of eligible) {
       const members = await db
         .select({ email: usersTable.email })

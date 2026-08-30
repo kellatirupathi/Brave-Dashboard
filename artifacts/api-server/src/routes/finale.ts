@@ -13,7 +13,7 @@
  * Admins: a paginated/sortable/searchable list showing the LATEST submission
  * per team, plus a CSV export of every deck. All gating (menu on/off, the
  * revenue threshold, the submissions lock, and the page content) lives on the
- * singleton programme_config row.
+ * programme_config row for the season being viewed.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
@@ -41,6 +41,8 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { requireAdminPage } from "../lib/require-admin-page";
+import { getActiveConfig, getConfig, resolveSeason } from "../lib/season";
+import { requireWritableSeason } from "../middlewares/seasonGuard";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import {
   renderFinaleVerifiedEmail,
@@ -65,16 +67,25 @@ export const DEFAULT_FINALE_CONTENT =
 const PPTX_MIME =
   "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
-async function getConfigRow() {
-  let [row] = await db.select().from(programmeConfigTable).limit(1);
-  if (!row) {
-    [row] = await db.insert(programmeConfigTable).values({}).returning();
-  }
-  return row;
+// Season-aware read of the programme_config row, created on first access.
+//
+// Omitting `seasonId` means the ACTIVE season. That is correct for background
+// work, but a request handler should pass `await resolveSeason(req)` so that an
+// admin viewing Season 1 edits Season 1's settings rather than the live
+// season's. Before seasons existed this read an unqualified `.limit(1)`, which
+// becomes nondeterministic as soon as a second season's row exists.
+async function getConfigRow(seasonId?: number) {
+  return seasonId == null ? getActiveConfig() : getConfig(seasonId);
 }
 
-/** A team's total verified revenue — mirrors the leaderboard's expression. */
-async function getTeamVerifiedRevenue(teamId: number): Promise<number> {
+/**
+ * A team's total verified revenue for ONE season — mirrors the leaderboard's
+ * expression. Finale eligibility is per season, so the season is required.
+ */
+async function getTeamVerifiedRevenue(
+  teamId: number,
+  seasonId: number,
+): Promise<number> {
   const [row] = await db
     .select({
       total: sql<string>`COALESCE(SUM(COALESCE(${revenueEntriesTable.verifiedAmount}, 0)), 0)`,
@@ -83,6 +94,7 @@ async function getTeamVerifiedRevenue(teamId: number): Promise<number> {
     .where(
       and(
         eq(revenueEntriesTable.teamId, teamId),
+        eq(revenueEntriesTable.seasonId, seasonId),
         eq(revenueEntriesTable.status, "verified"),
       ),
     );
@@ -122,7 +134,7 @@ router.get("/finale/me", async (req: Request, res: Response): Promise<void> => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const config = await getConfigRow();
+  const config = await getConfigRow(await resolveSeason(req));
   const threshold = config.finaleMinVerifiedRevenue;
   const base = {
     enabled: config.finaleMenuEnabled,
@@ -146,7 +158,7 @@ router.get("/finale/me", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const verifiedRevenue = await getTeamVerifiedRevenue(teamId);
+  const verifiedRevenue = await getTeamVerifiedRevenue(teamId, await resolveSeason(req));
   const [team] = await db
     .select({ name: teamsTable.name })
     .from(teamsTable)
@@ -219,12 +231,13 @@ const CreateBody = z.object({
  */
 router.post(
   "/finale/submission",
+  requireWritableSeason(),
   async (req: Request, res: Response): Promise<void> => {
     if (!req.isAuthenticated()) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const config = await getConfigRow();
+    const config = await getConfigRow(await resolveSeason(req));
     if (!config.finaleMenuEnabled) {
       res.status(403).json({ error: "Finale submissions are not open." });
       return;
@@ -248,7 +261,7 @@ router.post(
         .json({ error: "Only your team leader can submit the Finale deck." });
       return;
     }
-    const verifiedRevenue = await getTeamVerifiedRevenue(teamId);
+    const verifiedRevenue = await getTeamVerifiedRevenue(teamId, await resolveSeason(req));
     if (verifiedRevenue < config.finaleMinVerifiedRevenue) {
       res.status(403).json({ error: "Your team is not eligible yet." });
       return;
@@ -263,6 +276,7 @@ router.post(
       .insert(finaleSubmissionsTable)
       .values({
         teamId,
+        seasonId: await resolveSeason(req),
         submittedBy: req.user.id,
         fileUrl: parsed.data.fileUrl,
         fileName: parsed.data.fileName ?? null,
@@ -326,7 +340,7 @@ async function resolveSubmissionAccess(
       error: "Only your team leader can change the Finale deck.",
     };
   }
-  const config = await getConfigRow();
+  const config = await getConfigRow(await resolveSeason(req));
   if (config.finaleSubmissionsLocked) {
     return {
       ok: false,
@@ -341,6 +355,7 @@ async function resolveSubmissionAccess(
 /** Edit a deck's file and/or remarks. Admin, or the team leader while open. */
 router.put(
   "/finale/submission/:id",
+  requireWritableSeason(),
   async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params["id"]);
     if (!Number.isFinite(id)) {
@@ -394,6 +409,7 @@ router.put(
 /** Soft-delete a deck. Admin, or the team leader while open. */
 router.delete(
   "/finale/submission/:id",
+  requireWritableSeason(),
   async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params["id"]);
     if (!Number.isFinite(id)) {
@@ -492,10 +508,17 @@ function buildAdminQuery(opts: {
   from?: string;
   to?: string;
   sort: FinaleSort;
+  /** Season being viewed. A deck belongs to the season it was submitted in. */
+  seasonId?: number;
 }) {
   // Soft-deleted decks are invisible everywhere — this sits in the shared
   // builder so the list and the CSV export can't drift apart.
   const conds: Array<SQL<unknown> | undefined> = [
+    // Season first, for the same reason the soft-delete check sits here: the
+    // list and the CSV export share this builder and must not drift apart.
+    ...(typeof opts.seasonId === "number"
+      ? [eq(finaleSubmissionsTable.seasonId, opts.seasonId)]
+      : []),
     isNull(finaleSubmissionsTable.deletedAt),
   ];
   if (opts.search) {
@@ -540,6 +563,7 @@ async function fetchAdminRows(opts: {
   from?: string;
   to?: string;
   sort: FinaleSort;
+  seasonId?: number;
   limit?: number;
   offset?: number;
 }) {
@@ -578,12 +602,16 @@ async function fetchAdminRows(opts: {
       totalSubmissions: sql<number>`(
         SELECT count(*)::int FROM finale_submissions fs
         WHERE fs.team_id = ${finaleSubmissionsTable.teamId}
+          AND fs.season_id = ${finaleSubmissionsTable.seasonId}
           AND fs.deleted_at IS NULL
       )`,
       verifiedRevenue: sql<string>`COALESCE((
         SELECT SUM(COALESCE(re.verified_amount, 0))
         FROM revenue_entries re
         WHERE re.team_id = ${finaleSubmissionsTable.teamId} AND re.status = 'verified'
+          -- Correlates on the submission's OWN season, so a Season 1 entry
+          -- keeps showing Season 1 revenue after Season 2 opens.
+          AND re.season_id = ${finaleSubmissionsTable.seasonId}
       ), 0)`,
     })
     .from(finaleSubmissionsTable)
@@ -735,7 +763,13 @@ router.get(
       Math.max(1, Number(req.query["pageSize"] ?? 50) || 50),
     );
 
-    const all = await fetchAdminRows({ search, from, to, sort });
+    const all = await fetchAdminRows({
+      search,
+      from,
+      to,
+      sort,
+      seasonId: await resolveSeason(req),
+    });
     const totalCount = all.length;
     const items = all.slice((page - 1) * pageSize, page * pageSize);
 
@@ -817,7 +851,13 @@ router.get(
     const to = String(req.query["to"] ?? "").trim() || undefined;
     const sort = String(req.query["sort"] ?? "newest") as FinaleSort;
 
-    const where = buildAdminQuery({ search, from, to, sort });
+    const where = buildAdminQuery({
+      search,
+      from,
+      to,
+      sort,
+      seasonId: await resolveSeason(req),
+    });
     const rows = await db
       .select({
         id: finaleSubmissionsTable.id,
@@ -838,6 +878,7 @@ router.get(
           SELECT SUM(COALESCE(re.verified_amount, 0))
           FROM revenue_entries re
           WHERE re.team_id = ${finaleSubmissionsTable.teamId} AND re.status = 'verified'
+            AND re.season_id = ${finaleSubmissionsTable.seasonId}
         ), 0)`,
       })
       .from(finaleSubmissionsTable)
@@ -926,7 +967,7 @@ router.get(
   requireAdminPage("/admin/config", "view"),
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAdmin(req, res)) return;
-    res.json(serializeConfig(await getConfigRow()));
+    res.json(serializeConfig(await getConfigRow(await resolveSeason(req))));
   },
 );
 
@@ -943,7 +984,7 @@ router.put(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const row = await getConfigRow();
+    const row = await getConfigRow(await resolveSeason(req));
     const patch: Record<string, unknown> = {};
     if (parsed.data.finaleMenuEnabled !== undefined) {
       patch.finaleMenuEnabled = parsed.data.finaleMenuEnabled;

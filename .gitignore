@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local Claude Code settings (machine-specific paths)
+.claude/

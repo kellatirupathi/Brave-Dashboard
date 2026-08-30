@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { sql, eq, and, gte, lte } from "drizzle-orm";
+import { resolveSeason } from "../lib/season";
 import {
   db,
   campusesTable,
@@ -28,18 +29,24 @@ function requireAdmin(
   return true;
 }
 
-async function getProgrammeWeeksTotal(): Promise<number> {
+// Denominator for "x of N weeks". REQUIRED seasonId: unscoped this counts
+// every season's weeks together (26 instead of 12).
+async function getProgrammeWeeksTotal(seasonId: number): Promise<number> {
   const [row] = await db
     .select({ c: sql<number>`count(*)::int` })
-    .from(programmeWeeksTable);
+    .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, seasonId));
   return row?.c ?? 0;
 }
 
 // Resolve optional ?week=<weekNumber> into the matching programme_weeks row.
 // Returns null when not supplied; throws "invalid" sentinel when supplied but
 // not found so callers can return 400.
+// REQUIRED seasonId: week numbers repeat across seasons, so looking up by
+// weekNumber alone would resolve to an arbitrary season's week.
 async function resolveWeekFilter(
   raw: unknown,
+  seasonId: number,
 ): Promise<
   | null
   | "invalid"
@@ -57,7 +64,12 @@ async function resolveWeekFilter(
       endDate: programmeWeeksTable.endDate,
     })
     .from(programmeWeeksTable)
-    .where(eq(programmeWeeksTable.weekNumber, n))
+    .where(
+      and(
+        eq(programmeWeeksTable.seasonId, seasonId),
+        eq(programmeWeeksTable.weekNumber, n),
+      ),
+    )
     .limit(1);
   if (!w) return "invalid";
   return w;
@@ -76,7 +88,9 @@ function startOfDay(dateIso: string): Date {
 router.get("/admin/campus-insights", async (req, res): Promise<void> => {
   if (!requireAdmin(req, res)) return;
 
-  const week = await resolveWeekFilter(req.query.week);
+  // Insights are per season: an archived season keeps its own final figures.
+  const season = await resolveSeason(req);
+  const week = await resolveWeekFilter(req.query.week, season);
   if (week === "invalid") {
     res.status(400).json({ error: "Invalid week" });
     return;
@@ -84,8 +98,11 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
 
   // Journal scope by week.startDate equality; revenue/orderbook by date range.
   const journalWhere = week
-    ? eq(weeklyJournalsTable.weekStartDate, week.startDate)
-    : undefined;
+    ? and(
+        eq(weeklyJournalsTable.seasonId, season),
+        eq(weeklyJournalsTable.weekStartDate, week.startDate),
+      )
+    : eq(weeklyJournalsTable.seasonId, season);
   const revVerifiedRange = week
     ? sql`${revenueEntriesTable.verifiedAt} >= ${startOfDay(week.startDate)} AND ${revenueEntriesTable.verifiedAt} <= ${endOfDay(week.endDate)}`
     : sql`true`;
@@ -147,6 +164,7 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
       })
       .from(revenueEntriesTable)
       .innerJoin(teamsTable, eq(revenueEntriesTable.teamId, teamsTable.id))
+      .where(eq(revenueEntriesTable.seasonId, season))
       .groupBy(teamsTable.campusId),
 
     db
@@ -156,6 +174,7 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
       })
       .from(orderBookEntriesTable)
       .innerJoin(teamsTable, eq(orderBookEntriesTable.teamId, teamsTable.id))
+      .where(eq(orderBookEntriesTable.seasonId, season))
       .groupBy(teamsTable.campusId),
 
     // Total projects (any status) per campus — the real project entities, not
@@ -167,9 +186,10 @@ router.get("/admin/campus-insights", async (req, res): Promise<void> => {
       })
       .from(projectsTable)
       .innerJoin(teamsTable, eq(projectsTable.teamId, teamsTable.id))
+      .where(eq(projectsTable.seasonId, season))
       .groupBy(teamsTable.campusId),
 
-    getProgrammeWeeksTotal(),
+    getProgrammeWeeksTotal(season),
   ]);
 
   const teamsByCampus = new Map<number, number>();
@@ -317,13 +337,17 @@ router.get(
       return;
     }
 
-    const week = await resolveWeekFilter(req.query.week);
+    const season = await resolveSeason(req);
+    const week = await resolveWeekFilter(req.query.week, season);
     if (week === "invalid") {
       res.status(400).json({ error: "Invalid week" });
       return;
     }
 
-    const journalConds = [eq(teamsTable.campusId, campusId)];
+    const journalConds = [
+      eq(teamsTable.campusId, campusId),
+      eq(weeklyJournalsTable.seasonId, season),
+    ];
     if (week)
       journalConds.push(eq(weeklyJournalsTable.weekStartDate, week.startDate));
 
@@ -336,7 +360,10 @@ router.get(
     const revPendingRange = week
       ? sql`${revenueEntriesTable.createdAt} >= ${startOfDay(week.startDate)} AND ${revenueEntriesTable.createdAt} <= ${endOfDay(week.endDate)}`
       : sql`true`;
-    const obConds = [eq(teamsTable.campusId, campusId)];
+    const obConds = [
+      eq(teamsTable.campusId, campusId),
+      eq(orderBookEntriesTable.seasonId, season),
+    ];
     if (week)
       obConds.push(
         and(
@@ -383,7 +410,12 @@ router.get(
         })
         .from(revenueEntriesTable)
         .innerJoin(teamsTable, eq(revenueEntriesTable.teamId, teamsTable.id))
-        .where(eq(teamsTable.campusId, campusId))
+        .where(
+          and(
+            eq(teamsTable.campusId, campusId),
+            eq(revenueEntriesTable.seasonId, season),
+          ),
+        )
         .groupBy(revenueEntriesTable.teamId),
 
       db
@@ -404,10 +436,15 @@ router.get(
         })
         .from(projectsTable)
         .innerJoin(teamsTable, eq(projectsTable.teamId, teamsTable.id))
-        .where(eq(teamsTable.campusId, campusId))
+        .where(
+          and(
+            eq(teamsTable.campusId, campusId),
+            eq(projectsTable.seasonId, season),
+          ),
+        )
         .groupBy(projectsTable.teamId),
 
-      getProgrammeWeeksTotal(),
+      getProgrammeWeeksTotal(season),
     ]);
 
     const journalsByTeam = new Map<
@@ -512,6 +549,10 @@ router.get("/admin/campus-insights-weeks", async (req, res): Promise<void> => {
       endDate: programmeWeeksTable.endDate,
     })
     .from(programmeWeeksTable)
+    // Season-scoped: this feeds the week filter on Campus Insights, which
+    // otherwise offered both seasons' weeks in one list with no way to tell
+    // them apart.
+    .where(eq(programmeWeeksTable.seasonId, await resolveSeason(req)))
     .orderBy(programmeWeeksTable.weekNumber);
   res.json(rows);
 });

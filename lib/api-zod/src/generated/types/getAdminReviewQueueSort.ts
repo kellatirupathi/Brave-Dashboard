@@ -14,4 +14,8 @@ export const GetAdminReviewQueueSort = {
   oldest: "oldest",
   amount_desc: "amount_desc",
   amount_asc: "amount_asc",
+  entries_desc: "entries_desc",
+  entries_asc: "entries_asc",
+  team_sum_desc: "team_sum_desc",
+  team_sum_asc: "team_sum_asc",
 } as const;

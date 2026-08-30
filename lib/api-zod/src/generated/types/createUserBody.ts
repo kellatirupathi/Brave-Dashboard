@@ -23,5 +23,7 @@ export interface CreateUserBody {
   /** @nullable */
   batchSectionName?: string | null;
   /** @nullable */
+  mobileNumber?: string | null;
+  /** @nullable */
   password?: string | null;
 }

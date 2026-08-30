@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import { eq, or } from "drizzle-orm";
+import { requireWritableSeason } from "../middlewares/seasonGuard";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
@@ -73,6 +74,7 @@ async function getStoredFileMetadata(objectPath: string) {
  */
 router.post(
   "/storage/uploads/request-url",
+  requireWritableSeason(),
   async (req: Request, res: Response) => {
     if (!req.isAuthenticated()) {
       res.status(401).json({ error: "Unauthorized" });

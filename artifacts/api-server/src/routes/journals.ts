@@ -18,6 +18,8 @@ import {
   runJournalAnalysisNow,
 } from "../lib/ai/journal-scheduler";
 import { requireAdminPage } from "../lib/require-admin-page";
+import { isSeasonWritable, resolveSeason } from "../lib/season";
+import { requireWritableSeason } from "../middlewares/seasonGuard";
 
 const router: IRouter = Router();
 
@@ -45,11 +47,15 @@ function todayIso(): string {
 
 // Pick the "current" programme week: the open week whose date range contains
 // today. If none contains today, fall back to the most recent open week.
-async function getCurrentOpenWeek(): Promise<{
+// `seasonId` is REQUIRED, deliberately. Week numbers repeat across seasons and
+// an archived season can still hold an open week, so an unscoped lookup could
+// hand a Season 1 week to a Season 2 journal.
+async function getCurrentOpenWeek(seasonId: number): Promise<{
   id: number;
   weekNumber: number;
   startDate: string;
   endDate: string;
+  seasonId: number;
 } | null> {
   const today = todayIso();
   const open = await db
@@ -58,9 +64,15 @@ async function getCurrentOpenWeek(): Promise<{
       weekNumber: programmeWeeksTable.weekNumber,
       startDate: programmeWeeksTable.startDate,
       endDate: programmeWeeksTable.endDate,
+      seasonId: programmeWeeksTable.seasonId,
     })
     .from(programmeWeeksTable)
-    .where(eq(programmeWeeksTable.isOpen, true))
+    .where(
+      and(
+        eq(programmeWeeksTable.seasonId, seasonId),
+        eq(programmeWeeksTable.isOpen, true),
+      ),
+    )
     .orderBy(asc(programmeWeeksTable.weekNumber));
   if (open.length === 0) return null;
   const containsToday =
@@ -69,12 +81,16 @@ async function getCurrentOpenWeek(): Promise<{
   return open[open.length - 1] ?? null;
 }
 
+// Looked up by primary key, so it is inherently unambiguous across seasons.
+// `seasonId` is surfaced so callers can stamp the journal they create with the
+// season the week actually belongs to.
 async function getOpenWeekById(weekId: number): Promise<{
   id: number;
   weekNumber: number;
   startDate: string;
   endDate: string;
   isOpen: boolean;
+  seasonId: number;
 } | null> {
   const [w] = await db
     .select()
@@ -101,7 +117,7 @@ router.get("/progress-summary", async (req, res): Promise<void> => {
     return;
   }
   const teamId = await getMyTeamId(req.user.id);
-  const currentWeek = await getCurrentOpenWeek();
+  const currentWeek = await getCurrentOpenWeek(await resolveSeason(req));
 
   // Stable fallback shape when there's no team or no programme weeks yet.
   const fallbackWeek = {
@@ -131,7 +147,12 @@ router.get("/progress-summary", async (req, res): Promise<void> => {
       submittedAt: weeklyJournalsTable.submittedAt,
     })
     .from(weeklyJournalsTable)
-    .where(eq(weeklyJournalsTable.teamId, teamId))
+    .where(
+      and(
+        eq(weeklyJournalsTable.teamId, teamId),
+        eq(weeklyJournalsTable.seasonId, await resolveSeason(req)),
+      ),
+    )
     .orderBy(desc(weeklyJournalsTable.weekStartDate));
 
   const submittedWeekStarts = new Set(allJournals.map((j) => j.weekStartDate));
@@ -150,6 +171,8 @@ router.get("/progress-summary", async (req, res): Promise<void> => {
         startDate: programmeWeeksTable.startDate,
       })
       .from(programmeWeeksTable)
+      // Same season as the current week, so a streak never spans seasons.
+      .where(eq(programmeWeeksTable.seasonId, currentWeek.seasonId))
       .orderBy(desc(programmeWeeksTable.weekNumber));
     let startIdx = allWeeks.findIndex(
       (w) => w.weekNumber === currentWeek.weekNumber,
@@ -188,7 +211,7 @@ router.get("/journals/current-week", async (req, res): Promise<void> => {
     res.status(400).json({ error: "You are not on a team" });
     return;
   }
-  const currentWeek = await getCurrentOpenWeek();
+  const currentWeek = await getCurrentOpenWeek(await resolveSeason(req));
   if (!currentWeek) {
     res.json({
       weekId: null,
@@ -236,6 +259,10 @@ router.get("/journals/by-week/:weekId", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid weekId" });
     return;
   }
+  // DELIBERATELY UNSCOPED, and safe: the week row itself carries a season, and
+  // weekly_journals has unique(team_id, week_start_date), so team + that week's
+  // start date identifies exactly one journal. Adding a season predicate here
+  // would be redundant, not safer.
   const week = await getOpenWeekById(weekId);
   if (!week) {
     res.status(404).json({ error: "Week not found" });
@@ -276,7 +303,12 @@ router.get("/journals/mine", async (req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(weeklyJournalsTable)
-    .where(eq(weeklyJournalsTable.teamId, teamId))
+    .where(
+      and(
+        eq(weeklyJournalsTable.teamId, teamId),
+        eq(weeklyJournalsTable.seasonId, await resolveSeason(req)),
+      ),
+    )
     .orderBy(desc(weeklyJournalsTable.weekStartDate));
   res.json(rows);
 });
@@ -299,6 +331,7 @@ router.get("/journals/week-tracker", async (req, res): Promise<void> => {
       isOpen: programmeWeeksTable.isOpen,
     })
     .from(programmeWeeksTable)
+    .where(eq(programmeWeeksTable.seasonId, await resolveSeason(req)))
     .orderBy(asc(programmeWeeksTable.weekNumber));
 
   const submitted = new Set<string>();
@@ -310,7 +343,7 @@ router.get("/journals/week-tracker", async (req, res): Promise<void> => {
     for (const r of rows) submitted.add(r.weekStartDate);
   }
 
-  const current = await getCurrentOpenWeek();
+  const current = await getCurrentOpenWeek(await resolveSeason(req));
   const items = weeks.map((w) => ({
     weekId: w.id,
     weekNumber: w.weekNumber,
@@ -326,7 +359,7 @@ router.get("/journals/week-tracker", async (req, res): Promise<void> => {
 // Student (any team member): submit / upsert a journal for the team.
 // Body may include `weekId` to target a specific open week. If omitted,
 // defaults to the current open week.
-router.post("/journals", async (req, res): Promise<void> => {
+router.post("/journals", requireWritableSeason("journal"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -349,6 +382,7 @@ router.post("/journals", async (req, res): Promise<void> => {
     startDate: string;
     endDate: string;
     isOpen: boolean;
+    seasonId: number;
   } | null = null;
   if (parsed.data.weekId) {
     targetWeek = await getOpenWeekById(parsed.data.weekId);
@@ -361,7 +395,7 @@ router.post("/journals", async (req, res): Promise<void> => {
       return;
     }
   } else {
-    const cur = await getCurrentOpenWeek();
+    const cur = await getCurrentOpenWeek(await resolveSeason(req));
     if (!cur) {
       res.status(400).json({
         error:
@@ -378,6 +412,8 @@ router.post("/journals", async (req, res): Promise<void> => {
     .insert(weeklyJournalsTable)
     .values({
       teamId,
+      // The journal belongs to the season its WEEK belongs to.
+      seasonId: targetWeek.seasonId,
       weekStartDate: targetWeek.startDate,
       weekEndDate: targetWeek.endDate,
       whatWeDid: parsed.data.whatWeDid,
@@ -451,7 +487,7 @@ router.get("/coordinator/journal-tracking", async (req, res): Promise<void> => {
   const week =
     weekIdRaw && Number.isFinite(weekIdRaw)
       ? await getOpenWeekById(weekIdRaw)
-      : await getCurrentOpenWeek();
+      : await getCurrentOpenWeek(await resolveSeason(req));
   if (!week) {
     res.json({ week: null, teams: [] });
     return;
@@ -477,7 +513,12 @@ router.get("/coordinator/journal-tracking", async (req, res): Promise<void> => {
       submittedAt: weeklyJournalsTable.submittedAt,
     })
     .from(weeklyJournalsTable)
-    .where(eq(weeklyJournalsTable.weekStartDate, week.startDate));
+    .where(
+      and(
+        eq(weeklyJournalsTable.seasonId, week.seasonId),
+        eq(weeklyJournalsTable.weekStartDate, week.startDate),
+      ),
+    );
   const byTeam = new Map(journals.map((j) => [j.teamId, j]));
 
   const rows = teams.map((t) => {
@@ -550,7 +591,7 @@ router.post("/coordinator/journals", async (req, res): Promise<void> => {
 
   const week = parsed.data.weekId
     ? await getOpenWeekById(parsed.data.weekId)
-    : await getCurrentOpenWeek();
+    : await getCurrentOpenWeek(await resolveSeason(req));
   if (!week) {
     res.status(400).json({ error: "No programme week to file against." });
     return;
@@ -560,6 +601,7 @@ router.post("/coordinator/journals", async (req, res): Promise<void> => {
     .insert(weeklyJournalsTable)
     .values({
       teamId,
+      seasonId: week.seasonId,
       weekStartDate: week.startDate,
       weekEndDate: week.endDate,
       whatWeDid: parsed.data.whatWeDid,
@@ -646,7 +688,7 @@ router.post("/coordinator/journals/bulk", async (req, res): Promise<void> => {
   }
   const week = parsed.data.weekId
     ? await getOpenWeekById(parsed.data.weekId)
-    : await getCurrentOpenWeek();
+    : await getCurrentOpenWeek(await resolveSeason(req));
   if (!week) {
     res.status(400).json({ error: "No programme week to file against." });
     return;
@@ -654,6 +696,7 @@ router.post("/coordinator/journals/bulk", async (req, res): Promise<void> => {
 
   const values = allowed.map((teamId) => ({
     teamId,
+    seasonId: week.seasonId,
     weekStartDate: week.startDate,
     weekEndDate: week.endDate,
     whatWeDid: parsed.data.whatWeDid,
@@ -770,8 +813,13 @@ router.get("/admin/journals", async (req, res): Promise<void> => {
     if (!Number.isNaN(cid)) campusFilter = cid;
   }
 
-  const conditions =
-    campusFilter != null ? [eq(teamsTable.campusId, campusFilter)] : [];
+  // Scoped to the season being viewed. Without this the admin dashboard showed
+  // Season 1's journals under the 2.0 badge, with no way to tell them apart.
+  const season = await resolveSeason(req);
+  const conditions = [eq(weeklyJournalsTable.seasonId, season)];
+  if (campusFilter != null) {
+    conditions.push(eq(teamsTable.campusId, campusFilter));
+  }
 
   const rows = await db
     .select({
@@ -873,7 +921,12 @@ router.get("/admin/journals/coverage", async (req, res): Promise<void> => {
       submittedAt: weeklyJournalsTable.submittedAt,
     })
     .from(weeklyJournalsTable)
-    .where(gte(weeklyJournalsTable.submittedAt, twelveWeeksAgo));
+    .where(
+      and(
+        eq(weeklyJournalsTable.seasonId, await resolveSeason(req)),
+        gte(weeklyJournalsTable.submittedAt, twelveWeeksAgo),
+      ),
+    );
 
   const journalsByTeam = new Map<number, typeof journals>();
   for (const j of journals) {
@@ -957,11 +1010,17 @@ async function authorizeJournalMutation(
     const [week] = await db
       .select({ isOpen: programmeWeeksTable.isOpen })
       .from(programmeWeeksTable)
-      .where(eq(programmeWeeksTable.startDate, journal.weekStartDate))
+      .where(
+        and(
+          eq(programmeWeeksTable.seasonId, journal.seasonId),
+          eq(programmeWeeksTable.startDate, journal.weekStartDate),
+        ),
+      )
       .limit(1);
     const isOpen = week?.isOpen ?? false;
     if (!isOpen) {
-      const allow = await getAllowPastWeekEdits();
+      // The journal's own season governs whether past-week edits are allowed.
+      const allow = await getAllowPastWeekEdits(journal.seasonId);
       if (!allow) {
         return {
           status: 403,
@@ -983,17 +1042,38 @@ router.get("/journals/permissions", async (req, res): Promise<void> => {
     return;
   }
   const role = req.user.role;
-  const allowPastWeekEdits = await getAllowPastWeekEdits();
+  const season = await resolveSeason(req);
+  const allowPastWeekEdits = await getAllowPastWeekEdits(season);
+
+  // Whether this season accepts journal writes at all. Admins and coordinators
+  // bypass the archive (they correct historical records), so this only ever
+  // narrows the student's answer — matching exactly what the server-side guard
+  // on POST/PATCH/DELETE /journals will do. The frontend hides its add/edit
+  // buttons off the back of this, so the two must agree or a student sees a
+  // button that 409s.
+  const writable =
+    role === "admin" ||
+    role === "coordinator" ||
+    (await isSeasonWritable(season, "journal"));
+
   res.json({
     role,
-    canCreate: role === "student",
-    canUpdate: role === "admin" || role === "coordinator" || role === "student",
-    canDelete: role === "admin" || role === "coordinator" || role === "student",
+    canCreate: role === "student" && writable,
+    canUpdate:
+      (role === "admin" || role === "coordinator" || role === "student") &&
+      writable,
+    canDelete:
+      (role === "admin" || role === "coordinator" || role === "student") &&
+      writable,
     allowPastWeekEdits,
+    // Explicit so the UI can explain WHY the buttons are gone rather than just
+    // rendering an empty toolbar.
+    seasonId: season,
+    seasonWritable: writable,
   });
 });
 
-router.patch("/journals/:id", async (req, res): Promise<void> => {
+router.patch("/journals/:id", requireWritableSeason("journal"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -1091,7 +1171,7 @@ router.patch("/journals/:id", async (req, res): Promise<void> => {
   res.json(updated);
 });
 
-router.delete("/journals/:id", async (req, res): Promise<void> => {
+router.delete("/journals/:id", requireWritableSeason("journal"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { sql, eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { readGritLevels, computeMaxGritMilestone } from "./grit-config";
+import { resolveSeason } from "../lib/season";
 
 const router: IRouter = Router();
 
@@ -48,6 +49,15 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const teamScope =
     scopedCampusId != null ? sql`AND t.campus_id = ${scopedCampusId}` : sql``;
 
+  // Season being viewed. Interpolated into the raw SQL below so the Demo Day
+  // threshold comes from that season’s config, not an arbitrary row.
+  const season = await resolveSeason(req);
+  // Alias-specific season predicates, composed the same way as `teamScope`.
+  // Drizzle cannot filter inside a raw sql`` block, so each sub-select over a
+  // season-scoped table carries its own.
+  const seasonRe = sql`AND re.season_id = ${season}`;
+  const seasonObe = sql`AND obe.season_id = ${season}`;
+
   const countersP = db.execute<{
     threshold: number;
     total_revenue: string;
@@ -67,20 +77,20 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     pending_access_req_oldest: string | null;
   }>(sql`
     SELECT
-      COALESCE((SELECT demo_eligibility_threshold FROM programme_config LIMIT 1), 200000) AS threshold,
-      (SELECT COALESCE(SUM(re.verified_amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'verified' ${teamScope})      AS total_revenue,
-      (SELECT COALESCE(SUM(re.amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${teamScope})              AS total_pending_revenue,
-      (SELECT COALESCE(SUM(re.amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'rejected' ${teamScope})               AS total_rejected_revenue,
-      (SELECT COALESCE(SUM(obe.verified_amount), 0) FROM order_book_entries obe JOIN teams t ON t.id = obe.team_id WHERE obe.status = 'verified' ${teamScope})   AS total_ob,
+      COALESCE((SELECT demo_eligibility_threshold FROM programme_config WHERE season_id = ${season} LIMIT 1), 200000) AS threshold,
+      (SELECT COALESCE(SUM(re.verified_amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'verified' ${seasonRe} ${teamScope})      AS total_revenue,
+      (SELECT COALESCE(SUM(re.amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${seasonRe} ${teamScope})              AS total_pending_revenue,
+      (SELECT COALESCE(SUM(re.amount), 0) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'rejected' ${seasonRe} ${teamScope})               AS total_rejected_revenue,
+      (SELECT COALESCE(SUM(obe.verified_amount), 0) FROM order_book_entries obe JOIN teams t ON t.id = obe.team_id WHERE obe.status = 'verified' ${seasonObe} ${teamScope})   AS total_ob,
       (SELECT COUNT(*) FROM teams t WHERE t.status = 'active' ${teamScope})                           AS active_teams,
       (SELECT COUNT(*) FROM teams t WHERE t.status = 'pending' ${teamScope})                          AS pending_teams,
       (SELECT MIN(t.created_at) FROM teams t WHERE t.status = 'pending' ${teamScope})                 AS pending_teams_oldest,
       (SELECT COUNT(*) FROM campuses)                                                                 AS total_campuses,
-      (SELECT COUNT(*) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${teamScope})                               AS pending_review,
-      (SELECT MIN(re.submitted_at) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${teamScope})                      AS pending_review_oldest,
-      (SELECT COUNT(*) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' AND re.submitted_at < ${overdueCutoff} ${teamScope}) AS overdue_review,
-      (SELECT COUNT(*) FROM demo_day_applications WHERE status = 'submitted')                         AS pending_demo_day,
-      (SELECT MIN(submitted_at) FROM demo_day_applications WHERE status = 'submitted')                AS pending_demo_day_oldest,
+      (SELECT COUNT(*) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${seasonRe} ${teamScope})                               AS pending_review,
+      (SELECT MIN(re.submitted_at) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' ${seasonRe} ${teamScope})                      AS pending_review_oldest,
+      (SELECT COUNT(*) FROM revenue_entries re JOIN teams t ON t.id = re.team_id WHERE re.status = 'submitted' AND re.submitted_at < ${overdueCutoff} ${seasonRe} ${teamScope}) AS overdue_review,
+      (SELECT COUNT(*) FROM demo_day_applications WHERE status = 'submitted' AND season_id = ${season}) AS pending_demo_day,
+      (SELECT MIN(submitted_at) FROM demo_day_applications WHERE status = 'submitted' AND season_id = ${season}) AS pending_demo_day_oldest,
       (SELECT COUNT(*) FROM access_requests WHERE status = 'pending')                                 AS pending_access_req,
       (SELECT MIN(created_at) FROM access_requests WHERE status = 'pending')                          AS pending_access_req_oldest
   `);
@@ -96,13 +106,13 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     LEFT JOIN (
       SELECT team_id, SUM(verified_amount) AS total
       FROM revenue_entries
-      WHERE status = 'verified'
+      WHERE status = 'verified' AND season_id = ${season}
       GROUP BY team_id
     ) rev_by_team ON rev_by_team.team_id = t.id
     WHERE t.status = 'active'
       ${teamScope}
       AND COALESCE(rev_by_team.total, 0) >= COALESCE(
-        (SELECT demo_eligibility_threshold FROM programme_config LIMIT 1),
+        (SELECT demo_eligibility_threshold FROM programme_config WHERE season_id = ${season} LIMIT 1),
         200000
       )
   `);
@@ -116,7 +126,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     LEFT JOIN (
       SELECT team_id, SUM(verified_amount) AS total
       FROM revenue_entries
-      WHERE status = 'verified'
+      WHERE status = 'verified' AND season_id = ${season}
       GROUP BY team_id
     ) rev_by_team ON rev_by_team.team_id = t.id
     WHERE t.status = 'active' ${teamScope}
@@ -146,9 +156,9 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       SELECT t.campus_id,
              COUNT(*) AS total_teams,
              COUNT(*) FILTER (WHERE
-               EXISTS (SELECT 1 FROM weekly_journals wj WHERE wj.team_id = t.id)
-               OR EXISTS (SELECT 1 FROM revenue_entries re WHERE re.team_id = t.id AND re.status = 'verified')
-               OR EXISTS (SELECT 1 FROM projects p WHERE p.team_id = t.id)
+               EXISTS (SELECT 1 FROM weekly_journals wj WHERE wj.team_id = t.id AND wj.season_id = ${season})
+               OR EXISTS (SELECT 1 FROM revenue_entries re WHERE re.team_id = t.id AND re.status = 'verified' AND re.season_id = ${season})
+               OR EXISTS (SELECT 1 FROM projects p WHERE p.team_id = t.id AND p.season_id = ${season})
              ) AS active_teams
       FROM teams t
       GROUP BY t.campus_id
@@ -157,7 +167,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       SELECT t.campus_id, SUM(r.verified_amount) AS total_revenue
       FROM revenue_entries r
       JOIN teams t ON t.id = r.team_id
-      WHERE r.status = 'verified'
+      WHERE r.status = 'verified' AND r.season_id = ${season}
       GROUP BY t.campus_id
     ) rev_stats ON rev_stats.campus_id = c.id
     ORDER BY total_revenue DESC NULLS LAST, c.id ASC
@@ -334,6 +344,10 @@ router.get("/admin/campus-leaderboard", async (req, res): Promise<void> => {
     return;
   }
 
+  // Campus standings are per season — an archived season keeps its own final
+  // table rather than being merged into the live one.
+  const season = await resolveSeason(req);
+
   const rowsR = await db.execute<{
     id: number;
     name: string;
@@ -353,9 +367,9 @@ router.get("/admin/campus-leaderboard", async (req, res): Promise<void> => {
       SELECT t.campus_id,
              COUNT(*) AS total_teams,
              COUNT(*) FILTER (WHERE
-               EXISTS (SELECT 1 FROM weekly_journals wj WHERE wj.team_id = t.id)
-               OR EXISTS (SELECT 1 FROM revenue_entries re WHERE re.team_id = t.id AND re.status = 'verified')
-               OR EXISTS (SELECT 1 FROM projects p WHERE p.team_id = t.id)
+               EXISTS (SELECT 1 FROM weekly_journals wj WHERE wj.team_id = t.id AND wj.season_id = ${season})
+               OR EXISTS (SELECT 1 FROM revenue_entries re WHERE re.team_id = t.id AND re.status = 'verified' AND re.season_id = ${season})
+               OR EXISTS (SELECT 1 FROM projects p WHERE p.team_id = t.id AND p.season_id = ${season})
              ) AS active_teams
       FROM teams t
       GROUP BY t.campus_id
@@ -364,7 +378,7 @@ router.get("/admin/campus-leaderboard", async (req, res): Promise<void> => {
       SELECT t.campus_id, SUM(r.verified_amount) AS total_revenue
       FROM revenue_entries r
       JOIN teams t ON t.id = r.team_id
-      WHERE r.status = 'verified'
+      WHERE r.status = 'verified' AND r.season_id = ${season}
       GROUP BY t.campus_id
     ) rev_stats ON rev_stats.campus_id = c.id
     ORDER BY total_revenue DESC NULLS LAST, c.id ASC
@@ -419,6 +433,7 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
     return;
   }
   const userId = req.user.id;
+  const season = await resolveSeason(req);
 
   const teamCtxResult = await db.execute<{
     team_id: number;
@@ -456,7 +471,7 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
       t.updated_at          AS updated_at,
       c.name                AS campus_name,
       COALESCE(
-        (SELECT demo_eligibility_threshold FROM programme_config LIMIT 1),
+        (SELECT demo_eligibility_threshold FROM programme_config WHERE season_id = ${season} LIMIT 1),
         200000
       )                    AS threshold,
       (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) AS member_count
@@ -518,13 +533,17 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
   }>(sql`
     SELECT
       (SELECT COALESCE(SUM(verified_amount), 0) FROM revenue_entries
-        WHERE team_id = ${teamId} AND status = 'verified')                AS revenue,
+        WHERE team_id = ${teamId} AND status = 'verified'
+          AND season_id = ${season})                                      AS revenue,
       (SELECT COALESCE(SUM(verified_amount), 0) FROM order_book_entries
-        WHERE team_id = ${teamId} AND status = 'verified')                AS orderbook,
+        WHERE team_id = ${teamId} AND status = 'verified'
+          AND season_id = ${season})                                      AS orderbook,
       (SELECT COUNT(*) FROM projects
-        WHERE team_id = ${teamId} AND status = 'active')                  AS active_projects,
+        WHERE team_id = ${teamId} AND status = 'active'
+          AND season_id = ${season})                                      AS active_projects,
       (SELECT COUNT(*) FROM revenue_entries
-        WHERE team_id = ${teamId} AND status IN ('draft', 'submitted'))   AS pending_subs
+        WHERE team_id = ${teamId} AND status IN ('draft', 'submitted')
+          AND season_id = ${season})                                      AS pending_subs
   `);
 
   // National + campus rank for this team. Uses the same ordering as the
@@ -556,7 +575,7 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
       LEFT JOIN (
         SELECT team_id, SUM(verified_amount) AS total
         FROM revenue_entries
-        WHERE status = 'verified'
+        WHERE status = 'verified' AND season_id = ${season}
         GROUP BY team_id
       ) rev ON rev.team_id = t.id
       WHERE t.status = 'active'
@@ -580,7 +599,7 @@ router.get("/dashboard/team-summary", async (req, res): Promise<void> => {
     SELECT id, team_id, type, title, description, date, image_url, link_url,
            is_pinned, created_at
     FROM milestones
-    WHERE team_id = ${teamId}
+    WHERE team_id = ${teamId} AND season_id = ${season}
     ORDER BY date DESC
     LIMIT 5
   `);

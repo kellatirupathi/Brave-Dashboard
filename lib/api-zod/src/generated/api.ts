@@ -3084,6 +3084,7 @@ export const ListUsersResponse = zod.object({
       role: zod.enum(["student", "coordinator", "admin"]),
       campusId: zod.number().nullish(),
       campusName: zod.string().nullish(),
+      mobileNumber: zod.string().nullish(),
       isActive: zod.boolean(),
       provisionedVia: zod.enum([
         "roster",
@@ -3118,6 +3119,7 @@ export const CreateUserBody = zod.object({
   formsUserId: zod.string().nullish(),
   niatId: zod.string().nullish(),
   batchSectionName: zod.string().nullish(),
+  mobileNumber: zod.string().nullish(),
   password: zod.string().nullish(),
 });
 
@@ -3134,6 +3136,7 @@ export const UpdateUserBody = zod.object({
   email: zod.string().email().optional(),
   niatId: zod.string().nullish(),
   profileImage: zod.string().nullish(),
+  mobileNumber: zod.string().nullish(),
   role: zod.enum(["student", "coordinator", "admin"]).optional(),
   campusId: zod.number().nullish(),
   isActive: zod.boolean().optional(),
@@ -3150,6 +3153,7 @@ export const UpdateUserResponse = zod.object({
   role: zod.enum(["student", "coordinator", "admin"]),
   campusId: zod.number().nullish(),
   campusName: zod.string().nullish(),
+  mobileNumber: zod.string().nullish(),
   isActive: zod.boolean(),
   provisionedVia: zod.enum([
     "roster",
@@ -3384,6 +3388,7 @@ export const ListRosterEntriesResponse = zod.object({
       campusId: zod.number().nullish(),
       niatId: zod.string().nullish(),
       batchSectionName: zod.string().nullish(),
+      mobileNumber: zod.string().nullish(),
       isWhitelisted: zod.boolean(),
       createdAt: zod.coerce.date(),
     }),
@@ -3404,6 +3409,7 @@ export const AddRosterEntryBody = zod.object({
   campusId: zod.number().nullish(),
   niatId: zod.string().nullish(),
   batchSectionName: zod.string().nullish(),
+  mobileNumber: zod.string().nullish(),
   isWhitelisted: zod.boolean().optional(),
 });
 
@@ -3419,12 +3425,14 @@ export const BulkImportRosterBody = zod.object({
       instituteName: zod.string().optional(),
       batchSectionName: zod.string().optional(),
       email: zod.string().email().optional(),
+      mobileNumber: zod.string().nullish(),
     }),
   ),
 });
 
 export const BulkImportRosterResponse = zod.object({
   inserted: zod.number(),
+  updated: zod.number(),
   skipped: zod.number(),
   total: zod.number(),
 });
@@ -3461,6 +3469,7 @@ export const UpdateRosterEntryBody = zod.object({
   campusName: zod.string().nullish(),
   niatId: zod.string().nullish(),
   batchSectionName: zod.string().nullish(),
+  mobileNumber: zod.string().nullish(),
   isWhitelisted: zod.boolean().nullish(),
 });
 
@@ -3473,6 +3482,7 @@ export const UpdateRosterEntryResponse = zod.object({
   campusId: zod.number().nullish(),
   niatId: zod.string().nullish(),
   batchSectionName: zod.string().nullish(),
+  mobileNumber: zod.string().nullish(),
   isWhitelisted: zod.boolean(),
   createdAt: zod.coerce.date(),
 });

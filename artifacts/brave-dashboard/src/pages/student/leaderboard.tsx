@@ -1,4 +1,9 @@
-import { useGetLeaderboard } from "@workspace/api-client-react";
+import { useSeason } from "@/lib/season-context";
+import { cn } from "@/lib/utils";
+import {
+  getLeaderboard,
+  leaderboardQueryKey,
+} from "@/lib/leaderboard-api";
 import { formatINR } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,10 +34,15 @@ export default function Leaderboard({
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   // Coordinators default to their own campus view; students/admins to national.
-  const [view, setView] = useState<"national" | "campus">(
+  // "overall" is a third tab that combines every season. It reuses the
+  // national scope server-side and only drops the season predicate.
+  const [view, setView] = useState<"national" | "campus" | "overall">(
     user?.role === "coordinator" ? "campus" : "national",
   );
   const [search, setSearch] = useState("");
+  // The Overall tab only appears when there is more than one season to combine.
+  const { seasons, viewingId } = useSeason();
+  const showOverall = seasons.length > 1;
   const canOpenTeam = user?.role === "admin" || user?.role === "coordinator";
 
   // Leaderboard display config: banner (image or template) + hide-rank flag.
@@ -53,10 +63,17 @@ export default function Leaderboard({
     ...(lbConfig?.bannerContent ?? {}),
   };
 
-  const { data: leaderboard, isLoading } = useGetLeaderboard({
-    view,
+  // Hand-written fetcher rather than the generated hook, because the Overall
+  // tab needs a `lifetime` flag the generated query params cannot express.
+  const lbQuery = {
+    view: view === "campus" ? ("campus" as const) : ("national" as const),
     campusId: view === "campus" ? (user?.campusId ?? undefined) : undefined,
     search: search || undefined,
+    lifetime: view === "overall",
+  };
+  const { data: leaderboard, isLoading } = useQuery({
+    queryKey: leaderboardQueryKey(lbQuery, viewingId),
+    queryFn: () => getLeaderboard(lbQuery),
   });
 
   // Avoid a flash of the normal leaderboard (National / My Campus tabs) for a
@@ -141,9 +158,20 @@ export default function Leaderboard({
             onValueChange={(v: any) => setView(v)}
             className="w-full sm:w-auto"
           >
-            <TabsList className="w-full sm:w-auto grid grid-cols-2">
+            <TabsList
+              className={cn(
+                "w-full sm:w-auto grid",
+                showOverall ? "grid-cols-3" : "grid-cols-2",
+              )}
+            >
               <TabsTrigger value="national">National</TabsTrigger>
               <TabsTrigger value="campus">My Campus</TabsTrigger>
+              {/* Only meaningful once a second season exists. */}
+              {showOverall && (
+                <TabsTrigger value="overall" title="Season 1 + Season 2 combined">
+                  Overall
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
 
@@ -238,11 +266,28 @@ export default function Leaderboard({
 
                 <div className="text-center sm:text-right mt-4 sm:mt-0 w-full sm:w-auto">
                   <div className="text-xs font-medium text-muted-foreground mb-1">
-                    Verified Revenue
+                    {view === "overall" ? "Overall Revenue" : "Verified Revenue"}
                   </div>
                   <div className="text-2xl font-extrabold text-primary">
                     {formatINR(entry.totalRevenue)}
                   </div>
+                  {/* Overall view only: how that total splits across seasons,
+                      so a team can see which season it came from. Seasons with
+                      no revenue are shown as zero rather than omitted, so every
+                      row lines up. */}
+                  {entry.revenueBySeason && seasons.length > 1 && (
+                    <div className="mt-1.5 flex flex-wrap justify-center gap-x-3 gap-y-0.5 sm:justify-end">
+                      {seasons.map((s) => (
+                        <span
+                          key={s.id}
+                          className="text-xs text-muted-foreground tabular-nums"
+                        >
+                          <span className="font-semibold">{s.slug}</span>{" "}
+                          {formatINR(entry.revenueBySeason?.[s.id] ?? 0)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {entry.totalOrderBook > 0 && (
                     <div className="text-xs text-muted-foreground mt-1">
                       + {formatINR(entry.totalOrderBook)} in order book

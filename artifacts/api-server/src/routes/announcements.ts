@@ -20,6 +20,7 @@ import { requireAdminPage } from "../lib/require-admin-page";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import { renderAnnouncementEmail } from "../lib/email/templates/announcement";
 import { logger } from "../lib/logger";
+import { resolveSeason } from "../lib/season";
 
 const router: IRouter = Router();
 
@@ -228,10 +229,14 @@ router.get("/announcements", async (req, res): Promise<void> => {
   if (teamId)
     whereClause = sql`target = 'all' or (target = 'campus' and campus_id = ${campusId}) or (target = 'team' and team_id = ${teamId})`;
 
+  // Only this season's announcements. The targeting clause above is wrapped in
+  // parentheses because it contains ORs — without them the season filter would
+  // bind to the last branch only and leak the other seasons' announcements.
+  const season = await resolveSeason(req);
   const announcements = await db
     .select()
     .from(announcementsTable)
-    .where(whereClause)
+    .where(sql`season_id = ${season} and (${whereClause})`)
     .orderBy(sql`created_at desc`);
 
   const result = await Promise.all(
@@ -291,6 +296,9 @@ router.get("/announcements/pinned", async (req, res): Promise<void> => {
 
   const baseConditions = [
     eq(announcementsTable.pinToDashboard, true),
+    // Same reasoning as the list above: a pinned Season 2 banner must not
+    // appear on a Season 1 dashboard.
+    eq(announcementsTable.seasonId, await resolveSeason(req)),
     audienceClause,
   ];
   if (dismissedIds.length > 0) {
@@ -350,7 +358,12 @@ router.post(
     };
     const [announcement] = await db
       .insert(announcementsTable)
-      .values({ ...normalized, authorId: req.user.id })
+      .values({
+        ...normalized,
+        authorId: req.user.id,
+        // Belongs to the season the admin was viewing when they posted it.
+        seasonId: await resolveSeason(req),
+      })
       .returning();
     const [author] = await db
       .select()

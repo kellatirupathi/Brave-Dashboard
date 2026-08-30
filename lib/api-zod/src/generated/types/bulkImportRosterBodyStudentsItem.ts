@@ -13,4 +13,6 @@ export type BulkImportRosterBodyStudentsItem = {
   instituteName?: string;
   batchSectionName?: string;
   email?: string;
+  /** @nullable */
+  mobileNumber?: string | null;
 };

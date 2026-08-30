@@ -25,7 +25,6 @@ import {
   BookOpenCheck,
   Activity,
   Bell,
-  Calendar,
   Megaphone,
   Briefcase,
   ChevronRight,
@@ -36,6 +35,7 @@ import {
 import { Link } from "wouter";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { HelpMenu } from "@/components/help-menu";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -299,12 +299,7 @@ export default function CoordinatorDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-center">
-            {coverage && (
-              <Badge variant="outline" className="gap-1.5 text-xs font-normal">
-                <Calendar className="h-3 w-3" />
-                Week of {coverage.currentWeek}
-              </Badge>
-            )}
+            <SeasonSwitcher />
             <HelpMenu inline />
             <NotificationsBell />
           </div>

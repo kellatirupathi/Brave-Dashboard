@@ -25,6 +25,7 @@ import {
   notificationsTable,
   announcementsTable,
   programmeConfigTable,
+  SEASON_1_ID,
   auditLogTable,
   accessRequestsTable,
 } from "@workspace/db";
@@ -588,8 +589,15 @@ export async function runSeed(): Promise<void> {
   }
 
   console.log("🌱 Seeding programme config…");
-  const existingConfig = await db.select().from(programmeConfigTable).limit(1);
+  // Dev seed always targets Season 1, matching the season_id DEFAULT that every
+  // other row seeded above receives.
+  const existingConfig = await db
+    .select()
+    .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.seasonId, SEASON_1_ID))
+    .limit(1);
   const cfg = {
+    seasonId: SEASON_1_ID,
     startDate: "2026-04-01",
     endDate: "2026-07-31",
     demoDayDate: "2026-08-15",

@@ -53,6 +53,7 @@ import {
   deleteJournal,
   type WeeklyJournal,
 } from "@/lib/progress-api";
+import { successFeedback, errorFeedback } from "@/lib/haptics";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -127,6 +128,7 @@ export default function Journal() {
   const deleteMut = useMutation({
     mutationFn: deleteJournal,
     onSuccess: () => {
+      successFeedback();
       toast({ title: "Journal deleted" });
       queryClient.invalidateQueries({ queryKey: ["journal"] });
       queryClient.invalidateQueries({ queryKey: ["progress-summary"] });
@@ -179,6 +181,7 @@ export default function Journal() {
   const submitMut = useMutation({
     mutationFn: submitJournal,
     onSuccess: () => {
+      successFeedback();
       toast({ title: "Journal saved" });
       queryClient.invalidateQueries({ queryKey: ["journal"] });
       queryClient.invalidateQueries({ queryKey: ["progress-summary"] });

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { logger } from "../logger";
+import { getActiveSeasonId } from "../season";
 
 /**
  * Central per-category email kill switches, controlled by super admins from
@@ -47,8 +48,12 @@ export async function getEmailControls(): Promise<
     stored = cache.controls;
   } else {
     try {
+      // Enforced inside sendEmail(), which has no request to resolve a season
+      // from, so the switches always come from the ACTIVE season. The admin
+      // page that edits them writes to the same row for exactly this reason.
+      const activeSeasonId = await getActiveSeasonId();
       const result = await db.execute(
-        sql`SELECT email_controls FROM programme_config LIMIT 1`,
+        sql`SELECT email_controls FROM programme_config WHERE season_id = ${activeSeasonId} LIMIT 1`,
       );
       const raw = (result.rows[0]?.email_controls ?? {}) as unknown;
       stored =

@@ -20,5 +20,7 @@ export interface UpdateRosterEntryBody {
   /** @nullable */
   batchSectionName?: string | null;
   /** @nullable */
+  mobileNumber?: string | null;
+  /** @nullable */
   isWhitelisted?: boolean | null;
 }

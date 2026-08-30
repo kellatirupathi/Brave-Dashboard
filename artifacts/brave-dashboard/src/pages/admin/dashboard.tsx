@@ -6,6 +6,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HelpMenu } from "@/components/help-menu";
+import { SeasonSwitcher } from "@/components/season-switcher";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +24,6 @@ import {
   BookOpenCheck,
   Activity,
   Bell,
-  Calendar,
   Building2,
   ArrowRight,
   AlertTriangle,
@@ -525,12 +525,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-center">
-            {coverage && (
-              <Badge variant="outline" className="gap-1.5 text-xs font-normal">
-                <Calendar className="h-3 w-3" />
-                Week of {coverage.currentWeek}
-              </Badge>
-            )}
+            <SeasonSwitcher />
             <HelpMenu inline />
           </div>
         </header>

@@ -128,6 +128,11 @@ function isRemovalType(type: MembershipRequestType): boolean {
 }
 
 // True when a team has at least one verified ("approved") revenue entry.
+//
+// DELIBERATELY NOT season-scoped. This gates whether a membership change needs
+// admin approval, and the thing it protects is revenue ATTRIBUTION history. A
+// team that earned verified revenue in Season 1 must still be protected when a
+// member tries to leave during Season 2.
 export async function teamHasVerifiedRevenue(teamId: number): Promise<boolean> {
   const [row] = await db
     .select({ n: sql<number>`count(*)` })
@@ -290,7 +295,14 @@ export async function sweepAutoApprovePendingRequests(): Promise<{
 // the admin list endpoint; other shape callers leave it undefined.
 export type MembershipTeamStats = {
   // Total verified ("approved") revenue for the team, in rupees.
+  /** Verified revenue for the season being viewed. */
   verifiedRevenue: number;
+  /**
+   * Verified revenue keyed by season id, so a card can show Season 1 and
+   * Season 2 side by side. Optional: absent for any caller that has not been
+   * updated, which then simply shows the single figure as before.
+   */
+  revenueBySeason?: Record<number, number>;
   // Total number of projects the team has created.
   projectCount: number;
   // Revenue entries that have been verified (approved) / rejected by review.

@@ -13,6 +13,7 @@ import {
 } from "@workspace/db";
 import { z } from "zod/v4";
 import { getReminderSettings } from "./programme-weeks";
+import { resolveSeason } from "../lib/season";
 import { sendEmail, getAppUrl } from "../lib/email/brevo";
 import {
   renderJournalStatusReminderEmail,
@@ -79,6 +80,9 @@ router.get("/heatmap", async (req, res): Promise<void> => {
   }
 
   const weeksBack = Math.min(Math.max(Number(req.query.weeksBack) || 8, 1), 24);
+  // The season being viewed governs which weeks form the columns AND which
+  // journals fill the cells; resolved once so the two cannot disagree.
+  const season = await resolveSeason(req);
 
   let campusFilter: number | null = null;
   if (role === "coordinator") {
@@ -109,6 +113,10 @@ router.get("/heatmap", async (req, res): Promise<void> => {
       endDate: programmeWeeksTable.endDate,
     })
     .from(programmeWeeksTable)
+    // Season-scoped. Without this the columns came from every season's weeks
+    // pooled together, so an admin viewing 2.0 saw Season 1's May-July dates —
+    // its weeks sort later only because Season 1 ran first.
+    .where(eq(programmeWeeksTable.seasonId, season))
     .orderBy(asc(programmeWeeksTable.startDate));
 
   // Find the week containing today (or most recent past week if today is
@@ -169,7 +177,12 @@ router.get("/heatmap", async (req, res): Promise<void> => {
       submittedAt: weeklyJournalsTable.submittedAt,
     })
     .from(weeklyJournalsTable)
-    .where(gte(weeklyJournalsTable.submittedAt, earliest));
+    .where(
+      and(
+        eq(weeklyJournalsTable.seasonId, season),
+        gte(weeklyJournalsTable.submittedAt, earliest),
+      ),
+    );
 
   type Bucket = { hasJournal: boolean };
   const grid = new Map<number, Map<string, Bucket>>();
@@ -429,7 +442,12 @@ router.post(
           last: sql<string | null>`max(${weeklyJournalsTable.submittedAt})`,
         })
         .from(weeklyJournalsTable)
-        .where(inArray(weeklyJournalsTable.teamId, allowedIds))
+        .where(
+          and(
+            eq(weeklyJournalsTable.seasonId, await resolveSeason(req)),
+            inArray(weeklyJournalsTable.teamId, allowedIds),
+          ),
+        )
         .groupBy(weeklyJournalsTable.teamId);
       const statusByTeam = new Map<number, TeamReminderStatus>();
       const aggByTeam = new Map<number, { total: number; last: Date | null }>();
@@ -795,6 +813,9 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
     campusFilter != null ? sql`AND u.campus_id = ${campusFilter}` : sql``;
   const campusClauseTeams =
     campusFilter != null ? sql`AND t.campus_id = ${campusFilter}` : sql``;
+  // Journal metrics below are per season — an archived season's journals must
+  // not inflate the live season's engagement figures.
+  const season = await resolveSeason(req);
 
   // Date-range filter for the programme funnel. Defaults to "today" (server
   // local) when no range is supplied. The "Registered teams" baseline ignores
@@ -846,8 +867,9 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
       (SELECT COUNT(*) FROM weekly_journals j
         ${
           campusFilter != null
-            ? sql`JOIN teams t ON t.id = j.team_id WHERE t.campus_id = ${campusFilter}`
-            : sql``
+            ? sql`JOIN teams t ON t.id = j.team_id
+                   WHERE j.season_id = ${season} AND t.campus_id = ${campusFilter}`
+            : sql`WHERE j.season_id = ${season}`
         })                                                                                                          AS unique_journals
   `);
 
@@ -880,6 +902,7 @@ router.get("/heatmap/analytics", async (req, res): Promise<void> => {
       JOIN teams t ON t.id = j.team_id
       WHERE j.submitted_at >= ${rangeStart}
         AND j.submitted_at <= ${rangeEnd}
+        AND j.season_id = ${season}
         ${campusClauseTeams}
     ),
     team_journal AS (
@@ -1066,6 +1089,7 @@ router.get("/heatmap/students", async (req, res): Promise<void> => {
 
   const campusClause =
     campusFilter != null ? sql`AND u.campus_id = ${campusFilter}` : sql``;
+  const season = await resolveSeason(req);
   const searchClause = qPattern
     ? sql`AND (LOWER(u.first_name) LIKE ${qPattern}
               OR LOWER(u.last_name) LIKE ${qPattern}
@@ -1097,6 +1121,7 @@ router.get("/heatmap/students", async (req, res): Promise<void> => {
         SUM(j.projects_started)     AS started,
         SUM(j.projects_closed)      AS closed
       FROM weekly_journals j
+      WHERE j.season_id = ${season}
       GROUP BY j.team_id
     )
     SELECT
