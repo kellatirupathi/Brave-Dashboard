@@ -80,9 +80,9 @@ function SectionTitle({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex h-9 items-center justify-between gap-3 border-b border-[#eeeae4] px-3.5 dark:border-border">
+    <div className="flex h-10 items-center justify-between gap-3 border-b border-[#eeeae4] px-4 dark:border-border">
       <div className="flex min-w-0 items-center gap-2">
-        <Icon className="h-3.5 w-3.5 shrink-0 text-[#9a241f]" />
+        <Icon className="h-4 w-4 shrink-0 text-[#9a241f]" />
         <h2 className={cn("truncate text-[10px] font-bold uppercase tracking-[0.11em]", INK)}>
           {children}
         </h2>
@@ -164,20 +164,20 @@ function KpiCard({
       data-testid={testId}
       className={cn(
         PANEL,
-        "group grid min-h-[82px] min-w-0 grid-cols-[minmax(0,1fr)_52px] gap-2 p-3.5 transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a62520]",
+        "group grid min-h-[88px] min-w-0 grid-cols-[minmax(0,1fr)_52px] gap-2 p-3.5 transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a62520]",
       )}
     >
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <Icon className="h-3 w-3 shrink-0" style={{ color }} />
+          <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
           <p className={cn("truncate text-[8px] font-bold uppercase tracking-[0.07em]", MUTED)}>
             {label}
           </p>
         </div>
-        <p className="mt-1.5 truncate text-[17px] font-extrabold leading-none tracking-tight" style={{ color }}>
+        <p className="mt-2 truncate text-[17px] font-extrabold leading-none tracking-tight" style={{ color }}>
           {value}
         </p>
-        <p className={cn("mt-1.5 truncate text-[8px] leading-none", MUTED)}>{detail}</p>
+        <p className={cn("mt-2 truncate text-[8px] leading-none", MUTED)}>{detail}</p>
       </div>
       <div className="self-end pb-2">
         <Sparkline values={[1, 1, 1, 1, 1, 1, 1]} color={color} height={25} />
@@ -211,10 +211,10 @@ function HealthMetric({
   return (
     <Link
       href={href}
-      className="group flex min-w-0 items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-[#fdfbf7] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a62520] dark:hover:bg-muted/20"
+      className="group flex min-w-0 items-center gap-3 px-3.5 py-3 transition-colors hover:bg-[#fdfbf7] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a62520] dark:hover:bg-muted/20"
     >
-      <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full", tones[tone])}>
-        <Icon className="h-3.5 w-3.5" />
+      <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full", tones[tone])}>
+        <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0">
         <span className={cn("block truncate text-[8px] font-semibold uppercase tracking-[0.06em]", MUTED)}>
@@ -240,13 +240,13 @@ function MiniLineChart({
 }) {
   const snapshot = Array(7).fill(value) as number[];
   return (
-    <div className="min-w-0 px-3 py-2.5">
+      <div className="min-w-0 px-3.5 py-3">
       <p className={cn("truncate text-[9px] font-medium", INK)}>{label}</p>
       <p className={cn("mt-1 text-[14px] font-extrabold leading-none tabular-nums", INK)}>
         {value.toLocaleString()}
       </p>
-      <div className="mt-1.5 h-[54px] border-l border-b border-[#eeeae4] px-1 pb-1 dark:border-border">
-        <Sparkline values={snapshot} color={color} height={47} />
+      <div className="mt-2 h-[62px] border-l border-b border-[#eeeae4] px-1 pb-1 dark:border-border">
+        <Sparkline values={snapshot} color={color} height={55} />
       </div>
       <div className={cn("mt-1 flex justify-between text-[6px]", MUTED)}>
         <span>Live</span>
@@ -271,7 +271,7 @@ function FunnelLevel({
 }) {
   return (
     <div
-      className="relative mx-auto flex h-[43px] items-center justify-center text-center text-white"
+      className="relative mx-auto flex h-[46px] items-center justify-center text-center text-white"
       style={{
         width,
         backgroundColor: color,
@@ -327,10 +327,10 @@ function AttentionItem({
   return (
     <Link
       href={href}
-      className="flex min-w-0 items-center gap-2 rounded-md border border-[#eeeae4] bg-[#fdfcfa] px-2.5 py-2 transition-colors hover:bg-[#faf7f1] dark:border-border dark:bg-muted/20"
+      className="flex min-w-0 items-center gap-2 rounded-md border border-[#eeeae4] bg-[#fdfcfa] px-2.5 py-2.5 transition-colors hover:bg-[#faf7f1] dark:border-border dark:bg-muted/20"
     >
-      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ backgroundColor: `${tone}16`, color: tone }}>
-        <Icon className="h-3 w-3" />
+      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ backgroundColor: `${tone}16`, color: tone }}>
+        <Icon className="h-3.5 w-3.5" />
       </span>
       <span className={cn("text-[10px] font-extrabold tabular-nums", INK)}>{value.toLocaleString()}</span>
       <span className={cn("truncate text-[8px]", MUTED)}>{label}</span>
@@ -501,7 +501,7 @@ export default function AdminDashboardV2() {
         className="-m-1 min-h-[calc(100vh-4rem)] bg-[#fbfaf7] p-1 text-[#241713] dark:bg-background dark:text-foreground"
         data-testid="admin-dashboard-v2"
       >
-        <header className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-[24px] font-extrabold leading-tight tracking-[-0.035em]">
               National Command Center
@@ -516,8 +516,8 @@ export default function AdminDashboardV2() {
           </div>
         </header>
 
-        <div className="grid min-w-0 gap-3 lg:min-h-[calc(100vh-10rem)] lg:grid-cols-[minmax(0,1fr)_210px] xl:grid-cols-[minmax(0,1fr)_270px]">
-          <main className="grid min-w-0 gap-3 lg:min-h-0 lg:grid-rows-[auto_auto_minmax(0,1fr)_auto]">
+        <div className="grid min-w-0 gap-4 lg:min-h-[calc(100vh-10rem)] lg:grid-cols-[minmax(0,1fr)_210px] xl:grid-cols-[minmax(0,1fr)_270px]">
+          <main className="grid min-w-0 gap-4 lg:min-h-0 lg:grid-rows-[auto_auto_minmax(0,1fr)_auto]">
             <section
               className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
               data-testid="admin-v2-revenue-kpis"
@@ -560,7 +560,7 @@ export default function AdminDashboardV2() {
               />
             </section>
 
-            <section className={cn(PANEL, "min-h-[122px] overflow-hidden")} data-testid="admin-v2-program-health">
+            <section className={cn(PANEL, "min-h-[132px] overflow-hidden")} data-testid="admin-v2-program-health">
               <SectionTitle icon={Activity}>Program Health Snapshot</SectionTitle>
               <div className="grid grid-cols-1 divide-y divide-[#eeeae4] sm:grid-cols-2 lg:grid-cols-4 lg:divide-y-0 dark:divide-border">
                 {healthMetrics.map((metric, index) => (
@@ -578,8 +578,8 @@ export default function AdminDashboardV2() {
               </div>
             </section>
 
-            <div className="grid min-h-0 min-w-0 gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(190px,0.76fr)]">
-              <section className={cn(PANEL, "min-h-[150px] overflow-hidden")} data-testid="admin-v2-activity-overview">
+            <div className="grid min-h-0 min-w-0 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(190px,0.76fr)]">
+              <section className={cn(PANEL, "min-h-[174px] overflow-hidden")} data-testid="admin-v2-activity-overview">
                 <SectionTitle
                   icon={Activity}
                   action={
@@ -597,9 +597,9 @@ export default function AdminDashboardV2() {
                 </div>
               </section>
 
-              <section className={cn(PANEL, "min-h-[150px] overflow-hidden")} data-testid="admin-v2-revenue-pipeline">
+              <section className={cn(PANEL, "min-h-[174px] overflow-hidden")} data-testid="admin-v2-revenue-pipeline">
                 <SectionTitle icon={WalletCards}>Revenue Pipeline (₹)</SectionTitle>
-                <div className="px-3 pb-2.5 pt-2">
+                <div className="px-3.5 pb-3 pt-3">
                   <FunnelLevel
                     label="Order Book"
                     value={formatINR(summary.totalOrderBook)}
@@ -629,9 +629,9 @@ export default function AdminDashboardV2() {
               </section>
             </div>
 
-            <section className={cn(PANEL, "min-h-[70px] overflow-hidden")} data-testid="admin-v2-attention">
+            <section className={cn(PANEL, "min-h-[78px] overflow-hidden")} data-testid="admin-v2-attention">
               <SectionTitle icon={Building2}>Campuses Needing Attention</SectionTitle>
-              <div className="grid gap-2 p-2.5 sm:grid-cols-[1fr_1fr_1fr_auto]">
+              <div className="grid gap-2 p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
                 <AttentionItem
                   icon={ClipboardCheck}
                   value={summary.overdueReviewCount}
@@ -665,8 +665,8 @@ export default function AdminDashboardV2() {
             </section>
           </main>
 
-          <aside className="grid min-w-0 gap-3 lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)]">
-            <section className={cn(PANEL, "min-h-[184px] overflow-hidden")} data-testid="admin-v2-journal-coverage">
+          <aside className="grid min-w-0 gap-4 lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)]">
+            <section className={cn(PANEL, "min-h-[204px] overflow-hidden")} data-testid="admin-v2-journal-coverage">
               <SectionTitle
                 icon={BookOpenCheck}
                 action={
@@ -678,7 +678,7 @@ export default function AdminDashboardV2() {
               >
                 This Week&apos;s Journal Coverage
               </SectionTitle>
-              <div className="p-3">
+              <div className="p-3.5">
                 <div className="flex items-end gap-3">
                   <p className="text-[38px] font-extrabold leading-none tracking-[-0.06em]" style={{ color: health.color }}>
                     {pct}<span className="text-[19px]">%</span>
@@ -689,16 +689,16 @@ export default function AdminDashboardV2() {
                     across {coverage?.campusCount ?? 0} campuses
                   </p>
                 </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#f1ede7] dark:bg-muted">
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#f1ede7] dark:bg-muted">
                   <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: health.color }} />
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   <StatusBox label="Submitted" value={coverage?.submitted ?? 0} color="#19ad73" />
                   <StatusBox label="Pending" value={pendingCoverage} color="#b7b3af" />
                   <StatusBox label="Silent" value={coverage?.silentCount ?? 0} color="#e00018" />
                   <StatusBox label="Never logged" value={coverage?.neverCount ?? 0} color="#77726e" />
                 </div>
-                <div className="mt-3 grid grid-cols-[0.8fr_1.2fr] gap-2">
+                <div className="mt-4 grid grid-cols-[0.8fr_1.2fr] gap-2">
                   <Link
                     href="/admin/heatmap"
                     data-testid="admin-v2-coverage-heatmap"
@@ -721,7 +721,7 @@ export default function AdminDashboardV2() {
               </div>
             </section>
 
-            <section className={cn(PANEL, "min-h-[212px] overflow-hidden")} data-testid="admin-v2-top-campuses">
+            <section className={cn(PANEL, "min-h-[232px] overflow-hidden")} data-testid="admin-v2-top-campuses">
               <SectionTitle
                 icon={Trophy}
                 action={
@@ -745,7 +745,7 @@ export default function AdminDashboardV2() {
                       <Link
                         href={`/admin/campuses/${campus.id}`}
                         data-testid={`admin-v2-top-campus-${campus.id}`}
-                        className="group grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 py-2.5"
+                        className="group grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 py-3"
                       >
                         <span
                           className={cn(
