@@ -80,10 +80,10 @@ function SectionTitle({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex h-10 items-center justify-between gap-3 border-b border-[#eeeae4] px-4 dark:border-border">
+    <div className="flex h-11 items-center justify-between gap-3 border-b border-[#eeeae4] px-4 dark:border-border">
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="h-4 w-4 shrink-0 text-[#9a241f]" />
-        <h2 className={cn("truncate text-[10px] font-bold uppercase tracking-[0.11em]", INK)}>
+        <h2 className={cn("truncate text-[11px] font-bold uppercase tracking-[0.11em]", INK)}>
           {children}
         </h2>
       </div>
@@ -164,7 +164,7 @@ function KpiCard({
       data-testid={testId}
       className={cn(
         PANEL,
-        "group grid min-h-[88px] min-w-0 grid-cols-[minmax(0,1fr)_52px] gap-2 p-3.5 transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a62520]",
+        "group grid min-h-[100px] min-w-0 grid-cols-[minmax(0,1fr)_56px] gap-2 p-4 transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a62520]",
       )}
     >
       <div className="min-w-0">
@@ -174,13 +174,13 @@ function KpiCard({
             {label}
           </p>
         </div>
-        <p className="mt-2 truncate text-[17px] font-extrabold leading-none tracking-tight" style={{ color }}>
+        <p className="mt-2 truncate text-[19px] font-extrabold leading-none tracking-tight" style={{ color }}>
           {value}
         </p>
         <p className={cn("mt-2 truncate text-[8px] leading-none", MUTED)}>{detail}</p>
       </div>
       <div className="self-end pb-2">
-        <Sparkline values={[1, 1, 1, 1, 1, 1, 1]} color={color} height={25} />
+        <Sparkline values={[1, 1, 1, 1, 1, 1, 1]} color={color} height={28} />
       </div>
     </Link>
   );
@@ -211,7 +211,7 @@ function HealthMetric({
   return (
     <Link
       href={href}
-      className="group flex min-w-0 items-center gap-3 px-3.5 py-3 transition-colors hover:bg-[#fdfbf7] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a62520] dark:hover:bg-muted/20"
+      className="group flex min-w-0 items-center gap-3 px-4 py-4 transition-colors hover:bg-[#fdfbf7] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a62520] dark:hover:bg-muted/20"
     >
       <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full", tones[tone])}>
         <Icon className="h-4 w-4" />
@@ -220,7 +220,7 @@ function HealthMetric({
         <span className={cn("block truncate text-[8px] font-semibold uppercase tracking-[0.06em]", MUTED)}>
           {label}
         </span>
-        <span className={cn("mt-0.5 block text-[15px] font-extrabold leading-none tabular-nums", INK)}>
+        <span className={cn("mt-0.5 block text-[17px] font-extrabold leading-none tabular-nums", INK)}>
           {value}
         </span>
         <span className={cn("mt-1 block truncate text-[7px] leading-none", MUTED)}>{detail}</span>
@@ -240,13 +240,13 @@ function MiniLineChart({
 }) {
   const snapshot = Array(7).fill(value) as number[];
   return (
-      <div className="min-w-0 px-3.5 py-3">
+      <div className="min-w-0 px-4 py-4">
       <p className={cn("truncate text-[9px] font-medium", INK)}>{label}</p>
-      <p className={cn("mt-1 text-[14px] font-extrabold leading-none tabular-nums", INK)}>
+      <p className={cn("mt-1 text-[16px] font-extrabold leading-none tabular-nums", INK)}>
         {value.toLocaleString()}
       </p>
-      <div className="mt-2 h-[62px] border-l border-b border-[#eeeae4] px-1 pb-1 dark:border-border">
-        <Sparkline values={snapshot} color={color} height={55} />
+      <div className="mt-2 h-[70px] border-l border-b border-[#eeeae4] px-1 pb-1 dark:border-border">
+        <Sparkline values={snapshot} color={color} height={63} />
       </div>
       <div className={cn("mt-1 flex justify-between text-[6px]", MUTED)}>
         <span>Live</span>
@@ -271,7 +271,7 @@ function FunnelLevel({
 }) {
   return (
     <div
-      className="relative mx-auto flex h-[46px] items-center justify-center text-center text-white"
+      className="relative mx-auto flex h-[52px] items-center justify-center text-center text-white"
       style={{
         width,
         backgroundColor: color,
@@ -297,7 +297,7 @@ function StatusBox({
   color: string;
 }) {
   return (
-    <div className="rounded-md border border-[#eeeae4] bg-[#fdfcfa] px-2 py-2 dark:border-border dark:bg-muted/20">
+    <div className="rounded-md border border-[#eeeae4] bg-[#fdfcfa] px-2.5 py-2.5 dark:border-border dark:bg-muted/20">
       <div className="flex items-center gap-1.5">
         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
         <span className={cn("text-[13px] font-extrabold leading-none tabular-nums", INK)}>
@@ -327,7 +327,7 @@ function AttentionItem({
   return (
     <Link
       href={href}
-      className="flex min-w-0 items-center gap-2 rounded-md border border-[#eeeae4] bg-[#fdfcfa] px-2.5 py-2.5 transition-colors hover:bg-[#faf7f1] dark:border-border dark:bg-muted/20"
+      className="flex min-w-0 items-center gap-2 rounded-md border border-[#eeeae4] bg-[#fdfcfa] px-3 py-3 transition-colors hover:bg-[#faf7f1] dark:border-border dark:bg-muted/20"
     >
       <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ backgroundColor: `${tone}16`, color: tone }}>
         <Icon className="h-3.5 w-3.5" />
@@ -516,7 +516,7 @@ export default function AdminDashboardV2() {
           </div>
         </header>
 
-        <div className="grid min-w-0 gap-4 lg:min-h-[calc(100vh-10rem)] lg:grid-cols-[minmax(0,1fr)_210px] xl:grid-cols-[minmax(0,1fr)_270px]">
+        <div className="grid min-w-0 gap-4 lg:min-h-[calc(100vh-8rem)] lg:grid-cols-[minmax(0,1fr)_210px] xl:grid-cols-[minmax(0,1fr)_270px]">
           <main className="grid min-w-0 gap-4 lg:min-h-0 lg:grid-rows-[auto_auto_minmax(0,1fr)_auto]">
             <section
               className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
@@ -560,7 +560,7 @@ export default function AdminDashboardV2() {
               />
             </section>
 
-            <section className={cn(PANEL, "min-h-[132px] overflow-hidden")} data-testid="admin-v2-program-health">
+            <section className={cn(PANEL, "min-h-[154px] overflow-hidden")} data-testid="admin-v2-program-health">
               <SectionTitle icon={Activity}>Program Health Snapshot</SectionTitle>
               <div className="grid grid-cols-1 divide-y divide-[#eeeae4] sm:grid-cols-2 lg:grid-cols-4 lg:divide-y-0 dark:divide-border">
                 {healthMetrics.map((metric, index) => (
@@ -579,7 +579,7 @@ export default function AdminDashboardV2() {
             </section>
 
             <div className="grid min-h-0 min-w-0 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(190px,0.76fr)]">
-              <section className={cn(PANEL, "min-h-[174px] overflow-hidden")} data-testid="admin-v2-activity-overview">
+              <section className={cn(PANEL, "min-h-[204px] overflow-hidden")} data-testid="admin-v2-activity-overview">
                 <SectionTitle
                   icon={Activity}
                   action={
@@ -597,7 +597,7 @@ export default function AdminDashboardV2() {
                 </div>
               </section>
 
-              <section className={cn(PANEL, "min-h-[174px] overflow-hidden")} data-testid="admin-v2-revenue-pipeline">
+              <section className={cn(PANEL, "min-h-[204px] overflow-hidden")} data-testid="admin-v2-revenue-pipeline">
                 <SectionTitle icon={WalletCards}>Revenue Pipeline (₹)</SectionTitle>
                 <div className="px-3.5 pb-3 pt-3">
                   <FunnelLevel
@@ -621,7 +621,7 @@ export default function AdminDashboardV2() {
                     color="#15985f"
                     width="56%"
                   />
-                  <div className="mt-2 flex h-6 items-center justify-center rounded-md border border-[#eeeae4] text-[8px] dark:border-border">
+                  <div className="mt-3 flex h-7 items-center justify-center rounded-md border border-[#eeeae4] text-[8px] dark:border-border">
                     <span className={MUTED}>Conversion</span>
                     <span className={cn("ml-2 font-extrabold tabular-nums", INK)}>{orderBookConversion}%</span>
                   </div>
@@ -629,9 +629,9 @@ export default function AdminDashboardV2() {
               </section>
             </div>
 
-            <section className={cn(PANEL, "min-h-[78px] overflow-hidden")} data-testid="admin-v2-attention">
+            <section className={cn(PANEL, "min-h-[92px] overflow-hidden")} data-testid="admin-v2-attention">
               <SectionTitle icon={Building2}>Campuses Needing Attention</SectionTitle>
-              <div className="grid gap-2 p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+              <div className="grid gap-2 p-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
                 <AttentionItem
                   icon={ClipboardCheck}
                   value={summary.overdueReviewCount}
@@ -666,7 +666,7 @@ export default function AdminDashboardV2() {
           </main>
 
           <aside className="grid min-w-0 gap-4 lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)]">
-            <section className={cn(PANEL, "min-h-[204px] overflow-hidden")} data-testid="admin-v2-journal-coverage">
+            <section className={cn(PANEL, "min-h-[234px] overflow-hidden")} data-testid="admin-v2-journal-coverage">
               <SectionTitle
                 icon={BookOpenCheck}
                 action={
@@ -678,7 +678,7 @@ export default function AdminDashboardV2() {
               >
                 This Week&apos;s Journal Coverage
               </SectionTitle>
-              <div className="p-3.5">
+              <div className="p-4">
                 <div className="flex items-end gap-3">
                   <p className="text-[38px] font-extrabold leading-none tracking-[-0.06em]" style={{ color: health.color }}>
                     {pct}<span className="text-[19px]">%</span>
@@ -689,20 +689,20 @@ export default function AdminDashboardV2() {
                     across {coverage?.campusCount ?? 0} campuses
                   </p>
                 </div>
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#f1ede7] dark:bg-muted">
+                <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-[#f1ede7] dark:bg-muted">
                   <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: health.color }} />
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="mt-5 grid grid-cols-2 gap-2">
                   <StatusBox label="Submitted" value={coverage?.submitted ?? 0} color="#19ad73" />
                   <StatusBox label="Pending" value={pendingCoverage} color="#b7b3af" />
                   <StatusBox label="Silent" value={coverage?.silentCount ?? 0} color="#e00018" />
                   <StatusBox label="Never logged" value={coverage?.neverCount ?? 0} color="#77726e" />
                 </div>
-                <div className="mt-4 grid grid-cols-[0.8fr_1.2fr] gap-2">
+                <div className="mt-5 grid grid-cols-[0.8fr_1.2fr] gap-2">
                   <Link
                     href="/admin/heatmap"
                     data-testid="admin-v2-coverage-heatmap"
-                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[#e8e2db] text-[8px] font-semibold text-[#4f4540] hover:bg-[#faf7f1] dark:border-border dark:text-foreground"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#e8e2db] text-[8px] font-semibold text-[#4f4540] hover:bg-[#faf7f1] dark:border-border dark:text-foreground"
                   >
                     <Activity className="h-3 w-3" />
                     View heatmap
@@ -712,7 +712,7 @@ export default function AdminDashboardV2() {
                     disabled={silentTeams.length === 0 || bulkRemindMut.isPending}
                     onClick={() => setBulkOpen(true)}
                     data-testid="admin-v2-bulk-remind"
-                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-[#c5161d] px-2 text-[8px] font-semibold text-white transition-colors hover:bg-[#a91319] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#c5161d] px-2 text-[8px] font-semibold text-white transition-colors hover:bg-[#a91319] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Bell className="h-3 w-3" />
                     Bulk-remind {silentTeams.length.toLocaleString()} team{silentTeams.length === 1 ? "" : "s"}
@@ -721,7 +721,7 @@ export default function AdminDashboardV2() {
               </div>
             </section>
 
-            <section className={cn(PANEL, "min-h-[232px] overflow-hidden")} data-testid="admin-v2-top-campuses">
+            <section className={cn(PANEL, "min-h-[264px] overflow-hidden")} data-testid="admin-v2-top-campuses">
               <SectionTitle
                 icon={Trophy}
                 action={
@@ -745,7 +745,7 @@ export default function AdminDashboardV2() {
                       <Link
                         href={`/admin/campuses/${campus.id}`}
                         data-testid={`admin-v2-top-campus-${campus.id}`}
-                        className="group grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 py-3"
+                        className="group grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 py-3.5"
                       >
                         <span
                           className={cn(

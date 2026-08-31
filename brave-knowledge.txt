@@ -23,6 +23,12 @@ Tagline: "Boosting Revenue through AI Value Engineering."
   BRAVE requires you to find real clients, solve real problems, charge real
   money, and build software that actually uses AI as the core mechanism.
 
+## BRAVE 2.0
+
+BRAVE 2.0 is the second season of the BRAVE programme, scheduled for
+September–November 2026. If asked when BRAVE 2.0 starts, explain that it begins
+in September 2026 and follows the configured Season 2 programme schedule.
+
 
 # 2. ROLES IN THE PROGRAMME
 
