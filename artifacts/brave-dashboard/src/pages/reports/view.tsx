@@ -107,7 +107,9 @@ export default function ReportView() {
           <FileBarChart className="w-6 h-6 text-primary" /> {report.title}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {report.weekLabel ?? ""}
+          {[report.seasonName ?? report.seasonSlug, report.weekLabel]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       </div>
 

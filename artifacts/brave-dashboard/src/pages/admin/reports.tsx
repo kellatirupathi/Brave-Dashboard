@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/lib/api-error";
+import { useSeason } from "@/lib/season-context";
 import {
   getReportWeeks,
   getCampusSummary,
@@ -60,6 +61,7 @@ function MailMark({ on }: { on: boolean }) {
 
 function CampusReportsTab() {
   const { toast } = useToast();
+  const { viewingId } = useSeason();
   const [search, setSearch] = useState("");
   const [campusFilter, setCampusFilter] = useState<string>("all");
   // "current" = current week, "all" = all weeks, else weekId.
@@ -74,12 +76,12 @@ function CampusReportsTab() {
         : Number(weekFilter);
 
   const { data: weeks } = useQuery({
-    queryKey: ["report-weeks"],
+    queryKey: ["report-weeks", viewingId],
     queryFn: getReportWeeks,
   });
 
   const { data: summary, isLoading } = useQuery({
-    queryKey: ["report-campus-summary", weekFilter],
+    queryKey: ["report-campus-summary", viewingId, weekFilter],
     queryFn: () => getCampusSummary(weekParam),
   });
 
@@ -95,7 +97,7 @@ function CampusReportsTab() {
   }, [summary, campusFilter, search]);
 
   const drilldown = useQuery({
-    queryKey: ["report-drilldown", drilldownId, weekFilter],
+    queryKey: ["report-drilldown", viewingId, drilldownId, weekFilter],
     queryFn: () =>
       getCampusDrilldown(
         drilldownId!,
@@ -139,6 +141,7 @@ function CampusReportsTab() {
       await downloadCampusCsv(
         row.campusId,
         weekParam === "all" ? undefined : weekParam,
+        viewingId,
       );
     } catch (e: unknown) {
       toast({
@@ -361,8 +364,9 @@ function CampusReportsTab() {
 }
 
 function ReportLinksTab() {
+  const { viewingId } = useSeason();
   const { data: links, isLoading } = useQuery({
-    queryKey: ["report-links"],
+    queryKey: ["report-links", viewingId],
     queryFn: getReportLinks,
   });
 
@@ -417,7 +421,11 @@ function ReportLinksTab() {
                 </TableCell>
                 <TableCell className="text-right">
                   <Button asChild size="sm" variant="ghost">
-                    <Link href={`/reports/view/${l.token}`}>
+                    <Link
+                      href={`/reports/view/${l.token}${
+                        l.seasonId == null ? "" : `?season=${l.seasonId}`
+                      }`}
+                    >
                       <ExternalLink className="w-4 h-4 mr-1" /> Open
                     </Link>
                   </Button>

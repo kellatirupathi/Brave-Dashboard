@@ -106,6 +106,7 @@ async function persistReportLink(opts: {
     kind: opts.kind,
     campusId: opts.campusId,
     campusName: opts.campusName,
+    seasonId: opts.week.seasonId,
     weekId: opts.week.id,
     weekLabel: weekLabel(opts.week),
     title: opts.title,
@@ -392,7 +393,7 @@ router.post(
       res.status(202).json({ ok: true, reason: "no_programme_week" });
       return;
     }
-    const grid = await computeWeekGrid();
+    const grid = await computeWeekGrid(week.seasonId);
     const campuses = await computeCampusWeekReports(week);
 
     const token = await persistReportLink({

@@ -611,6 +611,34 @@ async function ensureSeasons(): Promise<void> {
     }
   }
 
+  // Saved report snapshots predate seasons. Keep legacy rows untouched and
+  // nullable; their season is derived from week_id when read. New snapshots
+  // always write this column explicitly.
+  try {
+    await db.execute(sql`
+      ALTER TABLE journal_report_links
+        ADD COLUMN IF NOT EXISTS season_id integer
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS journal_report_links_season_idx
+        ON journal_report_links (season_id)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure report-link season identity");
+  }
+  try {
+    await db.execute(sql`
+      ALTER TABLE reminder_log
+        ADD COLUMN IF NOT EXISTS season_id integer
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS reminder_log_season_week_idx
+        ON reminder_log (season_id, week_start_date)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure reminder-log season identity");
+  }
+
   // 4) Composite (season_id, team_id) indexes where the table is read by team.
   try {
     await db.execute(sql`
