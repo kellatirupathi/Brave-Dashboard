@@ -61,7 +61,7 @@ function MailMark({ on }: { on: boolean }) {
 
 function CampusReportsTab() {
   const { toast } = useToast();
-  const { viewingId } = useSeason();
+  const { viewingId, viewing } = useSeason();
   const [search, setSearch] = useState("");
   const [campusFilter, setCampusFilter] = useState<string>("all");
   // "current" = current week, "all" = all weeks, else weekId.
@@ -109,8 +109,12 @@ function CampusReportsTab() {
   const exportTable = () => {
     if (rows.length === 0) return;
     const esc = (s: string) => `"${(s ?? "").replace(/"/g, '""')}"`;
+    const seasonLabel =
+      viewing?.name ??
+      viewing?.slug ??
+      (viewingId == null ? "" : `Season ${viewingId}`);
     const lines = [
-      "Campus,Total Teams,Submitted,Not Submitted,Mailed Success Coach,Mailed COS,Mailed Admin",
+      "Campus,Total Teams,Submitted,Not Submitted,Mailed Success Coach,Mailed COS,Mailed Admin,Season",
     ];
     for (const r of rows) {
       lines.push(
@@ -122,6 +126,7 @@ function CampusReportsTab() {
           r.mailedSuccessCoach ? "Yes" : "No",
           r.mailedCos ? "Yes" : "No",
           r.mailedAdmin ? "Yes" : "No",
+          esc(seasonLabel),
         ].join(","),
       );
     }
@@ -131,7 +136,10 @@ function CampusReportsTab() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "campus-journal-summary.csv";
+    const safeSeasonSlug = viewing?.slug?.replace(/[^a-zA-Z0-9._-]/g, "-");
+    a.download = `campus-journal-summary${
+      safeSeasonSlug ? `-season-${safeSeasonSlug}` : ""
+    }.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -142,6 +150,7 @@ function CampusReportsTab() {
         row.campusId,
         weekParam === "all" ? undefined : weekParam,
         viewingId,
+        viewing?.slug,
       );
     } catch (e: unknown) {
       toast({

@@ -22,6 +22,10 @@ import { getSeasonById, resolveSeason, SEASON_1_ID } from "../lib/season";
 
 const router: IRouter = Router();
 
+function filenamePart(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/g, "-");
+}
+
 function requireStaff(req: Request, res: Response): boolean {
   if (
     !req.isAuthenticated() ||
@@ -182,10 +186,12 @@ router.get(
       res.status(400).json({ error: "Invalid campusId" });
       return;
     }
+    const seasonId = await resolveSeason(req);
+    const season = await getSeasonById(seasonId);
     const weekId = req.query.weekId ? Number(req.query.weekId) : undefined;
     const week = await resolveReportWeek(
       weekId && Number.isFinite(weekId) ? weekId : undefined,
-      await resolveSeason(req),
+      seasonId,
     );
     if (!week) {
       res.status(404).json({ error: "No week to export" });
@@ -193,8 +199,10 @@ router.get(
     }
     const [report] = await computeCampusWeekReports(week, campusId);
     const esc = (s: string) => `"${(s ?? "").replace(/"/g, '""')}"`;
+    const seasonLabel =
+      season?.name ?? season?.slug ?? `Season ${seasonId}`;
     const lines = [
-      "Team,Submitted,Submitted By,Submitted At,Week,Week Start,Week End",
+      "Team,Submitted,Submitted By,Submitted At,Week,Week Start,Week End,Season",
     ];
     for (const t of report?.teams ?? []) {
       lines.push(
@@ -206,11 +214,15 @@ router.get(
           `Week ${week.weekNumber}`,
           week.startDate,
           week.endDate,
+          esc(seasonLabel),
         ].join(","),
       );
     }
     const csv = lines.join("\n");
-    const fname = `journal-report-campus-${campusId}-week-${week.weekNumber}.csv`;
+    const seasonPart = season?.slug
+      ? `-season-${filenamePart(season.slug)}`
+      : "";
+    const fname = `journal-report-campus-${campusId}${seasonPart}-week-${week.weekNumber}.csv`;
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
     res.send(csv);
