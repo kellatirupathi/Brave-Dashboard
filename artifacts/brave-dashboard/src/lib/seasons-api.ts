@@ -25,6 +25,8 @@ export type Season = {
   actualWeekCount?: number;
   /** Exactly one season is active; new activity is written against it. */
   isActive: boolean;
+  /** Admins and coordinators see this season by default unless they choose one. */
+  isStaffDefault: boolean;
   /** When true, student writes are blocked unless an override below is on. */
   isReadOnly: boolean;
   allowJournalWrites: boolean;
@@ -100,6 +102,8 @@ export function saveSeason(
     allowJournalWrites?: boolean;
     allowRevenueWrites?: boolean;
     allowProjectWrites?: boolean;
+    /** Super-admin only — default season for admins and coordinators. */
+    isStaffDefault?: boolean;
     /** Skip the readiness guard when activating. Use only after reading it. */
     force?: boolean;
   },

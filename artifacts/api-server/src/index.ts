@@ -548,6 +548,7 @@ async function ensureSeasons(): Promise<void> {
         end_date text,
         week_count integer NOT NULL DEFAULT 12,
         is_active boolean NOT NULL DEFAULT false,
+        is_staff_default boolean NOT NULL DEFAULT false,
         is_read_only boolean NOT NULL DEFAULT false,
         allow_journal_writes boolean NOT NULL DEFAULT false,
         allow_revenue_writes boolean NOT NULL DEFAULT false,
@@ -561,6 +562,14 @@ async function ensureSeasons(): Promise<void> {
     `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS seasons_active_idx ON seasons (is_active)
+    `);
+    await db.execute(sql`
+      ALTER TABLE seasons
+        ADD COLUMN IF NOT EXISTS is_staff_default boolean NOT NULL DEFAULT false
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS seasons_staff_default_idx
+        ON seasons (is_staff_default)
     `);
   } catch (err) {
     logger.error({ err }, "Failed to ensure seasons table");
@@ -590,6 +599,17 @@ async function ensureSeasons(): Promise<void> {
         pg_get_serial_sequence('seasons', 'id'),
         GREATEST(COALESCE((SELECT MAX(id) FROM seasons), 1), 1)
       )
+    `);
+    // Preserve the existing default behaviour for deployments that predate
+    // the staff-default setting: if nobody has selected one yet, use the
+    // currently live season for staff.
+    await db.execute(sql`
+      UPDATE seasons
+      SET is_staff_default = true
+      WHERE is_active = true
+        AND NOT EXISTS (
+          SELECT 1 FROM seasons WHERE is_staff_default = true
+        )
     `);
   } catch (err) {
     logger.error({ err }, "Failed to seed seasons");

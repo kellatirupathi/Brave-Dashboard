@@ -117,6 +117,7 @@ function serialize(
     effectiveEndDate: effective?.effectiveEndDate ?? row.endDate,
     actualWeekCount: effective?.actualWeekCount ?? 0,
     isActive: row.isActive,
+    isStaffDefault: row.isStaffDefault,
     isReadOnly: row.isReadOnly,
     allowJournalWrites: row.allowJournalWrites,
     allowRevenueWrites: row.allowRevenueWrites,
@@ -335,6 +336,7 @@ const UpdateBody = z.object({
     .optional(),
   weekCount: z.number().int().min(1).max(60).optional(),
   isActive: z.boolean().optional(),
+  isStaffDefault: z.boolean().optional(),
   isReadOnly: z.boolean().optional(),
   allowJournalWrites: z.boolean().optional(),
   allowRevenueWrites: z.boolean().optional(),
@@ -351,6 +353,7 @@ const UpdateBody = z.object({
  */
 const SUPER_ADMIN_ONLY = [
   "isActive",
+  "isStaffDefault",
   "isReadOnly",
   "allowJournalWrites",
   "allowRevenueWrites",
@@ -442,6 +445,12 @@ router.patch(
           .update(seasonsTable)
           .set({ isActive: false })
           .where(eq(seasonsTable.isActive, true));
+      }
+      if (patch.isStaffDefault === true) {
+        await tx
+          .update(seasonsTable)
+          .set({ isStaffDefault: false })
+          .where(eq(seasonsTable.isStaffDefault, true));
       }
       return tx
         .update(seasonsTable)
