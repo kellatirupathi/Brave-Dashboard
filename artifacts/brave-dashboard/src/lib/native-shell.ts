@@ -10,6 +10,7 @@
 //
 // Deleting this file means removing its one call in main.tsx.
 import { isNativeApp } from "./native-auth";
+import { canonicalToLegacyPath } from "./season-routing";
 
 /**
  * Exactly --sidebar from index.css, hsl(0 65% 22%), converted to hex because
@@ -50,6 +51,16 @@ async function styleStatusBar(): Promise<void> {
  * a screen normally.
  */
 const TOP_LEVEL = ["/", "/leads", "/projects", "/journal"];
+const ROUTER_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function routePathname(): string {
+  const pathname = window.location.pathname;
+  if (!ROUTER_BASE) return pathname;
+  if (pathname === ROUTER_BASE) return "/";
+  return pathname.startsWith(ROUTER_BASE + "/")
+    ? pathname.slice(ROUTER_BASE.length)
+    : pathname;
+}
 
 /**
  * Android's back button at the root of the app should EXIT, not navigate into
@@ -59,7 +70,7 @@ async function wireBackButton(): Promise<void> {
   try {
     const { App } = await import("@capacitor/app");
     await App.addListener("backButton", ({ canGoBack }) => {
-      const path = window.location.pathname;
+      const path = canonicalToLegacyPath(routePathname());
       // Trailing slashes and nothing else must still count as top level.
       const normalised = path.length > 1 ? path.replace(/\/+$/, "") : path;
       const atTopLevel = TOP_LEVEL.includes(normalised);

@@ -10,3 +10,4 @@
 - [Email kill switches](email-kill-switches.md) — every sendEmail call must be tagged with a category; super-admin toggles in Config gate sending, fail-open, default ON.
 - [Legacy seasonless records](legacy-seasonless-records.md) — interpret pre-season null identities as Season 1 only; never treat null as a cross-season wildcard or rewrite historical rows.
 - [Staff season default](staff-season-default.md) — student live season and staff landing season are independent; explicit staff selections override the configured staff default.
+- [Canonical season URLs](canonical-season-urls.md) — authenticated routes use public season slugs as the source of truth; never infer programme version from internal season IDs.

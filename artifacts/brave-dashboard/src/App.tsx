@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Switch,
   Route,
@@ -132,6 +132,12 @@ import { InstallPrompt, UpdatePrompt } from "@/components/pwa-prompts";
 import { isNativeApp } from "@/lib/native-auth";
 import { PageTransition } from "@/components/page-transition";
 import { NativeAuthBridge } from "@/components/native-auth-bridge";
+import {
+  canonicalToLegacyPath,
+  legacyToCanonicalPath,
+  parseCanonicalSeasonPath,
+  type CanonicalSeasonRole,
+} from "@/lib/season-routing";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -141,6 +147,161 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const ROUTER_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function browserRoute(): string {
+  const full =
+    window.location.pathname + window.location.search + window.location.hash;
+  if (!ROUTER_BASE) return full;
+  if (full === ROUTER_BASE) return "/";
+  return full.startsWith(ROUTER_BASE + "/")
+    ? full.slice(ROUTER_BASE.length)
+    : full;
+}
+
+function browserUrl(route: string): string {
+  return `${ROUTER_BASE}${route === "/" ? "/" : route}`;
+}
+
+function seasonHref(href: string): string {
+  const route =
+    ROUTER_BASE &&
+    (href === ROUTER_BASE || href.startsWith(ROUTER_BASE + "/"))
+      ? href.slice(ROUTER_BASE.length) || "/"
+      : href;
+  const current = parseCanonicalSeasonPath(browserRoute());
+  const canonical =
+    current && !parseCanonicalSeasonPath(route)
+      ? legacyToCanonicalPath(route, current.role, current.slug)
+      : route;
+  return browserUrl(canonical);
+}
+
+/**
+ * The page tree intentionally continues to use its established paths. This
+ * adapter makes canonical URLs look like those paths to wouter, while keeping
+ * the browser address bar canonical. It also upgrades links emitted by older
+ * page components without requiring a risky sweep through every page.
+ */
+function useSeasonLocation(): [
+  string,
+  (
+    to: string,
+    options?: { replace?: boolean; state?: unknown },
+  ) => void,
+] {
+  const read = useCallback(
+    () =>
+      browserUrl(
+        canonicalToLegacyPath(browserRoute()).split(/[?#]/, 1)[0],
+      ),
+    [],
+  );
+  const [location, setLocation] = useState(read);
+
+  useEffect(() => {
+    const update = () => setLocation(read());
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, [read]);
+
+  const navigate = useCallback(
+    (to: string, options?: { replace?: boolean; state?: unknown }) => {
+      const route =
+        ROUTER_BASE && (to === ROUTER_BASE || to.startsWith(ROUTER_BASE + "/"))
+          ? to.slice(ROUTER_BASE.length) || "/"
+          : to;
+      const current = browserRoute();
+      const currentCanonical = parseCanonicalSeasonPath(current);
+      const next =
+        currentCanonical && !parseCanonicalSeasonPath(route)
+          ? legacyToCanonicalPath(
+              route,
+              currentCanonical.role,
+              currentCanonical.slug,
+            )
+          : route;
+      window.history[options?.replace ? "replaceState" : "pushState"](
+        options?.state ?? null,
+        "",
+        browserUrl(next),
+      );
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    },
+    [],
+  );
+  return [location, navigate];
+}
+
+function SeasonUrlGate({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { seasons, viewing, viewingId, isLoading: seasonsLoading } = useSeason();
+  const raw = browserRoute();
+  const canonical = parseCanonicalSeasonPath(raw);
+
+  // Auth, landing, guidebook and development routes deliberately stay outside
+  // the season namespace. Do not wait for seasons for a public URL.
+  if (!isAuthenticated) return <>{children}</>;
+  if (authLoading || seasonsLoading) return <BraveLoader />;
+
+  if (canonical) {
+    if (
+      user?.role &&
+      ["admin", "coordinator", "student"].includes(user.role) &&
+      canonical.role !== user.role
+    ) {
+      if (!viewing) return <BraveLoader />;
+      return (
+        <Redirect
+          to={`/${user.role}/season/${encodeURIComponent(viewing.slug)}`}
+          replace
+        />
+      );
+    }
+    const requested = seasons.find((season) => season.slug === canonical.slug);
+    if (!requested) {
+      // A deleted/typoed slug never reaches a page with a stale season header.
+      // Send it to the role dashboard using a known good slug where possible.
+      if (!viewing) return <BraveLoader />;
+      return (
+        <Redirect
+          to={`/${canonical.role}/season/${encodeURIComponent(viewing.slug)}`}
+          replace
+        />
+      );
+    }
+    // URL selection wins over local/session selection. Blocking here prevents
+    // a component from issuing requests for the previous season on the frame
+    // between navigation and provider synchronization.
+    if (viewingId !== requested.id) return <BraveLoader />;
+    return <>{children}</>;
+  }
+
+  // Every authenticated dashboard page gets a canonical URL. This also
+  // preserves deep-link suffixes and query strings from historic bookmarks.
+  const publicPaths = new Set([
+    "/login",
+    "/admin/login",
+    "/not-on-roster",
+    "/guidebook",
+    ...(import.meta.env.DEV ? ["/dev/login"] : []),
+  ]);
+  if (publicPaths.has(raw.split(/[?#]/, 1)[0])) return <>{children}</>;
+  if (!viewing || !user?.role || !["admin", "coordinator", "student"].includes(user.role)) {
+    return <BraveLoader />;
+  }
+  return (
+    <Redirect
+      to={legacyToCanonicalPath(
+        raw,
+        user.role as CanonicalSeasonRole,
+        viewing.slug,
+      )}
+      replace
+    />
+  );
+}
 
 function ProtectedRoute({
   component: Component,
@@ -394,9 +555,9 @@ function SeasonFlowRoute({
   /** "pipeline" = Season 2 onwards. "projects" = Season 1 only. */
   requires: "pipeline" | "projects";
 }) {
-  const { viewingId, isLoading } = useSeason();
-  if (isLoading || viewingId == null) return <>{children}</>;
-  const usesPipeline = viewingId >= 2;
+  const { viewing, isLoading } = useSeason();
+  if (isLoading || !viewing) return <BraveLoader />;
+  const usesPipeline = viewing.slug !== "1.0";
   // `replace`, not push: the URL being corrected must not stay in history, or
   // the hardware back button would land on it and be redirected forward again,
   // trapping the student in a loop they cannot back out of.
@@ -455,16 +616,17 @@ function PageViewTracker() {
   const lastRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (lastRef.current === location) return;
-    lastRef.current = location;
-    void recordPageView(location);
+    const canonicalLocation = browserRoute();
+    if (lastRef.current === canonicalLocation) return;
+    lastRef.current = canonicalLocation;
+    void recordPageView(canonicalLocation);
   }, [location, isAuthenticated]);
   return null;
 }
 
 function Router() {
   return (
-    <>
+    <SeasonUrlGate>
       <PageViewTracker />
       {/* Screens move between each other in the installed app, the way Android
           expects. Renders children untouched on web. */}
@@ -879,7 +1041,7 @@ function Router() {
         <Route component={NotFound} />
       </Switch>
       </PageTransition>
-    </>
+    </SeasonUrlGate>
   );
 }
 
@@ -891,7 +1053,11 @@ function App() {
             the API client, so every request below is answered for whichever
             season the viewer selected. Renders nothing itself. */}
         <SeasonProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <WouterRouter
+            base={ROUTER_BASE}
+            hook={useSeasonLocation}
+            hrefs={seasonHref}
+          >
             <Router />
             {/* Blocking student Terms & Conditions consent gate. Self-gates on
                 role + acceptance; covers the whole app via a portalled overlay. */}

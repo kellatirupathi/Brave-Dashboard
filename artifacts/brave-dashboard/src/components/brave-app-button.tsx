@@ -26,18 +26,18 @@ function isInstalledApp(): boolean {
 
 export function BraveAppButton() {
   const { user } = useAuth();
-  const { viewingId } = useSeason();
+  const { viewing } = useSeason();
 
   if (!user || user.role !== "student") return null;
   // Same rule as the sidebar's Leads entry: the pipeline, and therefore the
   // app, belongs to Season 2 onwards.
-  if (viewingId == null || viewingId < 2) return null;
+  if (!viewing || viewing.slug === "1.0") return null;
   if (isInstalledApp()) return null;
 
   return (
     <div className="mt-8 flex justify-center">
       <a
-        href="/get-app"
+        href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/student/season/${encodeURIComponent(viewing.slug)}/get-app`}
         target="_blank"
         rel="noopener noreferrer"
         data-testid="link-brave-app"

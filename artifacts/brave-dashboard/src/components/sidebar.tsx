@@ -384,13 +384,13 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   // Mirrors the server-side guard, so a padlock appears exactly where a write
   // would actually be refused.
-  const { canWrite, viewingId } = useSeason();
+  const { canWrite, viewing } = useSeason();
 
   // Season 1 keeps its Projects page; from Season 2 on, a project can only
   // exist behind a converted lead, so the pipeline entry replaces it. Keyed on
   // the season NUMBER rather than a feature flag because the two flows are
   // genuinely different products, and Season 1's must never change.
-  const usesLeadPipeline = viewingId != null && viewingId >= 2;
+  const usesLeadPipeline = !!viewing && viewing.slug !== "1.0";
 
   if (!user) return null;
 

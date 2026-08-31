@@ -64,7 +64,7 @@ type Item = {
 export function MobileNav() {
   const { user } = useAuth();
   const [location] = useLocation();
-  const { viewingId } = useSeason();
+  const { viewing } = useSeason();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isStudent = user?.role === "student";
@@ -118,7 +118,7 @@ export function MobileNav() {
 
   // Same rule as the sidebar: from Season 2 on, a project only exists behind a
   // converted lead, so the pipeline entry replaces Projects.
-  const usesLeadPipeline = viewingId != null && viewingId >= 2;
+  const usesLeadPipeline = !!viewing && viewing.slug !== "1.0";
 
   /** Slots 1-3: what a student opens most while working. */
   const primary: Item[] = [
@@ -258,7 +258,11 @@ export function MobileNav() {
                 return item.external ? (
                   <a
                     key={item.href}
-                    href={item.href}
+                    href={
+                      item.href.startsWith("/")
+                        ? `${import.meta.env.BASE_URL.replace(/\/$/, "")}${item.href}`
+                        : item.href
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className={cls}
