@@ -12,3 +12,24 @@ id = "injRu6GXhX6Pz4SNT88t8"
 uri = "file://AI_IN_BRAVE_PROGRAM.md"
 type = "text"
 title = "AI in the BRAVE Program (with live production numbers)"
+
+[[outputs]]
+id = "jwz_DizhQTKH0PjbTTTSV"
+uri = "file://deliverables/BRAVE-Student-1.0-arm64-v8a.apk"
+type = "unspecified"
+title = "BRAVE Student 1.0 — Android"
+description = "Signed production APK for virtually all current Android phones (arm64-v8a). Use this as the primary student installation download after NIAT Forms confirms the callback whitelist."
+
+[[outputs]]
+id = "fcXRxF0UCdyQ143hZ4fPB"
+uri = "file://deliverables/BRAVE-Student-1.0-armeabi-v7a.apk"
+type = "unspecified"
+title = "BRAVE Student 1.0 — Legacy Android"
+description = "Signed production APK for older 32-bit Android phones (armeabi-v7a). Most students should use the arm64 build instead."
+
+[[outputs]]
+id = "BLRBP2euSD9s7pIU2IaQd"
+uri = "file://deliverables/BRAVE-Student-1.0-SHA256SUMS.txt"
+type = "text"
+title = "BRAVE Student 1.0 checksums"
+description = "SHA-256 checksums for verifying both signed APK downloads."

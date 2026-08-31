@@ -11,3 +11,4 @@
 - [Legacy seasonless records](legacy-seasonless-records.md) — interpret pre-season null identities as Season 1 only; never treat null as a cross-season wildcard or rewrite historical rows.
 - [Staff season default](staff-season-default.md) — student live season and staff landing season are independent; explicit staff selections override the configured staff default.
 - [Canonical season URLs](canonical-season-urls.md) — authenticated routes use public season slugs as the source of truth; never infer programme version from internal season IDs.
+- [Android release builds on Replit](android-release-builds.md) — use a minimal licensed Nix SDK composition and disable JVM perf counters; preserve the durable signing key outside Git.

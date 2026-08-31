@@ -1,0 +1,10 @@
+---
+name: Android release builds on Replit
+description: Non-obvious environment and signing constraints for reproducible BRAVE Android releases.
+---
+
+Use a minimal licensed Nix Android SDK composition rather than the default SDK bundle, which pulls emulator system images and can exhaust build time and disk quota. Disable JVM performance counters for native release builds in this container.
+
+**Why:** The full SDK composition spent the execution window building unnecessary emulator images. Native release compilation also triggered a JVM performance-counter SIGBUS, while `-XX:-UsePerfData` allowed the build to complete.
+
+**How to apply:** Keep Android SDK/build-tools/NDK/CMake versions aligned with the Gradle project, use Java 17, limit Gradle workers when storage is tight, and clear only regenerable caches/intermediates. Never commit or replace the release keystore; its certificate must remain stable for app updates.
