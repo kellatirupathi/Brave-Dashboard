@@ -1,5 +1,8 @@
 packages:
   - artifacts/*
+  # React Native app: Metro cannot resolve pnpm's symlinked node_modules,
+  # so brave-mobile manages its own with npm and stays out of the workspace.
+  - '!artifacts/brave-mobile'
   - lib/*
   - lib/integrations/*
   - scripts
