@@ -6,18 +6,19 @@
  * the saved-link viewer.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import {
   db,
   journalReportLinksTable,
   journalEscalationLogTable,
+  programmeWeeksTable,
 } from "@workspace/db";
 import {
   resolveReportWeek,
   listAllWeeks,
   computeCampusWeekReports,
 } from "../lib/journal-reports";
-import { resolveSeason } from "../lib/season";
+import { getSeasonById, resolveSeason, SEASON_1_ID } from "../lib/season";
 
 const router: IRouter = Router();
 
@@ -221,12 +222,62 @@ router.get(
   "/admin/reports/links",
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAdmin(req, res)) return;
+    const seasonId = await resolveSeason(req);
     const rows = await db
-      .select()
+      .select({
+        id: journalReportLinksTable.id,
+        token: journalReportLinksTable.token,
+        scope: journalReportLinksTable.scope,
+        kind: journalReportLinksTable.kind,
+        campusId: journalReportLinksTable.campusId,
+        campusName: journalReportLinksTable.campusName,
+        storedSeasonId: journalReportLinksTable.seasonId,
+        weekSeasonId: programmeWeeksTable.seasonId,
+        weekId: journalReportLinksTable.weekId,
+        weekLabel: journalReportLinksTable.weekLabel,
+        title: journalReportLinksTable.title,
+        payload: journalReportLinksTable.payload,
+        createdAt: journalReportLinksTable.createdAt,
+      })
       .from(journalReportLinksTable)
+      .leftJoin(
+        programmeWeeksTable,
+        eq(programmeWeeksTable.id, journalReportLinksTable.weekId),
+      )
+      .where(
+        seasonId === SEASON_1_ID
+          ? or(
+              eq(journalReportLinksTable.seasonId, seasonId),
+              and(
+                isNull(journalReportLinksTable.seasonId),
+                eq(programmeWeeksTable.seasonId, seasonId),
+              ),
+              // Snapshots created before seasons are Season 1 history. If a
+              // later week regeneration removed their week row, keep them
+              // discoverable in the Season 1 archive without rewriting data.
+              and(
+                isNull(journalReportLinksTable.seasonId),
+                isNull(programmeWeeksTable.id),
+              ),
+            )
+          : or(
+              eq(journalReportLinksTable.seasonId, seasonId),
+              and(
+                isNull(journalReportLinksTable.seasonId),
+                eq(programmeWeeksTable.seasonId, seasonId),
+              ),
+            ),
+      )
       .orderBy(desc(journalReportLinksTable.createdAt))
       .limit(500);
-    res.json({ links: rows });
+    res.json({
+      links: rows.map(
+        ({ storedSeasonId, weekSeasonId, ...row }) => ({
+          ...row,
+          seasonId: storedSeasonId ?? weekSeasonId ?? SEASON_1_ID,
+        }),
+      ),
+    });
   },
 );
 
@@ -237,8 +288,26 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     if (!requireStaff(req, res)) return;
     const [row] = await db
-      .select()
+      .select({
+        id: journalReportLinksTable.id,
+        token: journalReportLinksTable.token,
+        scope: journalReportLinksTable.scope,
+        kind: journalReportLinksTable.kind,
+        campusId: journalReportLinksTable.campusId,
+        campusName: journalReportLinksTable.campusName,
+        storedSeasonId: journalReportLinksTable.seasonId,
+        weekSeasonId: programmeWeeksTable.seasonId,
+        weekId: journalReportLinksTable.weekId,
+        weekLabel: journalReportLinksTable.weekLabel,
+        title: journalReportLinksTable.title,
+        payload: journalReportLinksTable.payload,
+        createdAt: journalReportLinksTable.createdAt,
+      })
       .from(journalReportLinksTable)
+      .leftJoin(
+        programmeWeeksTable,
+        eq(programmeWeeksTable.id, journalReportLinksTable.weekId),
+      )
       .where(eq(journalReportLinksTable.token, String(req.params.token)));
     if (!row) {
       res.status(404).json({ error: "Report not found" });
@@ -252,7 +321,18 @@ router.get(
       res.status(403).json({ error: "Not your campus report." });
       return;
     }
-    res.json({ report: row });
+    const seasonId = row.storedSeasonId ?? row.weekSeasonId ?? null;
+    const season = seasonId == null ? null : await getSeasonById(seasonId);
+    const { storedSeasonId: _storedSeasonId, weekSeasonId: _weekSeasonId, ...report } =
+      row;
+    res.json({
+      report: {
+        ...report,
+        seasonId,
+        seasonName: season?.name ?? null,
+        seasonSlug: season?.slug ?? null,
+      },
+    });
   },
 );
 

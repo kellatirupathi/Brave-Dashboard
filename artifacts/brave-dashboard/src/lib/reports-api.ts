@@ -64,6 +64,9 @@ export type ReportLink = {
   kind: string;
   campusId: number | null;
   campusName: string | null;
+  seasonId: number | null;
+  seasonName?: string | null;
+  seasonSlug?: string | null;
   weekId: number | null;
   weekLabel: string | null;
   title: string;
@@ -112,10 +115,13 @@ export function getReportByToken(
 export async function downloadCampusCsv(
   campusId: number,
   weekId?: number | "all",
+  seasonId?: number | null,
 ): Promise<void> {
   const qs = weekId != null && weekId !== "all" ? `?weekId=${weekId}` : "";
   const res = await fetch(`/api/admin/reports/campus/${campusId}/export${qs}`, {
     credentials: "include",
+    headers:
+      seasonId == null ? undefined : { "x-brave-season": String(seasonId) },
   });
   if (!res.ok) throw new Error(`Export failed (${res.status})`);
   const blob = await res.blob();

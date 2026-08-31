@@ -73,7 +73,14 @@ export async function resolveReportWeek(
         seasonId: programmeWeeksTable.seasonId,
       })
       .from(programmeWeeksTable)
-      .where(eq(programmeWeeksTable.id, weekId));
+      .where(
+        seasonId == null
+          ? eq(programmeWeeksTable.id, weekId)
+          : and(
+              eq(programmeWeeksTable.id, weekId),
+              eq(programmeWeeksTable.seasonId, seasonId),
+            ),
+      );
     return w ?? null;
   }
   const today = todayIso();
@@ -303,7 +310,8 @@ export async function computeWeekGrid(seasonId?: number): Promise<{
     pending: number;
   }>;
 }> {
-  const weeks = await listAllWeeks();
+  const resolvedSeasonId = seasonId ?? (await getActiveSeasonId());
+  const weeks = await listAllWeeks(resolvedSeasonId);
   const teams = await db
     .select({
       teamId: teamsTable.id,
@@ -328,7 +336,7 @@ export async function computeWeekGrid(seasonId?: number): Promise<{
             and(
               eq(
                 weeklyJournalsTable.seasonId,
-                seasonId ?? (await getActiveSeasonId()),
+                resolvedSeasonId,
               ),
               inArray(weeklyJournalsTable.teamId, teamIds),
             ),

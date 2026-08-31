@@ -1586,6 +1586,9 @@ export const reminderLogTable = pgTable(
     // Cron uses (teamId, userId, reminderType, weekStartDate) as the dedup
     // key — one Day-5 + one Day-7 per team-member-week, max.
     weekStartDate: text("week_start_date"),
+    // Nullable for legacy rows; current reminder jobs always stamp the active
+    // season so reused dates in a later season cannot suppress a reminder.
+    seasonId: integer("season_id"),
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -1593,6 +1596,7 @@ export const reminderLogTable = pgTable(
     index("reminder_log_user_idx").on(t.userId),
     index("reminder_log_sent_at_idx").on(t.sentAt),
     index("reminder_log_week_idx").on(t.weekStartDate),
+    index("reminder_log_season_week_idx").on(t.seasonId, t.weekStartDate),
   ],
 );
 
@@ -1739,6 +1743,9 @@ export const journalReportLinksTable = pgTable(
     kind: text("kind").notNull(),
     campusId: integer("campus_id"),
     campusName: text("campus_name"),
+    // Nullable for backwards compatibility: legacy snapshots derive their
+    // season from week_id, while every newly created snapshot writes it.
+    seasonId: integer("season_id"),
     weekId: integer("week_id").notNull(),
     weekLabel: text("week_label").notNull(),
     title: text("title").notNull(),
@@ -1750,6 +1757,7 @@ export const journalReportLinksTable = pgTable(
   (t) => [
     index("journal_report_links_created_idx").on(t.createdAt),
     index("journal_report_links_week_idx").on(t.weekId),
+    index("journal_report_links_season_idx").on(t.seasonId),
   ],
 );
 

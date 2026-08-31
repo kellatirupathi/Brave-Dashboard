@@ -401,10 +401,16 @@ router.patch(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    const seasonId = await resolveSeason(req);
     const [updated] = await db
       .update(programmeWeeksTable)
       .set({ isOpen: parsed.data.isOpen, manualOverride: true })
-      .where(eq(programmeWeeksTable.id, id))
+      .where(
+        and(
+          eq(programmeWeeksTable.id, id),
+          eq(programmeWeeksTable.seasonId, seasonId),
+        ),
+      )
       .returning();
     if (!updated) {
       res.status(404).json({ error: "Week not found" });
@@ -429,10 +435,16 @@ router.post(
       return;
     }
     const today = todayIso();
+    const seasonId = await resolveSeason(req);
     const [existing] = await db
       .select()
       .from(programmeWeeksTable)
-      .where(eq(programmeWeeksTable.id, id))
+      .where(
+        and(
+          eq(programmeWeeksTable.id, id),
+          eq(programmeWeeksTable.seasonId, seasonId),
+        ),
+      )
       .limit(1);
     if (!existing) {
       res.status(404).json({ error: "Week not found" });
@@ -442,7 +454,12 @@ router.post(
     const [updated] = await db
       .update(programmeWeeksTable)
       .set({ manualOverride: false, isOpen: naturalIsOpen })
-      .where(eq(programmeWeeksTable.id, id))
+      .where(
+        and(
+          eq(programmeWeeksTable.id, id),
+          eq(programmeWeeksTable.seasonId, seasonId),
+        ),
+      )
       .returning();
     res.json(updated);
   },

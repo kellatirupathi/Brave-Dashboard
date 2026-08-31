@@ -164,6 +164,7 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Campus not found" });
     return;
   }
+  const campusSeason = await resolveSeason(req);
   const [teamStats] = await db
     .select({
       totalTeams: sql<number>`count(*)`,
@@ -172,8 +173,10 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
       // so this stays <= totalTeams. (Team.status is always 'active' on
       // creation, so it is meaningless.)
       activeTeams: sql<number>`count(*) filter (where
-        exists (select 1 from weekly_journals wj where wj.team_id = ${teamsTable.id})
-        or exists (select 1 from projects p where p.team_id = ${teamsTable.id})
+        exists (select 1 from weekly_journals wj
+                where wj.team_id = ${teamsTable.id} and wj.season_id = ${campusSeason})
+        or exists (select 1 from projects p
+                where p.team_id = ${teamsTable.id} and p.season_id = ${campusSeason})
       )`,
     })
     .from(teamsTable)
@@ -184,7 +187,7 @@ router.get("/campuses/:id", async (req, res): Promise<void> => {
     .where(
       // Season-scoped: without the predicate this summed every season's
       // verified revenue into one campus figure.
-      sql`season_id = ${await resolveSeason(req)} and team_id in (select id from teams where campus_id = ${campus.id}) and status = 'verified'`,
+      sql`season_id = ${campusSeason} and team_id in (select id from teams where campus_id = ${campus.id}) and status = 'verified'`,
     );
   const detailCoordinatorRows = await db
     .select({

@@ -15,7 +15,7 @@
  *   3. Every send is recorded in reminder_log with weekStartDate so the
  *      same reminder never fires twice in the same week.
  */
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, isNull, or, sql } from "drizzle-orm";
 import {
   db,
   teamsTable,
@@ -29,6 +29,7 @@ import {
 } from "@workspace/db";
 import { sendEmail, getAppUrl } from "./lib/email/brevo";
 import { logger } from "./lib/logger";
+import { getActiveSeasonId, SEASON_1_ID } from "./lib/season";
 import {
   autoOpenDueWeeks,
   getReminderSettings,
@@ -61,7 +62,7 @@ function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
-async function findCurrentProgrammeWeek() {
+async function findCurrentProgrammeWeek(seasonId: number) {
   const today = todayIso();
   const [week] = await db
     .select({
@@ -69,12 +70,14 @@ async function findCurrentProgrammeWeek() {
       weekNumber: programmeWeeksTable.weekNumber,
       startDate: programmeWeeksTable.startDate,
       endDate: programmeWeeksTable.endDate,
+      seasonId: programmeWeeksTable.seasonId,
     })
     .from(programmeWeeksTable)
     .where(
       and(
         sql`${programmeWeeksTable.startDate} <= ${today}`,
         sql`${programmeWeeksTable.endDate} >= ${today}`,
+        eq(programmeWeeksTable.seasonId, seasonId),
       ),
     )
     .orderBy(sql`${programmeWeeksTable.startDate} desc`)
@@ -85,12 +88,14 @@ async function findCurrentProgrammeWeek() {
     weekNumber: week.weekNumber,
     startDate: dateOnly(week.startDate),
     endDate: dateOnly(week.endDate),
+    seasonId: week.seasonId,
   };
 }
 
 async function teamSubmittedForWeek(
   teamId: number,
   weekStartDate: string,
+  seasonId: number,
 ): Promise<boolean> {
   const [row] = await db
     .select({ id: weeklyJournalsTable.id })
@@ -99,6 +104,7 @@ async function teamSubmittedForWeek(
       and(
         eq(weeklyJournalsTable.teamId, teamId),
         eq(weeklyJournalsTable.weekStartDate, weekStartDate),
+        eq(weeklyJournalsTable.seasonId, seasonId),
       ),
     )
     .limit(1);
@@ -110,6 +116,7 @@ async function alreadySentForWeek(
   userId: string,
   reminderType: "silence_5d" | "silence_7d",
   weekStartDate: string,
+  seasonId: number,
 ): Promise<boolean> {
   const [row] = await db
     .select({ count: sql<number>`count(*)` })
@@ -120,6 +127,12 @@ async function alreadySentForWeek(
         eq(reminderLogTable.userId, userId),
         eq(reminderLogTable.reminderType, reminderType),
         eq(reminderLogTable.weekStartDate, weekStartDate),
+        seasonId === SEASON_1_ID
+          ? or(
+              eq(reminderLogTable.seasonId, seasonId),
+              isNull(reminderLogTable.seasonId),
+            )
+          : eq(reminderLogTable.seasonId, seasonId),
       ),
     );
   return Number(row?.count ?? 0) > 0;
@@ -131,6 +144,7 @@ async function logSent(
   reminderType: "silence_5d" | "silence_7d",
   channel: "notification" | "email",
   weekStartDate: string,
+  seasonId: number,
 ): Promise<void> {
   await db.insert(reminderLogTable).values({
     teamId,
@@ -138,13 +152,14 @@ async function logSent(
     reminderType,
     channel,
     weekStartDate,
+    seasonId,
   });
 }
 
 async function pingTeam(
   team: { teamId: number; teamName: string; campusId: number | null },
   level: "5d" | "7d",
-  week: { startDate: string; weekNumber: number },
+  week: { startDate: string; weekNumber: number; seasonId: number },
 ): Promise<void> {
   const members = await db
     .select({
@@ -162,7 +177,13 @@ async function pingTeam(
   for (const m of members) {
     if (!m.id) continue;
     if (
-      await alreadySentForWeek(team.teamId, m.id, reminderType, week.startDate)
+      await alreadySentForWeek(
+        team.teamId,
+        m.id,
+        reminderType,
+        week.startDate,
+        week.seasonId,
+      )
     )
       continue;
 
@@ -192,6 +213,7 @@ async function pingTeam(
         reminderType,
         "notification",
         week.startDate,
+        week.seasonId,
       );
     }
 
@@ -202,7 +224,14 @@ async function pingTeam(
         text: `Hi ${m.firstName ?? "there"},\n\n${body}\n\nSubmit your weekly journal: ${appUrl}/journal\n\n— BRAVE Dashboard`,
       });
       if (ok) {
-        await logSent(team.teamId, m.id, reminderType, "email", week.startDate);
+        await logSent(
+          team.teamId,
+          m.id,
+          reminderType,
+          "email",
+          week.startDate,
+          week.seasonId,
+        );
       }
     }
   }
@@ -219,6 +248,7 @@ async function pingTeam(
         campus.coordinatorId,
         "silence_7d",
         week.startDate,
+        week.seasonId,
       );
       if (!already && _channelsCache.coordinatorNotificationsEnabled) {
         await db.insert(notificationsTable).values({
@@ -234,6 +264,7 @@ async function pingTeam(
           "silence_7d",
           "notification",
           week.startDate,
+          week.seasonId,
         );
       }
     }
@@ -266,7 +297,8 @@ async function run(): Promise<void> {
     logger.error({ err }, "[cron-reminders] autoOpenDueWeeks failed");
   }
 
-  const currentWeek = await findCurrentProgrammeWeek();
+  const activeSeasonId = await getActiveSeasonId();
+  const currentWeek = await findCurrentProgrammeWeek(activeSeasonId);
   if (!currentWeek) {
     logger.info("[cron-reminders] no current programme week — exiting");
     return;
@@ -299,7 +331,13 @@ async function run(): Promise<void> {
   let skippedSubmitted = 0;
 
   for (const team of teams) {
-    if (await teamSubmittedForWeek(team.teamId, currentWeek.startDate)) {
+    if (
+      await teamSubmittedForWeek(
+        team.teamId,
+        currentWeek.startDate,
+        currentWeek.seasonId,
+      )
+    ) {
       skippedSubmitted++;
       continue;
     }
