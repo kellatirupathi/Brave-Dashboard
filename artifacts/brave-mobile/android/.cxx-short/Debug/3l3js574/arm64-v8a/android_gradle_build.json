@@ -1,0 +1,93 @@
+{
+  "buildFiles": [
+    "/home/runner/workspace/artifacts/brave-mobile/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/home/runner/workspace/artifacts/brave-mobile/node_modules/react-native-keychain/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/home/runner/workspace/artifacts/brave-mobile/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt",
+    "/home/runner/workspace/artifacts/brave-mobile/node_modules/react-native-screens/android/src/main/jni/CMakeLists.txt",
+    "/home/runner/workspace/artifacts/brave-mobile/node_modules/react-native-svg/android/src/main/jni/CMakeLists.txt",
+    "/home/runner/workspace/artifacts/brave-mobile/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/nix/store/sm7v7053jfnz3vfrb9ma5h45ramnrssd-androidsdk/libexec/android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/runner/workspace/artifacts/brave-mobile/android/.cxx-short/Debug/3l3js574/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/nix/store/sm7v7053jfnz3vfrb9ma5h45ramnrssd-androidsdk/libexec/android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/runner/workspace/artifacts/brave-mobile/android/.cxx-short/Debug/3l3js574/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "appmodules::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "appmodules",
+      "output": "/home/runner/workspace/artifacts/brave-mobile/android/app/build/intermediates/cxx/Debug/3l3js574/obj/arm64-v8a/libappmodules.so",
+      "runtimeFiles": [
+        "/home/runner/workspace/artifacts/brave-mobile/android/app/build/intermediates/cxx/Debug/3l3js574/obj/arm64-v8a/libreact_codegen_safeareacontext.so",
+        "/home/runner/workspace/artifacts/brave-mobile/android/app/build/intermediates/cxx/Debug/3l3js574/obj/arm64-v8a/libreact_codegen_rnscreens.so",
+        "/home/runner/workspace/artifacts/brave-mobile/android/app/build/intermediates/cxx/Debug/3l3js574/obj/arm64-v8a/libreact_codegen_rnsvg.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/3cb1792e16d0777e9535521c99f0b7b5/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/2f3f04f29a7d86f4d7cc17e86688042f/transformed/react-android-0.87.1-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/2f3f04f29a7d86f4d7cc17e86688042f/transformed/react-android-0.87.1-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
+      ]
+    },
+    "react_codegen_AsyncStorageSpec::@15af80695a6281ecf900": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_AsyncStorageSpec"
+    },
+    "react_codegen_RNKeychainSpec::@f9a2cb36ebca2de4baf9": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_RNKeychainSpec"
+    },
+    "react_codegen_rnscreens::@25bcbd507e98d3a854ad": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnscreens",
+      "output": "/home/runner/workspace/artifacts/brave-mobile/android/app/build/intermediates/cxx/Debug/3l3js574/obj/arm64-v8a/libreact_codegen_rnscreens.so",
+      "runtimeFiles": [
+        "/home/runner/.gradle/caches/9.4.1/transforms/2f3f04f29a7d86f4d7cc17e86688042f/transformed/react-android-0.87.1-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/2f3f04f29a7d86f4d7cc17e86688042f/transformed/react-android-0.87.1-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/3cb1792e16d0777e9535521c99f0b7b5/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
+    "react_codegen_rnsvg::@4f40eb209d0c0b4a3b65": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_rnsvg",
+      "output": "/home/runner/workspace/artifacts/brave-mobile/android/app/build/intermediates/cxx/Debug/3l3js574/obj/arm64-v8a/libreact_codegen_rnsvg.so",
+      "runtimeFiles": [
+        "/home/runner/.gradle/caches/9.4.1/transforms/2f3f04f29a7d86f4d7cc17e86688042f/transformed/react-android-0.87.1-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/2f3f04f29a7d86f4d7cc17e86688042f/transformed/react-android-0.87.1-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/3cb1792e16d0777e9535521c99f0b7b5/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
+    "react_codegen_safeareacontext::@7984cd80db47aa7b952a": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "react_codegen_safeareacontext",
+      "output": "/home/runner/workspace/artifacts/brave-mobile/android/app/build/intermediates/cxx/Debug/3l3js574/obj/arm64-v8a/libreact_codegen_safeareacontext.so",
+      "runtimeFiles": [
+        "/home/runner/.gradle/caches/9.4.1/transforms/3cb1792e16d0777e9535521c99f0b7b5/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/2f3f04f29a7d86f4d7cc17e86688042f/transformed/react-android-0.87.1-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/home/runner/.gradle/caches/9.4.1/transforms/2f3f04f29a7d86f4d7cc17e86688042f/transformed/react-android-0.87.1-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
+      ]
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/nix/store/sm7v7053jfnz3vfrb9ma5h45ramnrssd-androidsdk/libexec/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/linux-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/nix/store/sm7v7053jfnz3vfrb9ma5h45ramnrssd-androidsdk/libexec/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

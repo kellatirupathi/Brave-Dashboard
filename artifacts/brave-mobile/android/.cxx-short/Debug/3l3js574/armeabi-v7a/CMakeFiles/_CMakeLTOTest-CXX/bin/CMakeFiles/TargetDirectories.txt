@@ -1,0 +1,4 @@
+/home/runner/workspace/artifacts/brave-mobile/android/.cxx-short/Debug/3l3js574/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/foo.dir
+/home/runner/workspace/artifacts/brave-mobile/android/.cxx-short/Debug/3l3js574/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/boo.dir
+/home/runner/workspace/artifacts/brave-mobile/android/.cxx-short/Debug/3l3js574/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/edit_cache.dir
+/home/runner/workspace/artifacts/brave-mobile/android/.cxx-short/Debug/3l3js574/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/rebuild_cache.dir
