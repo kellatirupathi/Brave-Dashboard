@@ -312,6 +312,19 @@ function DetailView({ userId }: { userId: string }) {
     queryKey: ["chatbot-history", userId],
     queryFn: () => getChatbotHistoryForUser(userId),
   });
+  const chronologicalMessages = useMemo(
+    () =>
+      (data?.messages ?? [])
+        .map((message, index) => ({ message, index }))
+        .sort((a, b) => {
+          const timeDifference =
+            new Date(a.message.createdAt).getTime() -
+            new Date(b.message.createdAt).getTime();
+          return timeDifference || a.index - b.index;
+        })
+        .map(({ message }) => message),
+    [data?.messages],
+  );
 
   if (isLoading) {
     return (
@@ -329,19 +342,6 @@ function DetailView({ userId }: { userId: string }) {
   }
 
   const { user, messages } = data;
-  const chronologicalMessages = useMemo(
-    () =>
-      messages
-        .map((message, index) => ({ message, index }))
-        .sort((a, b) => {
-          const timeDifference =
-            new Date(a.message.createdAt).getTime() -
-            new Date(b.message.createdAt).getTime();
-          return timeDifference || a.index - b.index;
-        })
-        .map(({ message }) => message),
-    [messages],
-  );
   let previousDateKey: string | null = null;
 
   return (
