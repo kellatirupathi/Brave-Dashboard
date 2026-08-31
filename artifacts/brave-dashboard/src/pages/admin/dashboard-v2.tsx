@@ -164,7 +164,7 @@ function KpiCard({
       data-testid={testId}
       className={cn(
         PANEL,
-        "group grid min-h-[76px] min-w-0 grid-cols-[minmax(0,1fr)_52px] gap-2 p-3 transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a62520]",
+        "group grid min-h-[82px] min-w-0 grid-cols-[minmax(0,1fr)_52px] gap-2 p-3.5 transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a62520]",
       )}
     >
       <div className="min-w-0">
@@ -516,10 +516,10 @@ export default function AdminDashboardV2() {
           </div>
         </header>
 
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_250px] xl:grid-cols-[minmax(0,1fr)_270px]">
-          <main className="min-w-0 space-y-3">
+        <div className="grid min-w-0 gap-3 lg:min-h-[calc(100vh-10rem)] lg:grid-cols-[minmax(0,1fr)_210px] xl:grid-cols-[minmax(0,1fr)_270px]">
+          <main className="grid min-w-0 gap-3 lg:min-h-0 lg:grid-rows-[auto_auto_minmax(0,1fr)_auto]">
             <section
-              className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+              className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
               data-testid="admin-v2-revenue-kpis"
             >
               <KpiCard
@@ -560,7 +560,7 @@ export default function AdminDashboardV2() {
               />
             </section>
 
-            <section className={cn(PANEL, "overflow-hidden")} data-testid="admin-v2-program-health">
+            <section className={cn(PANEL, "min-h-[122px] overflow-hidden")} data-testid="admin-v2-program-health">
               <SectionTitle icon={Activity}>Program Health Snapshot</SectionTitle>
               <div className="grid grid-cols-1 divide-y divide-[#eeeae4] sm:grid-cols-2 lg:grid-cols-4 lg:divide-y-0 dark:divide-border">
                 {healthMetrics.map((metric, index) => (
@@ -578,8 +578,8 @@ export default function AdminDashboardV2() {
               </div>
             </section>
 
-            <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.7fr)_minmax(190px,0.76fr)]">
-              <section className={cn(PANEL, "overflow-hidden")} data-testid="admin-v2-activity-overview">
+            <div className="grid min-h-0 min-w-0 gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(190px,0.76fr)]">
+              <section className={cn(PANEL, "min-h-[150px] overflow-hidden")} data-testid="admin-v2-activity-overview">
                 <SectionTitle
                   icon={Activity}
                   action={
@@ -597,7 +597,7 @@ export default function AdminDashboardV2() {
                 </div>
               </section>
 
-              <section className={cn(PANEL, "overflow-hidden")} data-testid="admin-v2-revenue-pipeline">
+              <section className={cn(PANEL, "min-h-[150px] overflow-hidden")} data-testid="admin-v2-revenue-pipeline">
                 <SectionTitle icon={WalletCards}>Revenue Pipeline (₹)</SectionTitle>
                 <div className="px-3 pb-2.5 pt-2">
                   <FunnelLevel
@@ -629,7 +629,7 @@ export default function AdminDashboardV2() {
               </section>
             </div>
 
-            <section className={cn(PANEL, "overflow-hidden")} data-testid="admin-v2-attention">
+            <section className={cn(PANEL, "min-h-[70px] overflow-hidden")} data-testid="admin-v2-attention">
               <SectionTitle icon={Building2}>Campuses Needing Attention</SectionTitle>
               <div className="grid gap-2 p-2.5 sm:grid-cols-[1fr_1fr_1fr_auto]">
                 <AttentionItem
@@ -665,8 +665,8 @@ export default function AdminDashboardV2() {
             </section>
           </main>
 
-          <aside className="min-w-0 space-y-3">
-            <section className={cn(PANEL, "overflow-hidden")} data-testid="admin-v2-journal-coverage">
+          <aside className="grid min-w-0 gap-3 lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)]">
+            <section className={cn(PANEL, "min-h-[184px] overflow-hidden")} data-testid="admin-v2-journal-coverage">
               <SectionTitle
                 icon={BookOpenCheck}
                 action={
@@ -721,7 +721,7 @@ export default function AdminDashboardV2() {
               </div>
             </section>
 
-            <section className={cn(PANEL, "overflow-hidden")} data-testid="admin-v2-top-campuses">
+            <section className={cn(PANEL, "min-h-[212px] overflow-hidden")} data-testid="admin-v2-top-campuses">
               <SectionTitle
                 icon={Trophy}
                 action={
