@@ -255,7 +255,7 @@ function GroupFlyout({
  * drawer when a link is clicked.
  */
 /**
- * The "1.0" / "2.0" pill under the wordmark. Shown for every role.
+ * The "1.0" / "2.0" pill beside the wordmark. Shown for every role.
  *
  * Renders the previous static label until the season list resolves, so the
  * sidebar header never flickers between two different strings.
@@ -265,15 +265,15 @@ function SeasonBadge() {
 
   if (isLoading || !viewing) {
     return (
-      <p className="text-xs text-sidebar-foreground/60 uppercase tracking-widest mt-2">
+      <span className="text-[10px] text-sidebar-foreground/60 uppercase tracking-widest">
         Dashboard
-      </p>
+      </span>
     );
   }
 
   const isLive = !viewing.isReadOnly;
   return (
-    <div className="mt-2 flex items-center gap-2">
+    <span className="inline-flex items-center gap-1.5">
       <span
         data-testid="sidebar-season-badge"
         title={
@@ -282,7 +282,7 @@ function SeasonBadge() {
             : `${viewing.name} — read-only archive`
         }
         className={cn(
-          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest",
+          "inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest leading-none",
           isLive
             ? "bg-sidebar-primary text-sidebar-primary-foreground"
             : "border border-sidebar-foreground/30 text-sidebar-foreground/60",
@@ -291,11 +291,11 @@ function SeasonBadge() {
         {viewing.slug}
       </span>
       {!isLive && (
-        <span className="text-[10px] uppercase tracking-widest text-sidebar-foreground/50">
+        <span className="text-[9px] uppercase tracking-widest text-sidebar-foreground/50">
           Archive
         </span>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -645,13 +645,10 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   return (
     <>
       <div className="flex h-full flex-col text-sidebar-foreground">
-        <div className="p-6">
+        <div className="flex items-center gap-2 p-6">
           <BraveLogo className="text-2xl" />
-          {/* Season badge. Replaces the old static "Dashboard" label so a
-              viewer can never be unsure which season they are looking at.
-              Live season reads as amber and current; the archive reads as a
-              muted outline, deliberately quieter. Falls back to the old label
-              while the season list is still loading, so nothing flashes. */}
+          {/* Keep the viewed season immediately beside the wordmark so it is
+              visible without taking a second line in the sidebar header. */}
           <SeasonBadge />
         </div>
 
