@@ -4,7 +4,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ScrollText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useParams, Redirect } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -103,48 +103,68 @@ export default function AdminUserPermissions() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setLocation("/admin/users")}
-          aria-label="Back to users"
-          data-testid="button-back-users"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold">Admin permissions</h1>
-          <p className="text-sm text-muted-foreground">{data.email}</p>
+    <div className="mx-auto w-full max-w-[1280px] space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setLocation("/admin/users")}
+            aria-label="Back to users"
+            data-testid="button-back-users"
+            className="size-8 shrink-0 rounded-full text-[#745f57] hover:bg-white hover:text-[#c53e36]"
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight text-[#321812] sm:text-2xl">
+              Admin permissions
+            </h1>
+            <p className="truncate text-xs text-[#8c7770] sm:text-sm">
+              {data.email}
+            </p>
+          </div>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setLocation("/admin/audit-log")}
+          className="self-start border-[#e3d6cf] bg-white text-[#5e463e] shadow-sm hover:border-[#c53e36]/40 hover:bg-[#fff8f5] hover:text-[#b9342e] sm:self-auto"
+          data-testid="button-view-audit-log"
+        >
+          <ScrollText className="mr-2 size-3.5" />
+          View audit log
+        </Button>
       </div>
 
-      <Card className="p-6 space-y-4">
-        <AdminPermissionsTable
-          permissions={permissions}
-          onChange={setPermissions}
-          isSuperAdmin={isSuperAdmin}
-          onSuperAdminChange={setIsSuperAdmin}
+      <AdminPermissionsTable
+        permissions={permissions}
+        onChange={setPermissions}
+        isSuperAdmin={isSuperAdmin}
+        onSuperAdminChange={setIsSuperAdmin}
+        disabled={saving}
+        variant="standalone"
+      />
+
+      <div className="flex justify-end gap-2 pb-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setLocation("/admin/users")}
+          className="border-[#dfd0c8] bg-white px-5 text-[#5e463e] shadow-sm hover:bg-[#fff8f5]"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={onSave}
           disabled={saving}
-        />
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setLocation("/admin/users")}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={onSave}
-            disabled={saving}
-            data-testid="button-save-permissions"
-          >
-            {saving && <Spinner className="w-4 h-4 mr-2" />} Save
-          </Button>
-        </div>
-      </Card>
+          data-testid="button-save-permissions"
+          className="bg-[#c53e36] px-5 text-white shadow-sm hover:bg-[#ad302b]"
+        >
+          {saving && <Spinner className="mr-2 size-4" />} Save changes
+        </Button>
+      </div>
     </div>
   );
 }
