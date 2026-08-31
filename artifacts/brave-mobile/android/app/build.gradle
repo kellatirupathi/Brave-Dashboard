@@ -108,7 +108,9 @@ android {
      */
     externalNativeBuild {
         cmake {
-            buildStagingDirectory = file("C:/bcx")
+            // Keep generated CMake paths short without tying the build to a
+            // Windows drive. This works on local machines and Linux CI.
+            buildStagingDirectory = file("${rootProject.projectDir}/.cxx-short")
         }
     }
 
@@ -136,6 +138,13 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    def releaseKeystorePath = System.getenv("BRAVE_ANDROID_KEYSTORE_PATH")
+    def releaseKeystorePassword = System.getenv("BRAVE_ANDROID_KEYSTORE_PASSWORD")
+    def releaseKeyAlias = System.getenv("BRAVE_ANDROID_KEY_ALIAS")
+    def releaseKeyPassword = System.getenv("BRAVE_ANDROID_KEY_PASSWORD")
+    def hasReleaseSigning = releaseKeystorePath && releaseKeystorePassword &&
+        releaseKeyAlias && releaseKeyPassword
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -143,15 +152,25 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Never distribute a build signed with Android's public debug key.
+            // CI injects the production upload key through environment values.
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled enableProguardInReleaseBuilds
             // Drops unreferenced resources as well as unreferenced code.
             shrinkResources enableProguardInReleaseBuilds

@@ -77,7 +77,7 @@ once per launch.
 ## Building
 
 ```bash
-npm install
+npm ci
 cd android && ./gradlew assembleDebug
 ```
 
@@ -90,19 +90,26 @@ device downloads only its own native libraries:
 | --- | --- |
 | `app-arm64-v8a-debug.apk` | virtually every phone since ~2016 — **hand this out** |
 | `app-armeabi-v7a-debug.apk` | older 32-bit devices |
-| `app-x86_64-debug.apk` | emulators |
-| `app-universal-debug.apk` | catch-all when the device is unknown |
 
-A universal APK carries all four copies of the native layer and is roughly twice
-the size for no benefit on a real device.
+The project deliberately does not emit emulator or universal APKs. A universal
+APK carries multiple copies of the native layer and is significantly larger.
 
 ### Release builds
 
-`assembleRelease` needs a signing keystore. The debug APK is signed with
-Android's shared debug key: fine for testing, but it triggers an "unsafe app"
-warning on install and cannot be updated in place by a differently-signed build
-later. Generate a keystore, keep it somewhere durable, and wire it into
-`android/app/build.gradle` before students install anything.
+`assembleRelease` needs the durable upload/signing keystore for this application.
+The project never falls back to Android's public debug key for a release. Supply
+these values only in the build environment:
+
+```text
+BRAVE_ANDROID_KEYSTORE_PATH
+BRAVE_ANDROID_KEYSTORE_PASSWORD
+BRAVE_ANDROID_KEY_ALIAS
+BRAVE_ANDROID_KEY_PASSWORD
+```
+
+Never commit the keystore or its passwords. Losing the key may prevent future
+versions from updating the app already installed by students. Debug APKs are
+only for internal testing and must not be distributed as the student release.
 
 ## Known gaps
 

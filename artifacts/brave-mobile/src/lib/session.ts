@@ -62,6 +62,8 @@ export async function clearSession(): Promise<void> {
  */
 export function extractSessionId(setCookie: string | null): string | null {
   if (!setCookie) return null;
-  const m = setCookie.match(new RegExp(`(?:^|[,;\s])${COOKIE_NAME}=([^;,\s]+)`));
+  const m = setCookie.match(
+    new RegExp(`(?:^|[,;\\s])${COOKIE_NAME}=([^;,\\s]+)`),
+  );
   return m ? m[1] : null;
 }

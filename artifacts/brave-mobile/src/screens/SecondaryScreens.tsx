@@ -20,10 +20,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Trophy,
-  Bell,
   Users,
   ShieldCheck,
-  Award,
   Inbox,
   ExternalLink,
 } from 'lucide-react-native';
@@ -53,7 +51,7 @@ import {
   LeaderboardRow,
   AppNotification,
 } from '../lib/queries';
-import { inr, inrCompact, initials, fullName, relative, shortDate } from '../lib/format';
+import { inrCompact, initials, fullName, relative, shortDate } from '../lib/format';
 import { API_BASE } from '../lib/config';
 
 /** Shared frame: back arrow, title, scrolling body. */

@@ -8,7 +8,18 @@
  * Keystore and is set explicitly on every request.
  */
 import { API_BASE } from './config';
-import { loadSessionId, COOKIE_NAME } from './session';
+import { clearSession, loadSessionId, COOKIE_NAME } from './session';
+
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+/**
+ * AuthProvider registers this once so an expired server session immediately
+ * returns the app to sign-in, even when the 401 came from a screen query.
+ */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -45,7 +56,9 @@ async function request<T>(
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
 
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
+    await clearSession();
+    unauthorizedHandler?.();
     throw new UnauthorizedError();
   }
   if (!res.ok) {

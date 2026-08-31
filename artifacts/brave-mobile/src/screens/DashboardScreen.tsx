@@ -32,7 +32,6 @@ import {
   Caption,
   Micro,
   Title,
-  Body,
   BodyStrong,
   Badge,
   Skeleton,

@@ -32,9 +32,11 @@ import React, {
   useState,
 } from 'react';
 import { Linking } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import InAppBrowser from 'react-native-inappbrowser-reborn';
 import { API_BASE, REDIRECT_URI, buildFormsLoginUrl } from './config';
-import { api, UnauthorizedError } from './api';
+import { isAuthCallbackUrl, tokenFromAuthCallback } from './auth-url';
+import { api, setUnauthorizedHandler, UnauthorizedError } from './api';
 import {
   saveSessionId,
   loadSessionId,
@@ -67,23 +69,13 @@ type AuthState = {
 
 const Ctx = createContext<AuthState | null>(null);
 
-/** Read `auth_token` from either the query string or the fragment. */
-function tokenFromUrl(url: string): string | null {
-  try {
-    const q = url.split('?')[1]?.split('#')[0];
-    if (q) {
-      const fromQuery = new URLSearchParams(q).get('auth_token');
-      if (fromQuery) return fromQuery;
-    }
-    const hash = url.split('#')[1];
-    if (hash) {
-      const fromHash = new URLSearchParams(hash).get('auth_token');
-      if (fromHash) return fromHash;
-    }
-  } catch {
-    /* malformed URL */
+class TokenExchangeError extends Error {
+  retryable: boolean;
+
+  constructor(message: string, retryable: boolean) {
+    super(message);
+    this.retryable = retryable;
   }
-  return null;
 }
 
 /**
@@ -92,15 +84,41 @@ function tokenFromUrl(url: string): string | null {
  * HEADER rather than the body.
  */
 async function exchangeToken(token: string): Promise<User | null> {
-  const res = await fetch(`${API_BASE}/api/auth/validate-token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ token }),
-  });
-  if (!res.ok) return null;
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/auth/validate-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+  } catch {
+    throw new TokenExchangeError(
+      'Could not verify sign-in. Check your connection and try again.',
+      true,
+    );
+  }
+
+  if (res.status === 401) {
+    throw new TokenExchangeError(
+      'This sign-in link has expired. Please sign in again.',
+      false,
+    );
+  }
+  if (!res.ok) {
+    throw new TokenExchangeError(
+      'NIAT sign-in is temporarily unavailable. Please try again.',
+      true,
+    );
+  }
 
   const sid = extractSessionId(res.headers.get('set-cookie'));
-  if (sid) await saveSessionId(sid);
+  if (!sid) {
+    throw new TokenExchangeError(
+      'Sign-in completed, but the session could not be saved. Please try again.',
+      true,
+    );
+  }
+  await saveSessionId(sid);
 
   const body = (await res.json()) as { user: User | null };
   return body.user ?? null;
@@ -111,7 +129,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [restoring, setRestoring] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const processedTokens = useRef(new Set<string>());
+  const inFlightTokens = useRef(new Set<string>());
+  const completedTokens = useRef(new Set<string>());
+  const queryClient = useQueryClient();
+
+  const expireSession = useCallback(() => {
+    queryClient.clear();
+    setUser(null);
+    setSigningIn(false);
+    setError('Your session expired. Please sign in again.');
+  }, [queryClient]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(expireSession);
+    return () => setUnauthorizedHandler(null);
+  }, [expireSession]);
 
   /** Cold start: is there a session worth reusing? */
   useEffect(() => {
@@ -137,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const finish = useCallback(async (url: string) => {
-    const token = tokenFromUrl(url);
+    const token = tokenFromAuthCallback(url);
     if (!token) {
       setError('Sign-in did not complete. Please try again.');
       return;
@@ -145,16 +177,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // openAuth and Linking can both receive the same callback. Forms tokens
     // are single-use, so exchanging twice makes a successful login look like
     // a failure when the second request loses the race.
-    if (processedTokens.current.has(token)) return;
-    processedTokens.current.add(token);
-    const u = await exchangeToken(token);
-    if (u) {
+    if (
+      inFlightTokens.current.has(token) ||
+      completedTokens.current.has(token)
+    ) {
+      return;
+    }
+    inFlightTokens.current.add(token);
+    try {
+      const u = await exchangeToken(token);
+      if (!u) {
+        throw new TokenExchangeError(
+          'We could not verify that sign-in. Please try again.',
+          false,
+        );
+      }
+      completedTokens.current.add(token);
+      queryClient.clear();
       setUser(u);
       setError(null);
-    } else {
-      setError('We could not verify that sign-in. Please try again.');
+    } catch (exchangeError) {
+      if (
+        exchangeError instanceof TokenExchangeError &&
+        !exchangeError.retryable
+      ) {
+        completedTokens.current.add(token);
+      }
+      setError(
+        exchangeError instanceof TokenExchangeError
+          ? exchangeError.message
+          : 'We could not verify that sign-in. Please try again.',
+      );
+    } finally {
+      inFlightTokens.current.delete(token);
     }
-  }, []);
+  }, [queryClient]);
 
   /**
    * A deep link can also arrive when the Custom Tab hands off to the OS rather
@@ -163,12 +220,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     const sub = Linking.addEventListener('url', ({ url }) => {
-      if (url.startsWith(REDIRECT_URI)) void finish(url);
+      if (isAuthCallbackUrl(url)) void finish(url);
     });
     // When Android or iOS launches a stopped app from the SSO callback, there
     // is no live event listener yet. Recover that initial deep link here.
     void Linking.getInitialURL().then(url => {
-      if (url?.startsWith(REDIRECT_URI)) void finish(url);
+      if (url && isAuthCallbackUrl(url)) void finish(url);
     });
     return () => sub.remove();
   }, [finish]);
@@ -218,8 +275,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       /* the local session is cleared regardless */
     }
     await clearSession();
+    queryClient.clear();
     setUser(null);
-  }, []);
+    setError(null);
+  }, [queryClient]);
 
   const value = useMemo(
     () => ({ user, restoring, signingIn, error, signIn, signOut }),

@@ -39,7 +39,7 @@ import {
   Skeleton,
   EmptyState,
 } from '../components/ui';
-import { colors, space, radius, font } from '../theme/tokens';
+import { colors, space, font } from '../theme/tokens';
 import { useLeads, asArray, Lead } from '../lib/queries';
 import { shortDate } from '../lib/format';
 

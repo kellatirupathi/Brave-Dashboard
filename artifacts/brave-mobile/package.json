@@ -48,6 +48,9 @@
     "react-test-renderer": "19.2.3",
     "typescript": "^6.0.3"
   },
+  "overrides": {
+    "npm-run-path": "4.0.0"
+  },
   "engines": {
     "node": ">= 22.11.0"
   }
