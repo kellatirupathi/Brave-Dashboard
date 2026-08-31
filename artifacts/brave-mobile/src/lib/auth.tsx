@@ -28,11 +28,12 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { Linking } from 'react-native';
 import InAppBrowser from 'react-native-inappbrowser-reborn';
-import { API_BASE, REDIRECT_URI } from './config';
+import { API_BASE, REDIRECT_URI, buildFormsLoginUrl } from './config';
 import { api, UnauthorizedError } from './api';
 import {
   saveSessionId,
@@ -110,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [restoring, setRestoring] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const processedTokens = useRef(new Set<string>());
 
   /** Cold start: is there a session worth reusing? */
   useEffect(() => {
@@ -140,6 +142,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError('Sign-in did not complete. Please try again.');
       return;
     }
+    // openAuth and Linking can both receive the same callback. Forms tokens
+    // are single-use, so exchanging twice makes a successful login look like
+    // a failure when the second request loses the race.
+    if (processedTokens.current.has(token)) return;
+    processedTokens.current.add(token);
     const u = await exchangeToken(token);
     if (u) {
       setUser(u);
@@ -158,13 +165,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const sub = Linking.addEventListener('url', ({ url }) => {
       if (url.startsWith(REDIRECT_URI)) void finish(url);
     });
+    // When Android or iOS launches a stopped app from the SSO callback, there
+    // is no live event listener yet. Recover that initial deep link here.
+    void Linking.getInitialURL().then(url => {
+      if (url?.startsWith(REDIRECT_URI)) void finish(url);
+    });
     return () => sub.remove();
   }, [finish]);
 
   const signIn = useCallback(async () => {
     setSigningIn(true);
     setError(null);
-    const loginUrl = `${API_BASE}/api/login?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+    const loginUrl = buildFormsLoginUrl();
     try {
       if (await InAppBrowser.isAvailable()) {
         const result = await InAppBrowser.openAuth(loginUrl, REDIRECT_URI, {
