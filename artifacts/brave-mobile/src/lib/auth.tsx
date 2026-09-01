@@ -34,10 +34,13 @@ import React, {
 import { Linking } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import InAppBrowser from 'react-native-inappbrowser-reborn';
-import { API_BASE, REDIRECT_URI, buildFormsLoginUrl } from './config';
+import { API_BASE, REDIRECT_URI } from './config';
 import { isAuthCallbackUrl, tokenFromAuthCallback } from './auth-url';
 import { api, setUnauthorizedHandler, UnauthorizedError } from './api';
+import { WebLoginModal, WebLoginResult } from '../screens/WebLoginModal';
 import {
+  adoptSessionFromCookies,
+  clearWebCookies,
   saveSessionId,
   loadSessionId,
   clearSession,
@@ -129,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [restoring, setRestoring] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [webLoginOpen, setWebLoginOpen] = useState(false);
   const inFlightTokens = useRef(new Set<string>());
   const completedTokens = useRef(new Set<string>());
   const queryClient = useQueryClient();
@@ -230,39 +234,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [finish]);
 
+  /**
+   * Open the in-app login.
+   *
+   * This no longer hands the student to a Chrome Custom Tab. Forms decides its
+   * own post-login destination — its contract has no callback field — so a
+   * sealed browser tab had no way to tell us anything. The WebView below is our
+   * own view, and `resolveWebLogin` reads the answer out of it directly.
+   */
   const signIn = useCallback(async () => {
-    setSigningIn(true);
     setError(null);
-    const loginUrl = buildFormsLoginUrl();
-    try {
-      if (await InAppBrowser.isAvailable()) {
-        const result = await InAppBrowser.openAuth(loginUrl, REDIRECT_URI, {
-          showTitle: false,
-          enableUrlBarHiding: true,
-          enableDefaultShare: false,
-          forceCloseOnRedirection: true,
-          // Paint Chrome's chrome in BRAVE maroon so the hand-off is not a
-          // jarring white screen in the middle of a dark-red app.
-          toolbarColor: '#5C1414',
-          secondaryToolbarColor: '#5C1414',
-          navigationBarColor: '#5C1414',
-        });
-        if (result.type === 'success' && result.url) {
+    setWebLoginOpen(true);
+  }, []);
+
+  /** Called by the login WebView once it knows how the attempt ended. */
+  const resolveWebLogin = useCallback(
+    async (result: WebLoginResult) => {
+      setWebLoginOpen(false);
+      if (result.kind === 'cancelled') return; // backed out; not an error
+
+      setSigningIn(true);
+      try {
+        if (result.kind === 'token') {
           await finish(result.url);
-        } else if (result.type === 'cancel') {
-          setError(null); // the student backed out; not an error
+          return;
         }
-      } else {
-        // No Custom Tab provider on the device — hand it to the default
-        // browser. The deep-link listener above still brings us home.
-        await Linking.openURL(loginUrl);
+
+        // No token in the URL, so take the session out of the cookie jar. The
+        // dashboard has already set `sid` if the login succeeded.
+        const sid = await adoptSessionFromCookies(API_BASE);
+        if (!sid) {
+          setError('Sign-in did not complete. Please try again.');
+          return;
+        }
+        const body = await api.get<{ user: User | null }>('/api/auth/user');
+        if (body.user) {
+          queryClient.clear();
+          setUser(body.user);
+          setError(null);
+        } else {
+          // A cookie the server will not honour is worse than none: it would
+          // make the next launch look signed in and then fail everywhere.
+          await clearSession();
+          setError('Sign-in did not complete. Please try again.');
+        }
+      } catch {
+        setError('We could not verify that sign-in. Please try again.');
+      } finally {
+        setSigningIn(false);
       }
-    } catch {
-      setError('Could not open the sign-in page. Check your connection.');
-    } finally {
-      setSigningIn(false);
-    }
-  }, [finish]);
+    },
+    [finish],
+  );
 
   const signOut = useCallback(async () => {
     const sid = await loadSessionId();
@@ -284,7 +307,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({ user, restoring, signingIn, error, signIn, signOut }),
     [user, restoring, signingIn, error, signIn, signOut],
   );
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+      {/*
+        Lives here rather than on the login screen so it survives a session
+        expiring mid-use: any screen can trigger a re-login without unmounting.
+      */}
+      <WebLoginModal visible={webLoginOpen} onResolve={resolveWebLogin} />
+    </Ctx.Provider>
+  );
 }
 
 export function useAuth(): AuthState {

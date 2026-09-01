@@ -10,6 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@preeternal/react-native-cookie-manager": "^6.4.0",
     "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native/new-app-screen": "0.87.1",
     "@react-navigation/bottom-tabs": "^7.18.18",
@@ -25,6 +26,7 @@
     "react-native-safe-area-context": "^5.9.1",
     "react-native-screens": "^4.27.0",
     "react-native-svg": "^15.15.5",
+    "react-native-webview": "^14.0.1",
     "zod": "^4.5.4"
   },
   "devDependencies": {

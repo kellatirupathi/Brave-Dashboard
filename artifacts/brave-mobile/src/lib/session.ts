@@ -67,3 +67,51 @@ export function extractSessionId(setCookie: string | null): string | null {
   );
   return m ? m[1] : null;
 }
+
+/**
+ * Take the session straight out of the WebView's cookie jar.
+ *
+ * This is the route that does not depend on NxtWave handing us anything. Once
+ * the login WebView reaches the dashboard, our own server has already set its
+ * `sid` cookie; lifting it into the Keystore turns that browser session into
+ * the app's session, with no redirect, no deep link and no callback anywhere.
+ *
+ * Returns the id so the caller can decide whether the login actually worked —
+ * an empty jar means the student never finished signing in.
+ */
+export async function adoptSessionFromCookies(
+  origin: string,
+): Promise<string | null> {
+  try {
+    const CookieManager = (
+      await import('@preeternal/react-native-cookie-manager')
+    ).default;
+    const jar = await CookieManager.get(origin, true);
+    // `useWebKit`/httpOnly handling differs by platform, and the value may be
+    // a bare string on some versions, so be generous about the shape.
+    const raw = (jar as Record<string, unknown> | undefined)?.[COOKIE_NAME];
+    const sid =
+      typeof raw === 'string'
+        ? raw
+        : ((raw as { value?: string } | undefined)?.value ?? null);
+    if (!sid) return null;
+    await saveSessionId(sid);
+    return sid;
+  } catch {
+    // No cookie module, or a platform that refuses to read httpOnly cookies.
+    // The caller still has the auth_token route to fall back on.
+    return null;
+  }
+}
+
+/** Wipe the WebView's cookies so a sign-out does not silently sign back in. */
+export async function clearWebCookies(): Promise<void> {
+  try {
+    const CookieManager = (
+      await import('@preeternal/react-native-cookie-manager')
+    ).default;
+    await CookieManager.clearAll(true);
+  } catch {
+    /* nothing to clear */
+  }
+}

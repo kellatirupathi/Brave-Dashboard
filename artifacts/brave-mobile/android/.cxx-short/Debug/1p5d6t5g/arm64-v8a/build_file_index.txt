@@ -1,0 +1,8 @@
+C:\Users\NxtWave\Desktop\Brave-Dashboard\artifacts\brave-mobile\node_modules\@preeternal\react-native-cookie-manager\android\build\generated\source\codegen\jni\CMakeLists.txt
+C:\Users\NxtWave\Desktop\Brave-Dashboard\artifacts\brave-mobile\node_modules\@react-native-async-storage\async-storage\android\build\generated\source\codegen\jni\CMakeLists.txt
+C:\Users\NxtWave\Desktop\Brave-Dashboard\artifacts\brave-mobile\node_modules\react-native-keychain\android\build\generated\source\codegen\jni\CMakeLists.txt
+C:\Users\NxtWave\Desktop\Brave-Dashboard\artifacts\brave-mobile\node_modules\react-native-safe-area-context\android\src\main\jni\CMakeLists.txt
+C:\Users\NxtWave\Desktop\Brave-Dashboard\artifacts\brave-mobile\node_modules\react-native-screens\android\src\main\jni\CMakeLists.txt
+C:\Users\NxtWave\Desktop\Brave-Dashboard\artifacts\brave-mobile\node_modules\react-native-svg\android\src\main\jni\CMakeLists.txt
+C:\Users\NxtWave\Desktop\Brave-Dashboard\artifacts\brave-mobile\node_modules\react-native-webview\android\build\generated\source\codegen\jni\CMakeLists.txt
+C:\Users\NxtWave\Desktop\Brave-Dashboard\artifacts\brave-mobile\node_modules\react-native\ReactAndroid\cmake-utils\default-app-setup\CMakeLists.txt
