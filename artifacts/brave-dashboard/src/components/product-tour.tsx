@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Compass, X } from "lucide-react";
@@ -32,6 +38,11 @@ export function ProductTour() {
   const [platform] = useState<ProductTourPlatform>(platformForViewport);
   const [visible, setVisible] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const [cardPosition, setCardPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const cardRef = useRef<HTMLElement>(null);
   const sessionKey = `brave-product-tour-${user?.id ?? "anonymous"}-${platform}`;
   const pipelineRoute = viewing?.slug === "1.0" ? "/projects" : "/leads";
   const pipelineName = viewing?.slug === "1.0" ? "Projects" : "Leads";
@@ -52,7 +63,7 @@ export function ProductTour() {
         },
         {
           route: pipelineRoute,
-          selector: "main",
+          selector: '[data-tour="student-pipeline"]',
           title: pipelineName,
           body:
             pipelineName === "Leads"
@@ -61,7 +72,8 @@ export function ProductTour() {
         },
         {
           route: "/journal",
-          selector: '[data-testid="journal-week-picker"]',
+          selector:
+            '[data-testid="journal-week-picker"], [data-tour="journal-empty-state"]',
           title: "Weekly Journal",
           body: "Choose the week, record what your team achieved, and submit before the deadline.",
         },
@@ -87,7 +99,7 @@ export function ProductTour() {
       },
       {
         route: pipelineRoute,
-        selector: "main",
+        selector: '[data-tour="student-pipeline"]',
         title: pipelineName,
         body:
           pipelineName === "Leads"
@@ -96,7 +108,8 @@ export function ProductTour() {
       },
       {
         route: "/journal",
-        selector: '[data-testid="journal-week-picker"]',
+        selector:
+          '[data-testid="journal-week-picker"], [data-tour="journal-empty-state"]',
         title: "Weekly Journal",
         body: "Select a programme week, record activity, and keep your team’s progress current.",
       },
@@ -177,6 +190,132 @@ export function ProductTour() {
     };
   }, [step, visible]);
 
+  useLayoutEffect(() => {
+    if (!visible) return;
+
+    const margin = platform === "mobile" ? 12 : 20;
+    const gap = platform === "mobile" ? 12 : 16;
+    let retryTimer = 0;
+    let attempts = 0;
+
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(Math.max(value, min), Math.max(min, max));
+
+    const updatePosition = () => {
+      const card = cardRef.current;
+      if (!card) return;
+
+      const cardRect = card.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const target = step.selector
+        ? document.querySelector<HTMLElement>(step.selector)
+        : null;
+
+      if (!target && step.selector && attempts < 12) {
+        attempts += 1;
+        retryTimer = window.setTimeout(updatePosition, 120);
+        return;
+      }
+
+      if (!target) {
+        setCardPosition({
+          top:
+            platform === "mobile"
+              ? Math.max(margin, viewportHeight - cardRect.height - margin)
+              : Math.max(margin, (viewportHeight - cardRect.height) / 2),
+          left:
+            platform === "mobile"
+              ? Math.max(margin, (viewportWidth - cardRect.width) / 2)
+              : Math.max(margin, viewportWidth - cardRect.width - margin),
+        });
+        return;
+      }
+
+      const targetRect = target.getBoundingClientRect();
+      const horizontalCenter = targetRect.left + targetRect.width / 2;
+      const verticalCenter = targetRect.top + targetRect.height / 2;
+      const positions = {
+        top: {
+          top: targetRect.top - cardRect.height - gap,
+          left: clamp(
+            horizontalCenter - cardRect.width / 2,
+            margin,
+            viewportWidth - cardRect.width - margin,
+          ),
+        },
+        bottom: {
+          top: targetRect.bottom + gap,
+          left: clamp(
+            horizontalCenter - cardRect.width / 2,
+            margin,
+            viewportWidth - cardRect.width - margin,
+          ),
+        },
+        left: {
+          top: clamp(
+            verticalCenter - cardRect.height / 2,
+            margin,
+            viewportHeight - cardRect.height - margin,
+          ),
+          left: targetRect.left - cardRect.width - gap,
+        },
+        right: {
+          top: clamp(
+            verticalCenter - cardRect.height / 2,
+            margin,
+            viewportHeight - cardRect.height - margin,
+          ),
+          left: targetRect.right + gap,
+        },
+      } as const;
+
+      const fits = (position: { top: number; left: number }) =>
+        position.top >= margin &&
+        position.left >= margin &&
+        position.top + cardRect.height <= viewportHeight - margin &&
+        position.left + cardRect.width <= viewportWidth - margin;
+
+      const availableSpace = {
+        top: targetRect.top - margin,
+        bottom: viewportHeight - targetRect.bottom - margin,
+        left: targetRect.left - margin,
+        right: viewportWidth - targetRect.right - margin,
+      };
+      const order = (Object.keys(availableSpace) as Array<
+        keyof typeof availableSpace
+      >).sort((a, b) => availableSpace[b] - availableSpace[a]);
+      const placement =
+        order.map((side) => positions[side]).find(fits) ??
+        positions[order[0]];
+
+      setCardPosition({
+        top: clamp(
+          placement.top,
+          margin,
+          viewportHeight - cardRect.height - margin,
+        ),
+        left: clamp(
+          placement.left,
+          margin,
+          viewportWidth - cardRect.width - margin,
+        ),
+      });
+    };
+
+    setCardPosition(null);
+    retryTimer = window.setTimeout(updatePosition, 80);
+    const handleViewportChange = () => updatePosition();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, { passive: true });
+
+    return () => {
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange);
+    };
+  }, [location, platform, step, visible]);
+
   if (!visible || !step) return null;
 
   const finish = (status: "finished" | "dismissed") => {
@@ -196,15 +335,21 @@ export function ProductTour() {
     <>
       <div className="fixed inset-0 z-[90] bg-black/55" aria-hidden="true" />
       <section
+        ref={cardRef}
         role="dialog"
         aria-modal="true"
         aria-label="BRAVE product tour"
         data-testid="product-tour"
         className={
           platform === "mobile"
-            ? "fixed inset-x-3 bottom-[calc(1rem+var(--safe-area-inset-bottom,0px))] z-[110] rounded-2xl border border-white/20 bg-white p-4 text-[#2B090C] shadow-2xl"
-            : "fixed right-6 top-1/2 z-[110] w-[360px] -translate-y-1/2 rounded-2xl border bg-white p-5 text-[#2B090C] shadow-2xl"
+            ? "fixed z-[110] w-[min(calc(100vw-24px),390px)] rounded-2xl border border-white/20 bg-white p-4 text-[#2B090C] shadow-2xl"
+            : "fixed z-[110] w-[360px] rounded-2xl border bg-white p-5 text-[#2B090C] shadow-2xl"
         }
+        style={{
+          top: cardPosition?.top ?? 0,
+          left: cardPosition?.left ?? 0,
+          opacity: cardPosition ? 1 : 0,
+        }}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">

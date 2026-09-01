@@ -295,12 +295,12 @@ export default function Journal() {
       </div>
 
       {noOpenWeeks ? (
-        <Card>
+        <Card data-tour="journal-empty-state">
           <CardContent className="py-12 text-center">
             <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-2" />
             <p className="text-sm font-medium">No weeks are currently open</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Ask your admin to open the current week from /admin/config.
+              Ask your admin to open the current week.
             </p>
           </CardContent>
         </Card>

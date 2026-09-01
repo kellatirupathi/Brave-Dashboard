@@ -130,7 +130,10 @@ export default function ProjectsList() {
       {/* Exempted-team nudge while the global lock is on. */}
       <SubmitAsapBanner />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        data-tour="student-pipeline"
+      >
         <div className="mobile-page-heading">
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground mt-1">

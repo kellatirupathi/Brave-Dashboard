@@ -65,13 +65,6 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
-function timeGreeting(d = new Date()): string {
-  const h = d.getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
-
 // ── Performance wave ────────────────────────────────────────────────────────
 //
 // The curve is drawn in a 1200x210 viewBox stretched horizontally
@@ -312,12 +305,9 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
         </div>
 
         <div className="relative z-10 max-w-[62%]">
-          <p className="text-[13px] font-medium text-[#6B4F47]">
-            {timeGreeting()}, {p.firstName || "there"}! 👋
-          </p>
           <Link
             href="/team"
-            className="mt-1 block w-fit rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block w-fit rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="link-desktop-team"
           >
             <h1 className="text-[32px] font-extrabold leading-[1.05] tracking-tight text-[#8E0F18]">
