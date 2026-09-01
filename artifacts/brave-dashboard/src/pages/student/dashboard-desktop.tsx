@@ -25,7 +25,6 @@ import {
   BarChart3,
   FileClock,
   PenLine,
-  MessageSquare,
   ChevronRight,
   Lock,
   Flame,
@@ -60,7 +59,7 @@ const TONE_PILL: Record<MobileTone, string> = {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-[12px] font-bold uppercase tracking-[0.1em] text-[#6B4F47]">
+    <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#6B4F47]">
       {children}
     </h2>
   );
@@ -117,26 +116,26 @@ function WaveNode({
     <Link
       href={href}
       data-testid={testId}
-      className="absolute flex w-[190px] -translate-x-1/2 flex-col items-center text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+      className="absolute flex w-[178px] -translate-x-1/2 flex-col items-center rounded-xl text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       style={{ left: `${leftPct}%`, top: 62 }}
     >
       <span
         className={cn(
-          "grid h-[62px] w-[62px] place-items-center rounded-full border-2 transition-transform duration-300 hover:scale-105",
+          "grid h-[56px] w-[56px] place-items-center rounded-full border-2 transition-transform duration-300 hover:scale-105",
           ring,
           bg,
         )}
       >
-        <Icon className={cn("h-6 w-6", tint)} />
+        <Icon className={cn("h-5 w-5", tint)} />
       </span>
-      <span className={cn("mt-3 text-[13px] font-semibold", tint)}>
+      <span className={cn("mt-2 text-[12px] font-semibold", tint)}>
         {label}
       </span>
-      <span className="mt-0.5 text-[26px] font-extrabold leading-tight tabular-nums text-[#2B090C]">
+      <span className="mt-0.5 text-[24px] font-extrabold leading-tight tabular-nums text-[#2B090C]">
         {value}
       </span>
       {sub && (
-        <span className="mt-0.5 text-[11px] text-[#8A6F66]">{sub}</span>
+        <span className="mt-0.5 text-[10.5px] text-[#8A6F66]">{sub}</span>
       )}
     </Link>
   );
@@ -174,9 +173,9 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
     // padding, which is what clears the mobile bar at narrower widths.
     <div
       className={cn(
-        "-mx-6 -mt-6 px-6 pt-6 pb-10 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8",
+        "-mx-6 -mt-6 px-6 pt-5 pb-8 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-6",
         "min-h-[calc(100vh-4rem)] bg-[#FFFCF8]",
-        "space-y-4",
+        "space-y-3",
       )}
     >
       <PinnedAnnouncementBanner />
@@ -184,7 +183,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
 
       {/* ── HERO ───────────────────────────────────────────────────────── */}
       <section
-        className={cn(CARD, "relative overflow-hidden px-7 py-6")}
+        className={cn(CARD, "relative overflow-hidden px-6 py-5")}
         data-testid="desktop-hero"
       >
         {/* Decorative: rising bars into a bullseye. Sits behind the copy and
@@ -241,28 +240,19 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
         </div>
 
         {/* Actions, top-right. */}
-        <div className="absolute right-6 top-5 z-10 flex items-center gap-2">
+        <div className="absolute right-5 top-4 z-10 flex items-center gap-2">
           {p.demoEligible && (
-            <Badge className="border-none bg-green-500 px-3 py-1.5 text-white shadow-sm hover:bg-green-600">
-              <CheckCircle className="mr-1.5 h-4 w-4" />
+            <Badge className="border-none bg-green-500 px-2.5 py-1 text-[11px] text-white shadow-sm hover:bg-green-600">
+              <CheckCircle className="mr-1 h-3.5 w-3.5" />
               Demo Day Eligible!
             </Badge>
           )}
           <HelpMenu inline />
-          <button
-            type="button"
-            onClick={p.onFeedback}
-            data-testid="button-desktop-feedback"
-            className="flex items-center gap-2 rounded-lg border border-[#EADCD4] bg-white px-3.5 py-2 text-[13px] font-semibold text-[#4A2B26] transition-colors hover:bg-[#FFF7F2]"
-          >
-            <MessageSquare className="h-4 w-4" aria-hidden="true" />
-            Feedback
-          </button>
           <NotificationsBell />
         </div>
 
         <div className="relative z-10 max-w-[62%]">
-          <p className="text-[15px] font-medium text-[#6B4F47]">
+          <p className="text-[14px] font-medium text-[#6B4F47]">
             {timeGreeting()}, {p.firstName || "there"}! 👋
           </p>
           <Link
@@ -270,19 +260,19 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
             className="mt-1 block w-fit rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="link-desktop-team"
           >
-            <h1 className="text-[40px] font-extrabold leading-[1.08] tracking-tight text-[#8E0F18]">
+            <h1 className="text-[36px] font-extrabold leading-[1.05] tracking-tight text-[#8E0F18]">
               {p.teamName}
             </h1>
-            <p className="mt-1 text-[16px] text-[#6B4F47]">{p.tagline}</p>
+            <p className="mt-1 text-[14px] text-[#6B4F47]">{p.tagline}</p>
           </Link>
 
           {/* Weekly journal, bottom-left inside the hero. */}
-          <div className="mt-6">
-            <div className="flex items-center gap-3">
+          <div className="mt-5">
+            <div className="flex items-center gap-2.5">
               <Eyebrow>Weekly journal</Eyebrow>
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+                  "rounded-full px-2 py-0.5 text-[10px] font-bold",
                   TONE_PILL[p.journalTone],
                 )}
                 data-testid="desktop-journal-status"
@@ -290,10 +280,10 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
                 {p.journalLabel}
               </span>
             </div>
-            <div className="mt-3">
-              <JournalWeekTracker />
+            <div className="mt-2">
+              <JournalWeekTracker compact />
             </div>
-            <p className="mt-3 text-[12.5px] text-[#8A6F66]">
+            <p className="mt-2 text-[11.5px] text-[#8A6F66]">
               Make sure to fill every weekly journal entry to remain eligible
               for Demo Day.
             </p>
@@ -302,14 +292,14 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
       </section>
 
       {/* ── PERFORMANCE SNAPSHOT ───────────────────────────────────────── */}
-      <section className={cn(CARD, "px-7 py-5")}>
+      <section className={cn(CARD, "px-6 py-4")}>
         <div className="flex items-center justify-between">
           <Eyebrow>Performance snapshot</Eyebrow>
-          <span className="text-[12.5px] text-[#8A6F66]">At a glance</span>
+          <span className="text-[11.5px] text-[#8A6F66]">At a glance</span>
         </div>
 
         <div
-          className="relative mt-2 h-[210px] w-full"
+          className="relative mt-1 h-[180px] w-full"
           data-testid="desktop-performance-wave"
         >
           <svg
@@ -363,20 +353,20 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
               read as the centre of the journey, not as a card sitting on top. */}
           <div
             className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${WAVE.centre}%`, top: 105 }}
+            style={{ left: `${WAVE.centre}%`, top: 90 }}
           >
-            <div className="grid h-[196px] w-[196px] place-items-center rounded-full bg-[#FBEFE6]/50">
-              <div className="grid h-[172px] w-[172px] place-items-center rounded-full bg-[#F8E4D6]/60">
-                <div className="grid h-[150px] w-[150px] place-items-center rounded-full border border-[#F0E4DC] bg-white px-5 text-center shadow-[0_4px_20px_rgba(99,11,18,0.07)]">
+            <div className="grid h-[168px] w-[168px] place-items-center rounded-full bg-[#FBEFE6]/50">
+              <div className="grid h-[146px] w-[146px] place-items-center rounded-full bg-[#F8E4D6]/60">
+                <div className="grid h-[128px] w-[128px] place-items-center rounded-full border border-[#F0E4DC] bg-white px-4 text-center shadow-[0_4px_20px_rgba(99,11,18,0.07)]">
                   <div>
                     <BarChart3
-                      className="mx-auto h-6 w-6 text-[#A81B22]"
+                      className="mx-auto h-5 w-5 text-[#A81B22]"
                       aria-hidden="true"
                     />
-                    <p className="mt-1.5 text-[15px] font-extrabold text-[#2B090C]">
+                    <p className="mt-1 text-[13px] font-extrabold text-[#2B090C]">
                       Your Progress
                     </p>
-                    <p className="mt-1 text-[11.5px] leading-tight text-[#8A6F66]">
+                    <p className="mt-1 text-[10.5px] leading-tight text-[#8A6F66]">
                       Keep going, you&apos;re doing great!
                     </p>
                   </div>
@@ -437,17 +427,17 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
       </section>
 
       {/* ── PROGRESS CENTER ────────────────────────────────────────────── */}
-      <section className={cn(CARD, "px-7 py-5")} data-testid="progress-center">
+      <section className={cn(CARD, "px-6 py-4")} data-testid="progress-center">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#FDEEF0]">
-              <Activity className="h-4 w-4 text-[#E51B23]" />
+            <span className="grid h-6 w-6 place-items-center rounded-lg bg-[#FDEEF0]">
+              <Activity className="h-3.5 w-3.5 text-[#E51B23]" />
             </span>
             <Eyebrow>Progress center</Eyebrow>
           </div>
           <Link
             href="/journal"
-            className="flex items-center gap-1 text-[13px] font-semibold text-[#A81B22] hover:underline"
+            className="flex items-center gap-1 text-[12px] font-semibold text-[#A81B22] hover:underline"
             data-testid="link-open-journal"
           >
             Open journal
@@ -455,29 +445,29 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
           </Link>
         </div>
 
-        <div className="mt-4 grid grid-cols-2">
+        <div className="mt-3 grid grid-cols-2">
           {/* Journal this week */}
           <div className="pr-8">
-            <div className="flex items-center gap-2.5">
-              <span className="text-[14px] font-semibold text-[#2B090C]">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-[#2B090C]">
                 Journal this week
               </span>
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+                  "rounded-full px-2 py-0.5 text-[10px] font-bold",
                   TONE_PILL[p.journalTone],
                 )}
               >
                 {p.journalLabel}
               </span>
             </div>
-            <div className="mt-3 h-1.5 rounded-full bg-[#F6E3E5]">
+            <div className="mt-2 h-1.5 rounded-full bg-[#F6E3E5]">
               <div
                 className="h-1.5 rounded-full bg-[#E51B23] transition-[width] duration-500"
                 style={{ width: p.submittedThisWeek ? "100%" : "0%" }}
               />
             </div>
-            <p className="mt-2 text-[12.5px] text-[#8A6F66]">
+            <p className="mt-1.5 text-[11.5px] text-[#8A6F66]">
               {p.weekNumber != null
                 ? `Week ${p.weekNumber}`
                 : "Submit a short 3-field journal to stay on track."}
@@ -486,11 +476,11 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
 
           {/* Demo Day readiness */}
           <div className="border-l border-[#F2E7E0] pl-8">
-            <div className="text-[14px] font-semibold text-[#2B090C]">
+            <div className="text-[13px] font-semibold text-[#2B090C]">
               Demo Day readiness
             </div>
             <div className="mt-1 flex items-center gap-4">
-              <span className="text-[24px] font-extrabold leading-none tabular-nums text-[#E51B23]">
+              <span className="text-[22px] font-extrabold leading-none tabular-nums text-[#E51B23]">
                 {p.progressPercent.toFixed(0)}%
               </span>
               <div className="h-1.5 flex-1 rounded-full bg-[#F6E3E5]">
@@ -502,7 +492,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
                 />
               </div>
             </div>
-            <p className="mt-2 text-[12.5px] text-[#8A6F66]">
+            <p className="mt-1.5 text-[11.5px] text-[#8A6F66]">
               {formatINR(p.verifiedRevenue)} of {formatINR(p.demoDayThreshold)}{" "}
               verified
             </p>
@@ -510,20 +500,20 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
         </div>
 
         {/* Inset counters */}
-        <div className="mt-5 grid grid-cols-2 rounded-2xl border border-[#F2E7E0] bg-[#FFFDFB]">
-          <div className="flex items-center gap-3 px-5 py-4">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#FDEEF0]">
-              <FileClock className="h-5 w-5 text-[#E51B23]" />
+        <div className="mt-4 grid grid-cols-2 rounded-2xl border border-[#F2E7E0] bg-[#FFFDFB]">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#FDEEF0]">
+              <FileClock className="h-[18px] w-[18px] text-[#E51B23]" />
             </span>
             <div className="min-w-0">
-              <div className="text-[13px] font-semibold text-[#2B090C]">
+              <div className="text-[12px] font-semibold text-[#2B090C]">
                 Pending submissions
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-[22px] font-extrabold leading-tight tabular-nums text-[#2B090C]">
+                <span className="text-[20px] font-extrabold leading-tight tabular-nums text-[#2B090C]">
                   {p.pending}
                 </span>
-                <span className="truncate text-[12px] text-[#8A6F66]">
+                <span className="truncate text-[11px] text-[#8A6F66]">
                   {p.pending > 0
                     ? "Awaiting admin review."
                     : "Nothing awaiting review."}
@@ -531,19 +521,19 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 border-l border-[#F2E7E0] px-5 py-4">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E9F8F1]">
-              <PenLine className="h-5 w-5 text-[#12B981]" />
+          <div className="flex items-center gap-3 border-l border-[#F2E7E0] px-4 py-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#E9F8F1]">
+              <PenLine className="h-[18px] w-[18px] text-[#12B981]" />
             </span>
             <div className="min-w-0">
-              <div className="text-[13px] font-semibold text-[#2B090C]">
+              <div className="text-[12px] font-semibold text-[#2B090C]">
                 Journals submitted
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-[22px] font-extrabold leading-tight tabular-nums text-[#2B090C]">
+                <span className="text-[20px] font-extrabold leading-tight tabular-nums text-[#2B090C]">
                   {p.totalJournals}
                 </span>
-                <span className="truncate text-[12px] text-[#8A6F66]">
+                <span className="truncate text-[11px] text-[#8A6F66]">
                   {p.totalJournals > 0
                     ? "Great! Keep it up."
                     : "Your first one starts the streak."}
@@ -555,12 +545,12 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
       </section>
 
       {/* ── BOTTOM ROW ─────────────────────────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.35fr_1fr]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_1.35fr_1fr]">
         {/* Programme timeline — hides itself when no end date is configured,
             exactly as <ProgramCountdown /> does. */}
         {p.daysLeft != null ? (
           <section
-            className={cn(CARD, "px-6 py-5")}
+            className={cn(CARD, "px-5 py-4")}
             data-testid="program-countdown"
           >
             <div className="flex items-center gap-2">
@@ -572,10 +562,10 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
             <div className="mt-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-end gap-2">
-                  <span className="text-[46px] font-extrabold leading-none tabular-nums text-[#A81B22]">
+                  <span className="text-[40px] font-extrabold leading-none tabular-nums text-[#A81B22]">
                     {p.daysLeft}
                   </span>
-                  <span className="mb-1.5 text-[14px] font-medium text-[#8A6F66]">
+                  <span className="mb-1 text-[13px] font-medium text-[#8A6F66]">
                     {p.programmeEnded
                       ? "programme ended"
                       : p.daysLeft === 1
@@ -583,17 +573,17 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
                         : "days left"}
                   </span>
                 </div>
-                <p className="mt-3 text-[12.5px] text-[#8A6F66]">
+                <p className="mt-2 text-[11.5px] text-[#8A6F66]">
                   {p.programmeEnded ? "Ended on " : "Programme ends on "}
                   <span className="font-semibold text-[#2B090C]">
                     {p.endLabel}
                   </span>
                 </p>
               </div>
-              <span className="relative grid h-[86px] w-[86px] shrink-0 place-items-center">
-                <span className="absolute inset-0 rounded-full border-[7px] border-[#F8DDDF]" />
-                <span className="absolute inset-0 rounded-full border-[7px] border-[#D8232A] border-b-transparent border-l-transparent" />
-                <CalendarDays className="h-7 w-7 text-[#D8232A]" />
+              <span className="relative grid h-[74px] w-[74px] shrink-0 place-items-center">
+                <span className="absolute inset-0 rounded-full border-[6px] border-[#F8DDDF]" />
+                <span className="absolute inset-0 rounded-full border-[6px] border-[#D8232A] border-b-transparent border-l-transparent" />
+                <CalendarDays className="h-6 w-6 text-[#D8232A]" />
               </span>
             </div>
           </section>
@@ -602,7 +592,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
         )}
 
         {/* Journal streak */}
-        <section className={cn(CARD, "px-6 py-5")} data-testid="journal-streak">
+        <section className={cn(CARD, "px-5 py-4")} data-testid="journal-streak">
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#E9F8F1]">
               <Flame
@@ -617,27 +607,27 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
             <Eyebrow>Journal streak</Eyebrow>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-5">
+          <div className="mt-3 flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex items-end gap-2">
                 <span
-                  className="text-[46px] font-extrabold leading-none tabular-nums text-[#12B981]"
+                  className="text-[40px] font-extrabold leading-none tabular-nums text-[#12B981]"
                   data-testid="rail-streak-count"
                 >
                   {p.streak}
                 </span>
-                <span className="mb-1.5 text-[14px] font-medium text-[#8A6F66]">
+                <span className="mb-1 text-[13px] font-medium text-[#8A6F66]">
                   week{p.streak === 1 ? "" : "s"}
                 </span>
               </div>
 
               {p.nextTier != null ? (
                 <>
-                  <div className="mt-3 flex items-center gap-3">
-                    <span className="text-[12.5px] text-[#8A6F66]">
+                  <div className="mt-2 flex items-center gap-2.5">
+                    <span className="text-[11.5px] text-[#8A6F66]">
                       Next badge
                     </span>
-                    <span className="text-[12.5px] font-semibold tabular-nums text-[#2B090C]">
+                    <span className="text-[11.5px] font-semibold tabular-nums text-[#2B090C]">
                       {p.streak}/{p.nextTier} weeks
                     </span>
                     <span className="flex items-center gap-1.5">
@@ -648,7 +638,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
                           <Star
                             key={i}
                             className={cn(
-                              "h-4 w-4",
+                              "h-3.5 w-3.5",
                               filled
                                 ? "fill-[#FFC400] text-[#FFC400]"
                                 : "fill-[#EFE4DE] text-[#EFE4DE]",
@@ -659,7 +649,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
                       })}
                     </span>
                   </div>
-                  <div className="mt-2 h-1.5 rounded-full bg-[#DCF0E6]">
+                  <div className="mt-1.5 h-1.5 rounded-full bg-[#DCF0E6]">
                     <div
                       className="h-1.5 rounded-full bg-[#12B981] transition-[width] duration-500"
                       style={{
@@ -669,12 +659,12 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
                   </div>
                 </>
               ) : (
-                <p className="mt-3 text-[12.5px] font-semibold text-orange-600">
+                <p className="mt-2 text-[11.5px] font-semibold text-orange-600">
                   Top-tier streak — you&apos;re unstoppable 🔥
                 </p>
               )}
 
-              <p className="mt-2.5 text-[12.5px] text-[#8A6F66]">
+              <p className="mt-2 text-[11.5px] text-[#8A6F66]">
                 {p.streak === 0
                   ? "Submit this week's journal to start your streak."
                   : p.submittedThisWeek
@@ -683,9 +673,9 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
               </p>
             </div>
 
-            <span className="relative grid h-[86px] w-[86px] shrink-0 place-items-center rounded-full bg-[#F4FBF7]">
+            <span className="relative grid h-[74px] w-[74px] shrink-0 place-items-center rounded-full bg-[#F4FBF7]">
               <span className="absolute inset-0 rounded-full border-[3px] border-dashed border-[#CDEBDC]" />
-              <ShieldCheck className="h-8 w-8 text-[#12B981]" />
+              <ShieldCheck className="h-7 w-7 text-[#12B981]" />
             </span>
           </div>
         </section>
