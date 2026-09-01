@@ -19,3 +19,6 @@ ios/build/
 .DS_Store
 *.log
 .metro-health-check*
+
+# Native build staging tree (path shortened for the Windows 260-char limit).
+android/.cxx-short/
