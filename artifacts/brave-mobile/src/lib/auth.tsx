@@ -248,8 +248,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Called by the login WebView once it knows how the attempt ended. */
   const resolveWebLogin = useCallback(
     async (result: WebLoginResult) => {
-      setWebLoginOpen(false);
-      if (result.kind === 'cancelled') return; // backed out; not an error
+      if (result.kind === 'cancelled') {
+        setWebLoginOpen(false);
+        return; // backed out; not an error
+      }
 
       setSigningIn(true);
       try {
@@ -260,7 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // No token in the URL, so take the session out of the cookie jar. The
         // dashboard has already set `sid` if the login succeeded.
-        const sid = await adoptSessionFromCookies(API_BASE);
+        const sid = await adoptSessionFromCookies(result.url);
         if (!sid) {
           setError('Sign-in did not complete. Please try again.');
           return;
@@ -279,6 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         setError('We could not verify that sign-in. Please try again.');
       } finally {
+        setWebLoginOpen(false);
         setSigningIn(false);
       }
     },

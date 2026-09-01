@@ -45,7 +45,7 @@ import { API_BASE, buildFormsLoginUrl } from '../lib/config';
 
 export type WebLoginResult =
   | { kind: 'token'; url: string }
-  | { kind: 'session' }
+  | { kind: 'session'; url: string }
   | { kind: 'cancelled' };
 
 /** Host of the dashboard, so we can tell "we are home" from "still at Forms". */
@@ -105,7 +105,7 @@ export function WebLoginModal({
       // false only after onLoadEnd, which is what makes this safe to check.
       if (!nav.loading) {
         settled.current = true;
-        onResolve({ kind: 'session' });
+        onResolve({ kind: 'session', url });
       }
     },
     [onResolve],

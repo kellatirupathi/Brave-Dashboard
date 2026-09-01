@@ -56,3 +56,31 @@ mtime_ms = 1788244604279
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/559533ed-2b81-4f8a-9eaa-aba352db4d98/77c66e8b-1b96-4148-84bd-da14904e5432"
 storage_version_token = "1788244649382144"
 content_type = "text/plain"
+
+[[outputs]]
+id = "bpJQ2NIdrDFYDNERgyP99"
+uri = "file://deliverables/BRAVE-Student-1.0.1-arm64-v8a.apk"
+type = "unspecified"
+title = "BRAVE Student 1.0.1 — Sign-in Fix"
+description = "Install this signed arm64 APK directly over BRAVE Student 1.0. It keeps the WebView mounted while Android flushes the NIAT session cookie and retries secure cookie recovery before reporting failure."
+logical_id = "4c620257-718e-4d08-840d-58d494616e6b"
+content_hash = "sha256:336b5d78776a01466e2b42991c888c8e7c70d6b21241ae347ef32d690af87b32"
+size = 23372461
+mtime_ms = 1788245771235
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/4c620257-718e-4d08-840d-58d494616e6b/2e894e12-9b2c-42ba-9182-fb279f02a5cb"
+storage_version_token = "1788245782825679"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "U29j-ZdLrrWlfZAxFbCHt"
+uri = "file://deliverables/BRAVE-Student-1.0.1-SHA256SUMS.txt"
+type = "text"
+title = "BRAVE Student 1.0.1 checksum"
+description = "SHA-256 checksum for verifying the corrected signed APK."
+logical_id = "197087f1-b086-45f4-984a-af9bfc26f6bf"
+content_hash = "sha256:ac6f21af68c8262f3ff6b6c64b70abdc32fee7370d3b4d3df4a7d141fcf30155"
+size = 228
+mtime_ms = 1788245771691
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/197087f1-b086-45f4-984a-af9bfc26f6bf/e0f74fad-0bc5-471f-8583-1e3888df27ea"
+storage_version_token = "1788245784057067"
+content_type = "text/plain"

@@ -29,6 +29,16 @@ jest.mock('react-native-webview', () => {
   };
 });
 
+jest.mock('@preeternal/react-native-cookie-manager', () => ({
+  __esModule: true,
+  default: {
+    flush: jest.fn().mockResolvedValue(undefined),
+    get: jest.fn().mockResolvedValue({}),
+    getCookieHeader: jest.fn().mockResolvedValue(''),
+    clearAll: jest.fn().mockResolvedValue(true),
+  },
+}));
+
 jest.mock('lucide-react-native', () => {
   const ReactModule = require('react');
   const { View } = require('react-native');

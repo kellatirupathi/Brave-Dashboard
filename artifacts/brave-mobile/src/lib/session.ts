@@ -18,6 +18,7 @@
  * does not belong in AsyncStorage, which is world-readable on a rooted device.
  */
 import * as Keychain from 'react-native-keychain';
+import CookieManager from '@preeternal/react-native-cookie-manager';
 
 const SERVICE = 'in.niatindia.brave.session';
 /** Matches SESSION_COOKIE in the API (`lib/auth.ts`). */
@@ -80,23 +81,56 @@ export function extractSessionId(setCookie: string | null): string | null {
  * an empty jar means the student never finished signing in.
  */
 export async function adoptSessionFromCookies(
-  origin: string,
+  url: string,
 ): Promise<string | null> {
   try {
-    const CookieManager = (
-      await import('@preeternal/react-native-cookie-manager')
-    ).default;
-    const jar = await CookieManager.get(origin, true);
-    // `useWebKit`/httpOnly handling differs by platform, and the value may be
-    // a bare string on some versions, so be generous about the shape.
-    const raw = (jar as Record<string, unknown> | undefined)?.[COOKIE_NAME];
-    const sid =
-      typeof raw === 'string'
-        ? raw
-        : ((raw as { value?: string } | undefined)?.value ?? null);
-    if (!sid) return null;
-    await saveSessionId(sid);
-    return sid;
+    // Android may notify the WebView that navigation finished just before its
+    // shared CookieManager has flushed the response cookie. Keep the WebView
+    // mounted while polling briefly rather than turning a successful OTP into
+    // a false "sign-in did not complete" error.
+    const targets = Array.from(
+      new Set([
+        url,
+        (() => {
+          try {
+            return new URL(url).origin;
+          } catch {
+            return url;
+          }
+        })(),
+      ]),
+    );
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await CookieManager.flush();
+
+      for (const target of targets) {
+        const jar = await CookieManager.get(target, true);
+        // `useWebKit`/httpOnly handling differs by platform, and the value may
+        // be a bare string on some versions, so accept both supported shapes.
+        const raw = (jar as Record<string, unknown> | undefined)?.[COOKIE_NAME];
+        const structuredSid =
+          typeof raw === 'string'
+            ? raw
+            : ((raw as { value?: string } | undefined)?.value ?? null);
+        const sid =
+          structuredSid ||
+          extractSessionId(await CookieManager.getCookieHeader(target, true));
+
+        if (sid) {
+          await saveSessionId(sid);
+          return sid;
+        }
+      }
+
+      if (attempt < 7) {
+        await new Promise<void>(resolve =>
+          setTimeout(() => resolve(), 250),
+        );
+      }
+    }
+
+    return null;
   } catch {
     // No cookie module, or a platform that refuses to read httpOnly cookies.
     // The caller still has the auth_token route to fall back on.
@@ -107,9 +141,6 @@ export async function adoptSessionFromCookies(
 /** Wipe the WebView's cookies so a sign-out does not silently sign back in. */
 export async function clearWebCookies(): Promise<void> {
   try {
-    const CookieManager = (
-      await import('@preeternal/react-native-cookie-manager')
-    ).default;
     await CookieManager.clearAll(true);
   } catch {
     /* nothing to clear */
