@@ -99,7 +99,7 @@ export function AppHeader() {
         height: "calc(3.5rem + var(--safe-area-inset-top, 0px))",
       }}
     >
-      {!topLevel && (
+      {!isStudent && !topLevel && (
         <button
           type="button"
           onClick={() => window.history.back()}
@@ -113,7 +113,7 @@ export function AppHeader() {
       <h1
         className={cn(
           "min-w-0 flex-1 truncate text-[17px] font-bold tracking-tight",
-          topLevel ? "px-2" : "px-1",
+          topLevel || isStudent ? "px-2" : "px-1",
         )}
       >
         {title}
