@@ -147,7 +147,7 @@ export function AppHeader() {
           bar. The wrapper recolours the bell's icon for a dark surface. */}
       {isStudent && (
         <div className="flex shrink-0 items-center gap-0.5 pr-1 [&_button]:text-sidebar-foreground [&_button:hover]:bg-sidebar-accent">
-          <NotificationsBell />
+          <NotificationsBell mobile />
           <div ref={profileRef} className="relative">
             <button
               type="button"

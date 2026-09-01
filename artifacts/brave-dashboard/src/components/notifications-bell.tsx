@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 const POLL_INTERVAL_MS = 30_000;
 const VISIBLE_COUNT = 10;
 
-export function NotificationsBell() {
+export function NotificationsBell({ mobile = false }: { mobile?: boolean }) {
   const queryClient = useQueryClient();
   const { data: notifications } = useListNotifications(
     {},
@@ -147,18 +147,20 @@ export function NotificationsBell() {
           )}
         </ScrollArea>
 
-        <div className="px-4 py-2 border-t text-center">
-          <Link href="/notifications">
-            <Button
-              variant="link"
-              size="sm"
-              className="h-auto p-0"
-              data-testid="link-view-all-notifications"
-            >
-              View all notifications
-            </Button>
-          </Link>
-        </div>
+        {!mobile && (
+          <div className="px-4 py-2 border-t text-center">
+            <Link href="/notifications">
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0"
+                data-testid="link-view-all-notifications"
+              >
+                View all notifications
+              </Button>
+            </Link>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
