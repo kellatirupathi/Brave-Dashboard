@@ -399,17 +399,6 @@ function StudentResourcesLibraryGuarded() {
   return <StudentResourcesLibrary />;
 }
 
-/**
- * Has the installed app already routed THIS launch to its landing screen?
- *
- * Module scope rather than component state on purpose: the redirect unmounts
- * the component that would hold the state, so state would reset and the
- * redirect would fire again every time the student tapped Dashboard. A module
- * variable lives exactly as long as the page load does — which, in a Capacitor
- * shell, is exactly one app launch.
- */
-let nativeLaunchLanded = false;
-
 function StudentDashboardOrGetStarted() {
   const { user } = useAuth();
   const { data: team, isLoading } = useGetMyTeam({
@@ -438,27 +427,19 @@ function StudentDashboardOrGetStarted() {
   }
   if (!team) return <Redirect to="/get-started" />;
 
-  // ── Installed app: open on the work, not on a summary ──────────────────
+  // ── Installed app: open on the dashboard ───────────────────────────────
   //
-  // The session cookie lives in the WebView, so a student who signed in last
-  // week is still signed in when they tap the icon today. Landing them on the
-  // dashboard makes them navigate before they can do anything; a student opens
-  // BRAVE on their phone to log a lead.
+  // This used to force a one-off redirect to /leads on the first render after
+  // launch, on the theory that a student opens BRAVE on their phone to log a
+  // lead rather than to read a summary.
   //
-  // Deliberately placed AFTER the roster, profile and team gates above, so it
-  // cannot skip a student past onboarding into a pipeline they have no team
-  // for. And it targets /leads unconditionally — SeasonFlowRoute redirects a
-  // Season 1 student on to /projects, so the season rule stays in ONE place.
+  // That is no longer what we want. The dashboard IS the app's home: it is
+  // slot 1 of the bottom nav, it is where sign-in should land, and jumping
+  // past it made the nav lie about where the student was. Leads is one tap
+  // away in slot 3, which is the right cost for a secondary destination.
   //
-  // Fires once per launch, so tapping Dashboard afterwards behaves normally.
-  //
-  // `replace` matters: a pushed entry would leave "/" underneath /leads, so
-  // the hardware back button would surface the dashboard the student never
-  // asked for instead of leaving the app.
-  if (isNativeApp() && !nativeLaunchLanded) {
-    nativeLaunchLanded = true;
-    return <Redirect to="/leads" replace />;
-  }
+  // The `nativeLaunchLanded` module flag that guarded the redirect is gone
+  // with it — there is nothing left to fire once per launch.
 
   return gritConfig?.gritMilesDashboardEnabled ? (
     <TeamDashboard />

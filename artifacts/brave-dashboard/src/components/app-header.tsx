@@ -82,8 +82,8 @@ export function AppHeader() {
       )}
       style={{
         // The status bar is ours to paint in an installed app.
-        paddingTop: "env(safe-area-inset-top, 0px)",
-        height: "calc(3.5rem + env(safe-area-inset-top, 0px))",
+        paddingTop: "var(--safe-area-inset-top, 0px)",
+        height: "calc(3.5rem + var(--safe-area-inset-top, 0px))",
       }}
     >
       {!topLevel && (

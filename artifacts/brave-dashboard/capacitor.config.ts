@@ -43,6 +43,59 @@ const config: CapacitorConfig = {
     // downgrade on a hostile network.
     cleartext: false,
     androidScheme: "https",
+
+    // ── WHY THIS LIST EXISTS ────────────────────────────────────────────────
+    //
+    // Sign-in leaves this origin: the student is sent to the NIAT Forms SSO on
+    // `forms.ccbp.in` to enter a mobile number and an OTP, and Forms then
+    // redirects back here with `?auth_token=…`.
+    //
+    // Without these hosts listed, Capacitor treats that first hop as an
+    // EXTERNAL link and hands it to Chrome. The student finishes the OTP in a
+    // browser, the `?auth_token=` redirect lands in that browser's copy of the
+    // dashboard, and the app behind it never hears a thing — it sits on the
+    // sign-in screen forever. That is exactly the bug this list fixes.
+    //
+    // With them listed, the whole round trip stays in the app's own WebView.
+    // The token comes back to the same page that asked for it, `useAuth`
+    // exchanges it for a session cookie, and the student lands on the
+    // dashboard — no browser, no deep link, no token hand-off.
+    //
+    // ── THE OBJECTION THIS ANSWERS ──────────────────────────────────────────
+    //
+    // An earlier version of lib/native-auth.ts refused to use allowNavigation,
+    // on the grounds that Capacitor would then proxy the SSO page — losing
+    // native platform detection and dropping its `Set-Cookie` headers. That
+    // was true of older Capacitor. It is NOT true here, and the difference is
+    // worth writing down because the claim is otherwise very plausible.
+    //
+    // Bridge.loadWebView() (capacitor-android 8.5.0) injects the bridge with
+    // `WebViewCompat.addDocumentStartJavaScript(..., singleton(appUrl))` when
+    // WebViewFeature.DOCUMENT_START_SCRIPT is supported — and then sets its
+    // JSInjector to null. A null injector makes WebViewLocalServer's
+    // handleProxyRequest() return immediately, so NOTHING on this list is ever
+    // proxied. minSdk here is 26 and the feature needs WebView 83+, which
+    // updates through Play independently of the OS, so this is the path every
+    // real device takes.
+    //
+    // Two consequences, both wanted:
+    //   - The bridge is scoped to `server.url` alone. The third-party SSO page
+    //     never gets native API access (no Camera, no Geolocation), and coming
+    //     back to the dashboard re-injects it, so isNativeApp() stays true.
+    //   - Navigation is a plain WebView load. Cookies, redirects and the OTP
+    //     POST behave exactly as they do in a browser.
+    allowNavigation: [
+      "forms.ccbp.in",
+      "*.ccbp.in",
+      "dashboard.brave.niatindia.com",
+      "*.niatindia.com",
+      // Forms' OTP step embeds Google reCAPTCHA. Capacitor's
+      // shouldOverrideUrlLoading does not check isForMainFrame, so without
+      // these an iframe load would be flung out to Chrome and the student
+      // could never complete the challenge.
+      "www.google.com",
+      "www.gstatic.com",
+    ],
   },
 };
 

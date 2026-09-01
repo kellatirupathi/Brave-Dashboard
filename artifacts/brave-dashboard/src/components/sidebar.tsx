@@ -1,4 +1,5 @@
 import { useAuth } from "@workspace/replit-auth-web";
+import { signOut } from "@/lib/native-auth";
 import { IntroVideoDialog } from "@/components/intro-video-dialog";
 import { PlayCircle } from "lucide-react";
 import {
@@ -862,7 +863,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => logout()}
+              onClick={() => void signOut(logout)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Log out

@@ -95,7 +95,7 @@ function Sheet({
         className,
       )}
       style={{
-        paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "calc(0.75rem + var(--safe-area-inset-bottom, 0px))",
       }}
       role="dialog"
       aria-live="polite"

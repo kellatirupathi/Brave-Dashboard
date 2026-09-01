@@ -44,9 +44,11 @@ import {
   Rocket,
   User,
   MoreHorizontal,
+  LogOut,
   X,
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
+import { signOut } from "@/lib/native-auth";
 import { useSeason } from "@/lib/season-context";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { getFinaleMe } from "@/lib/finale-api";
@@ -62,7 +64,7 @@ type Item = {
 };
 
 export function MobileNav() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [location] = useLocation();
   const { viewing } = useSeason();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -211,7 +213,7 @@ export function MobileNav() {
               "animate-in slide-in-from-bottom duration-300",
             )}
             style={{
-              paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))",
+              paddingBottom: "calc(4.5rem + var(--safe-area-inset-bottom, 0px))",
             }}
           >
             {/* Grab handle — the affordance that says "this sheet drags". */}
@@ -231,7 +233,7 @@ export function MobileNav() {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-1 px-3 pb-2">
+            <div className="grid grid-cols-3 gap-1 px-3 pb-1">
               {overflow.map((item) => {
                 const Icon = item.icon;
                 const active = !item.external && isActive(item.href);
@@ -282,6 +284,24 @@ export function MobileNav() {
                 );
               })}
             </div>
+
+            {/* Sign out.
+                Below `lg` a student's only navigation is this bar, and the
+                sidebar that used to carry sign-out is hidden — which left a
+                student in the installed app with no way out of their own
+                account at all. It sits apart from the destination grid because
+                it is not a destination: it ends the session. */}
+            <div className="border-t px-3 pb-2 pt-2">
+              <button
+                type="button"
+                onClick={() => void signOut(logout)}
+                data-testid="button-mobile-sign-out"
+                className="flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-destructive active:bg-destructive/10"
+              >
+                <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
+                Sign out
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -294,7 +314,7 @@ export function MobileNav() {
           "lg:hidden fixed bottom-0 inset-x-0 z-50",
           "border-t border-sidebar-border bg-sidebar text-sidebar-foreground",
           // Clears the iOS home indicator and the Android gesture pill.
-          "pb-[env(safe-area-inset-bottom,0px)]",
+          "pb-[var(--safe-area-inset-bottom,0px)]",
         )}
       >
         <ul className="flex items-stretch">

@@ -27,17 +27,59 @@ const HEADER_COLOR = "#5D1414";
  */
 async function styleStatusBar(): Promise<void> {
   try {
-      const nativePlugin = "@capacitor/status-bar";
-      const { StatusBar, Style } = await import(/* @vite-ignore */ nativePlugin);
+    const nativePlugin = "@capacitor/status-bar";
+    const { StatusBar, Style } = await import(/* @vite-ignore */ nativePlugin);
     // Light TEXT on our dark header — the enum is named for the content, not
     // the background, which is the usual source of confusion here.
     await StatusBar.setStyle({ style: Style.Dark });
+
+    // Both calls below are no-ops from Android 15 on. They are kept for the
+    // Android 8–14 devices still in the fleet (minSdk here is 26), where they
+    // do work and give an opaque status bar with content laid out below it.
+    //
+    // On Android 15+ the system forces edge-to-edge and ignores them: the
+    // plugin's setBackgroundColor bails out for an app targeting 16, and
+    // setOverlaysWebView is implemented with SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN,
+    // which is a deprecated no-op. Clearing the bar there is MainActivity's
+    // job — it publishes the real insets as --safe-area-inset-*, which the
+    // header and the bottom navigation reserve space with.
+    //
+    // The two paths agree by construction rather than by coincidence: those
+    // insets are measured on the WebView itself, so when the old flags DO push
+    // content below the bars there is nothing left to reserve and they report
+    // zero.
     await StatusBar.setBackgroundColor({ color: HEADER_COLOR });
-    // The header already reserves space via env(safe-area-inset-top), so the
-    // bar must not additionally push content down.
     await StatusBar.setOverlaysWebView({ overlay: false });
   } catch {
     /* plugin unavailable; the app still renders */
+  }
+}
+
+/**
+ * Switch the status bar icons for a screen that is NOT under the maroon header.
+ *
+ * On Android 15+ the status bar is transparent and shows whatever the page
+ * paints behind it. Every signed-in screen paints the dark header there, so
+ * light icons are right. The sign-in screen paints the cream ground instead,
+ * and light icons on cream are invisible — on the very first screen a student
+ * ever sees.
+ *
+ * Pass "light-content" for a dark ground, "dark-content" for a light one.
+ * No-ops on web.
+ */
+export async function setStatusBarContrast(
+  content: "light-content" | "dark-content",
+): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    const nativePlugin = "@capacitor/status-bar";
+    const { StatusBar, Style } = await import(/* @vite-ignore */ nativePlugin);
+    // Style.Dark means "light content"; Style.Light means "dark content".
+    await StatusBar.setStyle({
+      style: content === "light-content" ? Style.Dark : Style.Light,
+    });
+  } catch {
+    /* plugin unavailable */
   }
 }
 
