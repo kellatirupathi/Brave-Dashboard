@@ -247,7 +247,11 @@ export async function nativeLogout(): Promise<boolean> {
 
   // `replace`, not `href`: a pushed entry would leave the signed-in dashboard
   // in history, and the hardware back button would appear to undo the sign-out.
-  window.location.replace("/");
+  // Go directly to the mobile login route instead of relying on the root
+  // role redirect. That avoids a blank/intermediate frame after the WebView
+  // session has just been cleared and guarantees the NIAT sign-in screen is
+  // the first page the student sees after logout.
+  window.location.replace("/login");
   return true;
 }
 
