@@ -44,11 +44,9 @@ import {
   Rocket,
   User,
   MoreHorizontal,
-  LogOut,
   X,
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
-import { signOut } from "@/lib/native-auth";
 import { useSeason } from "@/lib/season-context";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { getFinaleMe } from "@/lib/finale-api";
@@ -64,7 +62,7 @@ type Item = {
 };
 
 export function MobileNav() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [location] = useLocation();
   const { viewing } = useSeason();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -284,23 +282,6 @@ export function MobileNav() {
               })}
             </div>
 
-            {/* Sign out.
-                Below `lg` a student's only navigation is this bar, and the
-                sidebar that used to carry sign-out is hidden — which left a
-                student in the installed app with no way out of their own
-                account at all. It sits apart from the destination grid because
-                it is not a destination: it ends the session. */}
-            <div className="border-t px-3 pb-2 pt-2">
-              <button
-                type="button"
-                onClick={() => void signOut(logout)}
-                data-testid="button-mobile-sign-out"
-                className="flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-destructive active:bg-destructive/10"
-              >
-                <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
-                Sign out
-              </button>
-            </div>
           </div>
         </>
       )}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { X, Send, Trash2 } from "lucide-react";
 import chatbotIconUrl from "@assets/chatbot_icon_transparent.png";
 
@@ -40,7 +41,14 @@ const initialMessages = (): ChatMessage[] => [
 // whole page is reloaded, exactly as required.
 let launcherDismissed = false;
 
-export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
+export function Chatbot({
+  variant = "light",
+  fullPage = false,
+}: {
+  variant?: "light" | "dark";
+  fullPage?: boolean;
+}) {
+  const [location, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(launcherDismissed);
   const [input, setInput] = useState("");
@@ -58,25 +66,30 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const launcherRef = useRef<HTMLButtonElement | null>(null);
+  const chatVisible = open || fullPage;
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, sending, open]);
+  }, [messages, sending, chatVisible]);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!chatVisible) return undefined;
     // Tiny delay so the panel is mounted before focusing.
     const t = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(t);
-  }, [open]);
+  }, [chatVisible]);
 
   // Replay the intro animation each time the chat is opened while still on
   // the default greeting. 1s for the greeting bubble to appear, then the
   // three default suggestions stagger in over the next ~2s.
   useEffect(() => {
-    if (!open) return undefined;
+    if (!chatVisible) return undefined;
+    if (fullPage) {
+      setIntroStep(4);
+      return undefined;
+    }
     if (!isInitialConversation) {
       setIntroStep(4);
       return undefined;
@@ -92,12 +105,12 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
     // We intentionally only re-run when `open` flips — replaying the intro
     // on every messages change would be jarring.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [chatVisible, fullPage]);
 
   // Close the chat when the user clicks anywhere outside it (but ignore the
   // click that opened it — the launcher itself is outside the panel).
   useEffect(() => {
-    if (!open) return undefined;
+    if (!chatVisible || fullPage) return undefined;
     const onMouseDown = (e: MouseEvent) => {
       const target = e.target as Node | null;
       if (!target) return;
@@ -107,7 +120,7 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [open]);
+  }, [chatVisible, fullPage]);
 
   // Close on Escape too — small quality-of-life win.
   useEffect(() => {
@@ -118,6 +131,11 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
+
+  // The global assistant is suppressed while the dedicated mobile route owns
+  // the screen. The route renders its own full-page instance below. This
+  // happens after all hooks so route changes never change hook order.
+  if (location === "/assistant" && !fullPage) return null;
 
   const clearConversation = () => {
     setMessages(initialMessages());
@@ -204,6 +222,20 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
   };
 
   const isDark = variant === "dark";
+  const handleLauncherClick = () => {
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      setLocation("/assistant");
+    } else {
+      setOpen(true);
+    }
+  };
+  const handleClose = () => {
+    if (fullPage) {
+      setLocation("/");
+    } else {
+      setOpen(false);
+    }
+  };
 
   return (
     <>
@@ -214,7 +246,7 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
           <button
             ref={launcherRef}
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={handleLauncherClick}
             aria-label="Open BRAVE assistant"
             data-testid="button-open-chatbot"
             className="relative block cursor-pointer group focus:outline-none"
@@ -280,21 +312,25 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
       )}
 
       {/* Chat panel. */}
-      {open && (
+      {chatVisible && (
         <div
           ref={panelRef}
           role="dialog"
           aria-label="BRAVE assistant"
           data-testid="chatbot-panel"
-          className="fixed bottom-6 right-6 z-50 flex w-[min(92vw,380px)] flex-col overflow-hidden rounded-2xl border shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+          className={
+            fullPage
+              ? "flex h-full min-h-0 w-full flex-col overflow-hidden bg-white"
+              : "fixed bottom-6 right-6 z-50 flex w-[min(92vw,380px)] flex-col overflow-hidden rounded-2xl border shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+          }
           style={{
-            height: "min(78vh, 580px)",
+            height: fullPage ? undefined : "min(78vh, 580px)",
             background: isDark ? "#1a0a08" : "#ffffff",
             borderColor: isDark
               ? "rgba(247,172,43,0.25)"
               : "rgba(212,64,47,0.18)",
             color: isDark ? "#fff3df" : "#111",
-            transformOrigin: "bottom right",
+            transformOrigin: fullPage ? undefined : "bottom right",
           }}
         >
           {/* Header */}
@@ -329,7 +365,7 @@ export function Chatbot({ variant = "light" }: { variant?: "light" | "dark" }) {
             </div>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={handleClose}
               aria-label="Close BRAVE assistant"
               data-testid="button-close-chatbot"
               className="cursor-pointer rounded-full p-1.5 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 transition-colors"

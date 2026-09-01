@@ -14,12 +14,12 @@
 // its hamburger and wordmark exactly as before.
 //
 // Deleting this file means removing its one tag in layout.tsx.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LogOut, User } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { NotificationsBell } from "@/components/notifications-bell";
-import { isNativeApp } from "@/lib/native-auth";
+import { isNativeApp, signOut } from "@/lib/native-auth";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,6 +44,7 @@ function describe(path: string): { title: string; topLevel: boolean } {
     [/^\/finale/, "Finale", false],
     [/^\/team/, "My Team", false],
     [/^\/resources-library/, "Resources", false],
+    [/^\/assistant/, "BRAVE Assistant", false],
     // Reached from the More sheet, not the bottom bar, so it is a drill-down
     // and gets a back arrow like any other.
     [/^\/profile/, "Profile", false],
@@ -58,10 +59,12 @@ function describe(path: string): { title: string; topLevel: boolean } {
 
 export function AppHeader() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   // Elevation appears only once the page has scrolled, the way a Material
   // top app bar does — flat at rest, raised over content.
   const [scrolled, setScrolled] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement | null>(null);
   const native = isNativeApp();
   // A student's navigation below `lg` is the bottom bar, so their top bar is
   // free to be a real app bar: the screen's name, notifications, and their
@@ -75,6 +78,22 @@ export function AppHeader() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    setProfileOpen(false);
+  }, [location]);
+
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && !profileRef.current?.contains(target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [profileOpen]);
 
   if (!native && !isStudent) return null;
 
@@ -125,22 +144,56 @@ export function AppHeader() {
       {isStudent && (
         <div className="flex shrink-0 items-center gap-0.5 pr-1 [&_button]:text-sidebar-foreground [&_button:hover]:bg-sidebar-accent">
           <NotificationsBell />
-          <Link
-            href="/profile"
-            aria-label="Profile"
-            data-testid="link-app-header-profile"
-            className="ml-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/25 bg-sidebar-accent text-[12px] font-bold uppercase"
-          >
-            {user?.profileImage ? (
-              <img
-                src={user.profileImage}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              initials
+          <div ref={profileRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setProfileOpen((open) => !open)}
+              aria-label="Open profile menu"
+              aria-expanded={profileOpen}
+              aria-haspopup="menu"
+              data-testid="button-app-header-profile"
+              className="ml-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/25 bg-sidebar-accent text-[12px] font-bold uppercase"
+            >
+              {user?.profileImage ? (
+                <img
+                  src={user.profileImage}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                initials
+              )}
+            </button>
+            {profileOpen && (
+              <div
+                role="menu"
+                aria-label="Profile menu"
+                data-testid="menu-app-header-profile"
+                className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-40 overflow-hidden rounded-xl border border-sidebar-border bg-white py-1 text-sm text-[#2B090C] shadow-xl"
+              >
+                <Link
+                  href="/profile"
+                  role="menuitem"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 font-medium hover:bg-[#FFF5F5]"
+                  data-testid="link-app-header-profile-page"
+                >
+                  <User className="h-4 w-4 text-[#6B4F47]" aria-hidden="true" />
+                  Profile
+                </Link>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void signOut(logout)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left font-medium !text-[#D4402F] hover:!bg-[#FFF5F5] hover:!text-[#D4402F]"
+                  data-testid="button-app-header-logout"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Logout
+                </button>
+              </div>
             )}
-          </Link>
+          </div>
         </div>
       )}
     </header>

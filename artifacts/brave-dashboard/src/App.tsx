@@ -53,6 +53,7 @@ import Notifications from "@/pages/student/notifications";
 import Invitations from "@/pages/student/invitations";
 import JoinByCode from "@/pages/student/join";
 import BrowseTeams from "@/pages/student/browse-teams";
+import StudentAssistant from "@/pages/student/assistant";
 
 // Coordinator
 import CoordinatorDashboard from "@/pages/coordinator/dashboard";
@@ -734,6 +735,12 @@ function Router() {
         </Route>
         <Route path="/browse-teams">
           <ProtectedRoute component={BrowseTeams} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/assistant">
+          <ProtectedRoute
+            component={StudentAssistant}
+            allowedRoles={["student"]}
+          />
         </Route>
         <Route path="/grit-miles">
           <ProtectedRoute
