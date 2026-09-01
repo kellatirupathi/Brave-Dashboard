@@ -121,12 +121,12 @@ function WaveNode({
     >
       <span
         className={cn(
-          "grid h-[48px] w-[48px] place-items-center rounded-full border-2 transition-transform duration-300 hover:scale-105",
+          "grid h-[52px] w-[52px] place-items-center rounded-full border-2 transition-transform duration-300 hover:scale-105",
           ring,
           bg,
         )}
       >
-        <Icon className={cn("h-[18px] w-[18px]", tint)} />
+        <Icon className={cn("h-[19px] w-[19px]", tint)} />
       </span>
       <span className={cn("mt-1.5 text-[11px] font-semibold", tint)}>
         {label}
@@ -175,7 +175,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
       className={cn(
         "-mx-6 -mt-6 px-6 pt-4 pb-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-5",
         "min-h-[calc(100vh-4rem)] bg-[#FFFCF8]",
-        "space-y-2.5",
+        "space-y-3.5",
       )}
     >
       <PinnedAnnouncementBanner />
@@ -183,70 +183,130 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
 
       {/* ── HERO ───────────────────────────────────────────────────────── */}
       <section
-        className={cn(CARD, "relative overflow-hidden px-5 py-4")}
+        className={cn(CARD, "relative overflow-hidden px-6 py-5")}
         data-testid="desktop-hero"
       >
-        {/* Decorative: rising bars into a bullseye. Sits behind the copy and
-            fades out on narrower windows so it never crowds the team name. */}
+        {/* Decorative: a compact rising-bars / target illustration. The art
+            has its own lower-right region so it cannot collide with the copy
+            or the utility controls above it. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] select-none lg:block"
+          className="desktop-hero-art pointer-events-none absolute bottom-0 right-4 top-[30%] hidden w-[30%] select-none lg:block"
         >
           <svg
             viewBox="0 0 520 260"
             className="h-full w-full"
-            preserveAspectRatio="xMaxYMid slice"
+            preserveAspectRatio="xMaxYMid meet"
           >
-            <circle cx="300" cy="70" r="54" fill="#FBEBD9" opacity="0.75" />
-            <circle cx="118" cy="150" r="40" fill="#FBEBD9" opacity="0.55" />
-            <rect x="196" y="176" width="26" height="52" rx="6" fill="#F3C9CC" />
-            <rect x="232" y="150" width="26" height="78" rx="6" fill="#E8949B" />
-            <rect x="268" y="120" width="26" height="108" rx="6" fill="#D2555F" />
-            <rect x="304" y="88" width="26" height="140" rx="6" fill="#A81B22" />
-            <rect x="340" y="60" width="26" height="168" rx="6" fill="#8E0F18" />
+            <circle cx="300" cy="70" r="54" fill="#FBEBD9" opacity="0.42" />
+            <circle cx="118" cy="150" r="40" fill="#FBEBD9" opacity="0.3" />
+            <rect
+              className="desktop-hero-bar"
+              style={{ animationDelay: "0ms" }}
+              x="196"
+              y="176"
+              width="26"
+              height="52"
+              rx="6"
+              fill="#E9B0B4"
+            />
+            <rect
+              className="desktop-hero-bar"
+              style={{ animationDelay: "55ms" }}
+              x="232"
+              y="150"
+              width="26"
+              height="78"
+              rx="6"
+              fill="#D98189"
+            />
+            <rect
+              className="desktop-hero-bar"
+              style={{ animationDelay: "110ms" }}
+              x="268"
+              y="120"
+              width="26"
+              height="108"
+              rx="6"
+              fill="#C85861"
+            />
+            <rect
+              className="desktop-hero-bar"
+              style={{ animationDelay: "165ms" }}
+              x="304"
+              y="88"
+              width="26"
+              height="140"
+              rx="6"
+              fill="#A81B22"
+            />
+            <rect
+              className="desktop-hero-bar"
+              style={{ animationDelay: "220ms" }}
+              x="340"
+              y="60"
+              width="26"
+              height="168"
+              rx="6"
+              fill="#8E0F18"
+            />
             <path
+              className="desktop-hero-arrow"
               d="M188 168 C 250 150, 320 108, 392 52"
               fill="none"
               stroke="#A81B22"
-              strokeWidth="7"
+              strokeWidth="6"
               strokeLinecap="round"
             />
             <path
+              className="desktop-hero-arrow-head"
               d="M392 52 l-26 4 M392 52 l-4 26"
               stroke="#A81B22"
-              strokeWidth="7"
+              strokeWidth="6"
               strokeLinecap="round"
             />
-            <circle cx="432" cy="132" r="58" fill="#FFFFFF" />
-            <circle cx="432" cy="132" r="58" fill="none" stroke="#C0392B" strokeWidth="10" />
-            <circle cx="432" cy="132" r="36" fill="none" stroke="#C0392B" strokeWidth="10" />
-            <circle cx="432" cy="132" r="13" fill="#C0392B" />
-            <path
-              d="M470 96 l34 -30 M470 96 l-6 -22 M470 96 l22 6"
-              stroke="#EF9F27"
-              strokeWidth="7"
-              strokeLinecap="round"
-              fill="none"
-            />
+            <g className="desktop-hero-target">
+              <circle cx="432" cy="132" r="58" fill="#FFFFFF" opacity="0.92" />
+              <circle
+                cx="432"
+                cy="132"
+                r="58"
+                fill="none"
+                stroke="#C0392B"
+                strokeWidth="10"
+              />
+              <circle
+                cx="432"
+                cy="132"
+                r="36"
+                fill="none"
+                stroke="#C0392B"
+                strokeWidth="10"
+              />
+              <circle cx="432" cy="132" r="13" fill="#C0392B" />
+              <path
+                d="M470 96 l34 -30 M470 96 l-6 -22 M470 96 l22 6"
+                stroke="#EF9F27"
+                strokeWidth="6"
+                strokeLinecap="round"
+                fill="none"
+              />
+            </g>
             <path
               d="M150 62 l4 9 9 4 -9 4 -4 9 -4 -9 -9 -4 9 -4z"
               fill="#EF9F27"
+              opacity="0.65"
             />
             <path
               d="M486 196 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z"
               fill="#EF9F27"
+              opacity="0.55"
             />
           </svg>
         </div>
 
         {/* Actions, top-right. */}
-        <div className="absolute right-4 top-3 z-10 flex items-center gap-1.5">
-          {p.demoEligible && (
-            <Badge className="border-none bg-green-500 px-2 py-0.5 text-[10px] text-white shadow-sm hover:bg-green-600">
-              <CheckCircle className="mr-1 h-3 w-3" />
-              Demo Day Eligible!
-            </Badge>
-          )}
+        <div className="absolute right-5 top-4 z-10 flex items-center gap-3">
           <HelpMenu inline />
           <NotificationsBell />
         </div>
@@ -266,6 +326,13 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
             <p className="mt-1 text-[13px] text-[#6B4F47]">{p.tagline}</p>
           </Link>
 
+          {p.demoEligible && (
+            <Badge className="mt-2 border-none bg-green-500 px-2 py-0.5 text-[10px] text-white shadow-sm hover:bg-green-600">
+              <CheckCircle className="mr-1 h-3 w-3" />
+              Demo Day Eligible!
+            </Badge>
+          )}
+
           {/* Weekly journal, bottom-left inside the hero. */}
           <div className="mt-3">
             <div className="flex items-center gap-2">
@@ -283,23 +350,19 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
             <div className="mt-1.5">
               <JournalWeekTracker compact />
             </div>
-            <p className="mt-1.5 text-[10.5px] text-[#8A6F66]">
-              Make sure to fill every weekly journal entry to remain eligible
-              for Demo Day.
-            </p>
           </div>
         </div>
       </section>
 
       {/* ── PERFORMANCE SNAPSHOT ───────────────────────────────────────── */}
-      <section className={cn(CARD, "px-5 py-3")}>
+      <section className={cn(CARD, "px-6 py-3.5")}>
         <div className="flex items-center justify-between">
           <Eyebrow>Performance snapshot</Eyebrow>
           <span className="text-[10.5px] text-[#8A6F66]">At a glance</span>
         </div>
 
         <div
-          className="relative mt-0.5 h-[140px] w-full"
+          className="relative mt-0.5 h-[136px] w-full"
           data-testid="desktop-performance-wave"
         >
           <svg
@@ -353,11 +416,11 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
               read as the centre of the journey, not as a card sitting on top. */}
           <div
             className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${WAVE.centre}%`, top: 70 }}
+            style={{ left: `${WAVE.centre}%`, top: 68 }}
           >
-            <div className="grid h-[132px] w-[132px] place-items-center rounded-full bg-[#FBEFE6]/50">
-              <div className="grid h-[114px] w-[114px] place-items-center rounded-full bg-[#F8E4D6]/60">
-                <div className="grid h-[98px] w-[98px] place-items-center rounded-full border border-[#F0E4DC] bg-white px-3 text-center shadow-[0_4px_20px_rgba(99,11,18,0.07)]">
+            <div className="grid h-[126px] w-[126px] place-items-center rounded-full bg-[#FBEFE6]/50">
+              <div className="grid h-[110px] w-[110px] place-items-center rounded-full bg-[#F8E4D6]/60">
+                <div className="grid h-[94px] w-[94px] place-items-center rounded-full border border-[#F0E4DC] bg-white px-3 text-center shadow-[0_4px_20px_rgba(99,11,18,0.07)]">
                   <div>
                     <BarChart3
                       className="mx-auto h-[18px] w-[18px] text-[#A81B22]"
@@ -427,7 +490,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
       </section>
 
       {/* ── PROGRESS CENTER ────────────────────────────────────────────── */}
-      <section className={cn(CARD, "px-5 py-3")} data-testid="progress-center">
+      <section className={cn(CARD, "px-6 py-3.5")} data-testid="progress-center">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="grid h-5 w-5 place-items-center rounded-lg bg-[#FDEEF0]">
@@ -545,12 +608,12 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
       </section>
 
       {/* ── BOTTOM ROW ─────────────────────────────────────────────────── */}
-      <div className="grid gap-3 lg:grid-cols-[1fr_1.35fr_1fr]">
+      <div className="grid gap-3.5 lg:grid-cols-[1fr_1.35fr_1fr]">
         {/* Programme timeline — hides itself when no end date is configured,
             exactly as <ProgramCountdown /> does. */}
         {p.daysLeft != null ? (
           <section
-            className={cn(CARD, "px-5 py-3")}
+            className={cn(CARD, "px-6 py-3.5")}
             data-testid="program-countdown"
           >
             <div className="flex items-center gap-2">
@@ -592,7 +655,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
         )}
 
         {/* Journal streak */}
-        <section className={cn(CARD, "px-5 py-3")} data-testid="journal-streak">
+        <section className={cn(CARD, "px-6 py-3.5")} data-testid="journal-streak">
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#E9F8F1]">
               <Flame
