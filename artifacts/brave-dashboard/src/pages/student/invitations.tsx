@@ -92,7 +92,7 @@ export default function Invitations() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="text-3xl font-bold tracking-tight">Team invitations</h1>
         <p className="text-muted-foreground mt-1">
           Accept an invitation to join a team. Accepting one cancels any other

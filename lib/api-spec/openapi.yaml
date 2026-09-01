@@ -3932,6 +3932,10 @@ components:
           format: date
         programmePhase:
           type: string
+        braveAppQrObjectPath:
+          type: ["string", "null"]
+        braveAppDownloadUrl:
+          type: ["string", "null"]
         updatedAt:
           type: string
           format: date-time
@@ -3972,6 +3976,10 @@ components:
           format: date
         programmePhase:
           type: string
+        braveAppQrObjectPath:
+          type: ["string", "null"]
+        braveAppDownloadUrl:
+          type: ["string", "null"]
 
     AuditLogEntry:
       type: object

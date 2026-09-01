@@ -1,0 +1,17 @@
+Keep the current Student Dashboard structure exactly as it is, but refine it to match the second/reference image more closely. Do not change sidebar, APIs, data, routing, or functionality.
+
+Hero card: Reduce the right-side rising-bars + upward-arrow + target/bullseye illustration by about 30–35%. Keep it contained strictly in the bottom-right/right 28–30% of the hero card. It must never overlap the team name, weekly journal, Feedback button, or notification bell.
+Reserve a clean top-right utility area exclusively for Feedback + notification icon/badge with at least 20–24px spacing around them.
+Position the illustration below the Feedback/notification row, vertically centered toward the lower-right. Keep decorative circles/leaves subtle and inside its own region.
+Use the reference-style illustration: 5 ascending maroon/red bars, smooth curved upward arrow, circular target with arrow hitting center, subtle beige background shapes/leaves. No oversized artwork.
+Add a subtle lightweight animation only: bars rise once on load, arrow draws upward, target gives one soft pulse. Duration 500–800ms; no looping distracting animation.
+Keep the Weekly Journal fully on the left side with numbered circles neatly aligned and no duplicate helper text.
+Maintain the existing Performance Snapshot connected curved line, but slightly enlarge icons/nodes and keep equal spacing: green Verified Revenue → blue Order Book → center Your Progress → orange National Rank → purple Campus Rank.
+Keep the center Your Progress circle visually dominant but not oversized.
+Increase major card padding slightly and maintain consistent 14–18px gaps, 16–20px radius, soft warm borders/shadows and ivory background.
+Progress Center, Programme Timeline, Journal Streak and Instagram card should retain the same reference proportions and alignment.
+Use consistent BRAVE colors: deep maroon/red, green, blue, orange, purple, soft beige/ivory.
+Use clean outlined icons from the existing icon library and avoid oversized icons or decorative elements.
+Keep everything compact enough to fit naturally in one desktop viewport.
+
+Main goal: match the reference image exactly in visual balance—especially make the hero illustration smaller, contained, elegant and completely separate from Feedback/notification controls, while preserving the polished connected-performance layout below.

@@ -53,6 +53,7 @@ import Notifications from "@/pages/student/notifications";
 import Invitations from "@/pages/student/invitations";
 import JoinByCode from "@/pages/student/join";
 import BrowseTeams from "@/pages/student/browse-teams";
+import StudentAssistant from "@/pages/student/assistant";
 
 // Coordinator
 import CoordinatorDashboard from "@/pages/coordinator/dashboard";
@@ -131,6 +132,7 @@ import { SeasonProvider, useSeason } from "@/lib/season-context";
 import { InstallPrompt, UpdatePrompt } from "@/components/pwa-prompts";
 import { isNativeApp } from "@/lib/native-auth";
 import { NativeAuthBridge } from "@/components/native-auth-bridge";
+import { ProductTour } from "@/components/product-tour";
 import {
   canonicalToLegacyPath,
   legacyToCanonicalPath,
@@ -735,6 +737,12 @@ function Router() {
         <Route path="/browse-teams">
           <ProtectedRoute component={BrowseTeams} allowedRoles={["student"]} />
         </Route>
+        <Route path="/assistant">
+          <ProtectedRoute
+            component={StudentAssistant}
+            allowedRoles={["student"]}
+          />
+        </Route>
         <Route path="/grit-miles">
           <ProtectedRoute
             component={GritMilesPage}
@@ -1091,6 +1099,7 @@ function App() {
             {/* Admin-managed student pop-ups, shown one at a time after T&C.
                 Self-gates on role + terms + pending list. Separate from T&C. */}
             <PopupGate />
+            <ProductTour />
             {/* One-time GRIT Miles intro pop-up. Self-gates on role + terms +
                 dashboard route + a localStorage "seen" flag. Never blocking. */}
             <GritIntroDialog />

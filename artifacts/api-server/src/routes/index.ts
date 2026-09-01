@@ -55,6 +55,7 @@ import trustRouter from "./trust";
 import pricingRouter from "./pricing";
 import cronTrustAwardsRouter from "./cron-trust-awards";
 import reviewRouter from "./review";
+import productTourRouter from "./product-tour";
 
 const router: IRouter = Router();
 
@@ -154,5 +155,6 @@ router.use(pricingRouter);
 router.use(cronTrustAwardsRouter);
 // Phase 7 evaluation: assignment, decisions, appeals, audit (additive, isolated)
 router.use(reviewRouter);
+router.use(productTourRouter);
 
 export default router;

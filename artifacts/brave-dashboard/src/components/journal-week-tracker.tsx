@@ -15,7 +15,13 @@ import { getStudentGritConfig } from "@/lib/grit-config-api";
 // Connector segment colour follows the week on its LEFT: green if that week is
 // submitted, red if it's a missed past week, neutral grey for current/future.
 // Clicking a week deep-links to that week's journal entry.
-export function JournalWeekTracker({ className }: { className?: string }) {
+export function JournalWeekTracker({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const { data: tracker } = useQuery({
     queryKey: ["journal", "week-tracker"],
     queryFn: getWeekTracker,
@@ -84,7 +90,9 @@ export function JournalWeekTracker({ className }: { className?: string }) {
                       ease: "easeOut",
                     }}
                     className={cn(
-                      "mt-3.5 h-1 w-3 origin-left shrink-0 rounded-full sm:w-4",
+                      compact
+                        ? "mt-2.5 h-0.5 w-2 origin-left shrink-0 rounded-full sm:w-3"
+                        : "mt-3.5 h-1 w-3 origin-left shrink-0 rounded-full sm:w-4",
                       connectorTone(i - 1),
                     )}
                   />
@@ -100,7 +108,8 @@ export function JournalWeekTracker({ className }: { className?: string }) {
                   }`}
                   data-testid={`week-dot-${w.weekNumber}`}
                   className={cn(
-                    "group flex flex-col items-center gap-0.5 rounded-md px-1 py-0.5 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "group flex flex-col items-center gap-0.5 rounded-md py-0.5 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      compact ? "px-0.5" : "px-1",
                     w.isCurrent && "bg-primary/5",
                   )}
                 >
@@ -113,16 +122,16 @@ export function JournalWeekTracker({ className }: { className?: string }) {
                     )}
                   >
                     {w.submitted ? (
-                      <CheckCircle2 className="h-7 w-7" />
+                      <CheckCircle2 className={compact ? "h-5 w-5" : "h-7 w-7"} />
                     ) : missed ? (
-                      <HelpCircle className="h-7 w-7" />
+                      <HelpCircle className={compact ? "h-5 w-5" : "h-7 w-7"} />
                     ) : (
-                      <Circle className="h-7 w-7" />
+                      <Circle className={compact ? "h-5 w-5" : "h-7 w-7"} />
                     )}
                   </span>
                   <span
                     className={cn(
-                      "text-xs font-medium tabular-nums",
+                       compact ? "text-[10px] font-medium tabular-nums" : "text-xs font-medium tabular-nums",
                       w.isCurrent
                         ? "text-primary"
                         : missed
@@ -138,7 +147,12 @@ export function JournalWeekTracker({ className }: { className?: string }) {
           })}
         </div>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground text-center">
+      <p
+        className={cn(
+          "text-muted-foreground text-center",
+          compact ? "mt-1 text-[10px]" : "mt-2 text-xs",
+        )}
+      >
         {deadlineLabel
           ? `Editing your previous journal entries is available until ${deadlineLabel}. `
           : ""}

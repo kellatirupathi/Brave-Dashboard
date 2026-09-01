@@ -283,7 +283,7 @@ export default function Journal() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <BookOpenCheck className="h-6 w-6 text-primary" />
           Weekly Journal
@@ -295,12 +295,12 @@ export default function Journal() {
       </div>
 
       {noOpenWeeks ? (
-        <Card>
+        <Card data-tour="journal-empty-state">
           <CardContent className="py-12 text-center">
             <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-2" />
             <p className="text-sm font-medium">No weeks are currently open</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Ask your admin to open the current week from /admin/config.
+              Ask your admin to open the current week.
             </p>
           </CardContent>
         </Card>

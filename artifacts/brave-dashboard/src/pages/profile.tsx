@@ -102,6 +102,7 @@ export default function Profile() {
         size="sm"
         onClick={() => setLocation("/")}
         data-testid="button-profile-back"
+        className="hidden lg:inline-flex"
       >
         <ArrowLeft className="w-4 h-4 mr-2" /> Back
       </Button>

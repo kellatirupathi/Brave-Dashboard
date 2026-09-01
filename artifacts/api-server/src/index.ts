@@ -117,6 +117,31 @@ async function ensureTermsColumns(): Promise<void> {
   }
 }
 
+async function ensureProductTourProgress(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS product_tour_progress (
+        id serial PRIMARY KEY,
+        user_id text NOT NULL,
+        platform text NOT NULL CHECK (platform IN ('mobile', 'desktop')),
+        status text NOT NULL CHECK (status IN ('finished', 'dismissed')),
+        completed_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS product_tour_progress_user_platform_unique
+        ON product_tour_progress (user_id, platform)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS product_tour_progress_user_idx
+        ON product_tour_progress (user_id)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure product tour progress table");
+  }
+}
+
 // Adds the per-journal reel-scan + image columns to weekly_journals and creates
 // the demo_day_submissions table. Runs at startup for the same reason as
 // ensureTermsColumns: the production deploy does NOT run `drizzle-kit push`, so
@@ -398,6 +423,14 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
   } catch (err) {
     logger.error({ err }, "Failed to ensure submission_access_requests table");
   }
+}
+
+async function ensureBraveAppConfigColumns(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE programme_config
+      ADD COLUMN IF NOT EXISTS brave_app_qr_object_path text,
+      ADD COLUMN IF NOT EXISTS brave_app_download_url text
+  `);
 }
 
 // BRAVE Finale Submissions: config columns + the submissions table. Same
@@ -1582,6 +1615,11 @@ async function runBootstrap(): Promise<void> {
     logger.error({ err }, "ensureUserColumns failed");
   }
   try {
+    await ensureProductTourProgress();
+  } catch (err) {
+    logger.error({ err }, "ensureProductTourProgress failed");
+  }
+  try {
     await ensureReelAndDemoDayColumns();
   } catch (err) {
     logger.error({ err }, "ensureReelAndDemoDayColumns failed");
@@ -1610,6 +1648,11 @@ async function runBootstrap(): Promise<void> {
     await ensureProjectsLockAndRejectionReasons();
   } catch (err) {
     logger.error({ err }, "ensureProjectsLockAndRejectionReasons failed");
+  }
+  try {
+    await ensureBraveAppConfigColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureBraveAppConfigColumns failed");
   }
   try {
     await ensureFinaleSubmissions();

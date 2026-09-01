@@ -35,7 +35,7 @@ export default function GritMiles() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
           <Award className="w-7 h-7 text-amber-500" /> GRIT Miles
         </h1>

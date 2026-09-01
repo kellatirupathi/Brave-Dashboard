@@ -95,8 +95,8 @@ export default function Leaderboard({
         ? true
         : !!(bannerImage && bannerImage.trim());
     return (
-      <div className="space-y-6">
-        <div>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="mobile-page-heading">
           <h1 className="text-3xl font-bold tracking-tight">Leaderboard</h1>
           <p className="text-muted-foreground mt-1">
             Race to ₹2,00,000 Verified Revenue
@@ -133,23 +133,23 @@ export default function Leaderboard({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+    <div className="space-y-3 sm:space-y-6">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center md:gap-4">
+        <div className="mobile-page-heading">
           <h1 className="text-3xl font-bold tracking-tight">Leaderboard</h1>
           <p className="text-muted-foreground mt-1">
             Race to ₹2,00,000 Verified Revenue
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:gap-3 md:w-auto">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search by team, campus, member name or NIAT ID…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-full sm:w-64"
+              className="h-10 w-full pl-9 sm:w-64"
             />
           </div>
 
@@ -184,7 +184,7 @@ export default function Leaderboard({
           <Spinner size="lg" />
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2.5 sm:space-y-4">
           {leaderboard?.map((entry, index) => {
             const isTop3 = entry.rank <= 3;
             const isCurrentUserTeam = entry.teamId === user?.teamId;
@@ -204,17 +204,17 @@ export default function Leaderboard({
                     }
                   : {})}
                 data-testid={`leaderboard-row-${entry.teamId}`}
-                className={`p-4 flex flex-col sm:flex-row items-center gap-4 transition-all ${canOpenTeam ? "hover-elevate cursor-pointer" : ""} ${isCurrentUserTeam ? "border-primary shadow-sm bg-primary/5" : ""}`}
+                className={`flex items-start gap-2.5 p-3 transition-all sm:items-center sm:gap-4 sm:p-4 ${canOpenTeam ? "hover-elevate cursor-pointer" : ""} ${isCurrentUserTeam ? "border-primary shadow-sm bg-primary/5" : ""}`}
               >
-                <div className="flex items-center justify-center w-12 h-12 shrink-0">
+                <div className="flex h-10 w-7 shrink-0 items-center justify-center sm:h-12 sm:w-12">
                   {entry.rank === 1 ? (
-                    <Trophy className="w-8 h-8 text-yellow-500" />
+                    <Trophy className="h-5 w-5 text-yellow-500 sm:h-8 sm:w-8" />
                   ) : entry.rank === 2 ? (
-                    <Medal className="w-7 h-7 text-gray-400" />
+                    <Medal className="h-5 w-5 text-gray-400 sm:h-7 sm:w-7" />
                   ) : entry.rank === 3 ? (
-                    <Medal className="w-6 h-6 text-amber-600" />
+                    <Medal className="h-5 w-5 text-amber-600 sm:h-6 sm:w-6" />
                   ) : (
-                    <span className="text-xl font-bold text-muted-foreground w-8 text-center">
+                    <span className="w-7 text-center text-sm font-bold text-muted-foreground sm:w-8 sm:text-xl">
                       {entry.rank}
                     </span>
                   )}
@@ -224,17 +224,17 @@ export default function Leaderboard({
                   <img
                     src={entry.photoUrl}
                     alt=""
-                    className="w-12 h-12 rounded-lg object-cover"
+                    className="h-10 w-10 shrink-0 rounded-lg object-cover sm:h-12 sm:w-12"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center font-bold text-muted-foreground">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-bold text-muted-foreground sm:h-12 sm:w-12 sm:text-base">
                     {entry.teamName.substring(0, 2).toUpperCase()}
                   </div>
                 )}
 
-                <div className="flex-1 text-center sm:text-left">
-                  <div className="flex items-center justify-center sm:justify-start gap-2">
-                    <h3 className="font-bold text-lg">{entry.teamName}</h3>
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                    <h3 className="min-w-0 truncate text-sm font-bold sm:text-lg">{entry.teamName}</h3>
                     {isCurrentUserTeam && (
                       <Badge
                         variant="default"
@@ -252,23 +252,24 @@ export default function Leaderboard({
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center justify-center sm:justify-start gap-3 mt-1 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Building2 className="w-3.5 h-3.5" /> {entry.campusName}
+                  <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground sm:gap-3 sm:text-sm">
+                    <span className="flex min-w-0 items-center gap-1">
+                      <Building2 className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" />
+                      <span className="truncate">{entry.campusName}</span>
                     </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5" />{" "}
+                    <span className="shrink-0">•</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />{" "}
                       {entry.activeProjects} Projects
                     </span>
                   </div>
                 </div>
 
-                <div className="text-center sm:text-right mt-4 sm:mt-0 w-full sm:w-auto">
-                  <div className="text-xs font-medium text-muted-foreground mb-1">
+                <div className="shrink-0 text-right">
+                  <div className="mb-0.5 text-[9px] font-medium text-muted-foreground sm:mb-1 sm:text-xs">
                     {view === "overall" ? "Overall Revenue" : "Verified Revenue"}
                   </div>
-                  <div className="text-2xl font-extrabold text-primary">
+                  <div className="text-lg font-extrabold leading-none text-primary sm:text-2xl">
                     {formatINR(entry.totalRevenue)}
                   </div>
                   {/* Overall view only: how that total splits across seasons,
@@ -276,11 +277,11 @@ export default function Leaderboard({
                       no revenue are shown as zero rather than omitted, so every
                       row lines up. */}
                   {entry.revenueBySeason && seasons.length > 1 && (
-                    <div className="mt-1.5 flex flex-wrap justify-center gap-x-3 gap-y-0.5 sm:justify-end">
+                    <div className="mt-1 flex max-w-24 flex-wrap justify-end gap-x-2 gap-y-0.5 sm:mt-1.5 sm:max-w-none sm:gap-x-3">
                       {seasons.map((s) => (
                         <span
                           key={s.id}
-                          className="text-xs text-muted-foreground tabular-nums"
+                          className="text-[9px] text-muted-foreground tabular-nums sm:text-xs"
                         >
                           <span className="font-semibold">{s.slug}</span>{" "}
                           {formatINR(entry.revenueBySeason?.[s.id] ?? 0)}
@@ -289,7 +290,7 @@ export default function Leaderboard({
                     </div>
                   )}
                   {entry.totalOrderBook > 0 && (
-                    <div className="text-xs text-muted-foreground mt-1">
+                    <div className="mt-1 text-[9px] text-muted-foreground sm:text-xs">
                       + {formatINR(entry.totalOrderBook)} in order book
                     </div>
                   )}
@@ -299,10 +300,10 @@ export default function Leaderboard({
           })}
 
           {leaderboard?.length === 0 && (
-            <div className="text-center py-20 bg-card border rounded-xl border-dashed">
-              <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold">No teams found</h3>
-              <p className="text-muted-foreground mt-2">
+            <div className="rounded-xl border border-dashed bg-card py-12 text-center sm:py-20">
+              <Trophy className="mx-auto mb-3 h-9 w-9 text-muted-foreground opacity-50 sm:mb-4 sm:h-12 sm:w-12" />
+              <h3 className="text-base font-semibold sm:text-lg">No teams found</h3>
+              <p className="mt-1 text-sm text-muted-foreground sm:mt-2 sm:text-base">
                 Try adjusting your filters.
               </p>
             </div>

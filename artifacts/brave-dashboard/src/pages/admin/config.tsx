@@ -66,6 +66,7 @@ import { FinaleConfigCard } from "@/components/finale-config-card";
 import { PcaConfigCard } from "@/components/pca-config-card";
 import { LeaderboardConfigCard } from "@/components/leaderboard-config-card";
 import { Label } from "@/components/ui/label";
+import { BraveAppSettingsCard } from "@/components/brave-app-settings-card";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
 type ChatbotProvider = "cloudflare" | "cerebras";
@@ -739,6 +740,7 @@ export default function AdminConfig() {
                   </p>
                 </CardContent>
               </Card>
+              <BraveAppSettingsCard />
             </div>
           )}
 

@@ -160,7 +160,7 @@ export default function DemoDayUpload() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
           <Rocket className="h-7 w-7 text-primary" /> Demo Day
         </h1>

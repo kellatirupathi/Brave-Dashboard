@@ -208,16 +208,16 @@ export function MobileDashboard(p: MobileDashboardProps) {
   return (
     // Breaks out of <main>'s padding so the maroon band can run edge to edge,
     // then re-applies its own. -mt-4 matches main's p-4.
-    <div className="-mx-4 -mt-4 bg-[#FFFCF8] pb-2">
+    <div className="-mx-4 -mt-4 bg-[#FFFCF8] pb-1">
       {/* ── Maroon band. The hero card below rides up over it. ───────────── */}
-      <div className="h-[92px] bg-[#630B12]" />
+      <div className="h-[80px] bg-[#630B12]" />
 
-      <div className="-mt-[68px] space-y-5 px-4">
+      <div className="-mt-[58px] space-y-3.5 px-3.5">
         {/* ── Hero ───────────────────────────────────────────────────────── */}
-        <section className={cn(CARD, "overflow-hidden p-5")}>
-          <div className="flex items-start gap-3">
+        <section className={cn(CARD, "overflow-hidden p-4")}>
+          <div className="flex items-start gap-2.5">
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium text-[#6B4F47]">
+              <p className="text-[12px] font-medium text-[#6B4F47]">
                 {timeGreeting()}, {p.firstName || "there"}! 👋
               </p>
               <Link
@@ -225,10 +225,10 @@ export function MobileDashboard(p: MobileDashboardProps) {
                 className="mt-1 block"
                 data-testid="link-mobile-team"
               >
-                <h1 className="break-words text-[26px] font-extrabold leading-[1.12] tracking-tight text-[#2B090C]">
+                <h1 className="break-words text-[23px] font-extrabold leading-[1.08] tracking-tight text-[#2B090C]">
                   {p.teamName}
                 </h1>
-                <p className="mt-1 text-[13px] leading-snug text-[#8A6F66]">
+                <p className="mt-0.5 truncate whitespace-nowrap text-[12px] leading-snug text-[#8A6F66]">
                   {p.tagline}
                 </p>
               </Link>
@@ -236,7 +236,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
             {/* Decorative only — rising bars into a target. */}
             <svg
               viewBox="0 0 96 76"
-              className="mt-1 h-[68px] w-[86px] shrink-0"
+              className="mt-0.5 h-[56px] w-[72px] shrink-0"
               aria-hidden="true"
             >
               <rect x="2" y="52" width="13" height="22" rx="3" fill="#FBD9A5" />
@@ -302,7 +302,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
           </div>
 
           {/* Weekly journal, nested inside the hero. */}
-          <div className="mt-4 rounded-[18px] border border-[#F2E7E0] bg-[#FFFDF9] p-4">
+          <div className="mt-3 rounded-[16px] border border-[#F2E7E0] bg-[#FFFDF9] p-3">
             <div className="flex items-center gap-2">
               <span
                 className={cn(
@@ -313,7 +313,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
               <Eyebrow>Weekly journal</Eyebrow>
               <span
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[10px] font-bold",
+                  "rounded-full px-1.5 py-0.5 text-[9px] font-bold",
                   TONE_PILL[p.journalTone],
                 )}
                 data-testid="mobile-journal-status"
@@ -324,22 +324,17 @@ export function MobileDashboard(p: MobileDashboardProps) {
                 type="button"
                 onClick={p.onFeedback}
                 data-testid="button-mobile-feedback"
-                className="ml-auto flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-full px-2 text-[11px] font-semibold text-[#6B4F47] active:bg-black/5"
+                 className="ml-auto flex min-h-[28px] shrink-0 items-center gap-1 rounded-full px-1.5 text-[10px] font-semibold text-[#6B4F47] active:bg-black/5"
               >
-                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                <MessageSquare className="h-3 w-3" aria-hidden="true" />
                 Feedback
               </button>
             </div>
 
             {/* Already horizontally scrollable and click-through to a week. */}
-            <div className="mt-3">
+            <div className="mt-2">
               <JournalWeekTracker />
             </div>
-
-            <p className="mt-3 text-[11px] leading-snug text-[#8A6F66]">
-              Make sure to fill every weekly journal entry to remain eligible
-              for Demo Day.
-            </p>
           </div>
         </section>
 
@@ -354,7 +349,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
 
           <div
             className="relative w-full"
-            style={{ aspectRatio: "360 / 330" }}
+             style={{ aspectRatio: "360 / 280" }}
             data-testid="mobile-performance-arc"
           >
             <svg
@@ -460,13 +455,13 @@ export function MobileDashboard(p: MobileDashboardProps) {
               style={{ left: "50%", top: "76.4%" }}
             >
               <BarChart3
-                className="mx-auto h-5 w-5 text-[#2B090C]"
+                className="mx-auto h-4 w-4 text-[#2B090C]"
                 aria-hidden="true"
               />
-              <p className="mt-1 text-[13px] font-extrabold text-[#2B090C]">
+               <p className="mt-0.5 text-[12px] font-extrabold text-[#2B090C]">
                 Your Progress
               </p>
-              <p className="mt-0.5 text-[10.5px] leading-tight text-[#8A6F66]">
+               <p className="mt-0.5 text-[9.5px] leading-tight text-[#8A6F66]">
                 Keep going, you&apos;re doing great!
               </p>
             </div>
@@ -474,7 +469,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
         </section>
 
         {/* ── Progress centre ────────────────────────────────────────────── */}
-        <section className={cn(CARD, "p-5")}>
+         <section className={cn(CARD, "p-4")}>
           <div className="flex items-center justify-between">
             <Eyebrow>Progress center</Eyebrow>
             <Link
@@ -487,32 +482,32 @@ export function MobileDashboard(p: MobileDashboardProps) {
             </Link>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
+           <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-4">
             {/* Journal this week */}
             <div className="min-w-0">
-              <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-[#FDEEF0]">
-                <BookOpenCheck className="h-4 w-4 text-[#E51B23]" />
+               <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-[#FDEEF0]">
+                 <BookOpenCheck className="h-3.5 w-3.5 text-[#E51B23]" />
               </span>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <span className="text-[12px] font-bold text-[#2B090C]">
+               <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                 <span className="text-[11px] font-bold text-[#2B090C]">
                   Journal this week
                 </span>
                 <span
                   className={cn(
-                    "rounded-full px-1.5 py-0.5 text-[9.5px] font-bold",
+                     "rounded-full px-1.5 py-0.5 text-[9px] font-bold",
                     TONE_PILL[p.journalTone],
                   )}
                 >
                   {p.journalLabel}
                 </span>
               </div>
-              <div className="mt-2 h-1 rounded-full bg-[#F6E3E5]">
+               <div className="mt-1.5 h-1 rounded-full bg-[#F6E3E5]">
                 <div
                   className="h-1 rounded-full bg-[#E51B23] transition-[width] duration-500"
                   style={{ width: p.submittedThisWeek ? "100%" : "0%" }}
                 />
               </div>
-              <p className="mt-1.5 text-[10.5px] leading-snug text-[#8A6F66]">
+               <p className="mt-1 text-[10px] leading-snug text-[#8A6F66]">
                 {p.weekNumber != null
                   ? `Week ${p.weekNumber}`
                   : "Submit a short 3-field journal to stay on track."}
@@ -522,17 +517,17 @@ export function MobileDashboard(p: MobileDashboardProps) {
             {/* Demo Day readiness */}
             <div className="min-w-0 border-l border-[#F2E7E0] pl-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-[#FDEEF0]">
-                  <Target className="h-4 w-4 text-[#E51B23]" />
+                 <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-[#FDEEF0]">
+                   <Target className="h-3.5 w-3.5 text-[#E51B23]" />
                 </span>
-                <span className="text-[13px] font-extrabold tabular-nums text-[#2B090C]">
+                 <span className="text-[12px] font-extrabold tabular-nums text-[#2B090C]">
                   {p.progressPercent.toFixed(0)}%
                 </span>
               </div>
-              <div className="mt-2 text-[12px] font-bold text-[#2B090C]">
+               <div className="mt-1.5 text-[11px] font-bold text-[#2B090C]">
                 Demo Day readiness
               </div>
-              <div className="mt-2 h-1 rounded-full bg-[#F6E3E5]">
+               <div className="mt-1.5 h-1 rounded-full bg-[#F6E3E5]">
                 <div
                   className="h-1 rounded-full bg-[#12B981] transition-[width] duration-500"
                   style={{
@@ -540,26 +535,26 @@ export function MobileDashboard(p: MobileDashboardProps) {
                   }}
                 />
               </div>
-              <p className="mt-1.5 text-[10.5px] leading-snug text-[#8A6F66]">
+               <p className="mt-1 text-[10px] leading-snug text-[#8A6F66]">
                 {formatINR(p.verifiedRevenue)} of{" "}
                 {formatINR(p.demoDayThreshold)} verified
               </p>
             </div>
 
             {/* Pending submissions */}
-            <div className="min-w-0 border-t border-[#F2E7E0] pt-4">
+               <div className="min-w-0 border-t border-[#F2E7E0] pt-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-[#E9F8F1]">
-                  <AlertCircle className="h-4 w-4 text-[#12B981]" />
+                 <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-[#E9F8F1]">
+                   <AlertCircle className="h-3.5 w-3.5 text-[#12B981]" />
                 </span>
-                <span className="text-[13px] font-extrabold tabular-nums text-[#2B090C]">
+                 <span className="text-[12px] font-extrabold tabular-nums text-[#2B090C]">
                   {p.pending}
                 </span>
               </div>
-              <div className="mt-2 text-[12px] font-bold text-[#2B090C]">
+               <div className="mt-1.5 text-[11px] font-bold text-[#2B090C]">
                 Pending submissions
               </div>
-              <p className="mt-1 text-[10.5px] leading-snug text-[#8A6F66]">
+               <p className="mt-1 text-[10px] leading-snug text-[#8A6F66]">
                 {p.pending > 0
                   ? "Awaiting admin review."
                   : "Nothing awaiting review."}
@@ -567,19 +562,19 @@ export function MobileDashboard(p: MobileDashboardProps) {
             </div>
 
             {/* Journals submitted */}
-            <div className="min-w-0 border-l border-t border-[#F2E7E0] pl-4 pt-4">
+             <div className="min-w-0 border-l border-t border-[#F2E7E0] pl-3 pt-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-[#E9F8F1]">
-                  <BookOpenCheck className="h-4 w-4 text-[#12B981]" />
+               <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-[#E9F8F1]">
+                 <BookOpenCheck className="h-3.5 w-3.5 text-[#12B981]" />
                 </span>
-                <span className="text-[13px] font-extrabold tabular-nums text-[#2B090C]">
+               <span className="text-[12px] font-extrabold tabular-nums text-[#2B090C]">
                   {p.totalJournals}
                 </span>
               </div>
-              <div className="mt-2 text-[12px] font-bold text-[#2B090C]">
+             <div className="mt-1.5 text-[11px] font-bold text-[#2B090C]">
                 Journals submitted
               </div>
-              <p className="mt-1 text-[10.5px] leading-snug text-[#8A6F66]">
+             <p className="mt-1 text-[10px] leading-snug text-[#8A6F66]">
                 {p.totalJournals > 0
                   ? "Great! Keep it up."
                   : "Your first one starts the streak."}
@@ -589,12 +584,12 @@ export function MobileDashboard(p: MobileDashboardProps) {
         </section>
 
         {/* ── Timeline + streak ──────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-4 min-[380px]:grid-cols-2">
+         <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
           {/* Programme timeline — hides itself when no end date is configured,
               exactly as <ProgramCountdown /> does on desktop. */}
           {p.daysLeft != null && (
             <section
-              className="rounded-[22px] border border-[#F6DADE] bg-[#FFF5F5] p-4"
+               className="rounded-[18px] border border-[#F6DADE] bg-[#FFF5F5] p-3"
               data-testid="mobile-programme-timeline"
             >
               <div className="flex items-center gap-2">
@@ -603,9 +598,9 @@ export function MobileDashboard(p: MobileDashboardProps) {
                 </span>
                 <Eyebrow>Programme timeline</Eyebrow>
               </div>
-              <div className="mt-3 flex items-end justify-between">
+               <div className="mt-2 flex items-end justify-between">
                 <div className="flex items-end gap-1.5">
-                  <span className="text-[38px] font-extrabold leading-none tabular-nums text-[#A81B22]">
+                   <span className="text-[34px] font-extrabold leading-none tabular-nums text-[#A81B22]">
                     {p.daysLeft}
                   </span>
                   <span className="mb-1 text-[11px] font-medium text-[#8A6F66]">
@@ -616,7 +611,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
                         : "days left"}
                   </span>
                 </div>
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-[3px] border-[#F6C6C9]">
+                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border-[3px] border-[#F6C6C9]">
                   <CalendarDays className="h-4 w-4 text-[#E51B23]" />
                 </span>
               </div>
@@ -630,7 +625,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
 
           {/* Journal streak */}
           <section
-            className="rounded-[22px] border border-[#DCF0E6] bg-[#F4FBF7] p-4"
+               className="rounded-[18px] border border-[#DCF0E6] bg-[#F4FBF7] p-3"
             data-testid="mobile-journal-streak"
           >
             <div className="flex items-center gap-2">
@@ -646,10 +641,10 @@ export function MobileDashboard(p: MobileDashboardProps) {
               </span>
               <Eyebrow>Journal streak</Eyebrow>
             </div>
-            <div className="mt-3 flex items-end justify-between">
+             <div className="mt-2 flex items-end justify-between">
               <div className="flex items-end gap-1.5">
                 <span
-                  className="text-[38px] font-extrabold leading-none tabular-nums text-[#2B090C]"
+                   className="text-[34px] font-extrabold leading-none tabular-nums text-[#2B090C]"
                   data-testid="mobile-streak-count"
                 >
                   {p.streak}
@@ -658,7 +653,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
                   week{p.streak === 1 ? "" : "s"}
                 </span>
               </div>
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border-[3px] border-[#CDEBDC]">
+               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border-[3px] border-[#CDEBDC]">
                 <Award className="h-4 w-4 text-[#12B981]" />
               </span>
             </div>

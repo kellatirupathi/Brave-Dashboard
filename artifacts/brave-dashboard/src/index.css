@@ -568,6 +568,20 @@
 
 @media (max-width: 640px) {
   @layer components {
+    /* The app bar already names the screen. Repeating the same title at the
+       top of the content wastes the most valuable phone viewport space. */
+    .native-app .mobile-page-heading {
+      display: none;
+    }
+
+    /* Keep every student screen visually compact and consistent without
+       affecting the browser/desktop presentation. */
+    .native-app .app-main {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+      padding-top: 0.75rem;
+    }
+
     /* ── Density ───────────────────────────────────────────────────────────
        Desktop card padding (24px) costs 48px of a 360px screen — 13% of the
        width, spent on nothing. 16px keeps cards breathing without starving
@@ -575,6 +589,8 @@
     .native-app [class*="rounded-2xl"][class*="border"] > div,
     .native-app .p-6 { padding: 1rem; }
     .native-app .p-5 { padding: 0.875rem; }
+    .native-app .p-4 { padding: 0.75rem; }
+    .native-app .py-20 { padding-top: 3rem; padding-bottom: 3rem; }
     .native-app .px-6 { padding-left: 1rem; padding-right: 1rem; }
     .native-app .py-8 { padding-top: 1.25rem; padding-bottom: 1.25rem; }
     .native-app .px-8 { padding-left: 1rem; padding-right: 1rem; }
@@ -610,6 +626,7 @@
        difference between an app and a page. */
     .native-app .space-y-5 > * + * { margin-top: 0.875rem; }
     .native-app .space-y-6 > * + * { margin-top: 1rem; }
+    .native-app .space-y-4 > * + * { margin-top: 0.75rem; }
   }
 }
 
@@ -665,12 +682,90 @@
   .native-app [data-testid="sheet-mobile-more"] {
     animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
   }
+
+  /* The desktop hero illustration is intentionally restrained: it lives below
+     the feedback/notification utility row and animates once, like a small
+     piece of editorial motion rather than a looping banner. */
+  .desktop-hero-bar {
+    transform-box: fill-box;
+    transform-origin: center bottom;
+    animation: desktop-hero-bar-rise 650ms cubic-bezier(0.2, 0.8, 0.2, 1)
+      both;
+  }
+
+  .desktop-hero-arrow {
+    stroke-dasharray: 320;
+    stroke-dashoffset: 320;
+    animation: desktop-hero-arrow-draw 700ms ease-out 80ms both;
+  }
+
+  .desktop-hero-arrow-head {
+    opacity: 0;
+    animation: desktop-hero-arrow-head-in 180ms ease-out 600ms both;
+  }
+
+  .desktop-hero-target {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: desktop-hero-target-pulse 620ms ease-out 470ms both;
+  }
+
+  @keyframes desktop-hero-bar-rise {
+    from {
+      opacity: 0.3;
+      transform: scaleY(0.08);
+    }
+    to {
+      opacity: 1;
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes desktop-hero-arrow-draw {
+    from {
+      stroke-dashoffset: 320;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes desktop-hero-arrow-head-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes desktop-hero-target-pulse {
+    0% {
+      opacity: 0.82;
+      transform: scale(0.94);
+    }
+    65% {
+      opacity: 1;
+      transform: scale(1.025);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .page-enter-forward,
   .page-enter-back,
   .skeleton {
+    animation: none;
+  }
+
+  .desktop-hero-bar,
+  .desktop-hero-arrow,
+  .desktop-hero-arrow-head,
+  .desktop-hero-target {
     animation: none;
   }
 }

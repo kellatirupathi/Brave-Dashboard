@@ -3305,6 +3305,8 @@ export const GetProgrammeConfigResponse = zod.object({
   demoDayApplicationsOpen: zod.boolean(),
   demoDayApplicationDeadline: zod.coerce.date().nullish(),
   programmePhase: zod.string(),
+  braveAppQrObjectPath: zod.string().nullish(),
+  braveAppDownloadUrl: zod.string().nullish(),
   updatedAt: zod.coerce.date(),
 });
 
@@ -3322,6 +3324,8 @@ export const UpdateProgrammeConfigBody = zod.object({
   demoDayApplicationsOpen: zod.boolean().optional(),
   demoDayApplicationDeadline: zod.coerce.date().nullish(),
   programmePhase: zod.string().optional(),
+  braveAppQrObjectPath: zod.string().nullish(),
+  braveAppDownloadUrl: zod.string().nullish(),
 });
 
 export const UpdateProgrammeConfigResponse = zod.object({
@@ -3337,6 +3341,8 @@ export const UpdateProgrammeConfigResponse = zod.object({
   demoDayApplicationsOpen: zod.boolean(),
   demoDayApplicationDeadline: zod.coerce.date().nullish(),
   programmePhase: zod.string(),
+  braveAppQrObjectPath: zod.string().nullish(),
+  braveAppDownloadUrl: zod.string().nullish(),
   updatedAt: zod.coerce.date(),
 });
 
