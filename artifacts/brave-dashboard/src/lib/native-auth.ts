@@ -230,8 +230,25 @@ export async function nativeLogout(): Promise<boolean> {
 
   // Server-side first, so the session is invalidated even if the app is killed
   // before the redirect lands.
+  //
+  // Capped, because /api/logout does not just clear our session: it 302s on to
+  // the IdP's end-session endpoint or to FORMS_LOGOUT_URL, and fetch follows
+  // that chain to forms.ccbp.in. Cross-origin, so the read fails anyway -- but
+  // only after the round trip. Without a cap, a slow upstream leaves the
+  // student staring at an unresponsive Logout button. The server has already
+  // cleared the session by the time it starts redirecting, so abandoning the
+  // chain early costs nothing.
   try {
-    await fetch("/api/logout", { credentials: "include" });
+    const cutoff = new AbortController();
+    const timer = setTimeout(() => cutoff.abort(), 4000);
+    try {
+      await fetch("/api/logout", {
+        credentials: "include",
+        signal: cutoff.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
     /* best effort — clearing cookies below still signs the student out here */
   }
