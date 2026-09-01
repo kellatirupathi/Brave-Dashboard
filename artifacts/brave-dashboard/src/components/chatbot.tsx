@@ -33,13 +33,23 @@ const initialMessages = (): ChatMessage[] => [
   },
 ];
 
-// Whether the user has hidden the floating launcher via its ✕ button.
-// Intentionally a module-level, in-memory flag (NOT state / NOT storage):
-// it survives client-side route changes — Layout and this component remount
-// on navigation, but the module stays loaded — yet resets to `false` on a
-// full page reload/refresh. So a hidden launcher reappears only when the
-// whole page is reloaded, exactly as required.
-let launcherDismissed = false;
+const LAUNCHER_DISMISSED_KEY = "brave-chatbot-launcher-dismissed";
+
+function launcherWasDismissed(): boolean {
+  try {
+    return sessionStorage.getItem(LAUNCHER_DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function dismissLauncherForSession(): void {
+  try {
+    sessionStorage.setItem(LAUNCHER_DISMISSED_KEY, "1");
+  } catch {
+    // The in-component state below still hides it for this mounted session.
+  }
+}
 
 export function Chatbot({
   variant = "light",
@@ -50,7 +60,7 @@ export function Chatbot({
 }) {
   const [location, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(launcherDismissed);
+  const [dismissed, setDismissed] = useState(launcherWasDismissed);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
@@ -67,6 +77,7 @@ export function Chatbot({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const launcherRef = useRef<HTMLButtonElement | null>(null);
   const chatVisible = open || fullPage;
+  const isAssistantRoute = location.startsWith("/assistant");
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -231,6 +242,8 @@ export function Chatbot({
   };
   const handleClose = () => {
     if (fullPage) {
+      dismissLauncherForSession();
+      setDismissed(true);
       setLocation("/");
     } else {
       setOpen(false);
@@ -241,7 +254,7 @@ export function Chatbot({
     <>
       {/* Floating launcher — visible only when the chat is closed AND the
           user hasn't hidden it for this page load. */}
-      {!open && !dismissed && (
+      {!fullPage && !isAssistantRoute && !open && !dismissed && (
         <div className="fixed bottom-6 right-6 z-50">
           <button
             ref={launcherRef}
@@ -293,7 +306,7 @@ export function Chatbot({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              launcherDismissed = true;
+              dismissLauncherForSession();
               setDismissed(true);
             }}
             aria-label="Hide assistant"

@@ -114,7 +114,7 @@ export function MobileNav() {
     };
   }, [moreOpen]);
 
-  if (!isStudent) return null;
+  if (!isStudent || location.startsWith("/assistant")) return null;
 
   // Same rule as the sidebar: from Season 2 on, a project only exists behind a
   // converted lead, so the pipeline entry replaces Projects.

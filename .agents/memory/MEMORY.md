@@ -14,3 +14,4 @@
 - [Android release builds on Replit](android-release-builds.md) — use a minimal licensed Nix SDK composition and disable JVM perf counters; preserve the durable signing key outside Git.
 - [Mobile WebView session](mobile-webview-session.md) — Capacitor keeps the dashboard in its main WebView; Forms SSO runs in-app and returns by Android deep link.
 - [Student mobile density](student-mobile-density.md) — compact student app pages only; the app bar is the sole screen title, while desktop layout and density stay unchanged.
+- [Student product tours](student-product-tours.md) — mobile and desktop walkthroughs are separate per-user states; Finish and Close both permanently suppress that platform’s tour.

@@ -3,13 +3,19 @@ import { Chatbot } from "@/components/chatbot";
 /**
  * Mobile-only assistant destination.
  *
- * The launcher routes here below lg so the assistant gets the same fixed
- * header and bottom navigation as the rest of the installed app, instead of
- * competing with the page content as a floating panel.
+ * The launcher routes here below lg. The shared layout keeps the app header,
+ * but intentionally removes the bottom navigation and floating launcher so
+ * the assistant owns the remaining viewport.
  */
 export default function StudentAssistant() {
   return (
-    <div className="-mx-4 -mt-4 -mb-20 h-[calc(100dvh-8.5rem)] min-h-[32rem] sm:-mx-6 sm:-mt-6 sm:-mb-20">
+    <div
+      className="min-h-[32rem] w-full"
+      style={{
+        height:
+          "calc(100dvh - 3.5rem - var(--safe-area-inset-top, 0px))",
+      }}
+    >
       <Chatbot fullPage />
     </div>
   );

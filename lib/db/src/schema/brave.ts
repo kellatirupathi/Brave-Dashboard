@@ -359,6 +359,36 @@ export const insertUserSchema = createInsertSchema(usersTable).omit({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
 
+// Per-user, per-surface first-run walkthrough state. Mobile and desktop are
+// deliberately separate because their navigation and highlighted controls
+// differ. A dismissed tour is terminal just like a finished one.
+export const productTourProgressTable = pgTable(
+  "product_tour_progress",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    platform: text("platform").notNull(), // "mobile" | "desktop"
+    status: text("status").notNull(), // "finished" | "dismissed"
+    completedAt: timestamp("completed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("product_tour_progress_user_platform_unique").on(
+      t.userId,
+      t.platform,
+    ),
+    index("product_tour_progress_user_idx").on(t.userId),
+  ],
+);
+
+export type ProductTourProgress =
+  typeof productTourProgressTable.$inferSelect;
+
 // Forms SSO auth tokens (one-time use, short-lived)
 export const authTokensTable = pgTable("auth_tokens", {
   id: serial("id").primaryKey(),
