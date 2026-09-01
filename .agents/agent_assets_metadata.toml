@@ -6,30 +6,53 @@ id = "xemq6RZbAft_qsT6RsPJB"
 uri = "file://.local/qa-report.md"
 type = "text"
 title = "BRAVE Dashboard – Full Platform QA Report"
+logical_id = "4bd8a698-c958-4cf9-a2ec-53ce6334750e"
 
 [[outputs]]
 id = "injRu6GXhX6Pz4SNT88t8"
 uri = "file://AI_IN_BRAVE_PROGRAM.md"
 type = "text"
 title = "AI in the BRAVE Program (with live production numbers)"
+logical_id = "16330d37-9632-4b99-9231-bbe9b9b50c09"
 
 [[outputs]]
 id = "jwz_DizhQTKH0PjbTTTSV"
 uri = "file://deliverables/BRAVE-Student-1.0-arm64-v8a.apk"
 type = "unspecified"
-title = "BRAVE Student 1.0 — Android"
-description = "Signed production APK for virtually all current Android phones (arm64-v8a). Use this as the primary student installation download after NIAT Forms confirms the callback whitelist."
+title = "BRAVE Student 1.0 — WebView Login"
+description = "Primary signed Android release for current phones. Contains the in-app NIAT WebView login and is signed with the same certificate as the previous BRAVE Student 1.0 APK."
+logical_id = "328cd574-16e1-49cf-81f6-139a9fe3d7e9"
+content_hash = "sha256:8f3671d2db2e564d312d199c549e50115eceef368aadf772824bf0a495399bab"
+size = 23373297
+mtime_ms = 1788244604019
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/328cd574-16e1-49cf-81f6-139a9fe3d7e9/18910aa8-e07f-486f-b82f-9211c5f766ae"
+storage_version_token = "1788244643954056"
+content_type = "application/octet-stream"
 
 [[outputs]]
 id = "fcXRxF0UCdyQ143hZ4fPB"
 uri = "file://deliverables/BRAVE-Student-1.0-armeabi-v7a.apk"
 type = "unspecified"
-title = "BRAVE Student 1.0 — Legacy Android"
-description = "Signed production APK for older 32-bit Android phones (armeabi-v7a). Most students should use the arm64 build instead."
+title = "BRAVE Student 1.0 — Legacy 32-bit"
+description = "Signed WebView-login release for older 32-bit Android phones. Most students should use the arm64 build."
+logical_id = "7bad4494-cb3a-4a5c-bdcc-73913ce783f2"
+content_hash = "sha256:64e15b7cf3a6a96dcc5d99101b3859c8f6e4cf0c7f8a15a016ef820ff792f485"
+size = 18436893
+mtime_ms = 1788244604023
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/7bad4494-cb3a-4a5c-bdcc-73913ce783f2/c765450d-2040-4929-bfcf-3b41a52b2737"
+storage_version_token = "1788244648103465"
+content_type = "application/octet-stream"
 
 [[outputs]]
 id = "BLRBP2euSD9s7pIU2IaQd"
 uri = "file://deliverables/BRAVE-Student-1.0-SHA256SUMS.txt"
 type = "text"
-title = "BRAVE Student 1.0 checksums"
-description = "SHA-256 checksums for verifying both signed APK downloads."
+title = "BRAVE WebView release checksums"
+description = "SHA-256 checksums for verifying both signed WebView-enabled APKs."
+logical_id = "559533ed-2b81-4f8a-9eaa-aba352db4d98"
+content_hash = "sha256:741408770abecaae46bab9767dc15af35a0ded9ef9ea693957e902084e112f40"
+size = 224
+mtime_ms = 1788244604279
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/559533ed-2b81-4f8a-9eaa-aba352db4d98/77c66e8b-1b96-4148-84bd-da14904e5432"
+storage_version_token = "1788244649382144"
+content_type = "text/plain"

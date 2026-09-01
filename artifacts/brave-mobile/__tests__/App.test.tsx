@@ -21,6 +21,14 @@ jest.mock('react-native-keychain', () => ({
   resetGenericPassword: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('react-native-webview', () => {
+  const ReactModule = require('react');
+  const { View } = require('react-native');
+  return {
+    WebView: (props: object) => ReactModule.createElement(View, props),
+  };
+});
+
 jest.mock('lucide-react-native', () => {
   const ReactModule = require('react');
   const { View } = require('react-native');

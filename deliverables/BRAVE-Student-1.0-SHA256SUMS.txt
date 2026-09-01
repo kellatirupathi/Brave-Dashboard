@@ -1,2 +1,2 @@
-1ff7f4af77805e764bcf4a6c9cb342d37bd4c57560005734496662b7638ea4cc  deliverables/BRAVE-Student-1.0-arm64-v8a.apk
-fb448359a38b63ed82b8753890fc6a3ece92efaa6c9bdd663cfb135f2579017a  deliverables/BRAVE-Student-1.0-armeabi-v7a.apk
+8f3671d2db2e564d312d199c549e50115eceef368aadf772824bf0a495399bab  deliverables/BRAVE-Student-1.0-arm64-v8a.apk
+64e15b7cf3a6a96dcc5d99101b3859c8f6e4cf0c7f8a15a016ef820ff792f485  deliverables/BRAVE-Student-1.0-armeabi-v7a.apk

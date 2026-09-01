@@ -33,14 +33,12 @@ import React, {
 } from 'react';
 import { Linking } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import InAppBrowser from 'react-native-inappbrowser-reborn';
-import { API_BASE, REDIRECT_URI } from './config';
+import { API_BASE } from './config';
 import { isAuthCallbackUrl, tokenFromAuthCallback } from './auth-url';
 import { api, setUnauthorizedHandler, UnauthorizedError } from './api';
 import { WebLoginModal, WebLoginResult } from '../screens/WebLoginModal';
 import {
   adoptSessionFromCookies,
-  clearWebCookies,
   saveSessionId,
   loadSessionId,
   clearSession,
@@ -284,7 +282,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSigningIn(false);
       }
     },
-    [finish],
+    [finish, queryClient],
   );
 
   const signOut = useCallback(async () => {
