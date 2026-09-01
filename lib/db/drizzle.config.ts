@@ -1,14 +1,21 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
+// Same precedence as src/index.ts, so a push can never target a different
+// database than the one the running app is connected to.
+const connectionString =
+  process.env.BRAVE_DATABASE_URL ?? process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error(
+    "BRAVE_DATABASE_URL or DATABASE_URL must be set; ensure the database is provisioned",
+  );
 }
 
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: connectionString,
   },
 });
