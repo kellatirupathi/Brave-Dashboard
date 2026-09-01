@@ -37,8 +37,11 @@ describe("season routing", () => {
     expect(legacyToCanonicalPath("/teams/8", "coordinator", "fall-24")).toBe(
       "/coordinator/season/fall-24/teams/8",
     );
+    expect(canonicalToLegacyPath("/student/season/2.0/dashboard")).toBe(
+      "/",
+    );
     expect(legacyToCanonicalPath("/", "student", "2.0")).toBe(
-      "/student/season/2.0",
+      "/student/season/2.0/dashboard",
     );
   });
 

@@ -43,6 +43,12 @@ export function canonicalToLegacyPath(path: string): string {
   const suffix = canonical.suffix || "";
   const [, tail] = splitPath(path);
   if (
+    canonical.role === "student" &&
+    (suffix === "/dashboard" || suffix === "/")
+  ) {
+    return `/${tail}`;
+  }
+  if (
     suffix === "/profile" ||
     suffix.startsWith("/reports/view/") ||
     (canonical.role === "coordinator" && /^\/teams\/[^/]+$/.test(suffix))
@@ -87,7 +93,7 @@ export function legacyToCanonicalPath(
     role = "coordinator";
     suffix = pathname.slice("/coordinator".length);
   }
-  if (role === "student" && suffix === "/") suffix = "";
+  if (role === "student" && suffix === "/") suffix = "/dashboard";
   return `/${role}/season/${encodeURIComponent(slug)}${suffix}${tail}`;
 }
 

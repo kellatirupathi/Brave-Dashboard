@@ -164,6 +164,11 @@ function browserUrl(route: string): string {
   return `${ROUTER_BASE}${route === "/" ? "/" : route}`;
 }
 
+function seasonDashboardHref(role: CanonicalSeasonRole, slug: string): string {
+  const suffix = role === "student" ? "/dashboard" : "";
+  return `/${role}/season/${encodeURIComponent(slug)}${suffix}`;
+}
+
 function seasonHref(href: string): string {
   const route =
     ROUTER_BASE &&
@@ -254,7 +259,18 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
       if (!viewing) return <BraveLoader />;
       return (
         <Redirect
-          to={`/${user.role}/season/${encodeURIComponent(viewing.slug)}`}
+          to={seasonDashboardHref(user.role as CanonicalSeasonRole, viewing.slug)}
+          replace
+        />
+      );
+    }
+    if (
+      canonical.role === "student" &&
+      (canonical.suffix === "" || canonical.suffix === "/")
+    ) {
+      return (
+        <Redirect
+          to={seasonDashboardHref("student", canonical.slug)}
           replace
         />
       );
@@ -266,7 +282,7 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
       if (!viewing) return <BraveLoader />;
       return (
         <Redirect
-          to={`/${canonical.role}/season/${encodeURIComponent(viewing.slug)}`}
+          to={seasonDashboardHref(canonical.role, viewing.slug)}
           replace
         />
       );
