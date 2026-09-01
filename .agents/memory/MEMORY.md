@@ -12,4 +12,4 @@
 - [Staff season default](staff-season-default.md) — student live season and staff landing season are independent; explicit staff selections override the configured staff default.
 - [Canonical season URLs](canonical-season-urls.md) — authenticated routes use public season slugs as the source of truth; never infer programme version from internal season IDs.
 - [Android release builds on Replit](android-release-builds.md) — use a minimal licensed Nix SDK composition and disable JVM perf counters; preserve the durable signing key outside Git.
-- [Mobile WebView session](mobile-webview-session.md) — keep NIAT login and authenticated pages in one WebView; do not depend on exporting its HTTP-only session cookie to native code.
+- [Mobile WebView session](mobile-webview-session.md) — the mobile artifact is Capacitor, starts at Forms SSO, and keeps all student pages in one persistent WebView.

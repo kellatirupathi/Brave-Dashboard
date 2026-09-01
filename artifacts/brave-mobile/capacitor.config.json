@@ -1,0 +1,13 @@
+{
+  "appId": "in.niatindia.brave",
+  "appName": "BRAVE",
+  "webDir": "dist",
+  "server": {
+    "url": "https://forms.ccbp.in/mid/brave-dashboard",
+    "cleartext": false,
+    "allowNavigation": [
+      "*.ccbp.in",
+      "dashboard.brave.niatindia.com"
+    ]
+  }
+}

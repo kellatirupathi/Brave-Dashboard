@@ -140,3 +140,31 @@ mtime_ms = 1788248002602
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/a3220e6c-cb11-4803-b04f-588d105d687b/d32f6f2b-569c-4343-acb8-b4f7966e78a2"
 storage_version_token = "1788248021119985"
 content_type = "text/plain"
+
+[[outputs]]
+id = "VWPZotacxHMVsHUwcng3b"
+uri = "file://deliverables/BRAVE-Student-1.0.4-Capacitor.apk"
+type = "unspecified"
+title = "BRAVE Student 1.0.4 — Capacitor Forms SSO"
+description = "Signed Capacitor Android app. Opens NIAT Forms SSO and keeps Forms redirects plus all BRAVE student pages inside one persistent WebView. React Native and alternate OIDC sign-in flows have been removed."
+logical_id = "df2dfbca-69fa-49e3-b098-a231c8ef1c8d"
+content_hash = "sha256:cf0e8b4cafff334e602fec68aaccb8d4df5ff11cb27c40363300a563befc6cc2"
+size = 3129643
+mtime_ms = 1788252702509
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/df2dfbca-69fa-49e3-b098-a231c8ef1c8d/a5d32f90-46e0-43c8-971b-0476eb307735"
+storage_version_token = "1788252712187239"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "-9WCc2rr4At3Fz-fjJoh-"
+uri = "file://deliverables/BRAVE-Student-1.0.4-Capacitor-SHA256.txt"
+type = "text"
+title = "BRAVE Student 1.0.4 checksum"
+description = "SHA-256 checksum for verifying the signed Capacitor APK."
+logical_id = "4b1d27ba-deff-44c9-9e74-c7faf45595f0"
+content_hash = "sha256:fbf9b6ea57c91a0d74c2eb1f15827618298e448e9245019a45d039f2b704801d"
+size = 113
+mtime_ms = 1788252702529
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/4b1d27ba-deff-44c9-9e74-c7faf45595f0/a9ca574c-749e-4510-9ab9-f20b85d1df81"
+storage_version_token = "1788252713412860"
+content_type = "text/plain"
