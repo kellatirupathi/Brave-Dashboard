@@ -14,6 +14,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -99,7 +100,7 @@ function writeStoredSeason(seasonId: number): void {
 const SeasonContext = createContext<SeasonContextValue | null>(null);
 
 export function SeasonProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   // Browser navigation can change only the slug. Keep that external state in
   // React so a back/forward navigation re-resolves the URL selection as well.
@@ -138,10 +139,12 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
   );
 
   const { data, isLoading } = useQuery({
-    queryKey: SEASONS_QUERY_KEY,
+    queryKey: [...SEASONS_QUERY_KEY, user?.id ?? "anonymous"],
     queryFn: getSeasons,
     enabled: !!isAuthenticated,
-    staleTime: 60_000,
+    // Student login must resolve the admin-active season from the server, not a
+    // fresh-looking cache left by an earlier session in the same browser.
+    staleTime: user?.role === "student" ? 0 : 60_000,
   });
 
   // A stored season that no longer exists (deleted, or a stale value from an
@@ -158,11 +161,18 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
   const overrideIsValid =
     override != null &&
     (seasonList.length === 0 || seasonList.some((s) => s.id === override));
+  const activeSeason = seasonList.find((season) => season.isActive);
+  // A student always starts in the season the admin marked active. Students
+  // may still arrive with an old URL or localStorage value, but those are
+  // handled by SeasonUrlGate and redirected to the active dashboard rather
+  // than allowing stale season data to render during first login.
   const viewingId =
-    urlSeason?.id ??
-    (overrideIsValid ? override : null) ??
-    data?.viewing ??
-    null;
+    user?.role === "student"
+      ? (activeSeason?.id ?? data?.viewing ?? null)
+      : (urlSeason?.id ??
+        (overrideIsValid ? override : null) ??
+        data?.viewing ??
+        null);
   const isSynchronizing =
     viewingId != null && appliedSeasonId !== viewingId;
 
@@ -172,7 +182,7 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
   const viewingRef = useRef<number | null>(viewingId);
   viewingRef.current = viewingId;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setSeasonGetter(() => viewingRef.current);
     return () => setSeasonGetter(null);
   }, []);

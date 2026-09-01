@@ -88,6 +88,10 @@ function ensureInitialized() {
       "",
       url.pathname + (url.search ? url.search : "") + url.hash,
     );
+    // History mutations do not emit popstate automatically. The dashboard's
+    // canonical season router subscribes to that event, so notify it now rather
+    // than letting first-login routing retain the consumed auth callback URL.
+    window.dispatchEvent(new PopStateEvent("popstate"));
   };
 
   if (token) {

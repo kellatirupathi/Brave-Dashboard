@@ -7,6 +7,10 @@ Authenticated browser URLs must include the role and public season slug. The URL
 
 The canonical student home is `/<role>/season/<slug>/dashboard`; the page tree may still render that screen from its legacy `/` route internally. Bare student season roots are compatibility inputs and must replace-redirect to `/dashboard`.
 
-**Why:** Internal IDs are storage details and may differ across environments, while links and bookmarks must remain stable and explicit about the viewed season.
+When canonical and legacy URLs map to the same internal route, canonical gates must subscribe to the real browser URL; an adapted router path alone may not re-render. Auth/season redirects must keep the BRAVE Loader mounted.
 
-**How to apply:** Preserve role, page suffix, query string, and hash when switching seasons. Keep old unprefixed links as redirects/compatibility inputs, but emit canonical URLs and block page rendering until the API season header and cached data have synchronized.
+Students resolve the admin-active season before dashboard queries. Ignore stale stored/session season choices for student first-load routing, and install the API season getter before child query effects run.
+
+**Why:** Internal IDs differ across environments, and a canonical redirect from `/` to the student dashboard can leave the router's adapted path unchanged. Without a raw-URL subscription, the redirect renders null until refresh.
+
+**How to apply:** Preserve role, suffix, query, and hash. Keep old links as compatibility redirects, emit canonical URLs, reject inactive student-season URLs to the active dashboard, and block rendering until the API season header and cache synchronize.

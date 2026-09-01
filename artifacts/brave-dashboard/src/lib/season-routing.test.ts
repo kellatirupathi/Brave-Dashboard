@@ -40,6 +40,11 @@ describe("season routing", () => {
     expect(canonicalToLegacyPath("/student/season/2.0/dashboard")).toBe(
       "/",
     );
+    expect(
+      canonicalToLegacyPath(
+        "/student/season/2.0/dashboard?source=login#summary",
+      ),
+    ).toBe("/?source=login#summary");
     expect(legacyToCanonicalPath("/", "student", "2.0")).toBe(
       "/student/season/2.0/dashboard",
     );

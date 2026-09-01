@@ -164,6 +164,18 @@ function browserUrl(route: string): string {
   return `${ROUTER_BASE}${route === "/" ? "/" : route}`;
 }
 
+function useBrowserRouteState(): string {
+  const [route, setRoute] = useState(browserRoute);
+
+  useEffect(() => {
+    const update = () => setRoute(browserRoute());
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, []);
+
+  return route;
+}
+
 function seasonDashboardHref(role: CanonicalSeasonRole, slug: string): string {
   const suffix = role === "student" ? "/dashboard" : "";
   return `/${role}/season/${encodeURIComponent(slug)}${suffix}`;
@@ -239,16 +251,39 @@ function useSeasonLocation(): [
   return [location, navigate];
 }
 
+function SeasonRouteRedirect({
+  to,
+  replace = true,
+}: {
+  to: string;
+  replace?: boolean;
+}) {
+  // Wouter's Redirect intentionally renders null while navigation is being
+  // scheduled. Keep the existing loader visible during canonicalization so a
+  // first-login redirect can never present a blank frame.
+  return (
+    <>
+      <BraveLoader />
+      <Redirect to={to} replace={replace} />
+    </>
+  );
+}
+
 function SeasonUrlGate({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { seasons, viewing, viewingId, isLoading: seasonsLoading } = useSeason();
-  const raw = browserRoute();
+  // This must track the real canonical URL, not Wouter's adapted legacy path.
+  // The first-login redirect changes "/" to
+  // "/student/season/<slug>/dashboard", but both map internally to "/".
+  // Subscribing here guarantees that canonicalization re-renders this gate.
+  const raw = useBrowserRouteState();
   const canonical = parseCanonicalSeasonPath(raw);
 
   // Auth, landing, guidebook and development routes deliberately stay outside
   // the season namespace. Do not wait for seasons for a public URL.
+  if (authLoading) return <BraveLoader />;
   if (!isAuthenticated) return <>{children}</>;
-  if (authLoading || seasonsLoading) return <BraveLoader />;
+  if (seasonsLoading) return <BraveLoader />;
 
   if (canonical) {
     if (
@@ -258,9 +293,22 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
     ) {
       if (!viewing) return <BraveLoader />;
       return (
-        <Redirect
+        <SeasonRouteRedirect
           to={seasonDashboardHref(user.role as CanonicalSeasonRole, viewing.slug)}
-          replace
+        />
+      );
+    }
+    const requested = seasons.find((season) => season.slug === canonical.slug);
+    const activeSeason = seasons.find((season) => season.isActive);
+    const studentSeasonIsInactive =
+      canonical.role === "student" && !!requested && !requested.isActive;
+    if (!requested || studentSeasonIsInactive) {
+      const fallback =
+        canonical.role === "student" ? activeSeason : (activeSeason ?? viewing);
+      if (!fallback) return <BraveLoader />;
+      return (
+        <SeasonRouteRedirect
+          to={seasonDashboardHref(canonical.role, fallback.slug)}
         />
       );
     }
@@ -269,21 +317,8 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
       (canonical.suffix === "" || canonical.suffix === "/")
     ) {
       return (
-        <Redirect
-          to={seasonDashboardHref("student", canonical.slug)}
-          replace
-        />
-      );
-    }
-    const requested = seasons.find((season) => season.slug === canonical.slug);
-    if (!requested) {
-      // A deleted/typoed slug never reaches a page with a stale season header.
-      // Send it to the role dashboard using a known good slug where possible.
-      if (!viewing) return <BraveLoader />;
-      return (
-        <Redirect
-          to={seasonDashboardHref(canonical.role, viewing.slug)}
-          replace
+        <SeasonRouteRedirect
+          to={seasonDashboardHref("student", requested.slug)}
         />
       );
     }
@@ -308,7 +343,7 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
     return <BraveLoader />;
   }
   return (
-    <Redirect
+    <SeasonRouteRedirect
       to={legacyToCanonicalPath(
         raw,
         user.role as CanonicalSeasonRole,
@@ -608,15 +643,14 @@ function GuidebookStandalone() {
 // Records a page view whenever the route changes (for logged-in users only).
 // Best-effort + de-duped on consecutive identical paths; never blocks nav.
 function PageViewTracker() {
-  const [location] = useLocation();
+  const location = useBrowserRouteState();
   const { isAuthenticated } = useAuth();
   const lastRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isAuthenticated) return;
-    const canonicalLocation = browserRoute();
-    if (lastRef.current === canonicalLocation) return;
-    lastRef.current = canonicalLocation;
-    void recordPageView(canonicalLocation);
+    if (lastRef.current === location) return;
+    lastRef.current = location;
+    void recordPageView(location);
   }, [location, isAuthenticated]);
   return null;
 }
