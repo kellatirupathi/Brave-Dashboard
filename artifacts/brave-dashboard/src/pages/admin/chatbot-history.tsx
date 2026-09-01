@@ -29,6 +29,47 @@ function roleBadgeClass(role: string | null): string {
   }
 }
 
+function messageDateKey(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "invalid";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function formatMessageDate(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  const today = new Date();
+  const todayKey = messageDateKey(today);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const dateKey = messageDateKey(date);
+
+  if (dateKey === todayKey) return "Today";
+  if (dateKey === messageDateKey(yesterday)) return "Yesterday";
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatMessageTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
 function downloadCsv(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -271,6 +312,19 @@ function DetailView({ userId }: { userId: string }) {
     queryKey: ["chatbot-history", userId],
     queryFn: () => getChatbotHistoryForUser(userId),
   });
+  const chronologicalMessages = useMemo(
+    () =>
+      (data?.messages ?? [])
+        .map((message, index) => ({ message, index }))
+        .sort((a, b) => {
+          const timeDifference =
+            new Date(a.message.createdAt).getTime() -
+            new Date(b.message.createdAt).getTime();
+          return timeDifference || a.index - b.index;
+        })
+        .map(({ message }) => message),
+    [data?.messages],
+  );
 
   if (isLoading) {
     return (
@@ -288,6 +342,7 @@ function DetailView({ userId }: { userId: string }) {
   }
 
   const { user, messages } = data;
+  let previousDateKey: string | null = null;
 
   return (
     <div className="space-y-4">
@@ -314,43 +369,54 @@ function DetailView({ userId }: { userId: string }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {messages.map((m) => {
+            {chronologicalMessages.map((m) => {
               const isUser = m.role === "user";
+              const dateKey = messageDateKey(m.createdAt);
+              const showDateSeparator = dateKey !== previousDateKey;
+              previousDateKey = dateKey;
               return (
-                <div
-                  key={m.id}
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                >
-                  <div className="max-w-[75%]">
-                    <div
-                      className={`rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap break-words ${
-                        isUser
-                          ? "bg-primary text-primary-foreground rounded-br-sm"
-                          : "bg-muted text-foreground rounded-bl-sm"
-                      }`}
-                    >
-                      {m.message}
-                    </div>
-                    <div
-                      className={`mt-1 flex items-center gap-1 text-[11px] text-muted-foreground ${
-                        isUser ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      {isUser ? (
-                        <>
-                          <span>Student</span>
-                          <span>·</span>
-                        </>
-                      ) : (
-                        <>
-                          <Bot className="h-3 w-3" />
-                          <span>Assistant</span>
-                          <span>·</span>
-                        </>
-                      )}
-                      <span className="tabular-nums">
-                        {formatDateTime(m.createdAt)}
+                <div key={m.id} className="space-y-3">
+                  {showDateSeparator && (
+                    <div className="flex justify-center py-1">
+                      <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+                        {formatMessageDate(m.createdAt)}
                       </span>
+                    </div>
+                  )}
+                  <div
+                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                  >
+                    <div className="max-w-[75%]">
+                      <div
+                        className={`rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap break-words ${
+                          isUser
+                            ? "bg-primary text-primary-foreground rounded-br-sm"
+                            : "bg-muted text-foreground rounded-bl-sm"
+                        }`}
+                      >
+                        {m.message}
+                      </div>
+                      <div
+                        className={`mt-1 flex items-center gap-1 text-[11px] text-muted-foreground ${
+                          isUser ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        {isUser ? (
+                          <>
+                            <span>Student</span>
+                            <span>·</span>
+                          </>
+                        ) : (
+                          <>
+                            <Bot className="h-3 w-3" />
+                            <span>Assistant</span>
+                            <span>·</span>
+                          </>
+                        )}
+                        <span className="tabular-nums">
+                          {formatMessageTime(m.createdAt)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

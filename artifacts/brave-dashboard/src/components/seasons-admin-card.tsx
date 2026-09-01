@@ -133,6 +133,11 @@ export function SeasonsAdminCard({
                     Live
                   </span>
                 )}
+                {s.isStaffDefault && (
+                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                    Staff default
+                  </span>
+                )}
                 {s.isReadOnly ? (
                   <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                 ) : (
@@ -162,6 +167,13 @@ export function SeasonsAdminCard({
                   checked={s.isActive}
                   disabled={disabled || s.isActive}
                   onChange={(v) => patch(s, { isActive: v })}
+                />
+                <ToggleRow
+                  label="Default for admins & coordinators"
+                  hint="Controls the season staff see first. Their own manual selection still takes priority."
+                  checked={s.isStaffDefault}
+                  disabled={disabled}
+                  onChange={(v) => patch(s, { isStaffDefault: v })}
                 />
                 <ToggleRow
                   label="Read-only archive"

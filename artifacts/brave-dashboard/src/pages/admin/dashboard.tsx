@@ -40,7 +40,9 @@ import {
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useSeason } from "@/lib/season-context";
 import { ActionCenter } from "./components/ActionCenter";
+import AdminDashboardV2 from "./dashboard-v2";
 import {
   getHeatmap,
   listAdminJournals,
@@ -215,7 +217,7 @@ function PendingReviewBanner({
   );
 }
 
-export default function AdminDashboard() {
+function AdminDashboardLegacy() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: summary, isLoading } = useGetDashboardSummary();
@@ -1023,5 +1025,29 @@ export default function AdminDashboard() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * The dashboard is intentionally split at the page boundary. Season 1 keeps
+ * the existing implementation above byte-for-byte in its rendered structure;
+ * Season 2 gets the new National Command Center without mounting both pages
+ * (and therefore without duplicate API requests).
+ */
+export default function AdminDashboard() {
+  const { viewingId, viewing, isLoading } = useSeason();
+
+  if (isLoading || viewingId == null || !viewing) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  return viewing.slug === "2.0" ? (
+    <AdminDashboardV2 />
+  ) : (
+    <AdminDashboardLegacy />
   );
 }

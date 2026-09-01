@@ -54,6 +54,10 @@ function qs(path: string, season: number, params: Record<string, string | number
   return `${path}?${sp.toString()}`;
 }
 
+function seasonHeaders(season: number) {
+  return { "x-brave-season": String(season) };
+}
+
 /** Merge several seasons' results, de-duplicated on row id. */
 function mergeById<T extends { id: number }>(lists: T[][]): T[] {
   const seen = new Map<number, T>();
@@ -73,6 +77,7 @@ export async function fetchTeamProjects(
       // because a team's projects are counted in tens, not thousands.
       customFetch<{ items: TeamProject[] }>(
         qs("/api/projects", s, { teamId, pageSize: 200 }),
+        { headers: seasonHeaders(s) },
       )
         .then((r) => r.items ?? [])
         // One season failing must not blank the whole page.
@@ -91,6 +96,7 @@ export async function fetchTeamRevenue(
     seasonsFor(view, allSeasons).map((s) =>
       customFetch<TeamEntry[]>(
         qs("/api/revenue-entries", s, { teamId }),
+        { headers: seasonHeaders(s) },
       ).catch(() => [] as TeamEntry[]),
     ),
   );
@@ -106,6 +112,7 @@ export async function fetchTeamOrderBook(
     seasonsFor(view, allSeasons).map((s) =>
       customFetch<TeamEntry[]>(
         qs("/api/order-book-entries", s, { teamId }),
+        { headers: seasonHeaders(s) },
       ).catch(() => [] as TeamEntry[]),
     ),
   );

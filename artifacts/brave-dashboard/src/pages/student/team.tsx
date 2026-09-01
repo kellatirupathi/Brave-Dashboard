@@ -197,8 +197,8 @@ function TeamView({
   const isLeader = String(team.leaderId) === userId;
   // Season 1 has no trust ledger. Keyed on the season number for the same
   // reason the sidebar is: the two seasons are different products.
-  const { viewingId } = useSeason();
-  const seasonIsPipeline = viewingId != null && viewingId >= 2;
+  const { viewing } = useSeason();
+  const seasonIsPipeline = !!viewing && viewing.slug !== "1.0";
   const { data: milestones, isLoading: milestonesLoading } = useListMilestones(
     { teamId: team.id },
     {

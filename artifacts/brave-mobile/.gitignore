@@ -1,0 +1,24 @@
+node_modules/
+.expo/
+dist/
+npm-debug.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+android/app/build/
+android/build/
+android/.gradle/
+android/.cxx/
+android/local.properties
+android/app/src/main/assets/index.android.bundle
+ios/Pods/
+ios/build/
+.DS_Store
+*.log
+.metro-health-check*
+
+# Native build staging tree (path shortened for the Windows 260-char limit).
+android/.cxx-short/

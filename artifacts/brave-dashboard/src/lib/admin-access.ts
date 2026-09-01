@@ -8,6 +8,7 @@
 // truth — these helpers only drive UI (sidebar hiding + route redirects).
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import { canonicalToLegacyPath } from "./season-routing";
 
 // `approve` / `reject` split the two halves of a review decision, which used
 // to share the single `edit` bit. `export` gates CSV/Excel downloads. Keep in
@@ -213,9 +214,14 @@ export function isRouteBlocked(
   location: string,
 ): boolean {
   if (!access || access.isSuperAdmin) return false;
+  // Canonical season URLs must inherit the exact same permission key as their
+  // legacy equivalent (for example /admin/season/s/teams/7 -> /admin/teams/7).
+  const normalizedLocation = canonicalToLegacyPath(location);
   const sorted = [...ADMIN_PAGES].sort((a, b) => b.href.length - a.href.length);
   const match = sorted.find(
-    (p) => location === p.href || location.startsWith(p.href + "/"),
+    (p) =>
+      normalizedLocation === p.href ||
+      normalizedLocation.startsWith(p.href + "/"),
   );
   if (!match) return false;
   const perm = access.permissions[match.href];

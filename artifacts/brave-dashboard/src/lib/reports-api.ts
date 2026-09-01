@@ -111,13 +111,37 @@ export function getReportByToken(
   );
 }
 
+function getDownloadFilename(
+  contentDisposition: string | null,
+): string | null {
+  if (!contentDisposition) return null;
+  const match = contentDisposition.match(
+    /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i,
+  );
+  const encodedFilename = match?.[1] ?? match?.[2];
+  if (!encodedFilename) return null;
+  try {
+    return decodeURIComponent(encodedFilename);
+  } catch {
+    return encodedFilename;
+  }
+}
+
 // Download a campus CSV (cookie-authenticated fetch → blob → save).
 export async function downloadCampusCsv(
   campusId: number,
   weekId?: number | "all",
   seasonId?: number | null,
+  seasonSlug?: string | null,
 ): Promise<void> {
-  const qs = weekId != null && weekId !== "all" ? `?weekId=${weekId}` : "";
+  const params = new URLSearchParams();
+  if (weekId != null && weekId !== "all") {
+    params.set("weekId", String(weekId));
+  }
+  if (seasonId != null) {
+    params.set("season", String(seasonId));
+  }
+  const qs = params.toString() ? `?${params.toString()}` : "";
   const res = await fetch(`/api/admin/reports/campus/${campusId}/export${qs}`, {
     credentials: "include",
     headers:
@@ -128,7 +152,12 @@ export async function downloadCampusCsv(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `journal-report-campus-${campusId}.csv`;
+  const safeSeasonSlug = seasonSlug?.replace(/[^a-zA-Z0-9._-]/g, "-");
+  a.download =
+    getDownloadFilename(res.headers.get("content-disposition")) ??
+    `journal-report-campus-${campusId}${
+      safeSeasonSlug ? `-season-${safeSeasonSlug}` : ""
+    }.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

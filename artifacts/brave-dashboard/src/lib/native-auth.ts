@@ -1,22 +1,24 @@
 // Native (Capacitor) sign-in bridge (additive, isolated).
 //
 // THE PROBLEM THIS SOLVES
-// Sign-in navigates to the NIAT Forms SSO, which is a DIFFERENT ORIGIN. A
-// Capacitor WebView only keeps same-origin navigation inside the app; anything
-// external is handed to the system browser. So tapping "Login to Dashboard"
-// bounced the student into Chrome, Chrome completed the login, and the
-// `?auth_token=…` redirect landed in Chrome's tab — never in the app. The app
-// sat on the login screen forever.
+// Sign-in navigates to the NIAT Forms SSO, which is a DIFFERENT ORIGIN. By
+// default a Capacitor WebView only keeps same-origin navigation inside the app
+// and hands anything external to Chrome. So tapping "Sign in with NIAT" bounced
+// the student into a browser, the browser completed the OTP, and the returning
+// `?auth_token=…` redirect landed there — never in the app, which sat on the
+// sign-in screen forever.
 //
-// THE FIX, IN TWO HALVES
-//   1. Open the SSO in a Chrome Custom Tab (@capacitor/browser) instead of
-//      letting the WebView hand it to Chrome. A Custom Tab is chrome-less, and
-//      it shares the browser's cookie jar, so an already-signed-in student is
-//      straight through.
-//   2. Have the SSO return to a deep link (`in.niatindia.brave://auth?...`)
-//      that Android routes back to THIS app. We read the token off it, hand it
-//      to the same /api/auth/validate-token endpoint the web build uses, and
-//      close the tab.
+// THE FIX
+// `server.allowNavigation` in capacitor.config.ts lists the SSO hosts, so the
+// whole round trip stays in the app's own WebView. The token comes back to the
+// page that asked for it and `useAuth` exchanges it for a session cookie —
+// the SAME path the browser build uses.
+//
+// An EARLIER attempt opened the SSO in a Custom Tab / InAppBrowser and asked
+// Forms to return to a `in.niatindia.brave://auth` deep link. Forms ignores an
+// arbitrary redirect_uri, so that deep link never fired. The listener below is
+// kept only as a harmless fallback for the day Forms is configured to send one;
+// nothing depends on it.
 //
 // WEB IS COMPLETELY UNAFFECTED. Every function here no-ops unless running in
 // the native shell, so `pnpm build` for the browser behaves exactly as before.
@@ -48,11 +50,17 @@ export const NATIVE_REDIRECT_URI = `${APP_SCHEME}://auth`;
 export function extractToken(url: string): string | null {
   try {
     const parsed = new URL(url);
-    const fromQuery = parsed.searchParams.get("auth_token");
+    // Forms has used both names in its setup documentation. Accepting both
+    // keeps Android login working while the provider configuration is rolled
+    // out, without weakening token validation on the server.
+    const fromQuery =
+      parsed.searchParams.get("auth_token") ?? parsed.searchParams.get("token");
     if (fromQuery) return fromQuery;
     // Fragment form: in.niatindia.brave://auth#auth_token=…
     const hash = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
-    const fromHash = new URLSearchParams(hash).get("auth_token");
+    const hashParams = new URLSearchParams(hash);
+    const fromHash =
+      hashParams.get("auth_token") ?? hashParams.get("token");
     return fromHash || null;
   } catch {
     return null;
@@ -80,69 +88,51 @@ async function validateToken(token: string): Promise<boolean> {
 /**
  * Start sign-in inside the app.
  *
+ * ── WHAT WAS BROKEN ─────────────────────────────────────────────────────────
+ *
+ * This used to open the SSO in a SEPARATE browser surface — an InAppBrowser
+ * WebView, falling back to a Chrome Custom Tab — with
+ * `redirect_uri=in.niatindia.brave://auth` appended, and then wait for Android
+ * to deliver that deep link back to the app.
+ *
+ * NIAT Forms does not honour an arbitrary `redirect_uri`. It redirects to the
+ * destination configured against the form, which is
+ * `https://dashboard.brave.niatindia.com/?auth_token=…`. So the token landed
+ * in the *browser surface*, signing the student into a throwaway browser copy
+ * of the dashboard. The deep link never fired, the surface was never closed,
+ * and the app underneath sat on the sign-in screen forever — a blank page or a
+ * spinner that never resolves.
+ *
+ * ── WHAT IT DOES NOW ────────────────────────────────────────────────────────
+ *
+ * Navigate the app's OWN WebView to the SSO. `server.allowNavigation` in
+ * capacitor.config.ts keeps `forms.ccbp.in` inside that WebView instead of
+ * handing it to Chrome, so:
+ *
+ *   already signed in to Forms → it redirects straight back, and the student
+ *   is on the dashboard without seeing a login form at all;
+ *
+ *   not signed in → the mobile-number + OTP screens render in the app, and the
+ *   same redirect follows.
+ *
+ * Either way the `?auth_token=` redirect lands on the page that asked for it,
+ * where `useAuth`'s existing handler exchanges it for a session cookie. That
+ * is the SAME code path the browser build uses — one flow, not two.
+ *
  * Returns false when not running natively, so the caller falls straight through
  * to the normal web redirect.
  */
 export async function startNativeLogin(loginUrl: string): Promise<boolean> {
   if (!isNativeApp() || !loginUrl) return false;
 
-  const url = new URL(loginUrl);
-  url.searchParams.set("redirect_uri", NATIVE_REDIRECT_URI);
-
-  // PREFERRED: a WebView INSIDE the app. Chrome never appears, and the student
-  // stays in BRAVE the whole way through.
+  // No `redirect_uri` is appended. Forms ignores it, and sending one only
+  // invited the belief that the deep-link round trip was working.
   //
-  // Deliberately NOT `server.allowNavigation`, which would load the SSO in the
-  // main WebView: Capacitor then reports the app as a *web* platform (losing
-  // the native APIs) and its proxy drops set-cookie headers, which is exactly
-  // what a session-cookie login depends on.
-  try {
-      const nativePlugin = "@capacitor/inappbrowser";
-      const { InAppBrowser } = await import(/* @vite-ignore */ nativePlugin);
-    await InAppBrowser.openInWebView({
-      url: url.toString(),
-      options: {
-        showURL: false,
-        // No toolbar at all. "navigation" added +/- zoom buttons along the
-        // bottom and a Cancel button on top — browser chrome that makes the
-        // sign-in look like a web page rather than part of the app. Pinch to
-        // zoom still works; that is the platform gesture, not a toolbar
-        // feature.
-        showToolbar: false,
-        clearCache: false,
-        clearSessionCache: false,
-      } as never,
-    });
-    // Removing the toolbar also removed the only visible way out, so wire the
-    // hardware back button to close the view. Without this a student whose SSO
-    // stalls would be stuck with no affordance at all.
-    try {
-      const { App } = await import("@capacitor/app");
-      const handle = await App.addListener("backButton", async () => {
-        try {
-          await InAppBrowser.close();
-        } catch {
-          /* already closed */
-        }
-        void handle.remove();
-      });
-    } catch {
-      /* listener unavailable; the deep link still closes the view on success */
-    }
-    return true;
-  } catch {
-    // Plugin unavailable in this build — fall through.
-  }
-
-  // FALLBACK: Chrome Custom Tab. Still inside the app's task and still returns
-  // via the deep link, just with the browser's chrome rather than ours.
-  try {
-    const { Browser } = await import("@capacitor/browser");
-    await Browser.open({ url: url.toString(), presentationStyle: "popover" });
-    return true;
-  } catch {
-    return false;
-  }
+  // `assign` rather than `replace`: the sign-in screen stays in history, so a
+  // student who backs out of the OTP step returns to the app rather than
+  // dropping out of it.
+  window.location.assign(loginUrl);
+  return true;
 }
 
 /**
@@ -162,8 +152,11 @@ export function registerAuthDeepLink(onSignedIn: () => void): () => void {
         import("@capacitor/browser"),
       ]);
 
-      const handle = await App.addListener("appUrlOpen", async (event) => {
-        const token = extractToken(event.url);
+      let consumedToken: string | null = null;
+      const finishSignIn = async (url: string) => {
+        const token = extractToken(url);
+        if (!token || token === consumedToken) return;
+        consumedToken = token;
         if (!token) return;
         // Close the Custom Tab first, so the student sees the app rather than
         // a browser tab sitting on a redirect page.
@@ -180,8 +173,23 @@ export function registerAuthDeepLink(onSignedIn: () => void): () => void {
         } catch {
           /* not a Custom Tab, or already closed */
         }
-        if (await validateToken(token)) onSignedIn();
+        if (await validateToken(token)) {
+          onSignedIn();
+        } else {
+          // Allow a retry if a transient network failure prevented exchange.
+          consumedToken = null;
+        }
+      };
+
+      const handle = await App.addListener("appUrlOpen", (event) => {
+        void finishSignIn(event.url);
       });
+
+      // If Android recreated the activity while Forms was open, appUrlOpen may
+      // have fired before React mounted this listener. Recover that launch URL
+      // so a valid OTP never ends on a blank or permanently signed-out screen.
+      const launch = await App.getLaunchUrl();
+      if (launch?.url) void finishSignIn(launch.url);
 
       cleanup = () => {
         void handle.remove();
@@ -197,17 +205,61 @@ export function registerAuthDeepLink(onSignedIn: () => void): () => void {
 /**
  * Sign out natively.
  *
- * The session cookie lives in the WebView, so hitting /api/logout there is
- * enough — but the Custom Tab keeps its own SSO cookie, which is why a plain
- * redirect would silently sign the student straight back in on the next tap.
+ * ── WHY THIS IS NOT JUST A REDIRECT ─────────────────────────────────────────
+ *
+ * Sign-in now happens in the app's OWN WebView, so `forms.ccbp.in` sets its
+ * SSO cookie in the app's cookie jar. Hitting /api/logout clears OUR session
+ * cookie and nothing else — so the next tap on "Sign in with NIAT" finds the
+ * SSO cookie still valid and signs the SAME student straight back in, with no
+ * mobile number and no OTP.
+ *
+ * That is not a cosmetic problem. These phones get handed around: a student
+ * who signs out so a teammate can sign in would instead watch their own
+ * account reappear, and the teammate could never get in at all.
+ *
+ * The server can fix this properly by setting FORMS_LOGOUT_URL, which
+ * routes/auth.ts already honours. Until it is set, clearing the WebView's
+ * cookie jar is the half we control, and it is enough: dropping the SSO cookie
+ * makes the next sign-in ask for the number and the OTP again.
+ *
+ * Returns false on web, where the caller should fall through to a plain
+ * redirect.
  */
 export async function nativeLogout(): Promise<boolean> {
   if (!isNativeApp()) return false;
+
+  // Server-side first, so the session is invalidated even if the app is killed
+  // before the redirect lands.
   try {
     await fetch("/api/logout", { credentials: "include" });
   } catch {
-    /* best effort — the reload below still clears in-memory state */
+    /* best effort — clearing cookies below still signs the student out here */
   }
-  window.location.href = "/";
+
+  // Drops every cookie in the WebView: ours AND the SSO's. Android's
+  // CookieManager.removeAllCookies underneath.
+  try {
+    const { CapacitorCookies } = await import("@capacitor/core");
+    await CapacitorCookies.clearAllCookies();
+  } catch {
+    /* older shell without the cookie plugin; the server logout still applies */
+  }
+
+  // `replace`, not `href`: a pushed entry would leave the signed-in dashboard
+  // in history, and the hardware back button would appear to undo the sign-out.
+  window.location.replace("/");
   return true;
+}
+
+/**
+ * One sign-out for every caller.
+ *
+ * The app has to clear the SSO cookie as well as the session (see
+ * nativeLogout); the browser only needs the redirect that `useAuth().logout`
+ * already performs. Callers should not have to know which one they are, so
+ * they pass their `logout` in and this picks.
+ */
+export async function signOut(webLogout: () => void): Promise<void> {
+  if (await nativeLogout()) return;
+  webLogout();
 }

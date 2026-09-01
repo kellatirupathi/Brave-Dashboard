@@ -19,6 +19,7 @@ import { isNativeApp } from "@/lib/native-auth";
 import { useAuth } from "@workspace/replit-auth-web";
 import { cn } from "@/lib/utils";
 import { OfflineBanner } from "./offline-banner";
+import { PageTransition } from "./page-transition";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -55,10 +56,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
             a back arrow, not a hamburger duplicating the bottom bar. */}
         <AppHeader />
 
+        {/* Staff-only mobile bar. A student now gets <AppHeader /> above —
+            screen title, notifications, avatar — so rendering this too would
+            stack two bars carrying the same maroon and no extra information. */}
         <header
           className={cn(
             "lg:hidden sticky top-0 z-30 flex h-14 items-center justify-between border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground",
-            nativeApp && "hidden",
+            (nativeApp || hasBottomNav) && "hidden",
           )}
         >
           {showDrawer ? (
@@ -123,7 +127,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             nativeApp && "app-main",
           )}
         >
-          {children}
+          {/* Animates the PAGE only.
+              This deliberately sits here rather than around the router: from
+              there it wrapped this whole shell, so every tap slid the bottom
+              bar, the header and the sidebar in from the right along with the
+              content, and its key={location} rebuilt them. A bar that moves
+              when you tap it does not read as a bar you tapped -- it reads as
+              the page reloading. Chrome stays still; content moves. */}
+          <PageTransition>{children}</PageTransition>
         </main>
       </div>
 

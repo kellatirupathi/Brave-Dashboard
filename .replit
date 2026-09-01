@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "python-3.11", "postgresql-16"]
+modules = ["nodejs-24", "python-3.11", "postgresql-16", "java-graalvm22.3"]
 
 [deployment]
 router = "application"
@@ -21,12 +21,16 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+packages = ["jdk17"]
 
 [userenv]
 
 [userenv.shared]
 VITE_FORMS_LOGIN_URL = "https://forms.ccbp.in/mid/brave-dashboard"
 BOOTSTRAP_ADMIN_FORMS_IDS = "853cac17-6251-4d40-8ccf-1ec1bce6e949"
+NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE = "1"
+BRAVE_ANDROID_KEYSTORE_PATH = "brave-release.jks"
+BRAVE_ANDROID_KEY_ALIAS = "brave-release"
 
 [userenv.production]
 

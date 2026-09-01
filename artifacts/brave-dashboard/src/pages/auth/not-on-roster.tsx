@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
+import { signOut } from "@/lib/native-auth";
 import { useSubmitAccessRequest } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,7 +73,7 @@ export default function NotOnRoster() {
           <p className="text-sm text-muted-foreground">
             Requests are typically reviewed within 24–48 hours.
           </p>
-          <Button variant="outline" onClick={() => logout()} className="gap-2">
+          <Button variant="outline" onClick={() => void signOut(logout)} className="gap-2">
             <LogOut className="w-4 h-4" /> Log out
           </Button>
         </div>
@@ -170,7 +171,7 @@ export default function NotOnRoster() {
 
         <div className="text-center">
           <button
-            onClick={() => logout()}
+            onClick={() => void signOut(logout)}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
           >
             Log out and try a different account

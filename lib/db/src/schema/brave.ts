@@ -2092,6 +2092,10 @@ export const seasonsTable = pgTable(
     weekCount: integer("week_count").notNull().default(12),
     // Exactly one season is active. New activity is written against it.
     isActive: boolean("is_active").notNull().default(false),
+    // The season admins and coordinators see by default when they have not
+    // explicitly selected one. This is independent of the student-facing
+    // active season.
+    isStaffDefault: boolean("is_staff_default").notNull().default(false),
     // When true, student write paths are blocked for this season unless the
     // matching allow* override below is switched on by a super admin.
     isReadOnly: boolean("is_read_only").notNull().default(false),
@@ -2111,6 +2115,7 @@ export const seasonsTable = pgTable(
   (t) => [
     unique("seasons_slug_unique").on(t.slug),
     index("seasons_active_idx").on(t.isActive),
+    index("seasons_staff_default_idx").on(t.isStaffDefault),
   ],
 );
 

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- White, matching the web tab logo (public/favicon.svg): a white tile
+         with a Brave-Red "B" and an Ember-Amber dot. The adaptive foreground
+         draws the red B and amber dot, so this fills the launcher mask behind
+         it. Previously #C0392B, which inverted the mark relative to the tab. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>

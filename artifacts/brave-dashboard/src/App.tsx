@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Switch,
   Route,
@@ -130,8 +130,13 @@ import { GritIntroDialog } from "@/components/grit-intro-dialog";
 import { SeasonProvider, useSeason } from "@/lib/season-context";
 import { InstallPrompt, UpdatePrompt } from "@/components/pwa-prompts";
 import { isNativeApp } from "@/lib/native-auth";
-import { PageTransition } from "@/components/page-transition";
 import { NativeAuthBridge } from "@/components/native-auth-bridge";
+import {
+  canonicalToLegacyPath,
+  legacyToCanonicalPath,
+  parseCanonicalSeasonPath,
+  type CanonicalSeasonRole,
+} from "@/lib/season-routing";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -141,6 +146,212 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const ROUTER_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function browserRoute(): string {
+  const full =
+    window.location.pathname + window.location.search + window.location.hash;
+  if (!ROUTER_BASE) return full;
+  if (full === ROUTER_BASE) return "/";
+  return full.startsWith(ROUTER_BASE + "/")
+    ? full.slice(ROUTER_BASE.length)
+    : full;
+}
+
+function browserUrl(route: string): string {
+  return `${ROUTER_BASE}${route === "/" ? "/" : route}`;
+}
+
+function useBrowserRouteState(): string {
+  const [route, setRoute] = useState(browserRoute);
+
+  useEffect(() => {
+    const update = () => setRoute(browserRoute());
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, []);
+
+  return route;
+}
+
+function seasonDashboardHref(role: CanonicalSeasonRole, slug: string): string {
+  const suffix = role === "student" ? "/dashboard" : "";
+  return `/${role}/season/${encodeURIComponent(slug)}${suffix}`;
+}
+
+function seasonHref(href: string): string {
+  const route =
+    ROUTER_BASE &&
+    (href === ROUTER_BASE || href.startsWith(ROUTER_BASE + "/"))
+      ? href.slice(ROUTER_BASE.length) || "/"
+      : href;
+  const current = parseCanonicalSeasonPath(browserRoute());
+  const canonical =
+    current && !parseCanonicalSeasonPath(route)
+      ? legacyToCanonicalPath(route, current.role, current.slug)
+      : route;
+  return browserUrl(canonical);
+}
+
+/**
+ * The page tree intentionally continues to use its established paths. This
+ * adapter makes canonical URLs look like those paths to wouter, while keeping
+ * the browser address bar canonical. It also upgrades links emitted by older
+ * page components without requiring a risky sweep through every page.
+ */
+function useSeasonLocation(): [
+  string,
+  (
+    to: string,
+    options?: { replace?: boolean; state?: unknown },
+  ) => void,
+] {
+  const read = useCallback(
+    () =>
+      browserUrl(
+        canonicalToLegacyPath(browserRoute()).split(/[?#]/, 1)[0],
+      ),
+    [],
+  );
+  const [location, setLocation] = useState(read);
+
+  useEffect(() => {
+    const update = () => setLocation(read());
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, [read]);
+
+  const navigate = useCallback(
+    (to: string, options?: { replace?: boolean; state?: unknown }) => {
+      const route =
+        ROUTER_BASE && (to === ROUTER_BASE || to.startsWith(ROUTER_BASE + "/"))
+          ? to.slice(ROUTER_BASE.length) || "/"
+          : to;
+      const current = browserRoute();
+      const currentCanonical = parseCanonicalSeasonPath(current);
+      const next =
+        currentCanonical && !parseCanonicalSeasonPath(route)
+          ? legacyToCanonicalPath(
+              route,
+              currentCanonical.role,
+              currentCanonical.slug,
+            )
+          : route;
+      window.history[options?.replace ? "replaceState" : "pushState"](
+        options?.state ?? null,
+        "",
+        browserUrl(next),
+      );
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    },
+    [],
+  );
+  return [location, navigate];
+}
+
+function SeasonRouteRedirect({
+  to,
+  replace = true,
+}: {
+  to: string;
+  replace?: boolean;
+}) {
+  // Wouter's Redirect intentionally renders null while navigation is being
+  // scheduled. Keep the existing loader visible during canonicalization so a
+  // first-login redirect can never present a blank frame.
+  return (
+    <>
+      <BraveLoader />
+      <Redirect to={to} replace={replace} />
+    </>
+  );
+}
+
+function SeasonUrlGate({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { seasons, viewing, viewingId, isLoading: seasonsLoading } = useSeason();
+  // This must track the real canonical URL, not Wouter's adapted legacy path.
+  // The first-login redirect changes "/" to
+  // "/student/season/<slug>/dashboard", but both map internally to "/".
+  // Subscribing here guarantees that canonicalization re-renders this gate.
+  const raw = useBrowserRouteState();
+  const canonical = parseCanonicalSeasonPath(raw);
+
+  // Auth, landing, guidebook and development routes deliberately stay outside
+  // the season namespace. Do not wait for seasons for a public URL.
+  if (authLoading) return <BraveLoader />;
+  if (!isAuthenticated) return <>{children}</>;
+  if (seasonsLoading) return <BraveLoader />;
+
+  if (canonical) {
+    if (
+      user?.role &&
+      ["admin", "coordinator", "student"].includes(user.role) &&
+      canonical.role !== user.role
+    ) {
+      if (!viewing) return <BraveLoader />;
+      return (
+        <SeasonRouteRedirect
+          to={seasonDashboardHref(user.role as CanonicalSeasonRole, viewing.slug)}
+        />
+      );
+    }
+    const requested = seasons.find((season) => season.slug === canonical.slug);
+    const activeSeason = seasons.find((season) => season.isActive);
+    const studentSeasonIsInactive =
+      canonical.role === "student" && !!requested && !requested.isActive;
+    if (!requested || studentSeasonIsInactive) {
+      const fallback =
+        canonical.role === "student" ? activeSeason : (activeSeason ?? viewing);
+      if (!fallback) return <BraveLoader />;
+      return (
+        <SeasonRouteRedirect
+          to={seasonDashboardHref(canonical.role, fallback.slug)}
+        />
+      );
+    }
+    if (
+      canonical.role === "student" &&
+      (canonical.suffix === "" || canonical.suffix === "/")
+    ) {
+      return (
+        <SeasonRouteRedirect
+          to={seasonDashboardHref("student", requested.slug)}
+        />
+      );
+    }
+    // URL selection wins over local/session selection. Blocking here prevents
+    // a component from issuing requests for the previous season on the frame
+    // between navigation and provider synchronization.
+    if (viewingId !== requested.id) return <BraveLoader />;
+    return <>{children}</>;
+  }
+
+  // Every authenticated dashboard page gets a canonical URL. This also
+  // preserves deep-link suffixes and query strings from historic bookmarks.
+  const publicPaths = new Set([
+    "/login",
+    "/admin/login",
+    "/not-on-roster",
+    "/guidebook",
+    ...(import.meta.env.DEV ? ["/dev/login"] : []),
+  ]);
+  if (publicPaths.has(raw.split(/[?#]/, 1)[0])) return <>{children}</>;
+  if (!viewing || !user?.role || !["admin", "coordinator", "student"].includes(user.role)) {
+    return <BraveLoader />;
+  }
+  return (
+    <SeasonRouteRedirect
+      to={legacyToCanonicalPath(
+        raw,
+        user.role as CanonicalSeasonRole,
+        viewing.slug,
+      )}
+      replace
+    />
+  );
+}
 
 function ProtectedRoute({
   component: Component,
@@ -238,17 +449,6 @@ function StudentResourcesLibraryGuarded() {
   return <StudentResourcesLibrary />;
 }
 
-/**
- * Has the installed app already routed THIS launch to its landing screen?
- *
- * Module scope rather than component state on purpose: the redirect unmounts
- * the component that would hold the state, so state would reset and the
- * redirect would fire again every time the student tapped Dashboard. A module
- * variable lives exactly as long as the page load does — which, in a Capacitor
- * shell, is exactly one app launch.
- */
-let nativeLaunchLanded = false;
-
 function StudentDashboardOrGetStarted() {
   const { user } = useAuth();
   const { data: team, isLoading } = useGetMyTeam({
@@ -277,27 +477,19 @@ function StudentDashboardOrGetStarted() {
   }
   if (!team) return <Redirect to="/get-started" />;
 
-  // ── Installed app: open on the work, not on a summary ──────────────────
+  // ── Installed app: open on the dashboard ───────────────────────────────
   //
-  // The session cookie lives in the WebView, so a student who signed in last
-  // week is still signed in when they tap the icon today. Landing them on the
-  // dashboard makes them navigate before they can do anything; a student opens
-  // BRAVE on their phone to log a lead.
+  // This used to force a one-off redirect to /leads on the first render after
+  // launch, on the theory that a student opens BRAVE on their phone to log a
+  // lead rather than to read a summary.
   //
-  // Deliberately placed AFTER the roster, profile and team gates above, so it
-  // cannot skip a student past onboarding into a pipeline they have no team
-  // for. And it targets /leads unconditionally — SeasonFlowRoute redirects a
-  // Season 1 student on to /projects, so the season rule stays in ONE place.
+  // That is no longer what we want. The dashboard IS the app's home: it is
+  // slot 1 of the bottom nav, it is where sign-in should land, and jumping
+  // past it made the nav lie about where the student was. Leads is one tap
+  // away in slot 3, which is the right cost for a secondary destination.
   //
-  // Fires once per launch, so tapping Dashboard afterwards behaves normally.
-  //
-  // `replace` matters: a pushed entry would leave "/" underneath /leads, so
-  // the hardware back button would surface the dashboard the student never
-  // asked for instead of leaving the app.
-  if (isNativeApp() && !nativeLaunchLanded) {
-    nativeLaunchLanded = true;
-    return <Redirect to="/leads" replace />;
-  }
+  // The `nativeLaunchLanded` module flag that guarded the redirect is gone
+  // with it — there is nothing left to fire once per launch.
 
   return gritConfig?.gritMilesDashboardEnabled ? (
     <TeamDashboard />
@@ -394,9 +586,9 @@ function SeasonFlowRoute({
   /** "pipeline" = Season 2 onwards. "projects" = Season 1 only. */
   requires: "pipeline" | "projects";
 }) {
-  const { viewingId, isLoading } = useSeason();
-  if (isLoading || viewingId == null) return <>{children}</>;
-  const usesPipeline = viewingId >= 2;
+  const { viewing, isLoading } = useSeason();
+  if (isLoading || !viewing) return <BraveLoader />;
+  const usesPipeline = viewing.slug !== "1.0";
   // `replace`, not push: the URL being corrected must not stay in history, or
   // the hardware back button would land on it and be redirected forward again,
   // trapping the student in a loop they cannot back out of.
@@ -450,7 +642,7 @@ function GuidebookStandalone() {
 // Records a page view whenever the route changes (for logged-in users only).
 // Best-effort + de-duped on consecutive identical paths; never blocks nav.
 function PageViewTracker() {
-  const [location] = useLocation();
+  const location = useBrowserRouteState();
   const { isAuthenticated } = useAuth();
   const lastRef = useRef<string | null>(null);
   useEffect(() => {
@@ -464,11 +656,8 @@ function PageViewTracker() {
 
 function Router() {
   return (
-    <>
+    <SeasonUrlGate>
       <PageViewTracker />
-      {/* Screens move between each other in the installed app, the way Android
-          expects. Renders children untouched on web. */}
-      <PageTransition>
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/admin/login" component={AdminLogin} />
@@ -878,8 +1067,7 @@ function Router() {
 
         <Route component={NotFound} />
       </Switch>
-      </PageTransition>
-    </>
+    </SeasonUrlGate>
   );
 }
 
@@ -891,7 +1079,11 @@ function App() {
             the API client, so every request below is answered for whichever
             season the viewer selected. Renders nothing itself. */}
         <SeasonProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <WouterRouter
+            base={ROUTER_BASE}
+            hook={useSeasonLocation}
+            hrefs={seasonHref}
+          >
             <Router />
             {/* Blocking student Terms & Conditions consent gate. Self-gates on
                 role + acceptance; covers the whole app via a portalled overlay. */}

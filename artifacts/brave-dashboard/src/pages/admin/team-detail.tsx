@@ -262,17 +262,26 @@ export default function AdminTeamDetail() {
 
   const allSeasonIds = seasons.map((s) => s.id);
 
-  const { data: orderBook = [] } = useQuery({
+  const {
+    data: orderBook = [],
+    isFetching: orderBookFetching,
+  } = useQuery({
     queryKey: teamSeasonKeys.orderBook(teamId, seasonView),
     queryFn: () => fetchTeamOrderBook(teamId, seasonView, allSeasonIds),
     enabled: Number.isFinite(teamId) && allSeasonIds.length > 0,
   });
-  const { data: revenue = [] } = useQuery({
+  const {
+    data: revenue = [],
+    isFetching: revenueFetching,
+  } = useQuery({
     queryKey: teamSeasonKeys.revenue(teamId, seasonView),
     queryFn: () => fetchTeamRevenue(teamId, seasonView, allSeasonIds),
     enabled: Number.isFinite(teamId) && allSeasonIds.length > 0,
   });
-  const { data: seasonProjects = [] } = useQuery({
+  const {
+    data: seasonProjects = [],
+    isFetching: projectsFetching,
+  } = useQuery({
     queryKey: teamSeasonKeys.projects(teamId, seasonView),
     queryFn: () => fetchTeamProjects(teamId, seasonView, allSeasonIds),
     enabled: Number.isFinite(teamId) && allSeasonIds.length > 0,
@@ -332,10 +341,31 @@ export default function AdminTeamDetail() {
     );
   }
 
-  // Season-filtered projects. Falls back to the nested list while the query is
-  // in flight, so the count does not flash to zero on first paint.
+  // The generated team response contains only the globally viewed season.
+  // Once the season list is available, the explicit season query is the sole
+  // source of truth. In particular, an empty selected season must stay empty
+  // rather than falling back to another season's projects.
   const projects: any[] =
-    seasonProjects.length > 0 ? seasonProjects : ((team as any).projects ?? []);
+    allSeasonIds.length > 0 ? seasonProjects : ((team as any).projects ?? []);
+  const selectedSeasonLabel =
+    seasonView === "all"
+      ? "All seasons"
+      : (seasons.find((s) => s.id === seasonView)?.slug ?? String(seasonView));
+  const seasonDataFetching =
+    allSeasonIds.length > 0 &&
+    (orderBookFetching || revenueFetching || projectsFetching);
+
+  // The team endpoint's summary is tied to the global viewed season, not the
+  // local 1.0 / 2.0 / All control. Derive these totals from the rows currently
+  // rendered so the cards always match the selected view.
+  const verifiedRevenueTotal = (revenue as any[]).reduce((total, entry) => {
+    if (String(entry.status ?? "").toLowerCase() !== "verified") return total;
+    return total + Number(entry.verifiedAmount ?? entry.amount ?? 0);
+  }, 0);
+  const verifiedOrderBookTotal = (orderBook as any[]).reduce((total, entry) => {
+    if (String(entry.status ?? "").toLowerCase() !== "verified") return total;
+    return total + Number(entry.verifiedAmount ?? entry.amount ?? 0);
+  }, 0);
 
   // Group order book + revenue entries by project. Anything orphaned
   // (project missing or unknown) lands in an "Unassigned" bucket.
@@ -498,6 +528,12 @@ export default function AdminTeamDetail() {
               </button>
             );
           })}
+          {seasonDataFetching && (
+            <span className="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Spinner className="h-3 w-3" />
+              Loading {selectedSeasonLabel} data…
+            </span>
+          )}
         </div>
       )}
 
@@ -510,17 +546,17 @@ export default function AdminTeamDetail() {
         <StatCard
           icon={<FolderKanban className="w-4 h-4" />}
           label="Projects"
-          value={String(team.projectCount ?? projects.length)}
+          value={String(projects.length)}
         />
         <StatCard
           icon={<IndianRupee className="w-4 h-4" />}
           label="Verified Revenue"
-          value={formatINR(team.totalRevenue ?? 0)}
+          value={formatINR(verifiedRevenueTotal)}
         />
         <StatCard
           icon={<ListChecks className="w-4 h-4" />}
           label="Order Book"
-          value={formatINR(team.totalOrderBook ?? 0)}
+          value={formatINR(verifiedOrderBookTotal)}
         />
       </div>
 

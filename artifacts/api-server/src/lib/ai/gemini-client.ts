@@ -3,7 +3,7 @@ import { logger } from "../logger";
 const GEMINI_FILES_UPLOAD_URL =
   "https://generativelanguage.googleapis.com/upload/v1beta/files";
 const GEMINI_GENERATE_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
 
 export function getGeminiApiKey(): string | undefined {
   const key = process.env["GEMINI_API_KEY"];

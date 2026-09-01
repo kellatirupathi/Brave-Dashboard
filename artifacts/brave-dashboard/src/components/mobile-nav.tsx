@@ -44,9 +44,11 @@ import {
   Rocket,
   User,
   MoreHorizontal,
+  LogOut,
   X,
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
+import { signOut } from "@/lib/native-auth";
 import { useSeason } from "@/lib/season-context";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { getFinaleMe } from "@/lib/finale-api";
@@ -62,9 +64,9 @@ type Item = {
 };
 
 export function MobileNav() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [location] = useLocation();
-  const { viewingId } = useSeason();
+  const { viewing } = useSeason();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isStudent = user?.role === "student";
@@ -118,7 +120,7 @@ export function MobileNav() {
 
   // Same rule as the sidebar: from Season 2 on, a project only exists behind a
   // converted lead, so the pipeline entry replaces Projects.
-  const usesLeadPipeline = viewingId != null && viewingId >= 2;
+  const usesLeadPipeline = !!viewing && viewing.slug !== "1.0";
 
   /** Slots 1-3: what a student opens most while working. */
   const primary: Item[] = [
@@ -164,30 +166,29 @@ export function MobileNav() {
     (i) => !i.external && isActive(i.href),
   );
 
-  const slotClass = (active: boolean) =>
-    cn(
-      // 56px is Material's bottom-nav height; below that it gets genuinely
-      // hard to hit while walking.
-      "flex min-h-[56px] w-full flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2",
-      "transition-colors",
-      active ? "text-sidebar-primary" : "text-sidebar-foreground/65",
-    );
+  const slotClass = () =>
+    // 56px is Material's bottom-nav height; below that it gets genuinely
+    // hard to hit while walking.
+    "flex min-h-[56px] w-full flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2 transition-colors";
 
   /**
-   * Material's active indicator: a pill behind the icon, not a colour change
-   * alone. It is what makes the selected tab readable at a glance on a phone
-   * held at arm's length, and it gives the tap something to land on.
+   * The active indicator: a filled maroon pill behind the icon, not a colour
+   * change alone. On a light bar that is what makes the selected tab readable
+   * at arm's length, and it gives the tap something to land on.
    */
   const pillClass = (active: boolean) =>
     cn(
-      "flex h-7 w-[3.25rem] items-center justify-center rounded-full transition-colors",
-      active ? "bg-sidebar-primary/15" : "bg-transparent",
+      "flex h-9 w-[3.5rem] items-center justify-center rounded-[14px] transition-colors",
+      active ? "bg-[#630B12]" : "bg-transparent",
     );
+
+  const iconClass = (active: boolean) =>
+    cn("h-5 w-5 shrink-0", active ? "text-[#FFC400]" : "text-[#8A6F66]");
 
   const labelClass = (active: boolean) =>
     cn(
       "text-[10px] leading-tight tracking-tight",
-      active ? "font-bold" : "font-medium",
+      active ? "font-bold text-[#630B12]" : "font-medium text-[#8A6F66]",
     );
 
   return (
@@ -211,7 +212,7 @@ export function MobileNav() {
               "animate-in slide-in-from-bottom duration-300",
             )}
             style={{
-              paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))",
+              paddingBottom: "calc(4.5rem + var(--safe-area-inset-bottom, 0px))",
             }}
           >
             {/* Grab handle — the affordance that says "this sheet drags". */}
@@ -231,7 +232,7 @@ export function MobileNav() {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-1 px-3 pb-2">
+            <div className="grid grid-cols-3 gap-1 px-3 pb-1">
               {overflow.map((item) => {
                 const Icon = item.icon;
                 const active = !item.external && isActive(item.href);
@@ -258,7 +259,11 @@ export function MobileNav() {
                 return item.external ? (
                   <a
                     key={item.href}
-                    href={item.href}
+                    href={
+                      item.href.startsWith("/")
+                        ? `${import.meta.env.BASE_URL.replace(/\/$/, "")}${item.href}`
+                        : item.href
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className={cls}
@@ -278,6 +283,24 @@ export function MobileNav() {
                 );
               })}
             </div>
+
+            {/* Sign out.
+                Below `lg` a student's only navigation is this bar, and the
+                sidebar that used to carry sign-out is hidden — which left a
+                student in the installed app with no way out of their own
+                account at all. It sits apart from the destination grid because
+                it is not a destination: it ends the session. */}
+            <div className="border-t px-3 pb-2 pt-2">
+              <button
+                type="button"
+                onClick={() => void signOut(logout)}
+                data-testid="button-mobile-sign-out"
+                className="flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-destructive active:bg-destructive/10"
+              >
+                <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
+                Sign out
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -288,9 +311,14 @@ export function MobileNav() {
         data-testid="nav-mobile-bottom"
         className={cn(
           "lg:hidden fixed bottom-0 inset-x-0 z-50",
-          "border-t border-sidebar-border bg-sidebar text-sidebar-foreground",
+          // A light bar with a filled active pill, rather than a dark bar with
+          // a tinted one: on a phone the bar sits directly above the device's
+          // own gesture area, and a dark slab there reads as a second system
+          // bar rather than as part of the app.
+          "rounded-t-[22px] border-t border-[#F0E4DC] bg-white",
+          "shadow-[0_-2px_16px_rgba(99,11,18,0.07)]",
           // Clears the iOS home indicator and the Android gesture pill.
-          "pb-[env(safe-area-inset-bottom,0px)]",
+          "pb-[var(--safe-area-inset-bottom,0px)]",
         )}
       >
         <ul className="flex items-stretch">
@@ -303,14 +331,11 @@ export function MobileNav() {
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   data-testid={`link-mobile-${item.name.toLowerCase()}`}
-                  className={slotClass(active)}
+                  className={slotClass()}
                 >
                   <span className={pillClass(active)}>
                     <Icon
-                      className={cn(
-                        "h-5 w-5 shrink-0",
-                        active && "stroke-[2.5]",
-                      )}
+                      className={cn(iconClass(active), active && "stroke-[2.5]")}
                       aria-hidden="true"
                     />
                   </span>
@@ -333,12 +358,12 @@ export function MobileNav() {
               aria-expanded={moreOpen}
               aria-haspopup="dialog"
               data-testid="button-mobile-more"
-              className={slotClass(moreOpen || inOverflow)}
+              className={slotClass()}
             >
               <span className={pillClass(moreOpen || inOverflow)}>
                 <MoreHorizontal
                   className={cn(
-                    "h-5 w-5 shrink-0",
+                    iconClass(moreOpen || inOverflow),
                     (moreOpen || inOverflow) && "stroke-[2.5]",
                   )}
                   aria-hidden="true"

@@ -14,6 +14,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -28,6 +29,11 @@ import {
   isSeasonWritable as seasonWritable,
   type Season,
 } from "./seasons-api";
+import {
+  findSeasonBySlug,
+  parseCanonicalSeasonPath,
+  replaceCanonicalSeasonSlug,
+} from "./season-routing";
 
 export const SEASONS_QUERY_KEY = ["seasons"] as const;
 
@@ -56,6 +62,21 @@ type SeasonContextValue = {
  * both throw on access, and neither should stop the dashboard rendering.
  */
 const SEASON_STORAGE_KEY = "brave.viewingSeasonId";
+const ROUTER_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function currentRouteLocation(): string {
+  const full =
+    window.location.pathname + window.location.search + window.location.hash;
+  if (!ROUTER_BASE) return full;
+  if (full === ROUTER_BASE) return "/";
+  return full.startsWith(ROUTER_BASE + "/")
+    ? full.slice(ROUTER_BASE.length)
+    : full;
+}
+
+function routeBrowserUrl(route: string): string {
+  return `${ROUTER_BASE}${route === "/" ? "/" : route}`;
+}
 
 function readStoredSeason(): number | null {
   try {
@@ -79,8 +100,22 @@ function writeStoredSeason(seasonId: number): void {
 const SeasonContext = createContext<SeasonContextValue | null>(null);
 
 export function SeasonProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
+  // Browser navigation can change only the slug. Keep that external state in
+  // React so a back/forward navigation re-resolves the URL selection as well.
+  const [location, setLocation] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : currentRouteLocation(),
+  );
+
+  useEffect(() => {
+    const onLocationChange = () =>
+      setLocation(currentRouteLocation());
+    window.addEventListener("popstate", onLocationChange);
+    return () => window.removeEventListener("popstate", onLocationChange);
+  }, []);
 
   // Local override so switching feels instant, AND so the choice survives a
   // reload.
@@ -98,12 +133,18 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
   const [override, setOverride] = useState<number | null>(() =>
     readStoredSeason(),
   );
+  const appliedSeasonRef = useRef<number | null>(override);
+  const [appliedSeasonId, setAppliedSeasonId] = useState<number | null>(
+    override,
+  );
 
   const { data, isLoading } = useQuery({
-    queryKey: SEASONS_QUERY_KEY,
+    queryKey: [...SEASONS_QUERY_KEY, user?.id ?? "anonymous"],
     queryFn: getSeasons,
     enabled: !!isAuthenticated,
-    staleTime: 60_000,
+    // Student login must resolve the admin-active season from the server, not a
+    // fresh-looking cache left by an earlier session in the same browser.
+    staleTime: user?.role === "student" ? 0 : 60_000,
   });
 
   // A stored season that no longer exists (deleted, or a stale value from an
@@ -111,10 +152,29 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
   // not serve. Once the list has loaded, an unknown override is discarded and
   // the server's answer takes over.
   const seasonList = data?.seasons ?? [];
+  // The address bar is authoritative. Read it directly because this provider
+  // also supplies the router's season-aware location adapter.
+  const canonicalPath = parseCanonicalSeasonPath(location);
+  const urlSeason = canonicalPath
+    ? findSeasonBySlug(seasonList, canonicalPath.slug)
+    : undefined;
   const overrideIsValid =
     override != null &&
     (seasonList.length === 0 || seasonList.some((s) => s.id === override));
-  const viewingId = (overrideIsValid ? override : null) ?? data?.viewing ?? null;
+  const activeSeason = seasonList.find((season) => season.isActive);
+  // A student always starts in the season the admin marked active. Students
+  // may still arrive with an old URL or localStorage value, but those are
+  // handled by SeasonUrlGate and redirected to the active dashboard rather
+  // than allowing stale season data to render during first login.
+  const viewingId =
+    user?.role === "student"
+      ? (activeSeason?.id ?? data?.viewing ?? null)
+      : (urlSeason?.id ??
+        (overrideIsValid ? override : null) ??
+        data?.viewing ??
+        null);
+  const isSynchronizing =
+    viewingId != null && appliedSeasonId !== viewingId;
 
   // The API client reads this synchronously on every request, so it must be a
   // ref rather than state — a stale closure here would send the previous
@@ -122,29 +182,50 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
   const viewingRef = useRef<number | null>(viewingId);
   viewingRef.current = viewingId;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setSeasonGetter(() => viewingRef.current);
     return () => setSeasonGetter(null);
   }, []);
 
+  useEffect(() => {
+    if (viewingId == null || appliedSeasonRef.current === viewingId) return;
+
+    // The URL-selected season must reach the synchronous API getter before any
+    // page remounts. Dropping non-season-catalogue queries guarantees an old
+    // season's cached response cannot flash while the new requests begin.
+    viewingRef.current = viewingId;
+    setOverride(viewingId);
+    writeStoredSeason(viewingId);
+    queryClient.removeQueries({
+      predicate: (query) => query.queryKey[0] !== SEASONS_QUERY_KEY[0],
+    });
+    appliedSeasonRef.current = viewingId;
+    setAppliedSeasonId(viewingId);
+    void selectSeason(viewingId).catch(() => undefined);
+  }, [queryClient, viewingId]);
+
   const switchTo = useCallback(
     (seasonId: number) => {
       if (seasonId === viewingRef.current) return;
-      // Point the API client at the new season BEFORE invalidating, so every
-      // refetch below already carries the new header.
-      setOverride(seasonId);
+      // Block the current page immediately. The URL change below is then
+      // resolved by the synchronization effect, which updates the API getter
+      // and clears stale queries before the page is allowed to render again.
+      appliedSeasonRef.current = null;
+      setAppliedSeasonId(null);
       viewingRef.current = seasonId;
-      // Remembered per device, so the next load opens on this season rather
-      // than snapping back to whichever one is active.
-      writeStoredSeason(seasonId);
-      // Every season-scoped figure on screen is now wrong — drop the whole
-      // cache rather than trying to enumerate which keys were affected.
-      void queryClient.invalidateQueries();
-      // Persistence is best-effort: the switch has already taken effect, and a
-      // failure here only means it won't survive a refresh.
-      void selectSeason(seasonId).catch(() => undefined);
+      const selected = seasonList.find((season) => season.id === seasonId);
+      if (selected && typeof window !== "undefined") {
+        const next = replaceCanonicalSeasonSlug(
+          currentRouteLocation(),
+          selected.slug,
+        );
+        if (next !== currentRouteLocation()) {
+          window.history.pushState(null, "", routeBrowserUrl(next));
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }
+      }
     },
-    [queryClient],
+    [seasonList],
   );
 
   const value = useMemo<SeasonContextValue>(() => {
@@ -156,11 +237,11 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
       viewing,
       active: seasons.find((s) => s.isActive),
       isArchive: !!viewing?.isReadOnly,
-      isLoading,
+      isLoading: isLoading || isSynchronizing,
       switchTo,
       canWrite: (capability) => seasonWritable(viewing, capability),
     };
-  }, [data, viewingId, isLoading, switchTo]);
+  }, [data, viewingId, isLoading, isSynchronizing, switchTo]);
 
   return (
     <SeasonContext.Provider value={value}>{children}</SeasonContext.Provider>

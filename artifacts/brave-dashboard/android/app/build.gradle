@@ -1,14 +1,22 @@
 apply plugin: 'com.android.application'
 
+def releaseKeystoreFile = rootProject.file('../brave-release.jks')
+def releaseKeystorePassword = System.getenv('BRAVE_ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = System.getenv('BRAVE_ANDROID_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('BRAVE_ANDROID_KEY_PASSWORD')
+def hasReleaseSigning = releaseKeystoreFile.exists() &&
+    releaseKeystorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace = "in.niatindia.brave"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildToolsVersion = rootProject.ext.buildToolsVersion
     defaultConfig {
         applicationId "in.niatindia.brave"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 7
+        versionName "1.0.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +24,32 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile releaseKeystoreFile
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
+        debug {
+            // A debug build is signed with the debug key, so Android refuses it
+            // as an update to the release-signed BRAVE already on a phone --
+            // INSTALL_FAILED_UPDATE_INCOMPATIBLE, which OEM installers report
+            // only as "Failed to install app. Check the APK." Giving the test
+            // build its own applicationId removes the collision: it installs
+            // BESIDE the release app rather than over it, so a tester never has
+            // to uninstall the app they are comparing against.
+            applicationIdSuffix ".test"
+            versionNameSuffix "-test"
+        }
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -43,12 +75,3 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
-
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
-}

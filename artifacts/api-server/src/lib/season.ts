@@ -107,7 +107,8 @@ function parseSeasonId(raw: unknown): number | null {
  *   1. the `x-brave-season` header      — what the dashboard is showing now
  *   2. a `?season=` query param         — so links stay shareable
  *   3. the session's remembered choice  — survives a refresh
- *   4. the active season                — the default for everyone else
+ *   4. the staff default                — for admins and coordinators
+ *   5. the active season                — the default for everyone else
  *
  * An id that does not exist is ignored rather than rejected, so a stale client
  * can never 400 its way out of the dashboard.
@@ -127,6 +128,13 @@ export async function resolveSeason(req: Request): Promise<number> {
     }
     logger.warn({ requested }, "[season] unknown season requested; using active");
   }
+
+  if (req.user?.role === "admin" || req.user?.role === "coordinator") {
+    const rows = await listSeasons();
+    const staffDefault = rows.find((season) => season.isStaffDefault);
+    if (staffDefault) return staffDefault.id;
+  }
+
   return getActiveSeasonId();
 }
 

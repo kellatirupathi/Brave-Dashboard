@@ -10,6 +10,7 @@
 import { useState, type ComponentType } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@workspace/replit-auth-web";
+import { signOut } from "@/lib/native-auth";
 import {
   getMyAccessRequest,
   submitAccessRequest,
@@ -169,7 +170,7 @@ function LogoutLink() {
   return (
     <div className="text-center">
       <button
-        onClick={() => logout()}
+        onClick={() => void signOut(logout)}
         className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
       >
         Log out and try a different account
