@@ -24,6 +24,19 @@ allprojects {
     }
 }
 
+subprojects {
+    pluginManager.withPlugin('com.android.library') {
+        android {
+            buildToolsVersion rootProject.ext.buildToolsVersion
+        }
+    }
+    pluginManager.withPlugin('com.android.application') {
+        android {
+            buildToolsVersion rootProject.ext.buildToolsVersion
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

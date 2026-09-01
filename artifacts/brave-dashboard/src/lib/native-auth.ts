@@ -48,11 +48,17 @@ export const NATIVE_REDIRECT_URI = `${APP_SCHEME}://auth`;
 export function extractToken(url: string): string | null {
   try {
     const parsed = new URL(url);
-    const fromQuery = parsed.searchParams.get("auth_token");
+    // Forms has used both names in its setup documentation. Accepting both
+    // keeps Android login working while the provider configuration is rolled
+    // out, without weakening token validation on the server.
+    const fromQuery =
+      parsed.searchParams.get("auth_token") ?? parsed.searchParams.get("token");
     if (fromQuery) return fromQuery;
     // Fragment form: in.niatindia.brave://auth#auth_token=…
     const hash = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
-    const fromHash = new URLSearchParams(hash).get("auth_token");
+    const hashParams = new URLSearchParams(hash);
+    const fromHash =
+      hashParams.get("auth_token") ?? hashParams.get("token");
     return fromHash || null;
   } catch {
     return null;
@@ -162,8 +168,11 @@ export function registerAuthDeepLink(onSignedIn: () => void): () => void {
         import("@capacitor/browser"),
       ]);
 
-      const handle = await App.addListener("appUrlOpen", async (event) => {
-        const token = extractToken(event.url);
+      let consumedToken: string | null = null;
+      const finishSignIn = async (url: string) => {
+        const token = extractToken(url);
+        if (!token || token === consumedToken) return;
+        consumedToken = token;
         if (!token) return;
         // Close the Custom Tab first, so the student sees the app rather than
         // a browser tab sitting on a redirect page.
@@ -180,8 +189,23 @@ export function registerAuthDeepLink(onSignedIn: () => void): () => void {
         } catch {
           /* not a Custom Tab, or already closed */
         }
-        if (await validateToken(token)) onSignedIn();
+        if (await validateToken(token)) {
+          onSignedIn();
+        } else {
+          // Allow a retry if a transient network failure prevented exchange.
+          consumedToken = null;
+        }
+      };
+
+      const handle = await App.addListener("appUrlOpen", (event) => {
+        void finishSignIn(event.url);
       });
+
+      // If Android recreated the activity while Forms was open, appUrlOpen may
+      // have fired before React mounted this listener. Recover that launch URL
+      // so a valid OTP never ends on a blank or permanently signed-out screen.
+      const launch = await App.getLaunchUrl();
+      if (launch?.url) void finishSignIn(launch.url);
 
       cleanup = () => {
         void handle.remove();

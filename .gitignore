@@ -50,3 +50,5 @@ Thumbs.db
 
 # Local Claude Code settings (machine-specific paths)
 .claude/
+
+artifacts/brave-dashboard/brave-release.jks

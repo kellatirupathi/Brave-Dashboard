@@ -168,3 +168,31 @@ mtime_ms = 1788252702529
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/4b1d27ba-deff-44c9-9e74-c7faf45595f0/a9ca574c-749e-4510-9ab9-f20b85d1df81"
 storage_version_token = "1788252713412860"
 content_type = "text/plain"
+
+[[outputs]]
+id = "C93teCsTBMvfstb8PyJAn"
+uri = "file://deliverables/BRAVE-Student-1.0.5-Forms-SSO-Fix.apk"
+type = "unspecified"
+title = "BRAVE Student 1.0.5 — OTP White-Screen Fix"
+description = "Signed Capacitor Android release. Keeps the dashboard in the main WebView, opens NIAT Forms SSO inside the app, returns through the Android callback, and restores the student dashboard with bottom navigation."
+logical_id = "12b51eb9-6557-4b5b-a9bc-b3a7d617e8af"
+content_hash = "sha256:407f190a3c22a4f8679c369436944518caba9895fee32a021488896f81aad8fb"
+size = 30292002
+mtime_ms = 1788254233693
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/12b51eb9-6557-4b5b-a9bc-b3a7d617e8af/4fc06a3c-37b6-4dea-8eef-9bc170e223e7"
+storage_version_token = "1788254248216664"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "_Jhzsm8DUMZqkfUfWeEXn"
+uri = "file://deliverables/BRAVE-Student-1.0.5-Forms-SSO-Fix-SHA256.txt"
+type = "text"
+title = "BRAVE Student 1.0.5 checksum"
+description = "SHA-256 checksum for the signed 1.0.5 APK."
+logical_id = "a61eb1e3-8775-4067-8978-32b354e7e226"
+content_hash = "sha256:496ee2ad900fa15d1e3169039fb555b81b70a6bb049dc128975e4f7fcc906a07"
+size = 117
+mtime_ms = 1788254233797
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/a61eb1e3-8775-4067-8978-32b354e7e226/81fba6c9-68fa-4f7f-8ab1-eebff3b33517"
+storage_version_token = "1788254249500604"
+content_type = "text/plain"
