@@ -44,6 +44,7 @@ import { InstagramLink } from "@/components/instagram-link";
 import { PinnedAnnouncementBanner } from "@/components/pinned-announcement-banner";
 import { SubmitAsapBanner } from "@/components/projects-lock-banner";
 import { SupportBanner } from "@/components/support-banner";
+import { BraveAppDownloadCard } from "@/components/brave-app-download-card";
 import type { MobileDashboardProps, MobileTone } from "./dashboard-mobile";
 
 /** Card surface: white on the warm ivory ground, soft warm border. */
@@ -603,7 +604,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
             exactly as <ProgramCountdown /> does. */}
         {p.daysLeft != null ? (
           <section
-            className={cn(CARD, "px-6 py-3.5")}
+            className={cn(CARD, "px-6 py-3.5 lg:col-start-1")}
             data-testid="program-countdown"
           >
             <div className="flex items-center gap-2">
@@ -645,7 +646,10 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
         )}
 
         {/* Journal streak */}
-        <section className={cn(CARD, "px-6 py-3.5")} data-testid="journal-streak">
+        <section
+          className={cn(CARD, "px-6 py-3.5 lg:col-start-2")}
+          data-testid="journal-streak"
+        >
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#E9F8F1]">
               <Flame
@@ -733,11 +737,14 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
           </div>
         </section>
 
-        {/* Social */}
-        <InstagramLink className="h-fit rounded-[20px] border-[#F0E4DC] shadow-[0_2px_14px_rgba(99,11,18,0.045)]" />
+        <aside className="space-y-3.5 lg:col-start-3 lg:row-span-2 lg:row-start-1">
+          <InstagramLink className="h-fit rounded-[20px] border-[#F0E4DC] shadow-[0_2px_14px_rgba(99,11,18,0.045)]" />
+          <BraveAppDownloadCard />
+        </aside>
+        <div className="lg:col-span-2 lg:col-start-1">
+          <SupportBanner />
+        </div>
       </div>
-
-      <SupportBanner />
     </div>
   );
 }

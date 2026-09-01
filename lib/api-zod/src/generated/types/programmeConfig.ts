@@ -20,5 +20,9 @@ export interface ProgrammeConfig {
   /** @nullable */
   demoDayApplicationDeadline?: Date | null;
   programmePhase: string;
+  /** @nullable */
+  braveAppQrObjectPath?: string | null;
+  /** @nullable */
+  braveAppDownloadUrl?: string | null;
   updatedAt: Date;
 }

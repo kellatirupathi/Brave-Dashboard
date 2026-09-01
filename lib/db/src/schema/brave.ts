@@ -1101,6 +1101,8 @@ export const programmeConfigTable = pgTable("programme_config", {
   resourcesEnabledForStudents: boolean("resources_enabled_for_students")
     .notNull()
     .default(true),
+  braveAppQrObjectPath: text("brave_app_qr_object_path"),
+  braveAppDownloadUrl: text("brave_app_download_url"),
   chatbotProvider: chatbotProviderEnum("chatbot_provider")
     .notNull()
     .default("cloudflare"),

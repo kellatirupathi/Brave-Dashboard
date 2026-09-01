@@ -425,6 +425,14 @@ async function ensureProjectsLockAndRejectionReasons(): Promise<void> {
   }
 }
 
+async function ensureBraveAppConfigColumns(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE programme_config
+      ADD COLUMN IF NOT EXISTS brave_app_qr_object_path text,
+      ADD COLUMN IF NOT EXISTS brave_app_download_url text
+  `);
+}
+
 // BRAVE Finale Submissions: config columns + the submissions table. Same
 // reasoning as ensureProjectsLockAndRejectionReasons — prod never runs
 // `drizzle-kit push`, so the routes would crash without this. Idempotent.
@@ -1640,6 +1648,11 @@ async function runBootstrap(): Promise<void> {
     await ensureProjectsLockAndRejectionReasons();
   } catch (err) {
     logger.error({ err }, "ensureProjectsLockAndRejectionReasons failed");
+  }
+  try {
+    await ensureBraveAppConfigColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureBraveAppConfigColumns failed");
   }
   try {
     await ensureFinaleSubmissions();

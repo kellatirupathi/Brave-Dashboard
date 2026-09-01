@@ -35,7 +35,7 @@ export function BraveAppButton() {
   if (isInstalledApp()) return null;
 
   return (
-    <div className="mt-8 flex justify-center">
+    <div className="mt-8 flex justify-center md:hidden">
       <a
         href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/student/season/${encodeURIComponent(viewing.slug)}/get-app`}
         target="_blank"

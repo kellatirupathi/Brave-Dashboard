@@ -1068,6 +1068,10 @@ export interface ProgrammeConfig {
   /** @nullable */
   demoDayApplicationDeadline?: string | null;
   programmePhase: string;
+  /** @nullable */
+  braveAppQrObjectPath?: string | null;
+  /** @nullable */
+  braveAppDownloadUrl?: string | null;
   updatedAt: string;
 }
 
@@ -1084,6 +1088,10 @@ export interface UpdateProgrammeConfigBody {
   /** @nullable */
   demoDayApplicationDeadline?: string | null;
   programmePhase?: string;
+  /** @nullable */
+  braveAppQrObjectPath?: string | null;
+  /** @nullable */
+  braveAppDownloadUrl?: string | null;
 }
 
 export interface RosterEntry {

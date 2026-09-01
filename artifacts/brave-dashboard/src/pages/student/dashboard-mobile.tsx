@@ -228,7 +228,7 @@ export function MobileDashboard(p: MobileDashboardProps) {
                 <h1 className="break-words text-[23px] font-extrabold leading-[1.08] tracking-tight text-[#2B090C]">
                   {p.teamName}
                 </h1>
-                <p className="mt-0.5 text-[12px] leading-snug text-[#8A6F66]">
+                <p className="mt-0.5 truncate whitespace-nowrap text-[12px] leading-snug text-[#8A6F66]">
                   {p.tagline}
                 </p>
               </Link>
