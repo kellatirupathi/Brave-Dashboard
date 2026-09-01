@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useAuth } from "@workspace/replit-auth-web";
 import { useGetTeamDashboardSummary } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { getProgressSummary } from "@/lib/progress-api";
@@ -30,7 +32,12 @@ import { getLeaderboardConfig } from "@/lib/leaderboard-config-api";
 import { DEFAULT_BANNER_CONTENT } from "@/components/leaderboard-banner-templates";
 import { SupportBanner } from "@/components/support-banner";
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
-import { ProgramCountdown } from "@/components/program-countdown";
+import {
+  ProgramCountdown,
+  useProgrammeCountdown,
+} from "@/components/program-countdown";
+import { FeedbackDialog } from "@/components/feedback-dialog";
+import { MobileDashboard } from "./dashboard-mobile";
 import { InstagramLink } from "@/components/instagram-link";
 
 // ── Design system helpers ───────────────────────────────────────────────────
@@ -82,7 +89,13 @@ function RankHiddenValue() {
 }
 
 export default function TeamDashboard() {
+  const { user } = useAuth();
   const { data: summary, isLoading } = useGetTeamDashboardSummary();
+  // Phone-only. Declared here rather than inside <MobileDashboard> so the hook
+  // order is identical on both layouts and cannot shift when the breakpoint
+  // changes which tree renders.
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const countdown = useProgrammeCountdown();
   // Same data source the journal widgets already used — reused here so the
   // journal status / streak / consistency features are preserved.
   const { data: progress } = useQuery({
@@ -196,7 +209,43 @@ export default function TeamDashboard() {
   return (
     <>
       <AutoIntroVideo />
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+      {/* ── PHONE ────────────────────────────────────────────────────────
+          Its own composition, same numbers. Everything below `md` renders
+          here; the desktop tree below is untouched and unchanged. */}
+      <div className="md:hidden">
+        <MobileDashboard
+          firstName={user?.firstName ?? ""}
+          teamName={summary.team?.name || "Your Team"}
+          tagline={summary.team?.tagline || "No tagline set"}
+          campusName={summary.team?.campusName || "Your campus"}
+          verifiedRevenue={summary.totalRevenue}
+          orderBook={summary.totalOrderBook}
+          nationalRank={summary.nationalRank}
+          campusRank={summary.campusRank}
+          rankHidden={rankHidden}
+          revealText={revealText}
+          progressPercent={progressPercent}
+          demoDayThreshold={DEMO_DAY_THRESHOLD}
+          journalTone={journalTone}
+          journalLabel={journalLabel}
+          submittedThisWeek={submittedThisWeek}
+          weekNumber={progress?.journal?.weekNumber}
+          pending={pending}
+          totalJournals={totalJournals}
+          streak={streak}
+          nextTier={nextTier}
+          tierProgress={tierProgress}
+          daysLeft={countdown.daysLeft}
+          endLabel={countdown.endLabel}
+          programmeEnded={countdown.ended}
+          onFeedback={() => setFeedbackOpen(true)}
+        />
+        <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      </div>
+
+      {/* ── DESKTOP / TABLET (md and up) — unchanged ─────────────────── */}
+      <div className="hidden md:block space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <PinnedAnnouncementBanner />
         <SubmitAsapBanner />
 

@@ -20,7 +20,19 @@ function parseEndOfDay(raw: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-export function ProgramCountdown({ className }: { className?: string }) {
+/**
+ * The countdown's numbers, without its markup.
+ *
+ * The phone renders this as a tinted summary tile rather than the desktop
+ * panel, and two components deriving "days left" from the same config
+ * independently is how the two eventually disagree by a day. Returns nulls
+ * when no end date is configured, which is the signal to render nothing.
+ */
+export function useProgrammeCountdown(): {
+  daysLeft: number | null;
+  endLabel: string | null;
+  ended: boolean;
+} {
   // Same query key + fn App.tsx already uses, so this shares the cache and
   // adds no extra network request on the dashboard.
   const { data } = useQuery({
@@ -30,20 +42,26 @@ export function ProgramCountdown({ className }: { className?: string }) {
   });
 
   const endOfDay = data?.endDate ? parseEndOfDay(data.endDate) : null;
-  if (!endOfDay) return null;
+  if (!endOfDay) return { daysLeft: null, endLabel: null, ended: false };
 
-  const now = new Date();
   const rawDaysLeft = Math.ceil(
-    (endOfDay.getTime() - now.getTime()) / 86_400_000,
+    (endOfDay.getTime() - Date.now()) / 86_400_000,
   );
   // Never surface a negative count: today/past reads as ended (0 days).
-  const ended = rawDaysLeft <= 0;
-  const daysLeft = Math.max(0, rawDaysLeft);
-  const endLabel = endOfDay.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return {
+    daysLeft: Math.max(0, rawDaysLeft),
+    endLabel: endOfDay.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+    ended: rawDaysLeft <= 0,
+  };
+}
+
+export function ProgramCountdown({ className }: { className?: string }) {
+  const { daysLeft, endLabel, ended } = useProgrammeCountdown();
+  if (daysLeft == null) return null;
 
   return (
     <section

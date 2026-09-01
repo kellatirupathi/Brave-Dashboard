@@ -130,7 +130,6 @@ import { GritIntroDialog } from "@/components/grit-intro-dialog";
 import { SeasonProvider, useSeason } from "@/lib/season-context";
 import { InstallPrompt, UpdatePrompt } from "@/components/pwa-prompts";
 import { isNativeApp } from "@/lib/native-auth";
-import { PageTransition } from "@/components/page-transition";
 import { NativeAuthBridge } from "@/components/native-auth-bridge";
 import {
   canonicalToLegacyPath,
@@ -659,9 +658,6 @@ function Router() {
   return (
     <SeasonUrlGate>
       <PageViewTracker />
-      {/* Screens move between each other in the installed app, the way Android
-          expects. Renders children untouched on web. */}
-      <PageTransition>
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/admin/login" component={AdminLogin} />
@@ -1071,7 +1067,6 @@ function Router() {
 
         <Route component={NotFound} />
       </Switch>
-      </PageTransition>
     </SeasonUrlGate>
   );
 }
