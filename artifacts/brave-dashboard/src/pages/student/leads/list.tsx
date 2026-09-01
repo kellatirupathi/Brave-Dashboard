@@ -510,7 +510,7 @@ export default function LeadsList() {
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="mobile-page-heading">
           <h1 className="text-2xl font-bold">Leads</h1>
           <p className="text-sm text-muted-foreground">
             Every project starts as a client you actually met.

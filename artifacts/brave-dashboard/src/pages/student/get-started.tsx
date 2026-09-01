@@ -164,7 +164,7 @@ export default function GetStarted() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="text-3xl font-bold tracking-tight">
           Get started with a team
         </h1>

@@ -568,6 +568,20 @@
 
 @media (max-width: 640px) {
   @layer components {
+    /* The app bar already names the screen. Repeating the same title at the
+       top of the content wastes the most valuable phone viewport space. */
+    .native-app .mobile-page-heading {
+      display: none;
+    }
+
+    /* Keep every student screen visually compact and consistent without
+       affecting the browser/desktop presentation. */
+    .native-app .app-main {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+      padding-top: 0.75rem;
+    }
+
     /* ── Density ───────────────────────────────────────────────────────────
        Desktop card padding (24px) costs 48px of a 360px screen — 13% of the
        width, spent on nothing. 16px keeps cards breathing without starving
@@ -575,6 +589,8 @@
     .native-app [class*="rounded-2xl"][class*="border"] > div,
     .native-app .p-6 { padding: 1rem; }
     .native-app .p-5 { padding: 0.875rem; }
+    .native-app .p-4 { padding: 0.75rem; }
+    .native-app .py-20 { padding-top: 3rem; padding-bottom: 3rem; }
     .native-app .px-6 { padding-left: 1rem; padding-right: 1rem; }
     .native-app .py-8 { padding-top: 1.25rem; padding-bottom: 1.25rem; }
     .native-app .px-8 { padding-left: 1rem; padding-right: 1rem; }
@@ -610,6 +626,7 @@
        difference between an app and a page. */
     .native-app .space-y-5 > * + * { margin-top: 0.875rem; }
     .native-app .space-y-6 > * + * { margin-top: 1rem; }
+    .native-app .space-y-4 > * + * { margin-top: 0.75rem; }
   }
 }
 

@@ -13,3 +13,4 @@
 - [Canonical season URLs](canonical-season-urls.md) — authenticated routes use public season slugs as the source of truth; never infer programme version from internal season IDs.
 - [Android release builds on Replit](android-release-builds.md) — use a minimal licensed Nix SDK composition and disable JVM perf counters; preserve the durable signing key outside Git.
 - [Mobile WebView session](mobile-webview-session.md) — Capacitor keeps the dashboard in its main WebView; Forms SSO runs in-app and returns by Android deep link.
+- [Student mobile density](student-mobile-density.md) — compact student app pages only; the app bar is the sole screen title, while desktop layout and density stay unchanged.

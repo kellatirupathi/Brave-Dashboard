@@ -283,7 +283,7 @@ export default function Journal() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <BookOpenCheck className="h-6 w-6 text-primary" />
           Weekly Journal

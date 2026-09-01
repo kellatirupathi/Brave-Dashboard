@@ -29,7 +29,7 @@ export default function Notifications() {
   return (
     <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="mobile-page-heading">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Notifications</h1>
         </div>
         <Button

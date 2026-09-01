@@ -54,7 +54,7 @@ export default function DemoDay() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="text-3xl font-bold tracking-tight">Demo Day</h1>
         <p className="text-muted-foreground mt-1">
           Climb the levels by growing your verified revenue.

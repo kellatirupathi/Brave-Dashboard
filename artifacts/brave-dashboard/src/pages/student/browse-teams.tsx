@@ -66,7 +66,7 @@ export default function BrowseTeams() {
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
         </Button>
       </Link>
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="text-3xl font-bold tracking-tight">
           Browse campus teams
         </h1>

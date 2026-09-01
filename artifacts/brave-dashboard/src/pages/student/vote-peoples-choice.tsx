@@ -68,7 +68,7 @@ export default function VotePeoplesChoice() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
+      <div className="mobile-page-heading">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
           <Trophy className="h-6 w-6 shrink-0 text-primary sm:h-7 sm:w-7" />
           People's Choice Award

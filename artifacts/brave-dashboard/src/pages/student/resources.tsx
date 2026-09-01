@@ -230,9 +230,9 @@ export default function StudentResourcesLibrary() {
     !!user && String(r.createdById) === String(user.id);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
-      <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
+    <div className="mx-auto max-w-5xl px-0 py-0 sm:px-4 sm:py-6 md:py-8">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-6 md:flex-row md:items-center md:justify-between md:gap-4">
+        <div className="mobile-page-heading">
           <h1
             className="text-2xl md:text-3xl font-bold tracking-tight"
             data-testid="text-resources-title"
