@@ -135,8 +135,8 @@ android {
         applicationId "in.niatindia.brave"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.0.2"
+        versionCode 4
+        versionName "1.0.3"
     }
     def releaseKeystorePath = System.getenv("BRAVE_ANDROID_KEYSTORE_PATH")
     def releaseKeystorePassword = System.getenv("BRAVE_ANDROID_KEYSTORE_PASSWORD")

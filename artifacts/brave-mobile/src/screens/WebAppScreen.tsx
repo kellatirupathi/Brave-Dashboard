@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, WebViewNavigation } from 'react-native-webview';
-import { buildFormsLoginUrl } from '../lib/config';
+import { API_BASE } from '../lib/config';
 import { colors, font, radius, space } from '../theme/tokens';
 
 // react-native-webview 14's generic class declaration is not yet compatible
@@ -26,6 +26,7 @@ const AppWebView = WebView as React.ComponentType<any>;
 export function WebAppScreen() {
   const insets = useSafeAreaInsets();
   const webView = useRef<any>(null);
+  const hasLoadedPage = useRef(false);
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -48,6 +49,7 @@ export function WebAppScreen() {
   }, []);
 
   const retry = useCallback(() => {
+    hasLoadedPage.current = false;
     setFailed(false);
     setLoading(true);
     setReloadKey(value => value + 1);
@@ -70,17 +72,27 @@ export function WebAppScreen() {
       <AppWebView
         key={reloadKey}
         ref={webView}
-        source={{ uri: buildFormsLoginUrl() }}
+        // This is the same server-side login used by the working web app:
+        // /api/login -> Replit OIDC -> /api/callback -> dashboard sid cookie.
+        // Do not use the Forms OTP URL here; it has no native callback contract.
+        source={{ uri: `${API_BASE}/api/login` }}
         style={styles.web}
         onNavigationStateChange={navigationChanged}
         onLoadStart={() => {
-          setLoading(true);
+          // OTP and OIDC can navigate or submit without completing another
+          // document load. Never put the full-screen loader back over that UI.
+          if (!hasLoadedPage.current) setLoading(true);
           setFailed(false);
         }}
-        onLoadEnd={() => setLoading(false)}
+        onLoadEnd={() => {
+          hasLoadedPage.current = true;
+          setLoading(false);
+        }}
         onError={showFailure}
         onHttpError={({ nativeEvent }: { nativeEvent: { statusCode: number } }) => {
-          if (nativeEvent.statusCode >= 500) setFailed(true);
+          if (!hasLoadedPage.current && nativeEvent.statusCode >= 500) {
+            setFailed(true);
+          }
         }}
         onShouldStartLoadWithRequest={openRequest}
         sharedCookiesEnabled
@@ -94,7 +106,7 @@ export function WebAppScreen() {
         userAgent="Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
       />
 
-      {loading && !failed ? (
+      {!hasLoadedPage.current && loading && !failed ? (
         <View style={styles.overlay}>
           <Text style={styles.logo}>
             BRAVE<Text style={styles.dot}>.</Text>

@@ -3,8 +3,8 @@ name: Mobile WebView session
 description: Why the BRAVE Android app keeps login and authenticated dashboard navigation in one WebView.
 ---
 
-Keep NIAT Forms login and all authenticated BRAVE pages inside the same persistent WebView. Do not make successful login depend on copying the dashboard's HTTP-only session cookie into React Native.
+Start the persistent WebView at the dashboard's server-owned `/api/login` route, then keep Replit OIDC and all authenticated BRAVE pages inside that same WebView. Do not use the Forms OTP URL or make successful login depend on copying an HTTP-only session cookie into React Native.
 
-**Why:** Physical Android testing showed that OTP login and the dashboard redirect succeeded inside the WebView, but the native cookie manager repeatedly could not recover the secure session. Keeping navigation in the authenticated WebView removes that unreliable cross-runtime handoff.
+**Why:** The previously working Capacitor flow used `/api/login`, whose `/api/callback` creates the real dashboard session. Physical Android testing showed the Forms OTP path could stall and has no completed app callback contract; native cookie recovery also failed repeatedly.
 
-**How to apply:** Authentication changes must preserve the same WebView across the Forms-to-dashboard redirect. Native session/API screens should not become the required post-login path unless the server provides an explicit, verified native token callback contract.
+**How to apply:** Preserve one WebView across `/api/login` → OIDC → `/api/callback` → dashboard. Loading overlays may cover only the initial document load, never later OIDC navigation or in-page submissions.

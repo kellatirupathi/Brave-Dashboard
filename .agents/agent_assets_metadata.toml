@@ -112,3 +112,31 @@ mtime_ms = 1788246877122
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/ae99afdd-e964-47f4-a258-d22d1e53a847/220f6e54-f28b-4940-b70d-e3f3df834f80"
 storage_version_token = "1788246898701867"
 content_type = "text/plain"
+
+[[outputs]]
+id = "l-cNghbpHTf2SDULW9fFL"
+uri = "file://deliverables/BRAVE-Student-1.0.3-arm64-v8a.apk"
+type = "unspecified"
+title = "BRAVE Student 1.0.3 — Server Login Fix"
+description = "Signed Android update for modern phones. Starts with the proven dashboard /api/login server flow, keeps OIDC and all student pages in one WebView, and prevents the loading overlay from hiding later login steps."
+logical_id = "39a00925-36a7-4ca8-851c-d37b1fa1d09e"
+content_hash = "sha256:cbcc730d8f3781c98f2d091da60854474264b63570ff9067e1a37f585540bca8"
+size = 21458877
+mtime_ms = 1788248002058
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/39a00925-36a7-4ca8-851c-d37b1fa1d09e/5614ea82-71f6-452d-9f5c-c14c24204313"
+storage_version_token = "1788248019841910"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "NhtFcqAAvfG9AUL9cs277"
+uri = "file://deliverables/BRAVE-Student-1.0.3-SHA256SUMS.txt"
+type = "text"
+title = "BRAVE Student 1.0.3 checksums"
+description = "SHA-256 checksums for verifying the signed 1.0.3 release APKs."
+logical_id = "a3220e6c-cb11-4803-b04f-588d105d687b"
+content_hash = "sha256:a0ee4997bcc8f8d97ce4438feb69d447a35f4c83f557b9e03c2eaa237ff18ae6"
+size = 228
+mtime_ms = 1788248002602
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/a3220e6c-cb11-4803-b04f-588d105d687b/d32f6f2b-569c-4343-acb8-b4f7966e78a2"
+storage_version_token = "1788248021119985"
+content_type = "text/plain"
