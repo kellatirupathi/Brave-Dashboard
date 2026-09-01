@@ -91,7 +91,7 @@ export function JournalWeekTracker({
                     }}
                     className={cn(
                       compact
-                        ? "mt-3 h-0.5 w-2.5 origin-left shrink-0 rounded-full sm:w-3.5"
+                        ? "mt-2.5 h-0.5 w-2 origin-left shrink-0 rounded-full sm:w-3"
                         : "mt-3.5 h-1 w-3 origin-left shrink-0 rounded-full sm:w-4",
                       connectorTone(i - 1),
                     )}
@@ -122,16 +122,16 @@ export function JournalWeekTracker({
                     )}
                   >
                     {w.submitted ? (
-                      <CheckCircle2 className={compact ? "h-6 w-6" : "h-7 w-7"} />
+                      <CheckCircle2 className={compact ? "h-5 w-5" : "h-7 w-7"} />
                     ) : missed ? (
-                      <HelpCircle className={compact ? "h-6 w-6" : "h-7 w-7"} />
+                      <HelpCircle className={compact ? "h-5 w-5" : "h-7 w-7"} />
                     ) : (
-                      <Circle className={compact ? "h-6 w-6" : "h-7 w-7"} />
+                      <Circle className={compact ? "h-5 w-5" : "h-7 w-7"} />
                     )}
                   </span>
                   <span
                     className={cn(
-                       compact ? "text-[11px] font-medium tabular-nums" : "text-xs font-medium tabular-nums",
+                       compact ? "text-[10px] font-medium tabular-nums" : "text-xs font-medium tabular-nums",
                       w.isCurrent
                         ? "text-primary"
                         : missed
@@ -150,7 +150,7 @@ export function JournalWeekTracker({
       <p
         className={cn(
           "text-muted-foreground text-center",
-          compact ? "mt-1.5 text-[11px]" : "mt-2 text-xs",
+          compact ? "mt-1 text-[10px]" : "mt-2 text-xs",
         )}
       >
         {deadlineLabel
