@@ -355,7 +355,7 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
       </section>
 
       {/* ── PERFORMANCE SNAPSHOT ───────────────────────────────────────── */}
-      <section className={cn(CARD, "px-6 py-3.5")}>
+      <section className={cn(CARD, "px-6 pt-3.5 pb-[52px]")}>
         <div className="flex items-center justify-between">
           <Eyebrow>Performance snapshot</Eyebrow>
           <span className="text-[10.5px] text-[#8A6F66]">At a glance</span>
