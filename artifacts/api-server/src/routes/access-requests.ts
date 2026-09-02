@@ -23,7 +23,14 @@ async function computeIsOnRoster(
     .select()
     .from(usersTable)
     .where(eq(usersTable.id, userId));
-  const clauses = [eq(rosterTable.email, email)];
+  // Must stay identical to buildAuthUser's matching in routes/auth.ts: this
+  // decides what the gate SHOWS, that one decides what the app LETS YOU DO,
+  // and the two disagreeing is how a student gets told they are approved by a
+  // screen that will not then let them past.
+  const clauses = [
+    eq(rosterTable.email, email),
+    eq(rosterTable.studentId, userId),
+  ];
   if (dbUser?.formsUserId) {
     clauses.push(eq(rosterTable.studentId, dbUser.formsUserId));
   }

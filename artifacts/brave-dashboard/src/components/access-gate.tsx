@@ -7,7 +7,7 @@
 // shown on the left purely as a preview — none of its items are links and the
 // whole column is pointer-events-none / aria-hidden. The actual gate content
 // (the access-request form or a status screen) sits to the right of it.
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@workspace/replit-auth-web";
 import { signOut } from "@/lib/native-auth";
@@ -423,10 +423,31 @@ function AccessRequestForm() {
 }
 
 export function AccessGate() {
+  const { refresh } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: MY_REQUEST_KEY,
     queryFn: getMyAccessRequest,
   });
+  const approved = data?.request?.status === "approved";
+
+  // An approved student should not have to do anything to get in.
+  //
+  // This gate renders while `user.isOnRoster` is false; approval is what makes
+  // it true, and /api/auth/user re-derives that on every call. So re-reading
+  // the user is the whole handover: ProtectedRoute stops rendering this gate
+  // and the student lands where a student with no team belongs -- profile,
+  // then /get-started to form a team.
+  //
+  // Polling as well as firing once, because approval can land while this
+  // screen is already open, and a student sitting on "approved" waiting for
+  // something to happen has no reason to guess that clicking Reload is what
+  // moves them on.
+  useEffect(() => {
+    if (!approved) return;
+    void refresh();
+    const timer = setInterval(() => void refresh(), 4000);
+    return () => clearInterval(timer);
+  }, [approved, refresh]);
 
   if (isLoading) {
     return (
@@ -499,12 +520,19 @@ export function AccessGate() {
           <div>
             <h1 className="text-2xl font-bold">Access Approved</h1>
             <p className="text-muted-foreground mt-2 leading-relaxed">
-              Your access has been approved. Reload the page to enter the
-              dashboard.
+              You&apos;re in. Taking you to BRAVE so you can form your team…
             </p>
           </div>
-          <Button onClick={() => window.location.reload()} className="gap-2">
-            <RefreshCw className="w-4 h-4" /> Reload
+          <Spinner className="size-8 mx-auto" />
+          {/* The effect above already re-reads the session every few seconds;
+              this is the manual way out if that is somehow not enough. */}
+          <Button
+            variant="outline"
+            onClick={() => window.location.reload()}
+            className="gap-2"
+            data-testid="button-access-approved-reload"
+          >
+            <RefreshCw className="w-4 h-4" /> Taking too long? Reload
           </Button>
         </div>
       </GateShell>
