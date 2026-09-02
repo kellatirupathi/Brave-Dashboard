@@ -270,6 +270,7 @@ export const pageViewsTable = pgTable(
     id: serial("id").primaryKey(),
     userId: text("user_id"), // nullable, no FK (mirrors chatbot_history)
     role: text("role"), // 'student' | 'coordinator' | 'admin' | null
+    platform: text("platform"), // 'app' | 'web' | null; null means unknown
     path: text("path").notNull(), // normalized route, e.g. /admin/teams/:id
     rawPath: text("raw_path").notNull(), // exact path visited
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -280,6 +281,7 @@ export const pageViewsTable = pgTable(
     index("page_views_path_idx").on(t.path),
     index("page_views_user_idx").on(t.userId),
     index("page_views_created_idx").on(t.createdAt),
+    index("page_views_platform_created_idx").on(t.platform, t.createdAt),
   ],
 );
 

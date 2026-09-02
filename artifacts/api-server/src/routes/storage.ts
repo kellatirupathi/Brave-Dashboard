@@ -364,26 +364,38 @@ async function userCanAccessTeamDocument(
 }
 
 router.get("/storage/objects/*path", async (req: Request, res: Response) => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
+
+    // The QR code configured for the public /get-app page is programme-level
+    // marketing/install content, not a private team document. Anonymous reads
+    // are allowed only when this exact object path is currently referenced by
+    // programme_config; every other object keeps its existing auth rules.
+    const isSharedProgrammeAsset = await isProgrammeAsset(objectPath);
+    if (!req.isAuthenticated() && !isSharedProgrammeAsset) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
     const objectFile =
       await objectStorageService.getObjectEntityFile(objectPath);
 
     const owningTeamId = await findOwningTeamId(objectPath);
     if (owningTeamId === null) {
-      const isSharedProgrammeAsset = await isProgrammeAsset(objectPath);
-      if (!isSharedProgrammeAsset && req.user.role !== "admin") {
+      if (
+        !isSharedProgrammeAsset &&
+        (!req.isAuthenticated() || req.user.role !== "admin")
+      ) {
         res.status(404).json({ error: "Object not found" });
         return;
       }
     } else {
+      if (!req.isAuthenticated()) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
       const allowed = await userCanAccessTeamDocument(req.user, owningTeamId);
       if (!allowed) {
         res.status(403).json({ error: "Forbidden" });

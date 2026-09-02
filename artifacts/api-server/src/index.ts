@@ -433,6 +433,25 @@ async function ensureBraveAppConfigColumns(): Promise<void> {
   `);
 }
 
+// Page-view source tracking is additive and nullable. Existing rows and older
+// cached dashboard bundles remain valid with a null/unknown platform. Production
+// deploys do not run drizzle-kit push, so keep this bootstrap in sync with the
+// Drizzle schema.
+async function ensurePageViewPlatform(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE page_views
+        ADD COLUMN IF NOT EXISTS platform text
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS page_views_platform_created_idx
+        ON page_views (platform, created_at)
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure page-view platform column");
+  }
+}
+
 // BRAVE Finale Submissions: config columns + the submissions table. Same
 // reasoning as ensureProjectsLockAndRejectionReasons — prod never runs
 // `drizzle-kit push`, so the routes would crash without this. Idempotent.
@@ -1653,6 +1672,11 @@ async function runBootstrap(): Promise<void> {
     await ensureBraveAppConfigColumns();
   } catch (err) {
     logger.error({ err }, "ensureBraveAppConfigColumns failed");
+  }
+  try {
+    await ensurePageViewPlatform();
+  } catch (err) {
+    logger.error({ err }, "ensurePageViewPlatform failed");
   }
   try {
     await ensureFinaleSubmissions();

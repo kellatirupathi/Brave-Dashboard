@@ -18,7 +18,7 @@
 // Deleting this file means removing its route in App.tsx and the button in
 // components/brave-app-button.tsx.
 import { useEffect, useState } from "react";
-import { useGetProgrammeConfig } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Smartphone,
   Download,
@@ -38,6 +38,19 @@ function objectUrl(path: string): string {
 }
 
 type Platform = "android" | "ios" | "desktop";
+
+type PublicAppConfig = {
+  braveAppDownloadUrl: string | null;
+  braveAppQrObjectPath: string | null;
+};
+
+async function getPublicAppConfig(): Promise<PublicAppConfig> {
+  const response = await fetch("/api/public/app-config");
+  if (!response.ok) {
+    throw new Error("Failed to load BRAVE app configuration");
+  }
+  return response.json() as Promise<PublicAppConfig>;
+}
 
 function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "desktop";
@@ -149,7 +162,11 @@ function PhoneArt() {
 
 export default function GetApp() {
   const [platform, setPlatform] = useState<Platform>("desktop");
-  const { data: config, isLoading } = useGetProgrammeConfig();
+  const { data: config, isLoading } = useQuery({
+    queryKey: ["public-app-config"],
+    queryFn: getPublicAppConfig,
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     setPlatform(detectPlatform());

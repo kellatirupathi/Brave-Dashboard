@@ -56,10 +56,12 @@ import pricingRouter from "./pricing";
 import cronTrustAwardsRouter from "./cron-trust-awards";
 import reviewRouter from "./review";
 import productTourRouter from "./product-tour";
+import publicAppRouter from "./public-app";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(publicAppRouter);
 router.use(authRouter);
 router.use(devAuthRouter);
 router.use(storageRouter);
