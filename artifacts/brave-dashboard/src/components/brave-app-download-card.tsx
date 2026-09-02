@@ -2,6 +2,9 @@ import { useRef, useState } from "react";
 import { useGetProgrammeConfig } from "@workspace/api-client-react";
 import { Smartphone } from "lucide-react";
 
+const APP_INSTALL_PAGE_URL =
+  "https://dashboard.brave.niatindia.com/get-app";
+
 function objectUrl(path: string): string {
   return path.startsWith("/objects/") ? `/api/storage${path}` : path;
 }
@@ -54,11 +57,11 @@ export function BraveAppDownloadCard() {
         {qrPath && (
           <a
             ref={qrRef}
-            href={downloadUrl || undefined}
+            href={APP_INSTALL_PAGE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8E0F18]"
-            aria-label="Open the latest BRAVE Android app"
+            aria-label="Open the BRAVE app installation page"
           >
             <img
               src={objectUrl(qrPath)}
