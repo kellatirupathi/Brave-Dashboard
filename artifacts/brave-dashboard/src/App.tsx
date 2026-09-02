@@ -70,6 +70,7 @@ import AdminDetailedAnalysis from "@/pages/admin/detailed-analysis";
 import AdminTeams from "@/pages/admin/teams";
 import AdminTeamDetail from "@/pages/admin/team-detail";
 import AdminProjects from "@/pages/admin/projects";
+import AdminLeads from "@/pages/admin/leads";
 import AdminProjectDetail from "@/pages/admin/project-detail";
 import AdminLeaderboard from "@/pages/admin/leaderboard";
 import AdminDemoDay from "@/pages/admin/demo-day";
@@ -918,6 +919,9 @@ function Router() {
             component={AdminTeamDetail}
             allowedRoles={["student", "coordinator", "admin"]}
           />
+        </Route>
+        <Route path="/admin/leads">
+          <ProtectedRoute component={AdminLeads} allowedRoles={["admin"]} />
         </Route>
         <Route path="/admin/projects">
           <ProtectedRoute component={AdminProjects} allowedRoles={["admin"]} />

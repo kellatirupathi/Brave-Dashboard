@@ -520,6 +520,9 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
         icon: Users,
         children: [
           { name: "Teams", href: "/admin/teams", icon: Users },
+          // Season 2 pipeline oversight: every lead from every team, with its
+          // trail, project, payments and BRD state in one table.
+          { name: "Leads", href: "/admin/leads", icon: Handshake },
           { name: "Projects", href: "/admin/projects", icon: FolderKanban },
           { name: "Roster", href: "/admin/roster", icon: ClipboardList },
         ],
