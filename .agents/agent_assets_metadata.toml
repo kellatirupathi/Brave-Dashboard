@@ -196,3 +196,17 @@ mtime_ms = 1788254233797
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/a61eb1e3-8775-4067-8978-32b354e7e226/81fba6c9-68fa-4f7f-8ab1-eebff3b33517"
 storage_version_token = "1788254249500604"
 content_type = "text/plain"
+
+[[outputs]]
+id = "lQFRrY7za-PD0cNND9_6z"
+uri = "file://deliverables/BRAVE-1.0.6-allowNavigation-FIX.apk"
+type = "unspecified"
+title = "BRAVE Student APK"
+description = "Latest Android APK for BRAVE student app installation."
+logical_id = "8f5dc0fd-55e7-4684-b2c3-021e5ff8e31a"
+content_hash = "sha256:cf261ad69f5475b1ea75ad04bd26bb70b6e6b327292b2bb840931430d8570e40"
+size = 33118764
+mtime_ms = 1788374198159
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4679004f-81f0-4541-8619-f0057adc38b5/8f5dc0fd-55e7-4684-b2c3-021e5ff8e31a/0cfa8be5-9dea-41dc-b56d-e92cc01a27ed"
+storage_version_token = "1788375269395690"
+content_type = "application/octet-stream"
