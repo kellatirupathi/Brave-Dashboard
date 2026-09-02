@@ -324,10 +324,13 @@ function CampusFilterPopover({
   value,
   campuses,
   onChange,
+  fullWidth = false,
 }: {
   value: string;
   campuses: { id: number; name: string }[];
   onChange: (next: string) => void;
+  /** Stretch to the container (used inside the Filters panel). */
+  fullWidth?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selectedLabel =
@@ -342,7 +345,10 @@ function CampusFilterPopover({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="sm:w-52 justify-between font-normal"
+          className={cn(
+            fullWidth ? "w-full" : "sm:w-52",
+            "justify-between font-normal",
+          )}
           data-testid="select-leads-campus-filter"
         >
           <span className="truncate">{selectedLabel}</span>
@@ -406,10 +412,13 @@ function TeamFilterPopover({
   value,
   teams,
   onChange,
+  fullWidth = false,
 }: {
   value: string;
   teams: { id: number; name: string }[];
   onChange: (next: string) => void;
+  /** Stretch to the container (used inside the Filters panel). */
+  fullWidth?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selectedLabel =
@@ -423,7 +432,10 @@ function TeamFilterPopover({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="sm:w-48 justify-between font-normal"
+          className={cn(
+            fullWidth ? "w-full" : "sm:w-48",
+            "justify-between font-normal",
+          )}
           data-testid="select-leads-team-filter"
         >
           <span className="truncate">{selectedLabel}</span>
@@ -1156,24 +1168,252 @@ function LeadDetailSheet({
   );
 }
 
+// ── Filters ─────────────────────────────────────────────────────────────────
+
+type Filters = {
+  campus: string;
+  team: string;
+  stage: string;
+  source: string;
+  trail: string;
+  brd: string;
+  gateA: string;
+  flag: string;
+};
+
+const EMPTY_FILTERS: Filters = {
+  campus: ALL,
+  team: ALL,
+  stage: ALL,
+  source: ALL,
+  trail: ALL,
+  brd: ALL,
+  gateA: ALL,
+  flag: ALL,
+};
+
+function countActive(f: Filters): number {
+  return Object.values(f).filter((v) => v !== ALL).length;
+}
+
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * All filters in a right-hand panel. Edits are DRAFTED locally and only reach
+ * the table on Apply, so an admin can change five things and get one reload —
+ * and Cancel really does discard.
+ */
+function FiltersSheet({
+  open,
+  onOpenChange,
+  value,
+  onApply,
+  campuses,
+  teams,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  value: Filters;
+  onApply: (next: Filters) => void;
+  campuses: { id: number; name: string }[];
+  teams: { id: number; name: string }[];
+}) {
+  const [draft, setDraft] = useState<Filters>(value);
+  // Re-seed the draft from the applied filters every time the panel opens.
+  useEffect(() => {
+    if (open) setDraft(value);
+  }, [open, value]);
+
+  const set = <K extends keyof Filters>(k: K, v: Filters[K]) =>
+    setDraft((d) => ({ ...d, [k]: v }));
+
+  const selectClass = "w-full";
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+        data-testid="sheet-leads-filters"
+      >
+        <SheetHeader className="border-b px-6 py-4 text-left">
+          <SheetTitle className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Filters
+          </SheetTitle>
+          <SheetDescription>
+            Narrow the leads table. Nothing changes until you press Apply.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+          <FilterField label="Campus">
+            <CampusFilterPopover
+              value={draft.campus}
+              campuses={campuses}
+              onChange={(v) => set("campus", v)}
+              fullWidth
+            />
+          </FilterField>
+
+          <FilterField label="Team">
+            <TeamFilterPopover
+              value={draft.team}
+              teams={teams}
+              onChange={(v) => set("team", v)}
+              fullWidth
+            />
+          </FilterField>
+
+          <FilterField label="Stage">
+            <Select value={draft.stage} onValueChange={(v) => set("stage", v)}>
+              <SelectTrigger className={selectClass} data-testid="select-leads-stage">
+                <SelectValue placeholder="Stage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All stages</SelectItem>
+                {LEAD_STAGES.map((st) => (
+                  <SelectItem key={st} value={st}>
+                    {STAGE_LABEL[st]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Source">
+            <Select value={draft.source} onValueChange={(v) => set("source", v)}>
+              <SelectTrigger className={selectClass} data-testid="select-leads-source">
+                <SelectValue placeholder="Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All sources</SelectItem>
+                {LEAD_SOURCES.map((src) => (
+                  <SelectItem key={src} value={src}>
+                    {SOURCE_LABEL[src]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Trail strength">
+            <Select value={draft.trail} onValueChange={(v) => set("trail", v)}>
+              <SelectTrigger className={selectClass} data-testid="select-leads-trail">
+                <SelectValue placeholder="Trail" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Any trail</SelectItem>
+                <SelectItem value="strong">Strong (70+)</SelectItem>
+                <SelectItem value="moderate">Moderate (45–69)</SelectItem>
+                <SelectItem value="weak">Weak (&lt;45)</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Gate A">
+            <Select value={draft.gateA} onValueChange={(v) => set("gateA", v)}>
+              <SelectTrigger className={selectClass} data-testid="select-leads-gate-a">
+                <SelectValue placeholder="Gate A" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Any</SelectItem>
+                <SelectItem value="passed">Passed</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="BRD status">
+            <Select value={draft.brd} onValueChange={(v) => set("brd", v)}>
+              <SelectTrigger className={selectClass} data-testid="select-leads-brd">
+                <SelectValue placeholder="BRD" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Any BRD status</SelectItem>
+                {BRD_STATUSES.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {BRD_STATUS_LABEL[b]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Flags">
+            <Select value={draft.flag} onValueChange={(v) => set("flag", v)}>
+              <SelectTrigger className={selectClass} data-testid="select-leads-flag">
+                <SelectValue placeholder="Flags" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All leads</SelectItem>
+                <SelectItem value="related">Related-party only</SelectItem>
+                <SelectItem value="followup">Needs follow-up</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t bg-background px-6 py-4">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-leads-filters-cancel"
+          >
+            Cancel
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDraft(EMPTY_FILTERS)}
+              disabled={countActive(draft) === 0}
+              data-testid="button-leads-filters-clear"
+            >
+              Clear all
+            </Button>
+            <Button
+              onClick={() => {
+                onApply(draft);
+                onOpenChange(false);
+              }}
+              data-testid="button-leads-filters-apply"
+            >
+              Apply filters
+              {countActive(draft) > 0 ? ` (${countActive(draft)})` : ""}
+            </Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function AdminLeads() {
   const [, setLocation] = useLocation();
-  const { viewingId: seasonId, viewing } = useSeason();
+  const { viewingId: seasonId } = useSeason();
   const { canExport } = useAdminPageAccess("/admin/leads");
   const { toast } = useToast();
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [campusFilter, setCampusFilter] = useState<string>(ALL);
-  const [teamFilter, setTeamFilter] = useState<string>(ALL);
-  const [stage, setStage] = useState<string>(ALL);
-  const [source, setSource] = useState<string>(ALL);
-  const [trail, setTrail] = useState<string>(ALL);
-  const [brd, setBrd] = useState<string>(ALL);
-  const [gateA, setGateA] = useState<string>(ALL);
-  const [flag, setFlag] = useState<string>(ALL);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState<AdminLeadsSortKey>("created");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
@@ -1203,15 +1443,18 @@ export default function AdminLeads() {
 
   const query: AdminLeadsQuery = {
     search: search || undefined,
-    campusId: campusFilter !== ALL ? Number(campusFilter) : undefined,
-    teamId: teamFilter !== ALL ? Number(teamFilter) : undefined,
-    stage: stage !== ALL ? stage : undefined,
-    source: source !== ALL ? source : undefined,
-    trail: trail !== ALL ? trail : undefined,
-    brd: brd !== ALL ? brd : undefined,
-    gateA: gateA === "passed" || gateA === "pending" ? gateA : undefined,
-    relatedParty: flag === "related" ? true : undefined,
-    followUp: flag === "followup" ? true : undefined,
+    campusId: filters.campus !== ALL ? Number(filters.campus) : undefined,
+    teamId: filters.team !== ALL ? Number(filters.team) : undefined,
+    stage: filters.stage !== ALL ? filters.stage : undefined,
+    source: filters.source !== ALL ? filters.source : undefined,
+    trail: filters.trail !== ALL ? filters.trail : undefined,
+    brd: filters.brd !== ALL ? filters.brd : undefined,
+    gateA:
+      filters.gateA === "passed" || filters.gateA === "pending"
+        ? filters.gateA
+        : undefined,
+    relatedParty: filters.flag === "related" ? true : undefined,
+    followUp: filters.flag === "followup" ? true : undefined,
     sortBy,
     sortDir,
     page,
@@ -1237,30 +1480,57 @@ export default function AdminLeads() {
 
   const items = data?.items ?? [];
   const s = data?.summary;
-  const activeFilterCount = [
-    campusFilter,
-    teamFilter,
-    stage,
-    source,
-    trail,
-    brd,
-    gateA,
-    flag,
-  ].filter((v) => v !== ALL).length + (search ? 1 : 0);
+  const activeFilterCount = countActive(filters);
+  const teamOptions = data?.options?.teams ?? [];
 
-  const resetFilters = () => {
-    setSearchInput("");
-    setSearch("");
-    setCampusFilter(ALL);
-    setTeamFilter(ALL);
-    setStage(ALL);
-    setSource(ALL);
-    setTrail(ALL);
-    setBrd(ALL);
-    setGateA(ALL);
-    setFlag(ALL);
+  const applyFilters = (next: Filters) => {
+    setFilters(next);
     setPage(1);
   };
+  const clearFilter = (key: keyof Filters) =>
+    applyFilters({ ...filters, [key]: ALL });
+
+  // Human-readable chips for whatever is currently applied.
+  const activeChips: { key: keyof Filters; label: string }[] = [];
+  if (filters.campus !== ALL)
+    activeChips.push({
+      key: "campus",
+      label:
+        campusOptions.find((c) => String(c.id) === filters.campus)?.name ??
+        "Campus",
+    });
+  if (filters.team !== ALL)
+    activeChips.push({
+      key: "team",
+      label:
+        teamOptions.find((t) => String(t.id) === filters.team)?.name ?? "Team",
+    });
+  if (filters.stage !== ALL)
+    activeChips.push({
+      key: "stage",
+      label: STAGE_LABEL[filters.stage as LeadStage] ?? filters.stage,
+    });
+  if (filters.source !== ALL)
+    activeChips.push({
+      key: "source",
+      label:
+        SOURCE_LABEL[filters.source as keyof typeof SOURCE_LABEL] ??
+        filters.source,
+    });
+  if (filters.trail !== ALL)
+    activeChips.push({ key: "trail", label: `Trail: ${filters.trail}` });
+  if (filters.gateA !== ALL)
+    activeChips.push({ key: "gateA", label: `Gate A ${filters.gateA}` });
+  if (filters.brd !== ALL)
+    activeChips.push({
+      key: "brd",
+      label: BRD_STATUS_LABEL[filters.brd as BrdStatus] ?? filters.brd,
+    });
+  if (filters.flag !== ALL)
+    activeChips.push({
+      key: "flag",
+      label: filters.flag === "related" ? "Related-party" : "Needs follow-up",
+    });
 
   const downloadExport = async () => {
     if (exporting) return;
@@ -1304,54 +1574,93 @@ export default function AdminLeads() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
-            <Handshake className="h-7 w-7 text-primary" />
-            Leads
-          </h1>
-          <p className="text-muted-foreground">
-            Every client every team has logged
-            {viewing ? ` in ${viewing.name}` : ""}, tracked from capture to
-            BRD.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeFilterCount > 0 ? (
-            <Button variant="ghost" size="sm" onClick={resetFilters}>
-              Clear {activeFilterCount} filter
-              {activeFilterCount === 1 ? "" : "s"}
+      {/* Header: title on the left; search → Filters → menu on the right. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
+          <Handshake className="h-7 w-7 text-primary" />
+          Leads
+        </h1>
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          <div className="relative sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search client, phone, team, campus…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-9"
+              data-testid="input-leads-search"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={activeFilterCount > 0 ? "default" : "outline"}
+              onClick={() => setFiltersOpen(true)}
+              data-testid="button-leads-filters"
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Filters
+              {activeFilterCount > 0 ? (
+                <span className="ml-2 rounded-full bg-primary-foreground/20 px-1.5 text-xs tabular-nums">
+                  {activeFilterCount}
+                </span>
+              ) : null}
             </Button>
-          ) : null}
-          {canExport ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="More actions"
-                  disabled={exporting}
-                  data-testid="button-leads-more-actions"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem
-                  onClick={() => void downloadExport()}
-                  disabled={exporting}
-                  data-testid="menu-item-leads-export-csv"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  {exporting
-                    ? "Exporting CSV…"
-                    : "Export filtered leads (CSV)"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+            {canExport ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="More actions"
+                    disabled={exporting}
+                    data-testid="button-leads-more-actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem
+                    onClick={() => void downloadExport()}
+                    disabled={exporting}
+                    data-testid="menu-item-leads-export-csv"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {exporting
+                      ? "Exporting CSV…"
+                      : "Export filtered leads (CSV)"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
         </div>
       </div>
+
+      {/* Applied filters, as removable chips. */}
+      {activeChips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {activeChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => clearFilter(chip.key)}
+              className="inline-flex items-center gap-1 rounded-full border bg-muted/60 px-2.5 py-1 text-xs hover:bg-muted"
+              aria-label={`Remove filter ${chip.label}`}
+            >
+              {chip.label}
+              <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => applyFilters(EMPTY_FILTERS)}
+          >
+            Clear all
+          </Button>
+        </div>
+      ) : null}
 
       {data && !data.seasonSupported ? (
         <Card className="p-6 text-sm text-muted-foreground">
@@ -1399,148 +1708,14 @@ export default function AdminLeads() {
         </div>
       ) : null}
 
-      {/* Filters */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
-          <div className="relative flex-1 md:min-w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search client, owner, phone, team, campus, city…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="pl-9"
-              data-testid="input-leads-search"
-            />
-          </div>
-          <CampusFilterPopover
-            value={campusFilter}
-            campuses={campusOptions}
-            onChange={(v) => {
-              setCampusFilter(v);
-              setPage(1);
-            }}
-          />
-          <TeamFilterPopover
-            value={teamFilter}
-            teams={data?.options?.teams ?? []}
-            onChange={(v) => {
-              setTeamFilter(v);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
-          <Select
-            value={stage}
-            onValueChange={(v) => {
-              setStage(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="md:w-[160px]" data-testid="select-leads-stage">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                <SelectValue placeholder="Stage" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All stages</SelectItem>
-              {LEAD_STAGES.map((st) => (
-                <SelectItem key={st} value={st}>
-                  {STAGE_LABEL[st]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={source}
-            onValueChange={(v) => {
-              setSource(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="md:w-[160px]" data-testid="select-leads-source">
-              <SelectValue placeholder="Source" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All sources</SelectItem>
-              {LEAD_SOURCES.map((src) => (
-                <SelectItem key={src} value={src}>
-                  {SOURCE_LABEL[src]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={trail}
-            onValueChange={(v) => {
-              setTrail(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="md:w-[150px]" data-testid="select-leads-trail">
-              <SelectValue placeholder="Trail" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Any trail</SelectItem>
-              <SelectItem value="strong">Strong (70+)</SelectItem>
-              <SelectItem value="moderate">Moderate (45–69)</SelectItem>
-              <SelectItem value="weak">Weak (&lt;45)</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={gateA}
-            onValueChange={(v) => {
-              setGateA(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="md:w-[150px]" data-testid="select-leads-gate-a">
-              <SelectValue placeholder="Gate A" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Gate A: any</SelectItem>
-              <SelectItem value="passed">Gate A passed</SelectItem>
-              <SelectItem value="pending">Gate A pending</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={brd}
-            onValueChange={(v) => {
-              setBrd(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="md:w-[180px]" data-testid="select-leads-brd">
-              <SelectValue placeholder="BRD" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Any BRD status</SelectItem>
-              {BRD_STATUSES.map((b) => (
-                <SelectItem key={b} value={b}>
-                  {BRD_STATUS_LABEL[b]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={flag}
-            onValueChange={(v) => {
-              setFlag(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="md:w-[170px]" data-testid="select-leads-flag">
-              <SelectValue placeholder="Flags" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All leads</SelectItem>
-              <SelectItem value="related">Related-party only</SelectItem>
-              <SelectItem value="followup">Needs follow-up</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <FiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        value={filters}
+        onApply={applyFilters}
+        campuses={campusOptions}
+        teams={teamOptions}
+      />
 
       <Card>
         {isLoading ? (
@@ -1555,8 +1730,10 @@ export default function AdminLeads() {
             )}
           >
             <Table>
-              <TableHeader>
-                <TableRow>
+              {/* Tinted, bolder header so the column row stands apart from
+                  the data rows at a glance. */}
+              <TableHeader className="bg-primary/[0.07] [&_th]:h-11 [&_th]:font-semibold [&_th]:text-foreground [&_th]:whitespace-nowrap">
+                <TableRow className="border-b-2 border-primary/20 hover:bg-transparent">
                   <SortHeader
                     label="Client"
                     sortKey="client"
