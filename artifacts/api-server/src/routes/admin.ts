@@ -60,6 +60,7 @@ import { renderRevenueVerifiedEmail } from "../lib/email/templates/revenue-verif
 import { renderRevenueRejectedEmail } from "../lib/email/templates/revenue-rejected";
 import { renderAccessApprovedEmail } from "../lib/email/templates/access-approved";
 import { renderAccessRejectedEmail } from "../lib/email/templates/access-rejected";
+import { provisionApprovedAccessRequest } from "../lib/access-request-provisioning";
 import * as bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -2382,11 +2383,32 @@ router.patch(
       res.status(400).json({ error: "Invalid request" });
       return;
     }
-    const [updated] = await db
-      .update(accessRequestsTable)
-      .set({ status: body.data.status, notes: body.data.notes ?? null })
-      .where(eq(accessRequestsTable.id, params.data.id))
-      .returning();
+    const updated = await db.transaction(async (tx) => {
+      const [request] = await tx
+        .select()
+        .from(accessRequestsTable)
+        .where(eq(accessRequestsTable.id, params.data.id));
+      if (!request) return undefined;
+
+      // This legacy route is still used by the Student Roster page. Approval
+      // must provision the roster record, not just change the status, or the
+      // student will be stuck on the approved access gate forever.
+      if (body.data.status === "approved") {
+        await provisionApprovedAccessRequest(tx, request);
+      }
+
+      const [saved] = await tx
+        .update(accessRequestsTable)
+        .set({
+          status: body.data.status,
+          notes: body.data.notes ?? null,
+          decidedBy: req.user.id,
+          decidedAt: new Date(),
+        })
+        .where(eq(accessRequestsTable.id, params.data.id))
+        .returning();
+      return saved;
+    });
     if (!updated) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -2403,117 +2425,7 @@ router.patch(
 );
 
 // --- New-User Access Request review (powers the separate /admin/new-users
-// page). Approve provisions roster + user; reject revokes the whitelist.
-// Additive: existing GET/PATCH above are untouched. ---
-
-type AccessRequestTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-async function provisionApprovedAccessRequest(
-  tx: AccessRequestTx,
-  reqRow: typeof accessRequestsTable.$inferSelect,
-): Promise<void> {
-  const parts = reqRow.fullName.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastName = parts.slice(1).join(" ");
-
-  // Resolve the SSO user (by stored userId, then email).
-  let userRow: typeof usersTable.$inferSelect | undefined;
-  if (reqRow.userId) {
-    [userRow] = await tx
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, reqRow.userId));
-  }
-  if (!userRow) {
-    [userRow] = await tx
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.email, reqRow.email));
-  }
-
-  if (userRow) {
-    // Never downgrade an elevated account (admin/coordinator) that happens to
-    // match by email — only promote genuine students.
-    const nextRole =
-      userRow.role === "admin" || userRow.role === "coordinator"
-        ? userRow.role
-        : "student";
-    // Replace the synthetic `sso_<id>@forms.local` placeholder with the real
-    // email captured on the request, so the users table stores the same real
-    // address as the roster row written below. Never overwrite an already-real
-    // email, and never write another synthetic value.
-    const isSyntheticEmail = (e: string | null | undefined): boolean =>
-      !!e && (/@forms\.local$/i.test(e) || /^sso_/i.test(e));
-    const nextEmail =
-      isSyntheticEmail(userRow.email) && !isSyntheticEmail(reqRow.email)
-        ? reqRow.email
-        : userRow.email;
-    await tx
-      .update(usersTable)
-      .set({
-        role: nextRole,
-        email: nextEmail,
-        campusId: reqRow.campusId ?? userRow.campusId ?? null,
-        niatId: reqRow.niatId ?? userRow.niatId ?? null,
-        firstName: userRow.firstName || firstName,
-        lastName: userRow.lastName || lastName,
-        isActive: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(usersTable.id, userRow.id));
-  } else {
-    [userRow] = await tx
-      .insert(usersTable)
-      .values({
-        email: reqRow.email,
-        role: "student",
-        campusId: reqRow.campusId ?? null,
-        niatId: reqRow.niatId ?? null,
-        firstName,
-        lastName,
-      })
-      .returning();
-  }
-
-  const studentId = userRow.formsUserId ?? userRow.id;
-
-  // Upsert the roster row, idempotently (guard on studentId/email).
-  const [existingRoster] = await tx
-    .select()
-    .from(rosterTable)
-    .where(
-      or(
-        eq(rosterTable.studentId, studentId),
-        eq(rosterTable.email, reqRow.email),
-      ),
-    );
-  if (existingRoster) {
-    await tx
-      .update(rosterTable)
-      .set({
-        isWhitelisted: true,
-        fullName: reqRow.fullName,
-        email: reqRow.email,
-        campusName: reqRow.campusName,
-        campusId: reqRow.campusId ?? existingRoster.campusId ?? null,
-        niatId: reqRow.niatId ?? existingRoster.niatId ?? null,
-        batchSectionName:
-          reqRow.sectionName ?? existingRoster.batchSectionName ?? null,
-      })
-      .where(eq(rosterTable.id, existingRoster.id));
-  } else {
-    await tx.insert(rosterTable).values({
-      studentId,
-      fullName: reqRow.fullName,
-      email: reqRow.email,
-      campusName: reqRow.campusName,
-      campusId: reqRow.campusId ?? null,
-      niatId: reqRow.niatId ?? null,
-      batchSectionName: reqRow.sectionName ?? null,
-      isWhitelisted: true,
-    });
-  }
-}
+// page). Approve provisions roster + user; reject revokes the whitelist. ---
 
 const accessRequestCsvEscape = (v: unknown): string => {
   const s = v == null ? "" : String(v);

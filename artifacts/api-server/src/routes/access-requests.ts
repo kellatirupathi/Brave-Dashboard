@@ -10,6 +10,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { z } from "zod";
+import { provisionApprovedAccessRequest } from "../lib/access-request-provisioning";
 
 const router: IRouter = Router();
 
@@ -49,7 +50,7 @@ router.get("/access-requests/me", async (req, res): Promise<void> => {
   }
   const userId = req.user.id;
   const email = req.user.email;
-  const isOnRoster = await computeIsOnRoster(userId, email);
+  let isOnRoster = await computeIsOnRoster(userId, email);
   // Match strictly by userId. Every gate-created row carries the owner's
   // userId, so this guarantees a user only ever sees their own request — email
   // is NOT unique in this system, so matching on it could cross-link accounts.
@@ -58,7 +59,32 @@ router.get("/access-requests/me", async (req, res): Promise<void> => {
     .from(accessRequestsTable)
     .where(eq(accessRequestsTable.userId, userId))
     .orderBy(desc(accessRequestsTable.createdAt));
-  res.json({ request: rows[0] ?? null, isOnRoster });
+
+  const request = rows[0] ?? null;
+  // Repair older approvals made through the legacy admin endpoint. This is
+  // scoped to the authenticated user's own request and is idempotent, so a
+  // student already stuck on the approval screen can recover without asking
+  // an admin to approve the same request again.
+  if (request?.status === "approved" && !isOnRoster) {
+    await db.transaction(async (tx) => {
+      const [approvedRequest] = await tx
+        .select()
+        .from(accessRequestsTable)
+        .where(
+          and(
+            eq(accessRequestsTable.id, request.id),
+            eq(accessRequestsTable.userId, userId),
+            eq(accessRequestsTable.status, "approved"),
+          ),
+        );
+      if (approvedRequest) {
+        await provisionApprovedAccessRequest(tx, approvedRequest);
+      }
+    });
+    isOnRoster = await computeIsOnRoster(userId, email);
+  }
+
+  res.json({ request, isOnRoster });
 });
 
 // Identity is still bound server-side: the request is always linked to

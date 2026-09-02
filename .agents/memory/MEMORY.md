@@ -15,3 +15,4 @@
 - [Mobile WebView session](mobile-webview-session.md) — Capacitor keeps the dashboard in its main WebView; Forms SSO runs in-app and returns by Android deep link.
 - [Student mobile density](student-mobile-density.md) — compact student app pages only; the app bar is the sole screen title, while desktop layout and density stay unchanged.
 - [Student product tours](student-product-tours.md) — mobile and desktop walkthroughs are separate per-user states; Finish and Close both permanently suppress that platform’s tour.
+- [Access approval provisioning](access-approval-provisioning.md) — approving access must atomically provision whitelist access; approved status alone leaves students trapped in the gate.

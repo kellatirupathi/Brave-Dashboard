@@ -1,7 +1,7 @@
 import { useLocation, useRoute } from "wouter";
 
 /** Section shown when the URL names none, or names one that does not exist. */
-const DEFAULT_SECTION = "schedule";
+const DEFAULT_SECTION = "seasons";
 
 import { useSeason } from "@/lib/season-context";
 import { legacyToCanonicalPath } from "@/lib/season-routing";
@@ -292,6 +292,11 @@ export default function AdminConfig() {
   }, [config]);
 
   useEffect(() => {
+    // The dev-only route intentionally returns 404 in production. Avoid
+    // requesting it there; developer tools are never shown in a production
+    // build anyway.
+    if (!import.meta.env.DEV) return undefined;
+
     let cancelled = false;
     fetch("/api/dev/enabled")
       .then((r) => {
@@ -390,13 +395,6 @@ export default function AdminConfig() {
       },
     );
   };
-
-  if (isLoading)
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    );
 
   // Left-menu sections. Each id maps to a block in the right pane below.
   // "developer" is only listed when dev tools are enabled.
@@ -518,6 +516,16 @@ export default function AdminConfig() {
       { replace: true },
     );
   }, [viewing, activeSlug, sectionSlug, setLocation]);
+
+  // Keep every hook above this loading branch. Returning before the URL
+  // canonicalization effect runs would change the hook count between the
+  // loading and loaded renders and crash React with error #310.
+  if (isLoading)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
 
   return (
     <div className="max-w-7xl mx-auto">

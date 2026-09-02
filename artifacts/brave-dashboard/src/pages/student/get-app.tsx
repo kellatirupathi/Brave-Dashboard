@@ -162,7 +162,7 @@ export default function GetApp() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-5">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
           <BraveLogo className="text-lg" />
           <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             Mobile app
@@ -170,94 +170,98 @@ export default function GetApp() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-4 px-4 pb-16 pt-6 sm:px-5">
+      <main className="mx-auto max-w-5xl space-y-5 px-4 pb-16 pt-6 sm:px-6 lg:pt-10">
         {/* ── Hero + download ──────────────────────────────────── */}
-        <section className="flex flex-col items-center text-center">
-          <PhoneArt />
-          <h1 className="mt-4 text-xl font-extrabold tracking-tight sm:text-2xl">
-            Get the BRAVE App
-          </h1>
-          <p className="mt-1.5 max-w-md text-[13px] leading-5 text-muted-foreground">
-            Capture leads while you are standing in the shop. Log visits,
-            photograph payment proof, and keep working when the signal drops.
-          </p>
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-stretch">
+          <div className="flex flex-col items-center justify-center rounded-3xl border bg-card px-5 py-8 text-center shadow-sm sm:px-10 lg:min-h-[430px]">
+            <PhoneArt />
+            <h1 className="mt-4 text-xl font-extrabold tracking-tight sm:text-3xl">
+              Get the BRAVE App
+            </h1>
+            <p className="mt-2 max-w-lg text-[13px] leading-5 text-muted-foreground sm:text-sm sm:leading-6">
+              Capture leads while you are standing in the shop. Log visits,
+              photograph payment proof, and keep working when the signal drops.
+            </p>
 
-          {/* iOS has no APK to offer, so it is never shown a download. */}
-          {platform === "ios" ? (
-            <div className="mt-5 w-full max-w-md rounded-2xl border bg-card p-4 text-left">
-              <p className="flex items-center gap-2 text-[13px] font-semibold">
-                <Smartphone className="h-4 w-4 text-primary" aria-hidden="true" />
-                On iPhone, add it from Safari
-              </p>
-              <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
-                There is no separate download on iPhone. Follow the three steps
-                below and BRAVE appears on your home screen like any other app.
-              </p>
-            </div>
-          ) : isLoading ? null : downloadUrl ? (
-            <>
-              <a
-                href={downloadUrl}
-                // `download` is a hint, not a guarantee: cross-origin hosts
-                // decide for themselves whether to save or navigate. Either
-                // outcome ends with the student holding the APK.
-                download
-                data-testid="button-download-apk"
-                className="mt-5 inline-flex min-h-[46px] items-center gap-2 rounded-xl bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
-              >
-                <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-                Download for Android
-              </a>
-              <p className="mt-2 text-[11.5px] text-muted-foreground">
-                Free · Android only · Installs from this page, not the Play
-                Store
-              </p>
+            {/* iOS has no APK to offer, so it is never shown a download. */}
+            {platform === "ios" ? (
+              <div className="mt-5 w-full max-w-md rounded-2xl border bg-background p-4 text-left">
+                <p className="flex items-center gap-2 text-[13px] font-semibold">
+                  <Smartphone className="h-4 w-4 text-primary" aria-hidden="true" />
+                  On iPhone, add it from Safari
+                </p>
+                <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
+                  There is no separate download on iPhone. Follow the three steps
+                  below and BRAVE appears on your home screen like any other app.
+                </p>
+              </div>
+            ) : isLoading ? null : downloadUrl ? (
+              <>
+                <a
+                  href={downloadUrl}
+                  download
+                  data-testid="button-download-apk"
+                  className="mt-6 inline-flex min-h-[48px] items-center gap-2 rounded-xl bg-primary px-7 text-[15px] font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+                >
+                  <Download className="h-[18px] w-[18px]" aria-hidden="true" />
+                  Download for Android
+                </a>
+                <p className="mt-2 text-[11.5px] text-muted-foreground">
+                  Free · Android only · Installs from this page, not the Play Store
+                </p>
+              </>
+            ) : (
+              <div className="mt-5 w-full max-w-md rounded-2xl border bg-background p-4 text-left">
+                <p className="flex items-center gap-2 text-[13px] font-semibold">
+                  <Info className="h-4 w-4 text-primary" aria-hidden="true" />
+                  The app is not published yet
+                </p>
+                <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
+                  The download will appear here as soon as it is available. The
+                  dashboard works in your phone&apos;s browser in the meantime.
+                </p>
+              </div>
+            )}
+          </div>
 
-              {/* On a computer the file is the wrong shape of useful, so the
-                  QR is offered as the way across to the phone. */}
-              {platform === "desktop" && (
-                <div className="mt-4 w-full max-w-md rounded-2xl border bg-card p-4 text-left">
-                  <p className="flex items-center gap-2 text-[13px] font-semibold">
-                    <Monitor className="h-4 w-4 text-primary" aria-hidden="true" />
-                    You are on a computer
+          {platform === "desktop" && (
+            <aside className="flex flex-col items-center justify-center rounded-3xl border bg-card px-6 py-8 text-center shadow-sm lg:min-h-[430px]">
+              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+                <QrCode className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <h2 className="mt-4 text-lg font-bold">Install on your phone</h2>
+              <p className="mt-1.5 text-[12.5px] leading-5 text-muted-foreground">
+                Scan the saved QR code with your Android phone camera.
+              </p>
+              {isLoading ? (
+                <div className="mt-6 h-56 w-56 animate-pulse rounded-2xl bg-muted" />
+              ) : qrPath ? (
+                <a
+                  href={downloadUrl || undefined}
+                  className="mt-6 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4"
+                  aria-label="Open the BRAVE Android app download"
+                >
+                  <img
+                    src={objectUrl(qrPath)}
+                    alt="QR code linking to the BRAVE Android app"
+                    className="h-56 w-56 rounded-2xl border bg-white object-contain p-2 shadow-sm"
+                    data-testid="brave-app-qr"
+                  />
+                </a>
+              ) : (
+                <div className="mt-6 flex h-56 w-56 flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/30 px-5">
+                  <Monitor className="h-7 w-7 text-muted-foreground" aria-hidden="true" />
+                  <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                    The QR code will appear after an admin uploads and saves it.
                   </p>
-                  <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
-                    The download works here, but the app only runs on Android.
-                    {qrPath
-                      ? " Scan this with your phone to install it there."
-                      : " Open this page on your phone to install it there."}
-                  </p>
-                  {qrPath && (
-                    <div className="mt-3 flex items-center gap-3">
-                      <img
-                        src={objectUrl(qrPath)}
-                        alt="QR code linking to the BRAVE Android app"
-                        className="h-24 w-24 shrink-0 rounded-lg border bg-white object-contain p-1"
-                      />
-                      <p className="flex items-start gap-1.5 text-[12px] text-muted-foreground">
-                        <QrCode
-                          className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                          aria-hidden="true"
-                        />
-                        Point your phone camera at this code.
-                      </p>
-                    </div>
-                  )}
                 </div>
               )}
-            </>
-          ) : (
-            // No configured URL. Saying so beats a button that 404s.
-            <div className="mt-5 w-full max-w-md rounded-2xl border bg-card p-4 text-left">
-              <p className="flex items-center gap-2 text-[13px] font-semibold">
-                <Info className="h-4 w-4 text-primary" aria-hidden="true" />
-                The app is not published yet
-              </p>
-              <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
-                The download will appear here as soon as it is available. The
-                dashboard works in your phone&apos;s browser in the meantime.
-              </p>
-            </div>
+              {qrPath && (
+                <p className="mt-4 text-xs font-medium text-muted-foreground">
+                  Point your camera at the code to install
+                </p>
+              )}
+            </aside>
           )}
         </section>
 

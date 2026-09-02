@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Bot, X, Send, Trash2 } from "lucide-react";
+import chatbotIconUrl from "@assets/chatbot_icon_transparent.png";
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = {
@@ -288,15 +289,13 @@ export function Chatbot({
                 filter: "drop-shadow(0 12px 24px rgba(26,31,77,0.5))",
               }}
             >
-              <span
-                className="flex h-full w-full items-center justify-center rounded-full border border-white/40 bg-[radial-gradient(circle_at_35%_30%,#7de4ff_0%,#4f91d9_42%,#1a1f4d_100%)]"
+              <img
+                src={chatbotIconUrl}
+                alt=""
                 aria-hidden="true"
-              >
-                <Bot
-                  className="h-9 w-9 text-white drop-shadow-[0_2px_3px_rgba(26,31,77,0.55)]"
-                  strokeWidth={1.8}
-                />
-              </span>
+                draggable={false}
+                className="h-full w-full select-none object-contain"
+              />
             </span>
           </button>
 
@@ -631,34 +630,6 @@ function BraveAssistantAvatar() {
         />
       </svg>
     </div>
-  );
-}
-
-// Custom launcher icon — a stylized chat bubble with a spark inside, more
-// distinctive than the generic MessageCircle. White on the gradient button.
-function BraveLauncherIcon() {
-  return (
-    <svg
-      viewBox="0 0 28 28"
-      width="26"
-      height="26"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      {/* Chat bubble outline */}
-      <path
-        d="M4 12.5C4 8.358 7.358 5 11.5 5h5C20.642 5 24 8.358 24 12.5v0c0 4.142-3.358 7.5-7.5 7.5h-3.2l-3.6 3a.6.6 0 0 1-.98-.47V20h-.22A4.5 4.5 0 0 1 4 15.5v-3Z"
-        fill="#fff"
-      />
-      {/* Sparkle inside the bubble — the BRAVE accent */}
-      <path
-        d="M14 8.5l1.1 2.4 2.4 1.1-2.4 1.1L14 15.5l-1.1-2.4-2.4-1.1 2.4-1.1L14 8.5Z"
-        fill="#d4402f"
-      />
-      <circle cx="18.5" cy="9" r="0.9" fill="#f7ac2b" />
-      <circle cx="9.5" cy="14.5" r="0.7" fill="#f7ac2b" />
-    </svg>
   );
 }
 
