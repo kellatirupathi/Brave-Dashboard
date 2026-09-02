@@ -1,63 +1,31 @@
-// Student dashboard — data and orchestration.
+// Student dashboard — the season boundary.
 //
-// This file owns the QUERIES and the DERIVED FIGURES; it renders almost no
-// markup of its own. The two layouts that do are:
+// Two dashboards exist because two cohorts do. Season 1 is finished: its
+// numbers are settled and its screens are read back for reference, so it keeps
+// the UI it ran with. Season 2 is live and gets the new design.
 //
-//   dashboard-mobile.tsx   below `md`
-//   dashboard-desktop.tsx  `md` and up
+//   1.0 (and anything earlier)  →  dashboard-season1.tsx   frozen
+//   2.0 (and later)             →  dashboard-season2.tsx   current
 //
-// They receive identical props, so a number can never read one way on a phone
-// and another on a laptop — the failure mode that made the previous single
-// responsive tree hard to change safely.
-import { useState } from "react";
-import { useAuth } from "@workspace/replit-auth-web";
-import { useGetTeamDashboardSummary } from "@workspace/api-client-react";
-import { useQuery } from "@tanstack/react-query";
-import { getProgressSummary } from "@/lib/progress-api";
+// Split at the PAGE boundary rather than with branches inside one component,
+// mirroring pages/admin/dashboard.tsx. Only one of the two ever mounts, so
+// neither pays for the other's queries, and a change to the live design cannot
+// reach back and alter how a finished season reads.
+//
+// This file keeps its name because App.tsx imports it as the student's
+// "previous Demo Day dashboard" — the other half of the admin's
+// gritMilesDashboardEnabled toggle, which is independent of the season.
 import { Spinner } from "@/components/ui/spinner";
-import { getLeaderboardConfig } from "@/lib/leaderboard-config-api";
-import { DEFAULT_BANNER_CONTENT } from "@/components/leaderboard-banner-templates";
-import { AutoIntroVideo } from "@/components/intro-video-dialog";
-import { useProgrammeCountdown } from "@/components/program-countdown";
-import { FeedbackDialog } from "@/components/feedback-dialog";
-import { MobileDashboard } from "./dashboard-mobile";
-import { DesktopDashboard } from "./dashboard-desktop";
-
-// Demo Day verified-revenue goal.
-const DEMO_DAY_THRESHOLD = 200000;
-
-// Streak badge tiers — used to compute progress toward the next milestone.
-const STREAK_TIERS = [3, 5, 8, 12];
-
-type Tone = "good" | "warn" | "bad" | "muted";
+import { useSeason } from "@/lib/season-context";
+import TeamDashboardSeason1 from "./dashboard-season1";
+import TeamDashboardSeason2 from "./dashboard-season2";
 
 export default function TeamDashboard() {
-  const { user } = useAuth();
-  const { data: summary, isLoading } = useGetTeamDashboardSummary();
-  // Declared here rather than inside either layout so the hook order is
-  // identical on both and cannot shift when the breakpoint changes which tree
-  // renders.
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const countdown = useProgrammeCountdown();
-  // Same data source the journal widgets already used — reused here so the
-  // journal status / streak / consistency features are preserved.
-  const { data: progress } = useQuery({
-    queryKey: ["progress-summary"],
-    queryFn: getProgressSummary,
-  });
-  // While the admin hides rank from students, the rank metrics must not leak
-  // it — they show a "revealing soon" note with the reveal time instead.
-  const { data: lbConfig } = useQuery({
-    queryKey: ["leaderboard-config"],
-    queryFn: getLeaderboardConfig,
-    staleTime: 60_000,
-  });
-  const rankHidden = lbConfig?.hideRankForStudents ?? false;
-  const revealText =
-    lbConfig?.bannerContent?.timeText?.trim() ||
-    DEFAULT_BANNER_CONTENT.timeText;
+  const { viewingId, viewing, isLoading } = useSeason();
 
-  if (isLoading) {
+  // Wait for the season before choosing. Rendering a dashboard and swapping it
+  // a beat later would flash the wrong cohort's design at the student.
+  if (isLoading || viewingId == null || !viewing) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Spinner size="lg" />
@@ -65,83 +33,11 @@ export default function TeamDashboard() {
     );
   }
 
-  if (!summary) {
-    return <div>Failed to load dashboard</div>;
-  }
-
-  const progressPercent = Math.min(
-    (summary.totalRevenue / DEMO_DAY_THRESHOLD) * 100,
-    100,
-  );
-
-  const submittedThisWeek = !!progress?.journal?.submittedThisWeek;
-  const streak = progress?.streak ?? 0;
-  const totalJournals = progress?.totalJournals ?? 0;
-
-  const journalTone: Tone = submittedThisWeek
-    ? "good"
-    : progress?.lastJournalAt
-      ? "warn"
-      : "bad";
-  const journalLabel = submittedThisWeek
-    ? "Submitted"
-    : progress?.lastJournalAt
-      ? "Pending"
-      : "Not started";
-
-  const pending = summary.pendingSubmissions ?? 0;
-
-  // Next streak milestone (for the "X to next badge" progress).
-  const nextTier = STREAK_TIERS.find((t) => t > streak) ?? null;
-  const tierFloor = [...STREAK_TIERS].reverse().find((t) => t <= streak) ?? 0;
-  const tierProgress =
-    nextTier != null
-      ? ((streak - tierFloor) / (nextTier - tierFloor)) * 100
-      : 100;
-
-  /** The one set of figures both layouts render. */
-  const shared = {
-    firstName: user?.firstName ?? "",
-    teamName: summary.team?.name || "Your Team",
-    tagline: summary.team?.tagline || "No tagline set",
-    campusName: summary.team?.campusName || "Your campus",
-    verifiedRevenue: summary.totalRevenue,
-    orderBook: summary.totalOrderBook,
-    nationalRank: summary.nationalRank,
-    campusRank: summary.campusRank,
-    rankHidden,
-    revealText,
-    progressPercent,
-    demoDayThreshold: DEMO_DAY_THRESHOLD,
-    journalTone,
-    journalLabel,
-    submittedThisWeek,
-    weekNumber: progress?.journal?.weekNumber,
-    pending,
-    totalJournals,
-    streak,
-    nextTier,
-    tierProgress,
-    daysLeft: countdown.daysLeft,
-    endLabel: countdown.endLabel,
-    programmeEnded: countdown.ended,
-    onFeedback: () => setFeedbackOpen(true),
-  };
-
-  return (
-    <>
-      <AutoIntroVideo />
-
-      {/* Only one of these is ever mounted, so the single dialog below serves
-          whichever is on screen. */}
-      <div className="md:hidden">
-        <MobileDashboard {...shared} />
-      </div>
-      <div className="hidden md:block">
-        <DesktopDashboard {...shared} demoEligible={!!summary.demoEligible} />
-      </div>
-
-      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
-    </>
+  // Anything that is not Season 1 gets the current design, so a future 3.0
+  // inherits it rather than silently falling back to the frozen one.
+  return viewing.slug === "1.0" ? (
+    <TeamDashboardSeason1 />
+  ) : (
+    <TeamDashboardSeason2 />
   );
 }
