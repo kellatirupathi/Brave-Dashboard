@@ -28,6 +28,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   // Computed once: the shell does not change between renders.
   const nativeApp = isNativeApp();
+  const isAdminConfig =
+    location === "/admin/config" ||
+    location.startsWith("/admin/config/") ||
+    (location.startsWith("/admin/season/") && location.includes("/config"));
 
   /**
    * Students navigate from the bottom bar on a phone, so the hamburger and its
@@ -44,7 +48,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="flex min-h-screen bg-background text-foreground"
+      className={cn(
+        "flex min-h-screen bg-background text-foreground",
+        isAdminConfig && "lg:h-screen lg:min-h-0 lg:overflow-hidden",
+      )}
       // Lets CSS move anything that would otherwise sit UNDER the bottom bar
       // (the floating assistant) without each of those components needing to
       // know the bar exists. Absent for staff, who have no bottom bar.
@@ -53,7 +60,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Desktop sidebar — already hidden below lg via Sidebar's own classes. */}
       <Sidebar />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        className={cn(
+          "flex-1 flex flex-col min-w-0",
+          isAdminConfig && "lg:min-h-0",
+        )}
+      >
         {/* Mobile/tablet top bar with hamburger. Hidden on desktop. */}
         {/* Native app gets a Material top app bar instead — a screen title and
             a back arrow, not a hamburger duplicating the bottom bar. */}
@@ -127,6 +139,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <main
           className={cn(
             "flex-1 p-4 pb-20 sm:p-6 sm:pb-20 lg:p-8 lg:pb-8 overflow-x-hidden",
+            isAdminConfig && "lg:min-h-0 lg:overflow-hidden",
             nativeApp && "app-main",
             assistantPage && "!p-0 !pb-0",
           )}
