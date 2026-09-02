@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import {
   Switch,
   Route,
@@ -165,16 +165,34 @@ function browserUrl(route: string): string {
   return `${ROUTER_BASE}${route === "/" ? "/" : route}`;
 }
 
+// One subscription shape for every reader of the browser URL below.
+//
+// WHY useSyncExternalStore AND NOT useState + useEffect
+// A `useState(read)` + `useEffect(addEventListener)` pair has a hole between
+// mount and the effect running. A child that navigates during that window
+// — wouter's <Redirect>, whose effect fires BEFORE its ancestors' effects —
+// dispatches `popstate` to nobody, and the parent keeps rendering the old
+// route for the rest of the session while the address bar shows the new one.
+//
+// That is exactly what the installed app hit: "/" mounts the router, the
+// same commit renders <Redirect to="/login" />, the URL becomes /login, and
+// the <Switch> stays on "/" rendering a <Redirect> that renders null. The
+// student saw a blank cream page with nothing on it. The browser build never
+// noticed because "/" renders the landing page rather than a redirect there.
+//
+// useSyncExternalStore re-reads the snapshot when it subscribes and re-renders
+// if it moved, which closes that hole by construction.
+function subscribeToBrowserRoute(onChange: () => void): () => void {
+  window.addEventListener("popstate", onChange);
+  return () => window.removeEventListener("popstate", onChange);
+}
+
 function useBrowserRouteState(): string {
-  const [route, setRoute] = useState(browserRoute);
-
-  useEffect(() => {
-    const update = () => setRoute(browserRoute());
-    window.addEventListener("popstate", update);
-    return () => window.removeEventListener("popstate", update);
-  }, []);
-
-  return route;
+  return useSyncExternalStore(
+    subscribeToBrowserRoute,
+    browserRoute,
+    browserRoute,
+  );
 }
 
 function seasonDashboardHref(role: CanonicalSeasonRole, slug: string): string {
@@ -196,6 +214,11 @@ function seasonHref(href: string): string {
   return browserUrl(canonical);
 }
 
+/** The wouter-facing path for the current browser URL: canonical → legacy. */
+function readLegacyLocation(): string {
+  return browserUrl(canonicalToLegacyPath(browserRoute()).split(/[?#]/, 1)[0]);
+}
+
 /**
  * The page tree intentionally continues to use its established paths. This
  * adapter makes canonical URLs look like those paths to wouter, while keeping
@@ -209,20 +232,12 @@ function useSeasonLocation(): [
     options?: { replace?: boolean; state?: unknown },
   ) => void,
 ] {
-  const read = useCallback(
-    () =>
-      browserUrl(
-        canonicalToLegacyPath(browserRoute()).split(/[?#]/, 1)[0],
-      ),
-    [],
+  // See useBrowserRouteState for why this is not useState + useEffect.
+  const location = useSyncExternalStore(
+    subscribeToBrowserRoute,
+    readLegacyLocation,
+    readLegacyLocation,
   );
-  const [location, setLocation] = useState(read);
-
-  useEffect(() => {
-    const update = () => setLocation(read());
-    window.addEventListener("popstate", update);
-    return () => window.removeEventListener("popstate", update);
-  }, [read]);
 
   const navigate = useCallback(
     (to: string, options?: { replace?: boolean; state?: unknown }) => {
