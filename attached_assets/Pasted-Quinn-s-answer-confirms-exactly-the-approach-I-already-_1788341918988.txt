@@ -1,0 +1,137 @@
+Quinn's answer confirms exactly the approach I already built — and adds one crucial reassurance. Let me harden one thing first.
+
+Bash Check current db client state
+IN
+sed -n '20,40p' lib/db/src/index.ts && echo "=== git state ===" && git status --short && git log --oneline -1
+
+OUT
+ * exactly as before -- this file is inert until someone opts in.
+ */
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+import * as schema from "./schema";
+
+const { Pool } = pg;
+
+const connectionString =
+  process.env.BRAVE_DATABASE_URL ?? process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error(
+    "BRAVE_DATABASE_URL or DATABASE_URL must be set. Did you forget to provision a database?",
+  );
+}
+
+export const pool = new Pool({ connectionString });
+export const db = drizzle(pool, { schema });
+
+export * from "./schema";
+=== git state ===
+4dde4a9 Update dashboard and student data assets and remove stale text files
+Read c:\Users\NxtWave\Desktop\Brave-Dashboard\lib\db\src\index.ts
+Edit c:\Users\NxtWave\Desktop\Brave-Dashboard\lib\db\src\index.ts
+Added 8 lines
+Bash Add NEON_DATABASE_URL alias and typecheck
+IN
+python - <<'PY'
+import io
+p='lib/db/drizzle.config.ts'
+s=io.open(p,encoding='utf-8').read()
+old='''const connectionString =
+  process.env.BRAVE_DATABASE_URL ?? process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error(
+    "BRAVE_DATABASE_URL or DATABASE_URL must be set; ensure the database is provisioned",
+  );
+}'''
+new='''const connectionString =
+  process.env.BRAVE_DATABASE_URL ??
+  process.env.NEON_DATABASE_URL ??
+  process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error(
+    "BRAVE_DATABASE_URL, NEON_DATABASE_URL or DATABASE_URL must be set; ensure the database is provisioned",
+  );
+}'''
+assert s.count(old)==1
+io.open(p,'w',encoding='utf-8',newline='\n').write(s.replace(old,new,1))
+print("drizzle.config.ts patched")
+PY
+CI=true pnpm run typecheck 2>&1 | tail -4
+
+OUT
+drizzle.config.ts patched
+scripts typecheck: Done
+artifacts/mockup-sandbox typecheck: Done
+artifacts/api-server typecheck: Done
+artifacts/brave-dashboard typecheck: Done
+Bash Commit and push the alias
+IN
+git add lib/db/src/index.ts lib/db/drizzle.config.ts && git commit -q -F - <<'EOF'
+Accept NEON_DATABASE_URL as well
+
+Replit Support's reply on ticket #521872 confirms the mechanism -- Replit
+reserves the exact name DATABASE_URL for its managed database, and finding an
+external connection string under it blocks publishing -- and prescribes the fix
+this repo already implements: rename the secret and read the new name. Their
+written example is NEON_DATABASE_URL.
+
+Whoever performs the rename will be following that mail, not this file. If they
+create NEON_DATABASE_URL while lib/db only reads BRAVE_DATABASE_URL, the next
+deploy boots with no connection string and throws -- with the database secret
+sitting right there under a name nothing reads. Accepting both makes picking
+the "wrong" one a no-op.
+
+Support also confirms the running deployment keeps the secrets already injected
+into it, so the rename affects future publishes only and cannot disturb the
+live app mid-flight.
+
+Precedence is BRAVE_DATABASE_URL, then NEON_DATABASE_URL, then DATABASE_URL,
+and drizzle.config.ts follows the same order so a push cannot resolve to a
+different database than the running app.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+EOF
+git push -q origin season2-whatsapp-mobile && git log --oneline -1
+
+OUT
+warning: in the working copy of 'lib/db/drizzle.config.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/db/src/index.ts', LF will be replaced by CRLF the next time Git touches it
+4d623ec Accept NEON_DATABASE_URL as well
+Quinn's answer is good news — it confirms the fix I already built, and clears up the one thing I couldn't verify.
+
+The key sentence
+"Your currently running deployment already has the old secrets injected, so the rename only affects future publish attempts and does not touch the live app serving traffic now."
+
+That was my main worry, and Replit have now said in writing it's safe. The rename cannot break your live site mid-flight.
+
+Also note what Quinn confirms: DATABASE_URL is a reserved name. Replit claims it for its managed database, so any external connection string under that name blocks publishing. Nothing wrong with your setup — you just used the reserved word.
+
+One gap I closed — 4d623ec
+Quinn's example name is NEON_DATABASE_URL. My code read BRAVE_DATABASE_URL. If you'd followed the mail literally, the next deploy would boot with no connection string and crash — with your database secret sitting right there under a name nothing reads.
+
+lib/db now accepts all three, in order: BRAVE_DATABASE_URL → NEON_DATABASE_URL → DATABASE_URL. Whichever name you pick, it works.
+
+Do this now — in this order
+1. Add a new secret (don't touch anything else yet)
+
+
+Key:   NEON_DATABASE_URL
+Value: postgresql://neondb_owner:...@ep-nameless-salad-anugu45t.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require
+⚠️ ep-nameless-salad — the one with your 4,943 users. Not ep-empty-shadow.
+
+2. Rename DATABASE_URL → OLD_DATABASE_URL
+Rename, not delete — the value stays recoverable. Your live app keeps running; Quinn confirmed this.
+
+3. Republish. The new build reads NEON_DATABASE_URL and connects to the same Neon database as before.
+
+4. If it still fails → rename OLD_DATABASE_URL back and reply to Quinn. Nothing lost.
+
+About the Private Join Link
+Quinn asked for one. It grants Replit support access to your project — reasonable for debugging, and your call. Repl → Invite → enable Private Join Link → paste it in your reply.
+
+Do not send them the connection string. The join link is enough.
+
+Worth adding to your reply: you're still waiting on their teammate's answer to the two backend questions — whether the incident changed which Neon endpoint your deployment uses, and whether "Regenerate credentials" would rotate the password for both endpoints. That second one still matters; don't touch that button until they answer.
