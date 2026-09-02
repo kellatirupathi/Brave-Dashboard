@@ -33,6 +33,7 @@ import {
   Plug,
   Wrench,
   Unlock,
+  BarChart3,
 } from "lucide-react";
 import {
   Select,
@@ -74,6 +75,7 @@ import { PcaConfigCard } from "@/components/pca-config-card";
 import { LeaderboardConfigCard } from "@/components/leaderboard-config-card";
 import { Label } from "@/components/ui/label";
 import { BraveAppSettingsCard } from "@/components/brave-app-settings-card";
+import { UserStatsCard } from "@/components/user-stats-card";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
 type ChatbotProvider = "cloudflare" | "cerebras";
@@ -425,6 +427,7 @@ export default function AdminConfig() {
       icon: CalendarDays,
     },
     { id: "grit", slug: "grit-miles", label: "GRIT Miles", icon: Trophy },
+    { id: "user-stats", slug: "user-stats", label: "User Stats", icon: BarChart3 },
     {
       id: "reminders",
       slug: "notifications",
@@ -724,6 +727,9 @@ export default function AdminConfig() {
 
           {/* ── GRIT Miles ── */}
           {activeSection === "grit" && <GritConfigCard />}
+
+          {/* ── User Stats ── */}
+          {activeSection === "user-stats" && <UserStatsCard />}
 
           {/* ── Notifications & Reminders ── */}
           {activeSection === "whatsapp" && (
