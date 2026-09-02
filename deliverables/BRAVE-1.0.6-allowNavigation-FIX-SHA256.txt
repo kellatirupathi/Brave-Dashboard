@@ -1,0 +1,1 @@
+cf261ad69f5475b1ea75ad04bd26bb70b6e6b327292b2bb840931430d8570e40 deliverables/BRAVE-1.0.6-allowNavigation-FIX.apk

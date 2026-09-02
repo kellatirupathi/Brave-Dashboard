@@ -20,6 +20,7 @@ import { Download, RefreshCw, X, Share, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@workspace/replit-auth-web";
 import { cn } from "@/lib/utils";
+import { isNativeApp } from "@/lib/native-auth";
 
 // ── Environment checks ──────────────────────────────────────────────────────
 
@@ -223,9 +224,22 @@ export function UpdatePrompt() {
     import("virtual:pwa-register")
       .then(({ registerSW }) => {
         if (cancelled) return;
-        const update = registerSW({
+        // Declared first so onNeedRefresh can call it; the closure resolves
+        // at call time, by which point registerSW has returned.
+        let update: ((reload?: boolean) => Promise<void>) | undefined;
+        update = registerSW({
           immediate: true,
           onNeedRefresh() {
+            // The installed app takes updates silently. "Prompt" protects a
+            // student mid-way through capturing a lead, which is right on the
+            // web -- but in the app this fires on a fresh launch, where there
+            // is no work to protect, and a student who taps Later is left on a
+            // shell whose bundle the server has already deleted. That is the
+            // white screen on reopen. Applying it immediately is the fix.
+            if (isNativeApp()) {
+              void update?.(true);
+              return;
+            }
             setNeedRefresh(true);
           },
         });
