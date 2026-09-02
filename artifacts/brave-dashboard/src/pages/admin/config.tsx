@@ -68,6 +68,7 @@ import { GritConfigCard } from "@/components/grit-config-card";
 import { BrdDriveCard } from "@/components/brd-drive-card";
 import { PopupsAdminCard } from "@/components/popups-admin-card";
 import { ProjectsLockCard } from "@/components/projects-lock-card";
+import { PipelineGatesCard } from "@/components/pipeline-gates-card";
 import { RejectionReasonsCard } from "@/components/rejection-reasons-card";
 import { TeamSubmissionsPage } from "@/components/team-submissions-card";
 import { FinaleConfigCard } from "@/components/finale-config-card";
@@ -755,6 +756,8 @@ export default function AdminConfig() {
               <PopupsAdminCard />
               {/* Projects submissions lock — pause student orders/BRD uploads. */}
               <ProjectsLockCard />
+              {/* Season 2 pipeline gates: advisory (default) vs enforced. */}
+              <PipelineGatesCard />
               {/* Leaderboard: hide rank from students + banner image. */}
               <LeaderboardConfigCard />
             </div>

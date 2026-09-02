@@ -13,6 +13,8 @@ const ICON: Record<StepState, typeof Check> = {
   current: Circle,
   blocked: AlertTriangle,
   locked: Lock,
+  // Advisory mode: not done yet, but nothing stops the team doing it.
+  open: Circle,
 };
 
 const RING: Record<StepState, string> = {
@@ -20,6 +22,7 @@ const RING: Record<StepState, string> = {
   current: "bg-primary text-primary-foreground border-primary",
   blocked: "bg-amber-100 text-amber-700 border-amber-400",
   locked: "bg-muted text-muted-foreground border-border",
+  open: "bg-background text-muted-foreground border-border",
 };
 
 const LABEL_TONE: Record<StepState, string> = {
@@ -27,6 +30,7 @@ const LABEL_TONE: Record<StepState, string> = {
   current: "text-foreground font-semibold",
   blocked: "text-amber-700",
   locked: "text-muted-foreground",
+  open: "text-foreground",
 };
 
 export function PipelineStepper({
@@ -90,6 +94,12 @@ export function PipelineStepper({
 
       {/* The gates, spelled out. A student who cannot proceed should be able to
           read WHY without opening a lead. */}
+      {status.enforced === false ? (
+        <p className="mt-4 text-xs text-muted-foreground">
+          These checks are recommendations this season — every step is open.
+          Reviewers still see which ones were met.
+        </p>
+      ) : null}
       <div className="mt-5 grid gap-2 border-t pt-4 sm:grid-cols-3">
         {(
           [

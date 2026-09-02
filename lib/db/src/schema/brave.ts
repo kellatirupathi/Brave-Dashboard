@@ -1210,6 +1210,14 @@ export const programmeConfigTable = pgTable("programme_config", {
   // column = enabled. Managed by super admins in Config → Notifications &
   // Reminders; enforced in the api-server's sendEmail().
   emailControls: jsonb("email_controls"),
+  // Season 2 pipeline gates (A: trail before convert, B: converted lead before
+  // project, C: checklist before BRD submit). When false (default) the gates
+  // are ADVISORY: still evaluated and shown to students and reviewers, but they
+  // never refuse an action. When true they block, as originally designed.
+  // Applied in production by ensurePipelineGatesColumn() at startup.
+  pipelineGatesEnforced: boolean("pipeline_gates_enforced")
+    .notNull()
+    .default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

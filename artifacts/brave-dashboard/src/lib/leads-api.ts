@@ -104,9 +104,12 @@ export type LeadDetail = {
   trailStrength: number;
   trailBand: TrailBand;
   canConvert: boolean;
+  /** False = Gate A is advisory; converting is allowed regardless. */
+  gatesEnforced?: boolean;
 };
 
-export type StepState = "complete" | "current" | "blocked" | "locked";
+// "open": advisory mode — not done yet, but nothing stops the team doing it.
+export type StepState = "complete" | "current" | "blocked" | "locked" | "open";
 
 /**
  * The 5-step stepper. Computed server-side so the UI cannot disagree with the
@@ -125,6 +128,8 @@ export type PipelineStatus = {
     b: { passed: boolean; label: string };
     c: { passed: boolean; label: string };
   };
+  /** False = advisory: the gates are shown but never refuse an action. */
+  enforced?: boolean;
 };
 
 // ── Leads ───────────────────────────────────────────────────────────────────

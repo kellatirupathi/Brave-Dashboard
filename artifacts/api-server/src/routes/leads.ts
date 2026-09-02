@@ -29,6 +29,7 @@ import {
   requireLeadPipelineSeason,
 } from "../middlewares/seasonGuard";
 import { logger } from "../lib/logger";
+import { areGatesEnforced } from "../lib/pipeline-gates";
 import {
   buildPipelineStatus,
   computeTrailStrength,
@@ -302,6 +303,7 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
     .orderBy(desc(leadInteractionsTable.interactionDate));
 
   const gateA = evaluateGateA(interactions);
+  const gatesEnforced = await areGatesEnforced(lead.seasonId);
 
   res.json({
     lead,
@@ -310,7 +312,10 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
     gateA,
     trailStrength: computeTrailStrength(interactions),
     trailBand: trailBand(lead.trailStrength),
-    canConvert: gateA.passed,
+    // Advisory mode: Gate A is a recommendation, so converting is always
+    // possible. The gate itself is still reported above.
+    canConvert: gateA.passed || !gatesEnforced,
+    gatesEnforced,
   });
 });
 
@@ -422,7 +427,10 @@ router.post(
     let stageApplied: string | null = null;
     let stageRefused: string[] | null = null;
     if (d.stageChange) {
-      if (stageRequiresGateA(d.stageChange) && !gateA.passed) {
+      // Only refuse when the gates are ENFORCED. In advisory mode the move is
+      // applied and the reasons ride along as a hint instead.
+      const enforced = await areGatesEnforced(lead.seasonId);
+      if (enforced && stageRequiresGateA(d.stageChange) && !gateA.passed) {
         // The interaction is kept — it is real work. Only the stage move is
         // refused, and we say exactly what is missing.
         stageRefused = gateA.reasons;
@@ -490,15 +498,16 @@ router.patch(
       return;
     }
 
-    // GATE A, enforced server-side. The UI disables the button too, but this is
-    // the check that actually holds — the whole fraud model rests on it.
+    // GATE A. Blocks only while the gates are ENFORCED (admin Config →
+    // Pipeline gates). In advisory mode the move goes through and reviewers
+    // see the gate state on the admin Leads page instead.
     if (stageRequiresGateA(parsed.data.stage)) {
       const interactions = await db
         .select()
         .from(leadInteractionsTable)
         .where(eq(leadInteractionsTable.leadId, id));
       const gateA = evaluateGateA(interactions);
-      if (!gateA.passed) {
+      if (!gateA.passed && (await areGatesEnforced(lead.seasonId))) {
         res.status(409).json({
           error: "This lead is not ready to move forward yet.",
           code: "GATE_A_NOT_MET",
@@ -575,6 +584,7 @@ router.get(
           projectCount: Number(projCount?.n ?? 0),
           paymentCount: Number(payCount?.n ?? 0),
           brdReadyCount: 0,
+          enforced: await areGatesEnforced(season),
         }),
       );
     } catch (err) {

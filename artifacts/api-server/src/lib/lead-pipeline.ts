@@ -268,7 +268,9 @@ export async function findDuplicateClientTeams(
 
 // ── Stepper ─────────────────────────────────────────────────────────────────
 
-export type StepState = "complete" | "current" | "blocked" | "locked";
+// "open" is the advisory-mode counterpart of blocked/locked: the step has not
+// been done yet, but nothing stops the team from doing it.
+export type StepState = "complete" | "current" | "blocked" | "locked" | "open";
 
 /**
  * The 5-step pipeline state for a team, driving the stepper shown at the top of
@@ -288,6 +290,8 @@ export type PipelineStatus = {
     b: { passed: boolean; label: string };
     c: { passed: boolean; label: string };
   };
+  /** False = advisory: the gates are shown but never refuse an action. */
+  enforced: boolean;
 };
 
 export function buildPipelineStatus(input: {
@@ -298,6 +302,8 @@ export function buildPipelineStatus(input: {
   projectCount: number;
   paymentCount: number;
   brdReadyCount: number;
+  /** Defaults to enforced so existing callers keep their behaviour. */
+  enforced?: boolean;
 }): PipelineStatus {
   const {
     leadCount,
@@ -308,18 +314,29 @@ export function buildPipelineStatus(input: {
     paymentCount,
     brdReadyCount,
   } = input;
+  const enforced = input.enforced ?? true;
 
   const captured = leadCount > 0;
   const canProject = convertedCount > 0;
   const hasProject = projectCount > 0;
   const hasPayment = paymentCount > 0;
 
+  // In advisory mode nothing is ever blocked or locked: an undone step is
+  // simply open. The gate labels below still say what is recommended.
   const state = (
     done: boolean,
     current: boolean,
     blocked: boolean,
   ): StepState =>
-    done ? "complete" : current ? "current" : blocked ? "blocked" : "locked";
+    done
+      ? "complete"
+      : current
+        ? "current"
+        : !enforced
+          ? "open"
+          : blocked
+            ? "blocked"
+            : "locked";
 
   return {
     steps: [
@@ -352,7 +369,9 @@ export function buildPipelineStatus(input: {
           ? hasProject
             ? `${projectCount} project${projectCount === 1 ? "" : "s"}`
             : "Pick a converted lead"
-          : "Needs a converted lead",
+          : enforced
+            ? "Needs a converted lead"
+            : "Recommended: convert the lead first",
       },
       {
         step: 4,
@@ -361,7 +380,11 @@ export function buildPipelineStatus(input: {
         state: state(hasPayment, hasProject && !hasPayment, !hasProject),
         caption: hasPayment
           ? `${paymentCount} payment${paymentCount === 1 ? "" : "s"} logged`
-          : "Locked",
+          : enforced
+            ? "Locked"
+            : hasProject
+              ? "Log the first payment"
+              : "Open a project first",
       },
       {
         step: 5,
@@ -386,6 +409,7 @@ export function buildPipelineStatus(input: {
           "All mandatory fields, trail strength Moderate or better, payment proof and invoice",
       },
     },
+    enforced,
   };
 }
 

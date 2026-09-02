@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDate, formatINR } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
+import { usePipelineGatesEnforced } from "@/lib/pipeline-gates-api";
 import {
   apiErrorData,
   getBrd,
@@ -297,6 +298,8 @@ export default function LeadDelivery() {
   const leadId = Number(params.id);
   const projectId = Number(params.projectId);
   const { viewingId: seasonId, canWrite } = useSeason();
+  // Advisory (default) vs enforced pipeline gates — admin Config toggle.
+  const gatesEnforced = usePipelineGatesEnforced();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [paying, setPaying] = useState(false);
@@ -499,14 +502,20 @@ export default function LeadDelivery() {
                     ? "Ready to submit"
                     : `${brd.gateC.remaining} thing${
                         brd.gateC.remaining === 1 ? "" : "s"
-                      } still missing`}
+                      } ${gatesEnforced ? "still missing" : "recommended"}`}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  This list is exactly what the submit button checks.
+                  {gatesEnforced
+                    ? "This list is exactly what the submit button checks."
+                    : "You can submit now. Reviewers see which of these were met."}
                 </p>
               </div>
               <Button
-                disabled={!brd.gateC.passed || !writable || submit.isPending}
+                disabled={
+                  (gatesEnforced && !brd.gateC.passed) ||
+                  !writable ||
+                  submit.isPending
+                }
                 onClick={() => submit.mutate()}
               >
                 <Send className="mr-1.5 h-4 w-4" />
