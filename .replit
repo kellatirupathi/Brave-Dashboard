@@ -36,3 +36,15 @@ BRAVE_ANDROID_KEY_ALIAS = "brave-release"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-2853e21d-0c7f-4ce6-98b7-e041e3c16b30"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 22197
+externalPort = 80
