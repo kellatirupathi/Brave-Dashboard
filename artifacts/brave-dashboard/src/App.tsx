@@ -971,6 +971,14 @@ function Router() {
             allowedRoles={["admin"]}
           />
         </Route>
+        {/* Config is a menu of sections, and each one now has its own URL so it
+            can be linked, bookmarked and reported on. Both paths render the
+            same page: the bare one lands on the default section. The season
+            prefix is handled upstream -- canonicalToLegacyPath already maps
+            /admin/season/2.0/config/seasons onto /admin/config/seasons. */}
+        <Route path="/admin/config/:section">
+          <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
+        </Route>
         <Route path="/admin/config">
           <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
         </Route>
