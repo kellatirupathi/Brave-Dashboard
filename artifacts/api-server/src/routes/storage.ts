@@ -15,6 +15,7 @@ import {
   teamsTable,
   milestonesTable,
   teamMembersTable,
+  programmeConfigTable,
   uploadedFilesTable,
 } from "@workspace/db";
 import {
@@ -321,6 +322,21 @@ async function findOwningTeamId(objectPath: string): Promise<number | null> {
   return null;
 }
 
+/**
+ * Programme-level images are intentionally visible to every authenticated
+ * dashboard user. Their object path is persisted in programme_config rather
+ * than on a team-owned record, so they must be recognized separately from
+ * private team documents.
+ */
+async function isProgrammeAsset(objectPath: string): Promise<boolean> {
+  const [asset] = await db
+    .select({ id: programmeConfigTable.id })
+    .from(programmeConfigTable)
+    .where(eq(programmeConfigTable.braveAppQrObjectPath, objectPath))
+    .limit(1);
+  return Boolean(asset);
+}
+
 async function userCanAccessTeamDocument(
   user: Express.User,
   teamId: number,
@@ -362,7 +378,8 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
 
     const owningTeamId = await findOwningTeamId(objectPath);
     if (owningTeamId === null) {
-      if (req.user.role !== "admin") {
+      const isSharedProgrammeAsset = await isProgrammeAsset(objectPath);
+      if (!isSharedProgrammeAsset && req.user.role !== "admin") {
         res.status(404).json({ error: "Object not found" });
         return;
       }

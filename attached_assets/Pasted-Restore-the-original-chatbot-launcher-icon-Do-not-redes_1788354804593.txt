@@ -1,0 +1,110 @@
+Restore the original chatbot launcher icon. Do not redesign it.
+
+WHAT IS WRONG
+components/chatbot.tsx currently draws the launcher with a hand-drawn inline
+SVG, added under the comment:
+
+  // Custom launcher icon — a stylized chat bubble with a spark inside,
+  // more distinctive than the generic MessageCircle. White on the gradient
+  // button.
+
+That is NOT the approved icon. The real one is a transparent PNG, in use
+from commit 70ac6bb ("Update chatbot icon to match new transparent design",
+19 May 2026), which itself replaced 06f82db ("Update chatbot icon to match
+the provided reference image").
+
+THE ORIGINAL CODE — restore exactly this
+Import, at the top of chatbot.tsx:
+
+  import chatbotIconUrl from "@assets/chatbot_icon_transparent.png";
+
+Launcher button (the whole block, halo animations included):
+
+  {/* Floating launcher button — only visible when the chat is closed. */}
+  {!open && (
+    <button
+      ref={launcherRef}
+      type="button"
+      onClick={() => setOpen(true)}
+      aria-label="Open BRAVE assistant"
+      data-testid="button-open-chatbot"
+      className="fixed bottom-6 right-6 z-50 cursor-pointer group focus:outline-none"
+    >
+      {/* Soft pulsing halo */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(125,228,255,0.45) 0%, rgba(26,31,77,0) 70%)",
+          animation: "brave-chatbot-pulse 2.4s ease-in-out infinite",
+        }}
+      />
+      <span
+        aria-hidden="true"
+        className="absolute -inset-1 rounded-full opacity-70"
+        style={{
+          boxShadow: "0 0 0 0 rgba(125,228,255,0.55)",
+          animation:
+            "brave-chatbot-ping 2.4s cubic-bezier(0,0,0.2,1) infinite",
+        }}
+      />
+      <span
+        className="relative block h-16 w-16 transition-transform group-hover:scale-110 group-active:scale-95"
+        style={{
+          filter: "drop-shadow(0 12px 24px rgba(26,31,77,0.5))",
+        }}
+      >
+        <img
+          src={chatbotIconUrl}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="h-full w-full select-none object-contain"
+        />
+      </span>
+    </button>
+  )}
+
+Authoritative source — read it from git rather than retyping:
+
+  git show 70ac6bb:artifacts/brave-dashboard/src/components/chatbot.tsx
+
+THE MISSING ASSET
+attached_assets/chatbot_icon_transparent.png was almost certainly deleted by
+the recent cleanup that "removed all 194 non-CSV files from attached_assets".
+That broken import is very likely WHY the icon became an inline SVG. Recover
+the original file — do not generate, redraw or substitute a new image:
+
+  git checkout 70ac6bb -- attached_assets/chatbot_icon_transparent.png
+
+If the path has moved:
+
+  git log --all --diff-filter=D --name-only -- "*chatbot_icon*"
+
+WHAT TO DO
+1. Restore attached_assets/chatbot_icon_transparent.png from git history,
+   byte for byte.
+2. Put back the import and the launcher block above.
+3. Delete the inline SVG launcher component and its comment — it becomes
+   dead code.
+4. Confirm the @assets alias still resolves in vite.config.ts. If the asset
+   now lives elsewhere, update the import path but keep the same file.
+5. Check the brave-chatbot-pulse and brave-chatbot-ping keyframes still
+   exist in index.css; the halo animations depend on them.
+
+SCOPE
+- Applies to BOTH desktop and the mobile/installed app. The chatbot is one
+  component rendered from layout.tsx, so this fixes both at once — do NOT
+  add a separate mobile variant.
+- Change ONLY the launcher icon. Leave untouched: open/close behaviour, the
+  conversation panel, the lucide-react `Bot` icon used inside message rows
+  (~line 295), sizing, position, z-index, the data-bottom-nav offset that
+  lifts the launcher above the mobile bottom bar, and every API call.
+- Do not touch any other component, route, or asset.
+
+VERIFY
+- pnpm run typecheck and pnpm run build both pass.
+- The original PNG launcher shows on desktop and in the Android app.
+- No 404 for the image in the browser console.
+- The pulse/ping halo still animates.

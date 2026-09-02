@@ -56,8 +56,17 @@ export function BraveAppSettingsCard() {
         body: file,
       });
       if (!response.ok) throw new Error("Upload failed");
+      await updateConfig.mutateAsync({
+        data: { braveAppQrObjectPath: presigned.objectPath },
+      });
       setQrPath(presigned.objectPath);
-      toast({ title: "QR code uploaded", description: "Save to publish it." });
+      await queryClient.invalidateQueries({
+        queryKey: getGetProgrammeConfigQueryKey(),
+      });
+      toast({
+        title: "QR code uploaded and saved",
+        description: "Students will now see this QR code.",
+      });
     } catch {
       toast({
         title: "QR upload failed",
@@ -145,7 +154,7 @@ export function BraveAppSettingsCard() {
               onClick={() => inputRef.current?.click()}
             >
               {uploading ? <Spinner className="h-4 w-4" /> : <ImageUp className="h-4 w-4" />}
-              {uploading ? "Uploading…" : "Upload QR image"}
+              {uploading ? "Uploading & saving…" : "Upload QR image"}
             </Button>
             {qrPath && (
               <img
