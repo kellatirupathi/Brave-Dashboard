@@ -1,3 +1,10 @@
+import { useLocation, useRoute } from "wouter";
+
+/** Section shown when the URL names none, or names one that does not exist. */
+const DEFAULT_SECTION = "schedule";
+
+import { useSeason } from "@/lib/season-context";
+import { legacyToCanonicalPath } from "@/lib/season-routing";
 import {
   useGetProgrammeConfig,
   useUpdateProgrammeConfig,
@@ -211,7 +218,13 @@ export default function AdminConfig() {
   const [devEnabled, setDevEnabled] = useState<boolean>(false);
   const [reseeding, setReseeding] = useState<boolean>(false);
   // Which config section is shown in the right pane (left-menu navigation).
-  const [activeSection, setActiveSection] = useState<string>("schedule");
+  const [, setLocation] = useLocation();
+  const { viewing } = useSeason();
+  // Matches both the season-prefixed URL and the legacy one; SeasonUrlGate
+  // rewrites the second into the first, so in practice this reads the former.
+  const [, canonicalParams] = useRoute("/admin/season/:season/config/:section");
+  const [, legacyParams] = useRoute("/admin/config/:section");
+  const sectionSlug = canonicalParams?.section ?? legacyParams?.section ?? null;
   // Super-admin flag for the Seasons card. Cached + shared with the sidebar
   // and ProtectedRoute, so this adds no extra request.
   const { data: adminAccess } = useMyAdminAccess(true);
@@ -387,24 +400,124 @@ export default function AdminConfig() {
 
   // Left-menu sections. Each id maps to a block in the right pane below.
   // "developer" is only listed when dev tools are enabled.
-  const SECTIONS: Array<{ id: string; label: string; icon: any }> = [
-    { id: "seasons", label: "Seasons", icon: CalendarRange },
-    { id: "schedule", label: "Programme Schedule", icon: Calendar },
-    { id: "weeks", label: "Programme Weeks", icon: CalendarDays },
-    { id: "grit", label: "GRIT Miles", icon: Trophy },
-    { id: "reminders", label: "Notifications & Reminders", icon: Bell },
-    { id: "student", label: "Student Content", icon: GraduationCap },
-    { id: "team-submissions", label: "Teams Submissions", icon: Unlock },
-    { id: "finale", label: "Finale Submissions", icon: Trophy },
-    { id: "pca", label: "People's Choice Award", icon: Trophy },
-    { id: "queue", label: "Review Queue", icon: XCircle },
-    { id: "teams", label: "Teams & Coordinators", icon: Users },
-    { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
-    { id: "integrations", label: "Integrations", icon: Plug },
+  //
+  // `slug` is the URL segment and is deliberately SEPARATE from `id`. The ids
+  // are terse and used by dozens of `activeSection === "..."` checks below;
+  // renaming them to read well in a URL would mean touching every one. The
+  // slug is what a person sees and links to, so it spells the label out, and
+  // the two can change independently -- a slug is a public address and must
+  // stay stable even if the internal id is refactored.
+  const SECTIONS: Array<{
+    id: string;
+    slug: string;
+    label: string;
+    icon: any;
+  }> = [
+    { id: "seasons", slug: "seasons", label: "Seasons", icon: CalendarRange },
+    {
+      id: "schedule",
+      slug: "programme-schedule",
+      label: "Programme Schedule",
+      icon: Calendar,
+    },
+    {
+      id: "weeks",
+      slug: "programme-weeks",
+      label: "Programme Weeks",
+      icon: CalendarDays,
+    },
+    { id: "grit", slug: "grit-miles", label: "GRIT Miles", icon: Trophy },
+    {
+      id: "reminders",
+      slug: "notifications",
+      label: "Notifications & Reminders",
+      icon: Bell,
+    },
+    {
+      id: "student",
+      slug: "student-content",
+      label: "Student Content",
+      icon: GraduationCap,
+    },
+    {
+      id: "team-submissions",
+      slug: "teams-submissions",
+      label: "Teams Submissions",
+      icon: Unlock,
+    },
+    {
+      id: "finale",
+      slug: "finale-submissions",
+      label: "Finale Submissions",
+      icon: Trophy,
+    },
+    {
+      id: "pca",
+      slug: "peoples-choice-award",
+      label: "People's Choice Award",
+      icon: Trophy,
+    },
+    { id: "queue", slug: "review-queue", label: "Review Queue", icon: XCircle },
+    {
+      id: "teams",
+      slug: "teams-coordinators",
+      label: "Teams & Coordinators",
+      icon: Users,
+    },
+    { id: "whatsapp", slug: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+    {
+      id: "integrations",
+      slug: "integrations",
+      label: "Integrations",
+      icon: Plug,
+    },
     ...(devEnabled
-      ? [{ id: "developer", label: "Developer Tools", icon: Wrench }]
+      ? [
+          {
+            id: "developer",
+            slug: "developer-tools",
+            label: "Developer Tools",
+            icon: Wrench,
+          },
+        ]
       : []),
   ];
+
+  // The URL is the source of truth for which section is open, so a section can
+  // be linked to, bookmarked, opened in a second tab and counted in page-view
+  // reporting. An unknown or missing slug falls back to the default rather
+  // than rendering an empty pane.
+  const activeSection =
+    SECTIONS.find((s) => s.slug === sectionSlug)?.id ?? DEFAULT_SECTION;
+
+  /**
+   * Navigate to a section.
+   *
+   * Builds the CANONICAL season path directly rather than pushing the legacy
+   * one and letting SeasonUrlGate rewrite it. Both arrive in the same place,
+   * but the rewrite is a second navigation the user can see.
+   */
+  const openSection = (slug: string): void => {
+    const legacy = `/admin/config/${slug}`;
+    setLocation(
+      viewing ? legacyToCanonicalPath(legacy, "admin", viewing.slug) : legacy,
+    );
+  };
+
+  // Keep the address bar honest. /admin/config names no section, and a typo'd
+  // or retired slug names one that no longer exists; both render the default
+  // pane, so the URL is then describing something other than what is on
+  // screen -- which defeats linking, bookmarking and per-section page-view
+  // reporting alike. `replace` because neither is a place worth having in
+  // history: Back should leave Config, not step through corrections to it.
+  const activeSlug = SECTIONS.find((s) => s.id === activeSection)?.slug;
+  useEffect(() => {
+    if (!viewing || !activeSlug || sectionSlug === activeSlug) return;
+    setLocation(
+      legacyToCanonicalPath(`/admin/config/${activeSlug}`, "admin", viewing.slug),
+      { replace: true },
+    );
+  }, [viewing, activeSlug, sectionSlug, setLocation]);
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -424,7 +537,7 @@ export default function AdminConfig() {
               <button
                 key={s.id}
                 type="button"
-                onClick={() => setActiveSection(s.id)}
+                onClick={() => openSection(s.slug)}
                 className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors ${
                   active
                     ? "bg-primary/10 text-primary font-medium"

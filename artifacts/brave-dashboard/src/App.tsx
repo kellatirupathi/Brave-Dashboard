@@ -712,10 +712,14 @@ function Router() {
         {/* Mobile app install guide. Opened in a new tab from the dashboard,
             so it renders WITHOUT the sidebar — a student following steps on a
             phone does not need the whole shell around them. */}
+        {/* Open to staff as well as students. It is the page whose link gets
+            pasted into a campus group, and a coordinator who cannot open it
+            cannot check what they are sending, or install the app to help a
+            student through it. Nothing on it is student data. */}
         <Route path="/get-app">
           <ProtectedRoute
             component={GetApp}
-            allowedRoles={["student"]}
+            allowedRoles={["student", "coordinator", "admin"]}
             bare
           />
         </Route>
@@ -970,6 +974,14 @@ function Router() {
             component={AdminCampusDetail}
             allowedRoles={["admin"]}
           />
+        </Route>
+        {/* Config is a menu of sections, and each one now has its own URL so it
+            can be linked, bookmarked and reported on. Both paths render the
+            same page: the bare one lands on the default section. The season
+            prefix is handled upstream -- canonicalToLegacyPath already maps
+            /admin/season/2.0/config/seasons onto /admin/config/seasons. */}
+        <Route path="/admin/config/:section">
+          <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
         </Route>
         <Route path="/admin/config">
           <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />

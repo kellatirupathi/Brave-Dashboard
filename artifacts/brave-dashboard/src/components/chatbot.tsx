@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { X, Send, Trash2 } from "lucide-react";
-import chatbotIconUrl from "@assets/chatbot_icon_transparent.png";
+import { Bot, X, Send, Trash2 } from "lucide-react";
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = {
@@ -289,13 +288,15 @@ export function Chatbot({
                 filter: "drop-shadow(0 12px 24px rgba(26,31,77,0.5))",
               }}
             >
-              <img
-                src={chatbotIconUrl}
-                alt=""
+              <span
+                className="flex h-full w-full items-center justify-center rounded-full border border-white/40 bg-[radial-gradient(circle_at_35%_30%,#7de4ff_0%,#4f91d9_42%,#1a1f4d_100%)]"
                 aria-hidden="true"
-                draggable={false}
-                className="h-full w-full select-none object-contain"
-              />
+              >
+                <Bot
+                  className="h-9 w-9 text-white drop-shadow-[0_2px_3px_rgba(26,31,77,0.55)]"
+                  strokeWidth={1.8}
+                />
+              </span>
             </span>
           </button>
 

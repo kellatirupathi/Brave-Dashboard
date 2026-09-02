@@ -121,7 +121,16 @@ export async function buildAuthUser(dbUser: typeof usersTable.$inferSelect) {
     .select()
     .from(teamMembersTable)
     .where(eq(teamMembersTable.userId, dbUser.id));
-  const matchClauses = [eq(rosterTable.email, dbUser.email)];
+  // Approval writes roster.studentId = `formsUserId ?? users.id` (see
+  // provisionApprovedAccessRequest). Matching only on formsUserId therefore
+  // misses every approved student whose account has none -- their row is
+  // keyed by users.id and nothing here looked for it, so isOnRoster stayed
+  // false, the access gate kept rendering, and "Reload to enter" reloaded
+  // into itself forever. Both keys are matched so the read mirrors the write.
+  const matchClauses = [
+    eq(rosterTable.email, dbUser.email),
+    eq(rosterTable.studentId, dbUser.id),
+  ];
   if (dbUser.formsUserId) {
     matchClauses.push(eq(rosterTable.studentId, dbUser.formsUserId));
   }

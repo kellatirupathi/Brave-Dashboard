@@ -1,35 +1,41 @@
 // BRAVE App install guide (additive, isolated).
 //
-// Opened in a new tab from the "BRAVE App" button on the Season 2 student
-// dashboard. Deliberately its OWN page rather than a dialog: a student reads
-// this on the desktop, then follows it on their phone, so it needs to survive
+// Opened in a new tab from the "BRAVE App" button and from the dashboard's
+// app card. Deliberately its OWN page rather than a dialog: a student reads
+// this on a desktop, then follows it on their phone, so it needs to survive
 // being left open on a second screen.
 //
-// TWO AUDIENCES, ONE PAGE
-// - On a desktop the download is useless, so the page says so plainly and
-//   offers the link to open on a phone instead.
-// - On a phone it leads with the download and the steps that follow it.
+// THE DOWNLOAD LINK IS CONFIGURED, NOT COMPILED IN. It comes from
+// programme_config.braveAppDownloadUrl -- the same field the dashboard card
+// reads -- so publishing a new APK is an admin action, not a release. This
+// page previously hard-coded "/brave-app.apk", a path nothing ever served.
 //
-// TONE: the instructions describe what Android actually shows, without dressing
-// it up as a warning. Android's "unknown app" prompt appears for every app not
-// installed from the Play Store; naming it calmly is what stops a student
-// abandoning the install halfway.
+// TONE: the steps describe what Android actually shows, without dressing it up
+// as a warning. The "unknown app" prompt appears for everything not installed
+// from the Play Store; naming it calmly is what stops a student abandoning the
+// install halfway.
 //
 // Deleting this file means removing its route in App.tsx and the button in
 // components/brave-app-button.tsx.
 import { useEffect, useState } from "react";
+import { useGetProgrammeConfig } from "@workspace/api-client-react";
 import {
   Smartphone,
   Download,
-  Monitor,
   Share,
   Plus,
-  ArrowRight,
+  Check,
+  Info,
+  Monitor,
+  QrCode,
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
+import { cn } from "@/lib/utils";
 
-/** Where the signed APK is published. Served as a static file. */
-const APK_URL = "/brave-app.apk";
+/** Object-storage paths are served through the API; anything else is a URL. */
+function objectUrl(path: string): string {
+  return path.startsWith("/objects/") ? `/api/storage${path}` : path;
+}
 
 type Platform = "android" | "ios" | "desktop";
 
@@ -37,6 +43,7 @@ function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "desktop";
   const ua = navigator.userAgent;
   if (/android/i.test(ua)) return "android";
+  // iPadOS 13+ reports itself as a Mac; the touch count is what separates them.
   if (
     /iphone|ipad|ipod/i.test(ua) ||
     (/Mac/i.test(ua) && navigator.maxTouchPoints > 1)
@@ -57,32 +64,53 @@ function Step({
   children?: React.ReactNode;
 }) {
   return (
-    <li className="flex gap-4">
+    <li className="flex gap-3">
       <span
         aria-hidden="true"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold tabular-nums text-primary-foreground"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold tabular-nums text-primary-foreground"
       >
         {n}
       </span>
-      <div className="min-w-0 flex-1 pt-1">
-        <p className="font-semibold">{title}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold leading-5">{title}</p>
         {children && (
-          <div className="mt-1 text-sm text-muted-foreground">{children}</div>
+          <div className="mt-0.5 text-[12.5px] leading-5 text-muted-foreground">
+            {children}
+          </div>
         )}
       </div>
     </li>
   );
 }
 
-/**
- * Phone illustration. Drawn as inline SVG rather than shipped as an image so it
- * follows the theme and stays sharp at any size.
- */
+function SectionCard({
+  title,
+  subtitle,
+  children,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("rounded-2xl border bg-card p-4 sm:p-5", className)}>
+      <h2 className="text-[13px] font-bold">{title}</h2>
+      {subtitle && (
+        <p className="mt-0.5 text-[12px] text-muted-foreground">{subtitle}</p>
+      )}
+      <div className="mt-3.5">{children}</div>
+    </section>
+  );
+}
+
+/** Phone illustration. Inline SVG so it follows the theme and stays sharp. */
 function PhoneArt() {
   return (
     <svg
       viewBox="0 0 200 300"
-      className="h-44 w-auto"
+      className="h-28 w-auto sm:h-32"
       role="img"
       aria-label="A phone showing the BRAVE app icon"
     >
@@ -104,7 +132,6 @@ function PhoneArt() {
         rx="12"
         className="fill-primary"
       />
-      {/* The B mark, matching the launcher icon. */}
       <text
         x="100"
         y="176"
@@ -115,136 +142,211 @@ function PhoneArt() {
         B
       </text>
       <rect x="126" y="150" width="15" height="15" rx="2" fill="#EF9F27" />
-      <rect
-        x="82"
-        y="272"
-        width="36"
-        height="4"
-        rx="2"
-        className="fill-border"
-      />
+      <rect x="82" y="272" width="36" height="4" rx="2" className="fill-border" />
     </svg>
   );
 }
 
 export default function GetApp() {
   const [platform, setPlatform] = useState<Platform>("desktop");
+  const { data: config, isLoading } = useGetProgrammeConfig();
 
   useEffect(() => {
     setPlatform(detectPlatform());
     document.title = "Get the BRAVE App";
   }, []);
 
-  const isPhone = platform === "android" || platform === "ios";
+  const downloadUrl = config?.braveAppDownloadUrl || null;
+  const qrPath = config?.braveAppQrObjectPath || null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-4">
-          <BraveLogo className="text-xl" />
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-5">
+          <BraveLogo className="text-lg" />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             Mobile app
           </span>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-5 pb-20">
-        {/* ── Hero ─────────────────────────────────────────────── */}
-        <section className="flex flex-col items-center pt-10 text-center">
+      <main className="mx-auto max-w-3xl space-y-4 px-4 pb-16 pt-6 sm:px-5">
+        {/* ── Hero + download ──────────────────────────────────── */}
+        <section className="flex flex-col items-center text-center">
           <PhoneArt />
-          <h1 className="mt-6 text-2xl font-extrabold tracking-tight sm:text-3xl">
+          <h1 className="mt-4 text-xl font-extrabold tracking-tight sm:text-2xl">
             Get the BRAVE App
           </h1>
-          <p className="mt-2 max-w-md text-sm text-muted-foreground">
-            Capture leads while you are standing in the shop. Log visits, take
-            photos of payment proof, and keep working when the signal drops.
+          <p className="mt-1.5 max-w-md text-[13px] leading-5 text-muted-foreground">
+            Capture leads while you are standing in the shop. Log visits,
+            photograph payment proof, and keep working when the signal drops.
           </p>
 
-          {platform === "android" && (
-            <a
-              href={APK_URL}
-              download
-              data-testid="button-download-apk"
-              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
-            >
-              <Download className="h-5 w-5" aria-hidden="true" />
-              Download for Android
-            </a>
-          )}
-
-          {platform === "ios" && (
-            <div className="mt-6 w-full max-w-md rounded-lg border bg-card p-4 text-left">
-              <p className="flex items-center gap-2 text-sm font-semibold">
+          {/* iOS has no APK to offer, so it is never shown a download. */}
+          {platform === "ios" ? (
+            <div className="mt-5 w-full max-w-md rounded-2xl border bg-card p-4 text-left">
+              <p className="flex items-center gap-2 text-[13px] font-semibold">
                 <Smartphone className="h-4 w-4 text-primary" aria-hidden="true" />
                 On iPhone, add it from Safari
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
                 There is no separate download on iPhone. Follow the three steps
                 below and BRAVE appears on your home screen like any other app.
               </p>
             </div>
-          )}
-
-          {platform === "desktop" && (
-            <div className="mt-6 w-full max-w-md rounded-lg border bg-card p-4 text-left">
-              <p className="flex items-center gap-2 text-sm font-semibold">
-                <Monitor className="h-4 w-4 text-primary" aria-hidden="true" />
-                Open this page on your phone
+          ) : isLoading ? null : downloadUrl ? (
+            <>
+              <a
+                href={downloadUrl}
+                // `download` is a hint, not a guarantee: cross-origin hosts
+                // decide for themselves whether to save or navigate. Either
+                // outcome ends with the student holding the APK.
+                download
+                data-testid="button-download-apk"
+                className="mt-5 inline-flex min-h-[46px] items-center gap-2 rounded-xl bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+              >
+                <Download className="h-[18px] w-[18px]" aria-hidden="true" />
+                Download for Android
+              </a>
+              <p className="mt-2 text-[11.5px] text-muted-foreground">
+                Free · Android only · Installs from this page, not the Play
+                Store
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                The BRAVE App runs on phones and tablets, so there is nothing to
-                download on a computer. On your phone, open{" "}
-                <span className="font-medium text-foreground">
-                  dashboard.brave.niatindia.com/get-app
-                </span>{" "}
-                and the download will appear here.
+
+              {/* On a computer the file is the wrong shape of useful, so the
+                  QR is offered as the way across to the phone. */}
+              {platform === "desktop" && (
+                <div className="mt-4 w-full max-w-md rounded-2xl border bg-card p-4 text-left">
+                  <p className="flex items-center gap-2 text-[13px] font-semibold">
+                    <Monitor className="h-4 w-4 text-primary" aria-hidden="true" />
+                    You are on a computer
+                  </p>
+                  <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
+                    The download works here, but the app only runs on Android.
+                    {qrPath
+                      ? " Scan this with your phone to install it there."
+                      : " Open this page on your phone to install it there."}
+                  </p>
+                  {qrPath && (
+                    <div className="mt-3 flex items-center gap-3">
+                      <img
+                        src={objectUrl(qrPath)}
+                        alt="QR code linking to the BRAVE Android app"
+                        className="h-24 w-24 shrink-0 rounded-lg border bg-white object-contain p-1"
+                      />
+                      <p className="flex items-start gap-1.5 text-[12px] text-muted-foreground">
+                        <QrCode
+                          className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                          aria-hidden="true"
+                        />
+                        Point your phone camera at this code.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            // No configured URL. Saying so beats a button that 404s.
+            <div className="mt-5 w-full max-w-md rounded-2xl border bg-card p-4 text-left">
+              <p className="flex items-center gap-2 text-[13px] font-semibold">
+                <Info className="h-4 w-4 text-primary" aria-hidden="true" />
+                The app is not published yet
+              </p>
+              <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
+                The download will appear here as soon as it is available. The
+                dashboard works in your phone&apos;s browser in the meantime.
               </p>
             </div>
           )}
         </section>
 
+        {/* ── Supported devices ────────────────────────────────── */}
+        <SectionCard
+          title="Supported devices"
+          subtitle="What the app runs on, and what to do if yours is not listed."
+        >
+          <ul className="space-y-2.5">
+            {(
+              [
+                [
+                  true,
+                  "Android 8.0 or newer",
+                  "Phones and tablets. This is the app you download above.",
+                ],
+                [
+                  false,
+                  "iPhone and iPad",
+                  "No app to download. Add the dashboard to your home screen from Safari — steps below.",
+                ],
+                [
+                  false,
+                  "Computer",
+                  "Nothing to install. Use the dashboard in your browser.",
+                ],
+              ] as const
+            ).map(([ok, title, detail]) => (
+              <li key={title} className="flex gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full",
+                    ok
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {ok ? (
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  ) : (
+                    <Info className="h-3 w-3" />
+                  )}
+                </span>
+                <span className="text-[12.5px] leading-5">
+                  <span className="font-semibold">{title}</span>
+                  <span className="block text-muted-foreground">{detail}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+
         {/* ── Android steps ────────────────────────────────────── */}
-        {(platform === "android" || platform === "desktop") && (
-          <section className="mt-12">
-            <h2 className="mb-1 text-lg font-bold">On Android</h2>
-            <p className="mb-5 text-sm text-muted-foreground">
-              Takes about a minute.
-            </p>
-            <ol className="space-y-5">
+        {platform !== "ios" && (
+          <SectionCard
+            title="Installing on Android"
+            subtitle="About a minute, and only the first time."
+          >
+            <ol className="space-y-3.5">
               <Step n={1} title="Tap Download for Android">
-                The file <span className="font-medium">brave-app.apk</span>{" "}
-                saves to your Downloads.
+                The file saves to your <span className="font-medium">Downloads</span>.
               </Step>
               <Step n={2} title="Open the downloaded file">
                 Tap it in your notification bar, or find it in{" "}
                 <span className="font-medium">Files → Downloads</span>.
               </Step>
               <Step n={3} title="Allow installing from this source">
-                Android asks for this the first time you install anything
+                Android asks this the first time you install anything from
                 outside the Play Store. Tap{" "}
                 <span className="font-medium">Settings</span>, turn on{" "}
-                <span className="font-medium">Allow from this source</span>,
-                then go back.
+                <span className="font-medium">Allow from this source</span>, then
+                go back.
               </Step>
-              <Step n={4} title="Tap Install">
-                Then <span className="font-medium">Open</span> when it finishes.
-              </Step>
-              <Step n={5} title="Sign in with your NIAT account">
-                The same login you use here. BRAVE then appears on your home
-                screen.
+              <Step n={4} title="Tap Install, then Open" />
+              <Step n={5} title="Sign in with NIAT">
+                The same login you use here.
               </Step>
             </ol>
-          </section>
+          </SectionCard>
         )}
 
         {/* ── iPhone steps ─────────────────────────────────────── */}
-        {(platform === "ios" || platform === "desktop") && (
-          <section className="mt-12">
-            <h2 className="mb-1 text-lg font-bold">On iPhone or iPad</h2>
-            <p className="mb-5 text-sm text-muted-foreground">
-              Add it straight from Safari — nothing to download.
-            </p>
-            <ol className="space-y-5">
+        {platform !== "android" && (
+          <SectionCard
+            title="Installing on iPhone or iPad"
+            subtitle="Added straight from Safari — nothing to download."
+          >
+            <ol className="space-y-3.5">
               <Step n={1} title="Open the dashboard in Safari">
                 It has to be Safari. Chrome on iPhone cannot add apps to the
                 home screen.
@@ -252,51 +354,48 @@ export default function GetApp() {
               <Step n={2} title="Tap the Share button">
                 <span className="inline-flex items-center gap-1.5">
                   The
-                  <Share className="h-4 w-4" aria-hidden="true" />
+                  <Share className="h-3.5 w-3.5" aria-hidden="true" />
                   icon at the bottom of the screen.
                 </span>
               </Step>
               <Step n={3} title="Choose Add to Home Screen">
                 <span className="inline-flex items-center gap-1.5">
-                  Scroll down the list to find it, next to a
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  icon. Then tap{" "}
-                  <span className="font-medium">Add</span>.
+                  Scroll the list to find it, next to a
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                  icon. Then tap <span className="font-medium">Add</span>.
                 </span>
               </Step>
             </ol>
-          </section>
+          </SectionCard>
         )}
 
         {/* ── What you get ─────────────────────────────────────── */}
-        <section className="mt-12 rounded-lg border bg-card p-5">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide">
-            What the app adds
-          </h2>
-          <ul className="grid gap-3 sm:grid-cols-2">
+        <SectionCard title="What the app adds">
+          <ul className="grid gap-2.5 sm:grid-cols-2">
             {[
               ["Opens like an app", "Full screen, no browser bar, stays signed in."],
               ["Camera built in", "Photograph payment proof and invoices on the spot."],
               ["Location on capture", "Stamps where you met the client."],
-              ["Works with poor signal", "Keep reading your leads when the network drops."],
+              ["Survives poor signal", "Keep reading your leads when the network drops."],
             ].map(([title, detail]) => (
-              <li key={title} className="flex gap-2.5">
-                <ArrowRight
-                  className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+              <li key={title} className="flex gap-2">
+                <Check
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary"
+                  strokeWidth={3}
                   aria-hidden="true"
                 />
-                <span className="text-sm">
-                  <span className="font-medium">{title}</span>
+                <span className="text-[12.5px] leading-5">
+                  <span className="font-semibold">{title}</span>
                   <span className="block text-muted-foreground">{detail}</span>
                 </span>
               </li>
             ))}
           </ul>
-        </section>
+        </SectionCard>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
+        <p className="px-2 text-center text-[11.5px] leading-5 text-muted-foreground">
           Updates arrive on their own — you will not need to install it again.
-          {!isPhone && " Questions? Ask your campus coordinator."}
+          Stuck? Ask your campus coordinator.
         </p>
       </main>
     </div>
