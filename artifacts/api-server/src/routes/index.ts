@@ -16,6 +16,7 @@ import notificationsRouter from "./notifications";
 import announcementsRouter from "./announcements";
 import adminRouter from "./admin";
 import adminTeamsRouter from "./admin-teams";
+import adminLeadsRouter from "./admin-leads";
 import feedbackRouter from "./feedback";
 import journalsRouter from "./journals";
 import heatmapRouter from "./heatmap";
@@ -81,6 +82,10 @@ router.use(notificationsRouter);
 router.use(announcementsRouter);
 router.use(adminRouter);
 router.use(adminTeamsRouter);
+// Admin oversight of the Season 2 lead pipeline: every lead, every team, with
+// trail / project / payment / BRD state (additive, isolated, read-only).
+// Deleting admin-leads.ts means removing this line and its import above.
+router.use(adminLeadsRouter);
 router.use(feedbackRouter);
 // Progress-enforcement modules (new — additive only)
 router.use(programmeWeeksRouter);
