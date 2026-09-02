@@ -18,6 +18,12 @@
  * renamed or removed without the app noticing. The DATABASE_URL fallback
  * stays so that a workspace which has not set the new secret keeps working
  * exactly as before -- this file is inert until someone opts in.
+ *
+ * NEON_DATABASE_URL is accepted too, and only because Replit Support names
+ * that one in their written instructions for this incident. Whoever performs
+ * the rename is following that mail, not this file; accepting both names
+ * means picking the "wrong" one is a no-op instead of a server that throws on
+ * boot with its database secret sitting right there under another name.
  */
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -26,11 +32,13 @@ import * as schema from "./schema";
 const { Pool } = pg;
 
 const connectionString =
-  process.env.BRAVE_DATABASE_URL ?? process.env.DATABASE_URL;
+  process.env.BRAVE_DATABASE_URL ??
+  process.env.NEON_DATABASE_URL ??
+  process.env.DATABASE_URL;
 
 if (!connectionString) {
   throw new Error(
-    "BRAVE_DATABASE_URL or DATABASE_URL must be set. Did you forget to provision a database?",
+    "BRAVE_DATABASE_URL, NEON_DATABASE_URL or DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
 
