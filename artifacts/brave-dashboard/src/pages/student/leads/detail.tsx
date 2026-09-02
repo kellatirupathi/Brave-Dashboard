@@ -325,7 +325,8 @@ export default function LeadDetail() {
     );
   }
 
-  const { lead, interactions, gateA, trailBand, canConvert } = q.data;
+  const { lead, interactions, gateA, trailBand, canConvert, gatesEnforced } =
+    q.data;
   const writable = canWrite("project");
 
   return (
@@ -434,10 +435,15 @@ export default function LeadDetail() {
               <p className="font-semibold">
                 {gateA.passed
                   ? "Ready to convert"
-                  : "Not ready to convert yet"}
+                  : q.data.gatesEnforced === false
+                    ? "Trail still building — you can convert anyway"
+                    : "Not ready to convert yet"}
               </p>
               {gateA.reasons.length > 0 ? (
                 <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                  {q.data.gatesEnforced === false ? (
+                    <li>Recommended before converting:</li>
+                  ) : null}
                   {gateA.reasons.map((r) => (
                     <li key={r}>{r}</li>
                   ))}

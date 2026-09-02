@@ -433,6 +433,16 @@ async function ensureBraveAppConfigColumns(): Promise<void> {
   `);
 }
 
+// Pipeline gate mode flag. Default FALSE = advisory: gates A/B/C are shown but
+// never block. Production does not run drizzle-kit push, so this is what
+// creates the column there. Idempotent.
+async function ensurePipelineGatesColumn(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE programme_config
+      ADD COLUMN IF NOT EXISTS pipeline_gates_enforced boolean NOT NULL DEFAULT false
+  `);
+}
+
 // Page-view source tracking is additive and nullable. Existing rows and older
 // cached dashboard bundles remain valid with a null/unknown platform. Production
 // deploys do not run drizzle-kit push, so keep this bootstrap in sync with the
@@ -1672,6 +1682,11 @@ async function runBootstrap(): Promise<void> {
     await ensureBraveAppConfigColumns();
   } catch (err) {
     logger.error({ err }, "ensureBraveAppConfigColumns failed");
+  }
+  try {
+    await ensurePipelineGatesColumn();
+  } catch (err) {
+    logger.error({ err }, "ensurePipelineGatesColumn failed");
   }
   try {
     await ensurePageViewPlatform();

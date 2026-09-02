@@ -50,6 +50,7 @@ import leaderboardConfigRouter from "./leaderboard-config";
 import seasonsRouter from "./seasons";
 import leadsRouter from "./leads";
 import pipelineRouter from "./pipeline";
+import pipelineGatesRouter from "./pipeline-gates";
 import cronLeadNudgesRouter from "./cron-lead-nudges";
 import whatsappRouter from "./whatsapp";
 import trustRouter from "./trust";
@@ -149,6 +150,8 @@ router.use(leadsRouter);
 // Season 2 pipeline stages 3-5: project (Gate B), payments, composed BRD
 // (Gate C). Deleting pipeline.ts means removing this line and its import.
 router.use(pipelineRouter);
+// Pipeline gate mode (advisory vs enforced), read + admin toggle (additive).
+router.use(pipelineGatesRouter);
 // Season 2 lead nudge / escalation / dormancy sweep (additive, isolated)
 router.use(cronLeadNudgesRouter);
 // WhatsApp broadcasts via Karix (additive, isolated). Super-admin only.

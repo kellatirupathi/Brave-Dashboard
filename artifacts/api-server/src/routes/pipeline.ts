@@ -34,6 +34,7 @@ import { requireTeamLeader } from "../lib/auth";
 import { composeBrd, renderBrdText } from "../lib/brd-composer";
 import { blockingLinkFailures, checkLinks } from "../lib/link-check";
 import { computeRecognition } from "../lib/trust-score";
+import { areGatesEnforced } from "../lib/pipeline-gates";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -164,17 +165,26 @@ router.post(
     if (!(await requireTeamLeader(req, res, lead.teamId))) return;
 
     // ── GATE B ────────────────────────────────────────────────────────────
-    // A project may only descend from a CONVERTED lead. This is the structural
-    // rule of Season 2 — there is no way to create a standalone project — so it
-    // is enforced here rather than only in the UI.
+    // A project descends from a CONVERTED lead. While the gates are ENFORCED
+    // that is a hard rule. In advisory mode the project is allowed, and the
+    // lead is moved to Converted as a side effect — a project starting IS the
+    // client saying yes, and leaving the lead on "New" would make every
+    // downstream view lie about it.
+    const gatesEnforced = await areGatesEnforced(lead.seasonId);
     if (lead.stage !== "converted") {
-      res.status(409).json({
-        error:
-          "This lead is not converted yet. Work the lead until the client says yes, then convert it.",
-        code: "GATE_B_NOT_MET",
-        stage: lead.stage,
-      });
-      return;
+      if (gatesEnforced) {
+        res.status(409).json({
+          error:
+            "This lead is not converted yet. Work the lead until the client says yes, then convert it.",
+          code: "GATE_B_NOT_MET",
+          stage: lead.stage,
+        });
+        return;
+      }
+      await db
+        .update(leadsTable)
+        .set({ stage: "converted" })
+        .where(eq(leadsTable.id, lead.id));
     }
 
     // One project per lead — otherwise the same relationship could be claimed
@@ -550,8 +560,10 @@ router.post(
     // ── GATE C ────────────────────────────────────────────────────────────
     // The checklist the student sees IS the check that blocks, because both
     // come from composeBrd(). There is no second, stricter server-side list to
-    // be surprised by.
-    if (!brd.gateC.passed) {
+    // be surprised by. Blocks only while the gates are ENFORCED; in advisory
+    // mode the submission goes through with the failing items recorded in the
+    // composed BRD, where reviewers see them.
+    if (!brd.gateC.passed && (await areGatesEnforced(project.seasonId))) {
       res.status(409).json({
         error: "Some things are still missing.",
         code: "GATE_C_NOT_MET",

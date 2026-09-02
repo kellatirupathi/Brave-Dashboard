@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
+import { usePipelineGatesEnforced } from "@/lib/pipeline-gates-api";
 import {
   createPipelineProject,
   getLead,
@@ -87,6 +88,8 @@ export default function LeadProject() {
   const params = useParams<{ id: string }>();
   const leadId = Number(params.id);
   const { viewingId: seasonId, canWrite } = useSeason();
+  // Advisory (default) vs enforced pipeline gates — admin Config toggle.
+  const gatesEnforced = usePipelineGatesEnforced();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -257,7 +260,9 @@ export default function LeadProject() {
   }
 
   // Gate B, stated plainly rather than as a disabled button with no reason.
-  if (lead.stage !== "converted") {
+  // Only while the gates are enforced: in advisory mode the form renders and
+  // creating the project marks the lead Converted server-side.
+  if (lead.stage !== "converted" && gatesEnforced) {
     return (
       <div className="space-y-4 p-4 sm:p-6">
         <Link href={`/leads/${leadId}`}>
