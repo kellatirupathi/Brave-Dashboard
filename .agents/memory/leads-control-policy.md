@@ -5,7 +5,7 @@ description: Durable authorization and data-protection rules for Leads, projects
 
 Leads permissions are configured per season for Add, Edit, and Delete across Leads, Projects, Phases, Payments, and Interactions. Submit for review is independent. Student writes are leader-only; ordinary team members are read-only. Only admins bypass these controls; coordinators do not.
 
-The student-facing Leads score is completion progress, not trust or an award tier: five equally weighted items (interaction, work, proof, phases, payment) produce a 0–100% score. Interactions add progress but never gate “Client said yes.”
+The student-facing Leads score is completion progress, not trust or an award tier: five equally weighted items (interaction, work, proof, phases, payment) produce a 0–100% score. Show it only at Submit for Review; all five block submission. Interactions never gate “Client said yes.”
 
 The season's master Leads lock blocks every student mutation, including stage changes and Submit for review, and displays the configured student-facing message.
 

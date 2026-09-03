@@ -542,10 +542,15 @@ export type ComposedBrd = {
     loggedAfterHours: number | null;
   }>;
   phases: Array<{
+    id: number;
     name: string;
     deliverables: string | null;
-    scheduled: number;
-    received: number;
+    startDate: string | null;
+    endDate: string | null;
+    scheduledAmount: number | null;
+    dueDate: string | null;
+    receivedAmount: number;
+    status: "received" | "due" | "pending";
   }>;
   payments: Array<{
     phaseName: string;

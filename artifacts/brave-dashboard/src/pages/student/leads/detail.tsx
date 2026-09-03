@@ -12,7 +12,6 @@ import {
   Map as MapIcon,
   ShieldAlert,
   CheckCircle2,
-  Circle,
   Clock,
   Pencil,
   Trash2,
@@ -192,7 +191,7 @@ function LogDialog({
       } else {
         toast({
           title: interaction ? "Interaction updated" : "Interaction saved",
-          description: `Trail strength is now ${res.trailStrength}.`,
+          description: "The interaction has been added to this lead.",
         });
       }
     },
@@ -645,7 +644,7 @@ export default function LeadDetail() {
     );
   }
 
-  const { lead, interactions, canConvert, progress } = q.data;
+  const { lead, interactions, canConvert } = q.data;
   const writable = canWrite("project");
 
   return (
@@ -786,50 +785,15 @@ export default function LeadDetail() {
         </div>
       </Card>
 
-      {/* ── Progress ───────────────────────────────────────────────────── */}
+      {/* ── Client decision ────────────────────────────────────────────── */}
       <Card className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="font-semibold">Progress score</p>
-                <p className="text-sm text-muted-foreground">
-                  {progress.completed} of {progress.total} completed
-                </p>
-              </div>
-              <span className="text-2xl font-bold tabular-nums">
-                {progress.score}%
-              </span>
-            </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-emerald-600 transition-[width]"
-                style={{ width: `${progress.score}%` }}
-              />
-            </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {progress.items.map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  {item.complete ? (
-                    <CheckCircle2
-                      className="h-4 w-4 shrink-0 text-emerald-600"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Circle
-                      className="h-4 w-4 shrink-0 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <span className={item.complete ? "font-medium" : ""}>
-                    {item.label}
-                  </span>
-                </div>
-              ))}
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold">Has the client agreed to proceed?</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Confirm this as soon as the client says yes. Interactions do not
+              block this step.
+            </p>
           </div>
           {lead.stage === "converted" ? (
             <Link href={`/leads/${lead.id}/project`}>
