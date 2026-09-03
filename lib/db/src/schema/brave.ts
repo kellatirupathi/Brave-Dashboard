@@ -684,7 +684,15 @@ export const projectsTable = pgTable(
     // Auto-summed from payment_schedule; stored so the review queue can sort
     // and filter on it without re-aggregating.
     totalContractValue: integer("total_contract_value"),
+    // A link to the signed agreement, OR an object-storage path when the
+    // student uploaded the file instead. Both land in this one column because
+    // every reader just needs "where is the agreement".
     agreementDoc: text("agreement_doc"),
+    // Only meaningful for a LINK. The student is asked, at the moment they
+    // paste it, whether anyone with the link can view it — a Drive file left
+    // on "Restricted" is the commonest reason a good project loses marks.
+    // Null = never asked (or an upload, which cannot have the problem).
+    agreementAccessConfirmed: boolean("agreement_access_confirmed"),
     // Free-form admin note for this specific project (admin-only; shown on the
     // admin team-detail page's project card).
     adminNotes: text("admin_notes"),

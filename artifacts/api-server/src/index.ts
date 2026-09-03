@@ -433,6 +433,17 @@ async function ensureBraveAppConfigColumns(): Promise<void> {
   `);
 }
 
+// Whether the student confirmed their agreement LINK is viewable by anyone
+// with it. Nullable: null means never asked, which is also what an uploaded
+// file leaves behind. Production does not run drizzle-kit push, so this is
+// what creates the column there. Idempotent.
+async function ensureAgreementAccessColumn(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE projects
+      ADD COLUMN IF NOT EXISTS agreement_access_confirmed boolean
+  `);
+}
+
 // Pipeline gate mode flag. Default FALSE = advisory: gates A/B/C are shown but
 // never block. Production does not run drizzle-kit push, so this is what
 // creates the column there. Idempotent.
@@ -1687,6 +1698,11 @@ async function runBootstrap(): Promise<void> {
     await ensurePipelineGatesColumn();
   } catch (err) {
     logger.error({ err }, "ensurePipelineGatesColumn failed");
+  }
+  try {
+    await ensureAgreementAccessColumn();
+  } catch (err) {
+    logger.error({ err }, "ensureAgreementAccessColumn failed");
   }
   try {
     await ensurePageViewPlatform();
