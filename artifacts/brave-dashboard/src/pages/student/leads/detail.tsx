@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Plus,
   MapPin,
+  Map as MapIcon,
   ShieldAlert,
   CheckCircle2,
   CircleDashed,
@@ -375,11 +376,37 @@ export default function LeadDetail() {
           </div>
         </div>
 
-        {lead.geoLat ? (
-          <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-            Location captured at the client's premises
-          </p>
+        {/* Where the lead was captured. The place name is the area and city
+            the student typed at capture; the coordinates are what the phone
+            recorded, and the Map button opens them. No reverse geocoding —
+            that would mean sending a client's location to a third party. */}
+        {lead.geoLat && lead.geoLng ? (
+          <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-md border bg-muted/30 px-3 py-2">
+            <MapPin
+              className="h-4 w-4 shrink-0 text-emerald-600"
+              aria-hidden="true"
+            />
+            <span
+              className="text-sm font-medium"
+              title={`${lead.geoLat}, ${lead.geoLng}`}
+            >
+              {[lead.areaLocality, lead.city].filter(Boolean).join(", ") ||
+                `${lead.geoLat}, ${lead.geoLng}`}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Captured at the client's premises
+            </span>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${lead.geoLat},${lead.geoLng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted"
+              data-testid="link-lead-map"
+            >
+              <MapIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              Map
+            </a>
+          </div>
         ) : null}
 
         {lead.isRelatedParty ? (
