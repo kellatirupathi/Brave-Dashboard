@@ -242,7 +242,7 @@ export type AdminLeadPayment = {
   paymentMode: string;
   transactionRef: string | null;
   paymentProof: string;
-  invoiceDoc: string;
+  invoiceDoc: string | null;
   deliveryProof: unknown;
   clientConfirmed: boolean;
   clientConfirmedAt: string | null;

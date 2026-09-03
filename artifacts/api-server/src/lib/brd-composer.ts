@@ -222,12 +222,10 @@ export async function composeBrd(
   });
 
   // ── Gate C ────────────────────────────────────────────────────────────────
-  // Every phase that has money scheduled AND received must carry both a proof
-  // and an invoice. Phases not yet paid are not held against the student —
-  // partial delivery is normal and must be submittable.
+  // Every recorded payment must carry proof. Phases not yet paid are not held
+  // against the student — partial delivery is normal and must be submittable.
   const paidPhaseIds = new Set(payments.map((p) => p.phaseId));
   const paymentsMissingProof = payments.filter((p) => !p.paymentProof);
-  const paymentsMissingInvoice = payments.filter((p) => !p.invoiceDoc);
 
   const items: ChecklistItem[] = [
     {
@@ -275,16 +273,6 @@ export async function composeBrd(
       label: "Payment proof attached to every payment",
       passed: paymentsMissingProof.length === 0,
       detail: `${paymentsMissingProof.length} payment(s) without proof.`,
-    },
-    {
-      key: "invoice",
-      label: "Invoice attached to every payment",
-      passed: paymentsMissingInvoice.length === 0,
-      detail: paymentsMissingInvoice.length
-        ? `Missing for ${paymentsMissingInvoice
-            .map((p) => phaseNameById.get(p.phaseId) ?? `phase ${p.phaseId}`)
-            .join(", ")}.`
-        : undefined,
     },
     {
       key: "disclosure",

@@ -37,6 +37,7 @@ import { formatDate, formatINR } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
 import { LeadsLockBanner } from "@/components/leads-lock-banner";
 import { useLeadsControl } from "@/lib/leads-control-api";
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import {
   deleteInteraction,
   deleteLead,
@@ -572,6 +573,9 @@ export default function LeadDetail() {
   const [editingLead, setEditingLead] = useState(false);
   const [editingInteraction, setEditingInteraction] =
     useState<LeadInteraction | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<
+    { type: "lead" | "interaction"; id: number; name: string } | null
+  >(null);
 
   const q = useQuery({
     queryKey: leadKeys.detail(seasonId, leadId),
@@ -624,6 +628,7 @@ export default function LeadDetail() {
       void qc.invalidateQueries({ queryKey: leadKeys.list(seasonId) });
       void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
       toast({ title: "Interaction deleted" });
+      setDeleteTarget(null);
     },
     onError: (err: Error) =>
       toast({
@@ -698,14 +703,13 @@ export default function LeadDetail() {
                 size="icon"
                 variant="ghost"
                 aria-label="Delete lead"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Delete this lead and its interaction history? Leads with a project cannot be deleted.",
-                    )
-                  )
-                    removeLead.mutate();
-                }}
+                onClick={() =>
+                  setDeleteTarget({
+                    type: "lead",
+                    id: lead.id,
+                    name: lead.businessName,
+                  })
+                }
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
@@ -923,10 +927,16 @@ export default function LeadDetail() {
                         size="icon"
                         variant="ghost"
                         aria-label="Delete interaction"
-                        onClick={() => {
-                          if (window.confirm("Delete this interaction?"))
-                            removeInteraction.mutate(i.id);
-                        }}
+                        onClick={() =>
+                          setDeleteTarget({
+                            type: "interaction",
+                            id: i.id,
+                            name:
+                              TYPES.find(
+                                (type) => type.value === i.interactionType,
+                              )?.label ?? "interaction",
+                          })
+                        }
                       >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
@@ -964,6 +974,28 @@ export default function LeadDetail() {
         lead={lead}
         open={editingLead}
         onOpenChange={setEditingLead}
+      />
+      <ConfirmDeleteDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={
+          deleteTarget?.type === "lead"
+            ? `Delete lead "${deleteTarget.name}"?`
+            : `Delete ${deleteTarget?.name ?? "interaction"}?`
+        }
+        description={
+          deleteTarget?.type === "lead"
+            ? "This also removes its interaction history. A lead with a project cannot be deleted."
+            : "This interaction will be permanently removed from the lead history."
+        }
+        pending={removeLead.isPending || removeInteraction.isPending}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          if (deleteTarget.type === "lead") removeLead.mutate();
+          else removeInteraction.mutate(deleteTarget.id);
+        }}
       />
     </div>
   );

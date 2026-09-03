@@ -760,7 +760,6 @@ const PaymentBody = z.object({
   paymentMode: z.enum(["upi", "bank_transfer", "cash", "cheque"]),
   transactionRef: z.string().trim().max(120).optional(),
   paymentProof: z.string().trim().min(1).max(2000),
-  invoiceDoc: z.string().trim().min(1).max(2000),
   deliveryProof: z.array(z.string().trim().max(2000)).max(10).optional(),
 });
 
@@ -860,7 +859,7 @@ router.post(
           paymentMode: d.paymentMode,
           transactionRef: d.transactionRef?.trim() || null,
           paymentProof: d.paymentProof,
-          invoiceDoc: d.invoiceDoc,
+          invoiceDoc: null,
           deliveryProof: d.deliveryProof ?? null,
           recordedBy: req.user!.id,
           // clientConfirmed is deliberately NOT settable here — it is written
@@ -991,7 +990,6 @@ router.patch(
           paymentMode: d.paymentMode,
           transactionRef: d.transactionRef?.trim() || null,
           paymentProof: d.paymentProof,
-          invoiceDoc: d.invoiceDoc,
           deliveryProof: d.deliveryProof ?? null,
         })
         .where(eq(paymentsTable.id, paymentId))

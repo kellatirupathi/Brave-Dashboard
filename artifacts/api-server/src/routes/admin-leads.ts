@@ -367,8 +367,7 @@ async function loadSeasonLeads(seasonId: number): Promise<LeadRow[]> {
     const entry = project ? (entryByProject.get(project.id) ?? null) : null;
 
     // Column-level Gate C. Mirrors the checklist in brd-composer.ts item for
-    // item, except proof/invoice: those columns are NOT NULL, so every stored
-    // payment passes them by construction.
+    // item. Payment proof is mandatory at write time.
     let gateCRemaining: number | null = null;
     if (project) {
       const phaseCount = phasesByProject.get(project.id) ?? 0;

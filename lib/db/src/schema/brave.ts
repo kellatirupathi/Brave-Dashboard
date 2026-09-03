@@ -2423,7 +2423,9 @@ export const paymentsTable = pgTable(
     // route, not the column, so a legitimate cash payment is still recordable.
     transactionRef: text("transaction_ref"),
     paymentProof: text("payment_proof").notNull(),
-    invoiceDoc: text("invoice_doc").notNull(),
+    // Legacy rows may have an invoice, but students no longer need to provide
+    // one when recording a payment.
+    invoiceDoc: text("invoice_doc"),
     deliveryProof: jsonb("delivery_proof"),
 
     // Set by the automated post-delivery NPS call, never by the student. Kept
