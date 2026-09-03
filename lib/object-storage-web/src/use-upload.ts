@@ -91,19 +91,34 @@ export function useUpload(options: UseUploadOptions = {}) {
   );
 
   const uploadToPresignedUrl = useCallback(
-    async (file: File, uploadURL: string): Promise<void> => {
-      const response = await fetch(uploadURL, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": file.type || "application/octet-stream",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to upload file to storage");
-      }
-    },
+    (file: File, uploadURL: string): Promise<void> =>
+      // XHR rather than fetch: fetch cannot report upload progress, and a bar
+      // that sits at 30% and then jumps to 100% is worse than no bar at all on
+      // the slow connections students actually upload from.
+      new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadURL, true);
+        xhr.setRequestHeader(
+          "Content-Type",
+          file.type || "application/octet-stream"
+        );
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          // 5-99. 100 is claimed only once storage has accepted the body, so
+          // the bar never reads complete while the request is still in flight.
+          setProgress(
+            Math.min(99, 5 + Math.round((event.loaded / event.total) * 94))
+          );
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error("Failed to upload file to storage"));
+        };
+        xhr.onerror = () =>
+          reject(new Error("Failed to upload file to storage"));
+        xhr.onabort = () => reject(new Error("Upload cancelled"));
+        xhr.send(file);
+      }),
     []
   );
 
@@ -114,10 +129,10 @@ export function useUpload(options: UseUploadOptions = {}) {
       setProgress(0);
 
       try {
-        setProgress(10);
+        setProgress(2);
         const uploadResponse = await requestUploadUrl(file);
 
-        setProgress(30);
+        setProgress(5);
         await uploadToPresignedUrl(file, uploadResponse.uploadURL);
 
         setProgress(100);

@@ -28,6 +28,7 @@ export type FieldHelpId =
   | "prototype"
   | "demoCredentials"
   | "agreement"
+  | "paymentProof"
   | "phase";
 
 // ── Animation primitives ────────────────────────────────────────────────────
@@ -228,6 +229,69 @@ function ShareDemo() {
         {open
           ? "This is what a reviewer needs."
           : "A reviewer opening this sees “Request access”."}
+      </p>
+    </div>
+  );
+}
+
+/** A bank/UPI receipt filling in — for the payment proof field. */
+function ReceiptDemo() {
+  const step = useCycle(4, 900);
+  return (
+    <div className="rounded-lg border bg-background p-4">
+      <div className="flex items-center justify-between border-b pb-2">
+        <span className="text-xs font-medium text-muted-foreground">
+          Payment received
+        </span>
+        <AnimatePresence>
+          {step >= 3 ? (
+            <motion.span
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+            >
+              <Check className="h-3 w-3" />
+              Credited
+            </motion.span>
+          ) : null}
+        </AnimatePresence>
+      </div>
+      <motion.p
+        animate={{ opacity: step >= 1 ? 1 : 0.2 }}
+        transition={{ duration: 0.3 }}
+        className="mt-2.5 font-mono text-xl font-bold tabular-nums"
+      >
+        ₹15,000
+      </motion.p>
+      <motion.div
+        animate={{ opacity: step >= 2 ? 1 : 0.2 }}
+        transition={{ duration: 0.3 }}
+        className="mt-2 space-y-1 text-[11px]"
+      >
+        <p className="flex justify-between">
+          <span className="text-muted-foreground">Date</span>
+          <span className="font-medium">12 Apr 2026</span>
+        </p>
+        <p className="flex justify-between">
+          <span className="text-muted-foreground">UTR</span>
+          <motion.span
+            animate={{
+              backgroundColor:
+                step >= 2 ? "rgba(239,159,39,0.25)" : "rgba(0,0,0,0)",
+            }}
+            transition={{ duration: 0.4 }}
+            className="rounded px-1 font-mono font-medium"
+          >
+            402512345678
+          </motion.span>
+        </p>
+        <p className="flex justify-between">
+          <span className="text-muted-foreground">From</span>
+          <span className="font-medium">Sunrise Bakery</span>
+        </p>
+      </motion.div>
+      <p className="mt-2.5 border-t pt-2 text-[10px] text-muted-foreground">
+        The amount, the date and the reference must match what you typed above.
       </p>
     </div>
   );
@@ -452,6 +516,25 @@ const HELP: Record<FieldHelpId, Help> = {
     bad: [
       "A Drive link on “Restricted” — the reviewer sees “Request access”",
       "A blank template with no signature or agreed amount",
+    ],
+  },
+  paymentProof: {
+    trigger: "What counts as proof",
+    title: "Payment proof",
+    intro:
+      "A screenshot or file showing the money actually arriving in your account. The reviewer checks it against the amount, the date and the reference you typed.",
+    animation: <ReceiptDemo />,
+    good: [
+      "A bank statement line, UPI receipt or payment-app screenshot",
+      "Amount, date and the UTR / reference all readable in one image",
+      "The payer's name visible, so it matches the client",
+      "Upload the file here, or paste a link anyone can open",
+    ],
+    bad: [
+      "A screenshot of a payment REQUEST or a pending transfer",
+      "A cropped image with the amount or reference cut off",
+      "An invoice you raised — that is what you asked for, not what arrived",
+      "A Drive link left on “Restricted”",
     ],
   },
   phase: {
