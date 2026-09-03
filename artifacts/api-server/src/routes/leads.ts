@@ -32,7 +32,6 @@ import {
 import { logger } from "../lib/logger";
 import { areGatesEnforced } from "../lib/pipeline-gates";
 import { allowLeadsAction } from "../lib/leads-control";
-import { requireTeamLeader } from "../lib/auth";
 import {
   buildPipelineStatus,
   computeTrailStrength,
@@ -65,9 +64,9 @@ async function getMyTeamId(userId: string): Promise<number | null> {
 /**
  * Resolve the team whose pipeline this request may touch.
  *
- * Every team member may read the team's Leads workspace. Student writes are
- * separately restricted to the current team leader; admins retain their
- * existing override. Staff may read any team by passing ?teamId.
+ * ANY team member may capture leads and log interactions — this is field work,
+ * and restricting it to the leader would mean the person standing in the shop
+ * cannot record the meeting. Staff may read any team by passing ?teamId.
  */
 async function resolveTeamScope(
   req: Request,
@@ -145,7 +144,6 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const scope = await resolveTeamScope(req, res);
     if (!scope) return;
-    if (!(await requireTeamLeader(req, res, scope.teamId))) return;
     const parsed = CaptureBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
@@ -284,7 +282,6 @@ router.patch(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
-    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "edit")))
       return;
 
@@ -349,7 +346,6 @@ router.delete(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
-    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "delete")))
       return;
     const [project] = await db
@@ -531,6 +527,7 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
   const completedProgressItems = progressItems.filter(
     (item) => item.complete,
   ).length;
+  const gatesEnforced = await areGatesEnforced(lead.seasonId);
 
   res.json({
     lead,
@@ -545,10 +542,12 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
       total: progressItems.length,
       items: progressItems,
     },
-    // Client confirmation is available immediately after Lead creation.
-    // Interactions improve progress but never gate conversion.
+    // Gate A never blocks conversion. A student who closes a client on the
+    // first visit has done the work, not skipped it — the trail is evidence
+    // for the reviewer, not a turnstile. Still reported above so admins can
+    // see how well-documented the lead is.
     canConvert: true,
-    gatesEnforced: false,
+    gatesEnforced,
   });
 });
 
@@ -607,7 +606,6 @@ router.post(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
-    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (
       !(await allowLeadsAction(
         req,
@@ -669,7 +667,9 @@ router.post(
     const gateA = evaluateGateA(interactions);
 
     let stageApplied: string | null = null;
-    let stageRefused: string[] | null = null;
+    // Kept in the response shape so existing clients keep parsing it; Gate A
+    // no longer refuses a stage move, so it is always null.
+    const stageRefused: string[] | null = null;
     if (d.stageChange) {
       await db
         .update(leadsTable)
@@ -736,7 +736,6 @@ router.patch(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
-    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (
       !(await allowLeadsAction(
         req,
@@ -824,7 +823,6 @@ router.delete(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
-    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (
       !(await allowLeadsAction(
         req,
@@ -889,7 +887,6 @@ router.patch(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
-    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "edit")))
       return;
 

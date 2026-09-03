@@ -1,7 +1,8 @@
 // Season 2 — Stage 2: work the lead.
 //
-// Interactions are one useful part of Lead progress, but never block the team
-// leader from confirming that the client said yes.
+// The whole point of this screen is the interaction trail. Gate A (3 dated
+// interactions spanning 7+ days) is what unlocks conversion, so the trail is
+// the primary object here and everything else is context around it.
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useLocation } from "wouter";
@@ -69,6 +70,18 @@ const OUTCOMES = [
   { value: "objection", label: "They objected" },
   { value: "no_response", label: "No response" },
 ] as const;
+
+const BAND_TONE: Record<TrailBand, string> = {
+  strong: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  moderate: "bg-amber-100 text-amber-800 border-amber-200",
+  weak: "bg-rose-100 text-rose-800 border-rose-200",
+};
+
+const BAND_LABEL: Record<TrailBand, string> = {
+  strong: "Strong trail",
+  moderate: "Moderate trail",
+  weak: "Weak trail",
+};
 
 const SOURCE_LABEL: Record<string, string> = {
   walk_in: "Walked in",
@@ -191,7 +204,7 @@ function LogDialog({
       } else {
         toast({
           title: interaction ? "Interaction updated" : "Interaction saved",
-          description: "The interaction has been added to this lead.",
+          description: `Trail strength is now ${res.trailStrength}.`,
         });
       }
     },
@@ -644,7 +657,8 @@ export default function LeadDetail() {
     );
   }
 
-  const { lead, interactions, canConvert } = q.data;
+  const { lead, interactions, trailBand } =
+    q.data;
   const writable = canWrite("project");
 
   return (
@@ -670,6 +684,9 @@ export default function LeadDetail() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{STAGE_LABEL[lead.stage]}</Badge>
+            <Badge variant="outline" className={BAND_TONE[trailBand]}>
+              {BAND_LABEL[trailBand]} · {lead.trailStrength}
+            </Badge>
             {writable && controls.can("leads", "edit") ? (
               <Button
                 size="sm"
@@ -785,15 +802,26 @@ export default function LeadDetail() {
         </div>
       </Card>
 
-      {/* ── Client decision ────────────────────────────────────────────── */}
+      {/* ── Convert ────────────────────────────────────────────────────── */}
       <Card className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="font-semibold">Has the client agreed to proceed?</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Confirm this as soon as the client says yes. Interactions do not
-              block this step.
-            </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <CheckCircle2
+              className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+              aria-hidden="true"
+            />
+            <div>
+              <p className="font-semibold">
+                {lead.stage === "converted"
+                  ? "This client is yours"
+                  : "Has the client agreed?"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {lead.stage === "converted"
+                  ? "Plan the work, set the phases, and record what they pay you."
+                  : "Convert as soon as they say yes, then plan the work in the project."}
+              </p>
+            </div>
           </div>
           {lead.stage === "converted" ? (
             <Link href={`/leads/${lead.id}/project`}>
@@ -802,10 +830,7 @@ export default function LeadDetail() {
           ) : (
             <Button
               disabled={
-                !canConvert ||
-                !writable ||
-                !controls.can("leads", "edit") ||
-                convert.isPending
+                !writable || !controls.can("leads", "edit") || convert.isPending
               }
               onClick={() => convert.mutate()}
             >
@@ -831,7 +856,8 @@ export default function LeadDetail() {
 
         {interactions.length === 0 ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">
-            Nothing logged yet.
+            Nothing logged yet. Every follow-up you record here is what makes
+            this client credible.
           </Card>
         ) : (
           <div className="space-y-3">

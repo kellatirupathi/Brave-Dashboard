@@ -1,5 +1,10 @@
 import type { Request, Response } from "express";
-import { db, programmeConfigTable } from "@workspace/db";
+import {
+  db,
+  programmeConfigTable,
+  teamMembersTable,
+  teamsTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 export const LEADS_CONTROL_SECTIONS = [
@@ -65,6 +70,54 @@ export function normalizeLeadsControlPermissions(
   return normalized;
 }
 
+/**
+ * Only the team leader runs the Leads pipeline.
+ *
+ * One person owning the client record is what stops four teammates each
+ * capturing the same shop, and it makes the trail attributable — a reviewer
+ * looking at a lead knows exactly who to ask about it. Members keep full READ
+ * access to everything their team has done; this gates writes only.
+ *
+ * Staff are exempt: admins bypass every control already, and a coordinator is
+ * on no team, so a leader test would lock them out of leads they must manage.
+ */
+export async function isLeadsWriter(req: Request): Promise<boolean> {
+  if (!req.isAuthenticated?.() || !req.user) return false;
+  if (req.user.role === "admin" || req.user.role === "coordinator") return true;
+
+  const [membership] = await db
+    .select({ teamId: teamMembersTable.teamId })
+    .from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, req.user.id))
+    .limit(1);
+  if (!membership) return false;
+
+  const [team] = await db
+    .select({ leaderId: teamsTable.leaderId })
+    .from(teamsTable)
+    .where(eq(teamsTable.id, membership.teamId))
+    .limit(1);
+  return team?.leaderId === req.user.id;
+}
+
+export const LEADS_MEMBER_READ_ONLY_MESSAGE =
+  "Only your team leader can add or change leads. You can see everything your team has captured.";
+
+/** 403 body shared by every leader-only refusal, so the client can detect it. */
+function refuseNonLeader(
+  res: Response,
+  section: string,
+  action: string,
+): false {
+  res.status(403).json({
+    error: LEADS_MEMBER_READ_ONLY_MESSAGE,
+    code: "LEADS_LEADER_ONLY",
+    section,
+    action,
+  });
+  return false;
+}
+
 export type LeadsControlState = {
   locked: boolean;
   message: string;
@@ -105,6 +158,7 @@ export async function allowLeadsAction(
   action: LeadsControlAction,
 ): Promise<boolean> {
   if (req.user?.role === "admin") return true;
+  if (!(await isLeadsWriter(req))) return refuseNonLeader(res, section, action);
   const state = await getLeadsControlState(seasonId);
   if (state.locked) {
     res.status(403).json({
@@ -133,6 +187,8 @@ export async function allowLeadsSubmit(
   seasonId: number,
 ): Promise<boolean> {
   if (req.user?.role === "admin") return true;
+  if (!(await isLeadsWriter(req)))
+    return refuseNonLeader(res, "submitForReview", "submit");
   const state = await getLeadsControlState(seasonId);
   if (state.locked) {
     res.status(403).json({

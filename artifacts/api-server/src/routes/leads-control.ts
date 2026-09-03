@@ -1,17 +1,13 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import {
-  db,
-  programmeConfigTable,
-  teamMembersTable,
-  teamsTable,
-} from "@workspace/db";
+import { db, programmeConfigTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { resolveSeason } from "../lib/season";
 import { requireAdminPage } from "../lib/require-admin-page";
 import { logAudit } from "../lib/audit";
 import {
   getLeadsControlState,
+  isLeadsWriter,
   LEADS_CONTROL_SECTIONS,
 } from "../lib/leads-control";
 
@@ -43,27 +39,13 @@ router.get(
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const seasonId = await resolveSeason(req);
-    const state = await getLeadsControlState(seasonId);
-    if (req.user.role === "admin") {
-      res.json({ ...state, canManage: true });
-      return;
-    }
-    const [membership] = await db
-      .select({ teamId: teamMembersTable.teamId })
-      .from(teamMembersTable)
-      .where(eq(teamMembersTable.userId, req.user.id))
-      .limit(1);
-    if (!membership) {
-      res.json({ ...state, canManage: false });
-      return;
-    }
-    const [team] = await db
-      .select({ leaderId: teamsTable.leaderId })
-      .from(teamsTable)
-      .where(eq(teamsTable.id, membership.teamId))
-      .limit(1);
-    res.json({ ...state, canManage: team?.leaderId === req.user.id });
+    // isLeadsWriter rides along so the UI can hide write controls a member
+    // would only be refused on. The server refuses regardless.
+    const [state, canWrite] = await Promise.all([
+      getLeadsControlState(await resolveSeason(req)),
+      isLeadsWriter(req),
+    ]);
+    res.json({ ...state, isLeadsWriter: canWrite });
   },
 );
 
@@ -109,7 +91,7 @@ router.put(
       row.id,
       `updated Leads controls (${LEADS_CONTROL_SECTIONS.length} sections; lock ${parsed.data.locked ? "on" : "off"})`,
     );
-    res.json({ ...(await getLeadsControlState(seasonId)), canManage: true });
+    res.json(await getLeadsControlState(seasonId));
   },
 );
 
