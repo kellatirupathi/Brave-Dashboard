@@ -65,6 +65,9 @@ import {
   type ScheduleRow,
 } from "@/lib/leads-api";
 
+/** A payment proof is a receipt screenshot; 5 MB is generous for that. */
+const PROOF_MAX_BYTES = 5 * 1024 * 1024;
+
 const MODES = [
   { value: "upi", label: "UPI" },
   { value: "bank_transfer", label: "Bank transfer" },
@@ -105,6 +108,7 @@ function PaymentDialog({
   projectId,
   leadId,
   phases,
+  payments,
   open,
   onOpenChange,
   payment,
@@ -112,6 +116,8 @@ function PaymentDialog({
   projectId: number;
   leadId: number;
   phases: ProjectPhase[];
+  /** Every payment on this project, so a phase is offered only once. */
+  payments: PaymentRow[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
   payment?: PaymentRow | null;
@@ -129,6 +135,7 @@ function PaymentDialog({
   const [proofFileName, setProofFileName] = useState("");
   const proofFileRef = useRef<HTMLInputElement>(null);
   const uploader = useUpload({
+    maxBytes: PROOF_MAX_BYTES,
     onError: (error) =>
       toast({
         title: "Could not upload payment proof",
@@ -151,6 +158,16 @@ function PaymentDialog({
       payment?.paymentProof?.startsWith("/objects/") ? "Uploaded file" : "",
     );
   }, [open, payment]);
+
+  // A phase that already has a payment is not offered again — recording a
+  // second one against it is how the same money gets counted twice. The phase
+  // being edited stays in the list, or the select would have nothing to show.
+  const takenPhaseIds = new Set(
+    payments
+      .filter((p) => p.id !== payment?.id)
+      .map((p) => p.phaseId),
+  );
+  const selectablePhases = phases.filter((p) => !takenPhaseIds.has(p.id));
 
   // Cash is the only mode exempt from a reference number — that exemption is
   // what makes the duplicate-UTR check meaningful for everything else.
@@ -223,12 +240,18 @@ function PaymentDialog({
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">Choose a phase</option>
-              {phases.map((p) => (
+              {selectablePhases.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
             </select>
+            {selectablePhases.length === 0 ? (
+              <span className="block text-xs text-amber-700">
+                Every phase already has a payment. Edit the existing one, or add
+                a phase for the next instalment.
+              </span>
+            ) : null}
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -423,7 +446,7 @@ function PaymentDialog({
             )}
 
             <span className="block text-xs text-muted-foreground">
-              Paste a link or upload an image, PDF, or other file up to 25 MB.
+              Paste a link or upload an image, PDF, or other file up to 5 MB.
             </span>
           </div>
         </div>
@@ -1290,6 +1313,7 @@ export default function LeadDelivery() {
         projectId={projectId}
         leadId={leadId}
         phases={phases}
+        payments={payments}
         open={paying}
         onOpenChange={setPaying}
       />
@@ -1297,6 +1321,7 @@ export default function LeadDelivery() {
         projectId={projectId}
         leadId={leadId}
         phases={phases}
+        payments={payments}
         payment={editingPayment}
         open={editingPayment != null}
         onOpenChange={(open) => {

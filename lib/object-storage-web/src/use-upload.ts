@@ -16,6 +16,12 @@ interface UploadResponse {
 interface UseUploadOptions {
   /** Base path where object storage routes are mounted (default: "/api/storage") */
   basePath?: string;
+  /**
+   * Tighter size limit for this particular field, in bytes. Checked here for
+   * an instant message, and sent to the server so it is actually enforced.
+   * Never widens the server's own limit.
+   */
+  maxBytes?: number;
   onSuccess?: (response: UploadResponse) => void;
   onError?: (error: Error) => void;
 }
@@ -70,6 +76,7 @@ export function useUpload(options: UseUploadOptions = {}) {
           name: file.name,
           size: file.size,
           contentType: file.type || "application/octet-stream",
+          ...(options.maxBytes ? { maxBytes: options.maxBytes } : {}),
         }),
       });
 
@@ -87,7 +94,7 @@ export function useUpload(options: UseUploadOptions = {}) {
 
       return response.json();
     },
-    [basePath]
+    [basePath, options.maxBytes]
   );
 
   const uploadToPresignedUrl = useCallback(
@@ -124,6 +131,18 @@ export function useUpload(options: UseUploadOptions = {}) {
 
   const uploadFile = useCallback(
     async (file: File): Promise<UploadResponse | null> => {
+      // Refuse an oversized file here rather than after a round trip, so the
+      // student is told immediately instead of watching a request fail.
+      if (options.maxBytes && file.size > options.maxBytes) {
+        const mb = Math.round(options.maxBytes / (1024 * 1024));
+        const error = new Error(
+          `That file is ${Math.round(file.size / (1024 * 1024))} MB. The limit is ${mb} MB.`
+        );
+        setError(error);
+        options.onError?.(error);
+        return null;
+      }
+
       setIsUploading(true);
       setError(null);
       setProgress(0);
