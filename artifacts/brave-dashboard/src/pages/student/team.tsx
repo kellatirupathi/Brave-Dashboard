@@ -81,8 +81,6 @@ import { formatDate } from "@/lib/format";
 import { InlineEditField } from "@/components/inline-edit-field";
 import { invalidateMembershipQueries } from "@/lib/queries";
 import { useToast } from "@/hooks/use-toast";
-import { useSeason } from "@/lib/season-context";
-import { TrustPanel } from "@/components/trust-panel";
 
 export default function TeamProfile() {
   const { user } = useAuth();
@@ -195,10 +193,6 @@ function TeamView({
   setLocation: (to: string) => void;
 }) {
   const isLeader = String(team.leaderId) === userId;
-  // Season 1 has no trust ledger. Keyed on the season number for the same
-  // reason the sidebar is: the two seasons are different products.
-  const { viewing } = useSeason();
-  const seasonIsPipeline = !!viewing && viewing.slug !== "1.0";
   const { data: milestones, isLoading: milestonesLoading } = useListMilestones(
     { teamId: team.id },
     {
@@ -570,10 +564,6 @@ function TeamView({
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-12">
       <PendingMembershipBanner />
-
-      {/* Trust standing. Season 2 onward only — the ledger does not exist for
-          Season 1, so showing an empty panel there would just puzzle people. */}
-      {seasonIsPipeline ? <TrustPanel /> : null}
 
       {/* ===================== HERO ===================== */}
       <Card className="relative overflow-hidden rounded-2xl border-0 shadow-sm">
