@@ -278,7 +278,10 @@ export type CreatePipelineProjectBody = {
   demoCredentials?: string;
   revenueType: "one_time" | "recurring";
   recurringFrequency?: "monthly" | "quarterly" | "annual";
+  /** A link to the agreement, or the object path of an uploaded file. */
   agreementDoc?: string;
+  /** Only sent for a link: did the student confirm anyone can view it? */
+  agreementAccessConfirmed?: boolean;
   phases: PhaseInput[];
 };
 

@@ -4,16 +4,36 @@
 // project this screen forwards to the delivery screen instead of offering a
 // second one — one project per lead is a server rule, and the UI should not
 // let a student walk into it.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useLocation } from "wouter";
-import { ArrowLeft, Plus, Trash2, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  Upload,
+  Link2,
+  FileText,
+  CheckCircle2,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { customFetch } from "@workspace/api-client-react";
+import { FieldHelp, type FieldHelpId } from "@/components/field-help";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
 import { usePipelineGatesEnforced } from "@/lib/pipeline-gates-api";
@@ -57,24 +77,32 @@ function Field({
   label,
   required,
   hint,
+  help,
   children,
 }: {
   label: string;
   required?: boolean;
   hint?: string;
+  /** Shows a "what goes here" button on the right of the label row. */
+  help?: FieldHelpId;
   children: React.ReactNode;
 }) {
+  // A div rather than a label: the help button is interactive, and a label
+  // forwards clicks on its contents to the field it wraps.
   return (
-    <label className="block space-y-1.5">
-      <span className="text-sm font-medium">
-        {label}
-        {required ? <span className="ml-0.5 text-destructive">*</span> : null}
-      </span>
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="text-sm font-medium">
+          {label}
+          {required ? <span className="ml-0.5 text-destructive">*</span> : null}
+        </span>
+        {help ? <FieldHelp id={help} /> : null}
+      </div>
       {children}
       {hint ? (
         <span className="block text-xs text-muted-foreground">{hint}</span>
       ) : null}
-    </label>
+    </div>
   );
 }
 
@@ -123,7 +151,22 @@ export default function LeadProject() {
     "one_time",
   );
   const [recurringFrequency, setRecurringFrequency] = useState("");
+  // The agreement can arrive two ways and both land in `agreementDoc`: a URL
+  // the student pasted, or the object-storage path of a file they uploaded.
   const [agreementDoc, setAgreementDoc] = useState("");
+  const [agreementMode, setAgreementMode] = useState<"link" | "upload">("link");
+  const [agreementFileName, setAgreementFileName] = useState("");
+  const [agreementUploading, setAgreementUploading] = useState(false);
+  // Null until the student answers the sharing question. Only a LINK can be
+  // unviewable, so an upload leaves this null.
+  const [agreementAccessConfirmed, setAgreementAccessConfirmed] = useState<
+    boolean | null
+  >(null);
+  const [askAgreementAccess, setAskAgreementAccess] = useState(false);
+  // The link the question was last asked about, so re-blurring an unchanged
+  // field does not re-ask.
+  const [askedAbout, setAskedAbout] = useState("");
+  const agreementFileRef = useRef<HTMLInputElement>(null);
   // Two phases minimum, so the form opens in the shape the server requires
   // rather than teaching the rule through a rejection.
   const [phases, setPhases] = useState<PhaseInput[]>([
@@ -170,6 +213,10 @@ export default function LeadProject() {
             }
           : {}),
         ...(agreementDoc.trim() ? { agreementDoc: agreementDoc.trim() } : {}),
+        // Only meaningful for a link, and only once the student has answered.
+        ...(agreementMode === "link" && agreementAccessConfirmed !== null
+          ? { agreementAccessConfirmed }
+          : {}),
         phases: phases.map((p) => ({
           ...p,
           amount: Number(p.amount) || 0,
@@ -293,6 +340,53 @@ export default function LeadProject() {
     );
   }
 
+  /**
+   * Upload the agreement to object storage: ask the API for a signed URL, PUT
+   * the file at it, then keep the returned object path. Same two-step flow the
+   * rest of the app uses; the server enforces the type and size limits.
+   */
+  async function uploadAgreement(file: File): Promise<void> {
+    setAgreementUploading(true);
+    try {
+      const { uploadURL, objectPath } = await customFetch<{
+        uploadURL: string;
+        objectPath: string;
+      }>("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type || "application/octet-stream",
+        }),
+      });
+      const put = await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+      });
+      if (!put.ok) throw new Error(`Upload failed (HTTP ${put.status})`);
+      setAgreementDoc(objectPath);
+      setAgreementFileName(file.name);
+      // An uploaded file has no sharing problem to confirm.
+      setAgreementAccessConfirmed(null);
+      setAskedAbout("");
+      toast({ title: "Agreement uploaded", description: file.name });
+    } catch (err) {
+      const data = apiErrorData<{ error?: string }>(err as Error);
+      toast({
+        title: "Could not upload the agreement",
+        description:
+          data?.error ??
+          (err instanceof Error ? err.message : "Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setAgreementUploading(false);
+      if (agreementFileRef.current) agreementFileRef.current.value = "";
+    }
+  }
+
   const writable = canWrite("project");
   const canSubmit =
     !!title.trim() &&
@@ -339,6 +433,7 @@ export default function LeadProject() {
         <Field
           label="What problem are you solving?"
           required
+          help="problem"
           hint="In the client's terms, not technical ones."
         >
           <Textarea
@@ -347,7 +442,7 @@ export default function LeadProject() {
             onChange={(e) => setProblemStatement(e.target.value)}
           />
         </Field>
-        <Field label="What are you building?" required>
+        <Field label="What are you building?" required help="solution">
           <Textarea
             rows={3}
             value={solutionDescription}
@@ -373,13 +468,25 @@ export default function LeadProject() {
         </div>
         {(
           [
-            ["liveProductUrl", "Live product URL", liveProductUrl, setLiveProductUrl],
-            ["demoVideoUrl", "Demo video", demoVideoUrl, setDemoVideoUrl],
-            ["sourceCodeUrl", "Source code", sourceCodeUrl, setSourceCodeUrl],
-            ["prototypeUrl", "Prototype / design", prototypeUrl, setPrototypeUrl],
+            [
+              "liveProductUrl",
+              "Live product URL",
+              liveProductUrl,
+              setLiveProductUrl,
+              "liveProductUrl",
+            ],
+            ["demoVideoUrl", "Demo video", demoVideoUrl, setDemoVideoUrl, "demoVideo"],
+            ["sourceCodeUrl", "Source code", sourceCodeUrl, setSourceCodeUrl, "sourceCode"],
+            [
+              "prototypeUrl",
+              "Prototype / design",
+              prototypeUrl,
+              setPrototypeUrl,
+              "prototype",
+            ],
           ] as const
-        ).map(([key, label, value, setter]) => (
-          <Field key={key} label={label}>
+        ).map(([key, label, value, setter, helpId]) => (
+          <Field key={key} label={label} help={helpId}>
             <Input
               value={value}
               onChange={(e) => setter(e.target.value)}
@@ -395,6 +502,7 @@ export default function LeadProject() {
         ))}
         <Field
           label="Demo login details"
+          help="demoCredentials"
           hint="Only if a reviewer needs to sign in to see it."
         >
           <Input
@@ -451,7 +559,12 @@ export default function LeadProject() {
           {phases.map((p, i) => (
             <div key={i} className="rounded-md border p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">Phase {i + 1}</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-medium">Phase {i + 1}</p>
+                  {/* Only on the first, so the guidance is offered once rather
+                      than repeated down a list of identical blocks. */}
+                  {i === 0 ? <FieldHelp id="phase" /> : null}
+                </div>
                 {phases.length > 2 ? (
                   <Button
                     variant="ghost"
@@ -527,17 +640,186 @@ export default function LeadProject() {
           Add a phase
         </Button>
 
-        <Field
-          label="Agreement or work order"
-          hint="A photo of a signed sheet is fine."
-        >
-          <Input
-            value={agreementDoc}
-            onChange={(e) => setAgreementDoc(e.target.value)}
-            placeholder="Link to the document"
-          />
-        </Field>
+        {/* Agreement: a link OR an uploaded file. Rendered by hand rather
+            than through <Field> because that wraps its children in a <label>,
+            and a label would forward clicks on these buttons to the input. */}
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-3 text-sm font-medium">
+              Agreement or work order
+              <FieldHelp id="agreement" />
+            </span>
+            {/* The confirmation, on the right of the label row. */}
+            {agreementMode === "link" && agreementDoc.trim() ? (
+              agreementAccessConfirmed === true ? (
+                <span
+                  className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700"
+                  data-testid="agreement-access-confirmed"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  Anyone with the link can view
+                </span>
+              ) : agreementAccessConfirmed === false ? (
+                <button
+                  type="button"
+                  onClick={() => setAskAgreementAccess(true)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:underline"
+                  data-testid="agreement-access-unconfirmed"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Access not confirmed — fix and re-check
+                </button>
+              ) : null
+            ) : agreementMode === "upload" && agreementDoc ? (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                File uploaded
+              </span>
+            ) : null}
+          </div>
+
+          {/* Link / Upload switch */}
+          <div className="flex w-fit items-center rounded-lg border bg-muted/40 p-0.5">
+            {(
+              [
+                ["link", "Paste a link", Link2],
+                ["upload", "Upload a file", Upload],
+              ] as const
+            ).map(([mode, label, Icon]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  if (agreementMode === mode) return;
+                  setAgreementMode(mode);
+                  // The two sources are mutually exclusive — switching clears
+                  // the other one rather than leaving a stale value to submit.
+                  setAgreementDoc("");
+                  setAgreementFileName("");
+                  setAgreementAccessConfirmed(null);
+                  setAskedAbout("");
+                }}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  agreementMode === mode
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                data-testid={`agreement-mode-${mode}`}
+              >
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {agreementMode === "link" ? (
+            <Input
+              value={agreementDoc}
+              onChange={(e) => {
+                setAgreementDoc(e.target.value);
+                // Editing invalidates a previous answer.
+                if (e.target.value.trim() !== askedAbout) {
+                  setAgreementAccessConfirmed(null);
+                }
+              }}
+              onBlur={(e) => {
+                // Read the input, not state: if the paste and the blur land in
+                // the same tick this closure would still hold the old value.
+                const v = e.target.value.trim();
+                if (v && v !== askedAbout) setAskAgreementAccess(true);
+              }}
+              placeholder="Link to the document"
+              data-testid="input-agreement-link"
+            />
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={agreementFileRef}
+                type="file"
+                accept=".pdf,.doc,.docx,image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void uploadAgreement(f);
+                }}
+                data-testid="input-agreement-file"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={agreementUploading}
+                onClick={() => agreementFileRef.current?.click()}
+                data-testid="button-agreement-upload"
+              >
+                {agreementUploading ? (
+                  <>
+                    <Spinner className="mr-1.5 h-4 w-4" />
+                    Uploading…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    {agreementDoc ? "Replace file" : "Choose a file"}
+                  </>
+                )}
+              </Button>
+              {agreementFileName ? (
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                  {agreementFileName}
+                </span>
+              ) : null}
+            </div>
+          )}
+
+          <span className="block text-xs text-muted-foreground">
+            {agreementMode === "link"
+              ? "A photo of a signed sheet is fine. Paste a link anyone can open."
+              : "PDF, Word or an image of the signed sheet. Up to 25 MB."}
+          </span>
+        </div>
       </Card>
+
+      {/* Asked the moment a link is pasted, because a Drive file left on
+          "Restricted" is the commonest reason a good project loses marks. */}
+      <Dialog open={askAgreementAccess} onOpenChange={setAskAgreementAccess}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Can anyone open this link?</DialogTitle>
+            <DialogDescription>
+              Reviewers open it from their own account. If it is a Drive file,
+              set sharing to “Anyone with the link — Viewer”.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAgreementAccessConfirmed(false);
+                setAskedAbout(agreementDoc.trim());
+                setAskAgreementAccess(false);
+              }}
+              data-testid="button-agreement-access-no"
+            >
+              Not yet
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setAgreementAccessConfirmed(true);
+                setAskedAbout(agreementDoc.trim());
+                setAskAgreementAccess(false);
+              }}
+              data-testid="button-agreement-access-yes"
+            >
+              Yes, it is viewable
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex items-center justify-end gap-3">
         <Link href={`/leads/${leadId}`}>

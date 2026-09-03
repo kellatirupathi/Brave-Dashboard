@@ -125,6 +125,8 @@ const CreateProjectBody = z.object({
   revenueType: z.enum(["one_time", "recurring"]),
   recurringFrequency: z.enum(["monthly", "quarterly", "annual"]).optional(),
   agreementDoc: z.string().trim().max(2000).optional(),
+  // Answer to "can anyone with this link view it?" — only asked for a link.
+  agreementAccessConfirmed: z.boolean().optional(),
   // Phase-wise plan AND phase-wise payment in one shape, because a phase
   // without money and money without a phase were the two commonest Season 1
   // gaps. Minimum 2 phases is a hard requirement.
@@ -250,6 +252,7 @@ router.post(
             recurringFrequency: d.recurringFrequency ?? null,
             totalContractValue,
             agreementDoc: d.agreementDoc ?? null,
+            agreementAccessConfirmed: d.agreementAccessConfirmed ?? null,
           })
           .returning();
         if (!project) throw new Error("project insert returned nothing");
