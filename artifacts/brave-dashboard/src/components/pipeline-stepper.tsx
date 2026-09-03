@@ -4,17 +4,36 @@
 // local inference. That is deliberate: the same gate code that governs the
 // buttons produces these states, so the stepper can never tell a student they
 // may proceed when the API would refuse them.
-import { Check, Lock, AlertTriangle, Circle } from "lucide-react";
+import {
+  Check,
+  Lock,
+  AlertTriangle,
+  Handshake,
+  MessagesSquare,
+  FolderKanban,
+  IndianRupee,
+  FileCheck2,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PipelineStatus, StepState } from "@/lib/leads-api";
 
-const ICON: Record<StepState, typeof Check> = {
+// One icon per step, so a glance at the ring says WHICH step it is rather
+// than only how far along it is. Keyed on the step key the server sends.
+const STEP_ICON: Record<PipelineStatus["steps"][number]["key"], LucideIcon> = {
+  capture: Handshake,
+  work: MessagesSquare,
+  project: FolderKanban,
+  payment: IndianRupee,
+  brd: FileCheck2,
+};
+
+// A completed or blocked step overrides its own icon, because the state is
+// the more urgent thing to read there.
+const STATE_ICON: Partial<Record<StepState, LucideIcon>> = {
   complete: Check,
-  current: Circle,
   blocked: AlertTriangle,
   locked: Lock,
-  // Advisory mode: not done yet, but nothing stops the team doing it.
-  open: Circle,
 };
 
 const RING: Record<StepState, string> = {
@@ -44,7 +63,7 @@ export function PipelineStepper({
     <div className={cn("w-full", className)}>
       <ol className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-0">
         {status.steps.map((s, i) => {
-          const Icon = ICON[s.state];
+          const Icon = STATE_ICON[s.state] ?? STEP_ICON[s.key];
           const isLast = i === status.steps.length - 1;
           return (
             <li
@@ -66,11 +85,7 @@ export function PipelineStepper({
                     RING[s.state],
                   )}
                 >
-                  {s.state === "current" ? (
-                    s.step
-                  ) : (
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                  )}
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span
                   className={cn(
@@ -92,43 +107,15 @@ export function PipelineStepper({
         })}
       </ol>
 
-      {/* The gates, spelled out. A student who cannot proceed should be able to
-          read WHY without opening a lead. */}
+      {/* Advisory mode note. The A/B/C gate legend that used to sit here was
+          removed: the step captions already say what each step needs, and the
+          full rules live in the role documentation. */}
       {status.enforced === false ? (
-        <p className="mt-4 text-xs text-muted-foreground">
+        <p className="mt-5 border-t pt-4 text-xs text-muted-foreground">
           These checks are recommendations this season — every step is open.
           Reviewers still see which ones were met.
         </p>
       ) : null}
-      <div className="mt-5 grid gap-2 border-t pt-4 sm:grid-cols-3">
-        {(
-          [
-            ["A", status.gates.a],
-            ["B", status.gates.b],
-            ["C", status.gates.c],
-          ] as const
-        ).map(([name, gate]) => (
-          <div key={name} className="flex items-start gap-2 text-xs">
-            <span
-              className={cn(
-                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
-                gate.passed
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-muted text-muted-foreground",
-              )}
-            >
-              {name}
-            </span>
-            <span
-              className={
-                gate.passed ? "text-foreground" : "text-muted-foreground"
-              }
-            >
-              {gate.label}
-            </span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

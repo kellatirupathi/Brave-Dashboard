@@ -436,55 +436,88 @@ function CaptureDialog({
   );
 }
 
-function LeadCard({ lead }: { lead: LeadListRow }) {
+/** Which group of leads the board is showing. */
+type LeadFilter = "all" | "open" | "closed";
+
+// A lead reads as one full-width row rather than a tile: the fields line up
+// down the page, so twenty leads can be scanned in one pass.
+//
+// The tint is the ONLY difference between an open and a closed lead's row --
+// deliberately very light, so it groups at a glance without competing with
+// the badges, which carry the actual detail.
+const ROW_TONE = {
+  open:
+    "border-sky-200/70 bg-sky-50/80 hover:bg-sky-50 " +
+    "dark:border-sky-900/50 dark:bg-sky-950/30 dark:hover:bg-sky-950/50",
+  closed:
+    "border-stone-300/60 bg-stone-100/70 hover:bg-stone-100 " +
+    "dark:border-stone-700/60 dark:bg-stone-900/40 dark:hover:bg-stone-900/60",
+} as const;
+
+function LeadCard({
+  lead,
+  tone,
+}: {
+  lead: LeadListRow;
+  tone: keyof typeof ROW_TONE;
+}) {
   return (
     <Link href={`/leads/${lead.id}`}>
-      <Card className="cursor-pointer p-4 transition-shadow hover:shadow-md">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+      <Card className={cn("cursor-pointer p-4 transition-colors", ROW_TONE[tone])}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          {/* Who */}
+          <div className="min-w-0 sm:flex-1">
             <p className="truncate font-semibold">{lead.businessName}</p>
             <p className="truncate text-sm text-muted-foreground">
               {lead.ownerName} · {lead.city}
             </p>
           </div>
-          <Badge variant="outline" className={cn("shrink-0", BAND_TONE[lead.trailBand])}>
-            {lead.trailStrength}
-          </Badge>
+
+          {/* Contact, stage, trail */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:shrink-0">
+            <span className="flex items-center gap-1">
+              <Phone className="h-3 w-3" aria-hidden="true" />
+              {lead.phone}
+            </span>
+            <Badge variant="outline" className="font-normal">
+              {STAGE_LABEL[lead.stage]}
+            </Badge>
+            <span className="tabular-nums">
+              {lead.interactionCount} interaction
+              {lead.interactionCount === 1 ? "" : "s"}
+            </span>
+            <Badge
+              variant="outline"
+              className={cn("shrink-0", BAND_TONE[lead.trailBand])}
+            >
+              {lead.trailStrength}
+            </Badge>
+          </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Phone className="h-3 w-3" aria-hidden="true" />
-            {lead.phone}
-          </span>
-          <span>{STAGE_LABEL[lead.stage]}</span>
-          <span>
-            {lead.interactionCount} interaction
-            {lead.interactionCount === 1 ? "" : "s"}
-          </span>
+        {/* Status line, one row, so row heights stay even down the list. */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          {lead.isRelatedParty ? (
+            <span className="flex items-center gap-1.5 text-amber-700">
+              <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+              Known contact — reviewed more closely
+            </span>
+          ) : null}
+          {lead.needsFollowUp ? (
+            <span className="flex items-center gap-1.5 text-rose-700">
+              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+              No contact for {lead.silentDays} days
+            </span>
+          ) : lead.lastInteractionDate ? (
+            <span className="text-muted-foreground">
+              Last contact {formatDate(lead.lastInteractionDate)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">
+              Nothing logged yet — go back and log the visit
+            </span>
+          )}
         </div>
-
-        {lead.isRelatedParty ? (
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
-            <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
-            Known contact — reviewed more closely
-          </p>
-        ) : null}
-
-        {lead.needsFollowUp ? (
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-rose-700">
-            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-            No contact for {lead.silentDays} days
-          </p>
-        ) : lead.lastInteractionDate ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Last contact {formatDate(lead.lastInteractionDate)}
-          </p>
-        ) : (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Nothing logged yet — go back and log the visit
-          </p>
-        )}
       </Card>
     </Link>
   );
@@ -493,6 +526,7 @@ function LeadCard({ lead }: { lead: LeadListRow }) {
 export default function LeadsList() {
   const { viewingId: seasonId } = useSeason();
   const [capturing, setCapturing] = useState(false);
+  const [filter, setFilter] = useState<LeadFilter>("all");
 
   const leads = useQuery({
     queryKey: leadKeys.list(seasonId),
@@ -506,6 +540,8 @@ export default function LeadsList() {
   const rows = leads.data ?? [];
   const open = rows.filter((l) => OPEN_STAGES.includes(l.stage));
   const closed = rows.filter((l) => !OPEN_STAGES.includes(l.stage));
+  const showOpen = filter !== "closed";
+  const showClosed = filter !== "open";
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -519,10 +555,40 @@ export default function LeadsList() {
             Every project starts as a client you actually met.
           </p>
         </div>
-        <Button onClick={() => setCapturing(true)}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Log a client
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Only worth showing once there is something to filter. */}
+          {rows.length > 0 ? (
+            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
+              {(
+                [
+                  ["all", "All", rows.length],
+                  ["open", "Working on", open.length],
+                  ["closed", "Closed", closed.length],
+                ] as const
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFilter(key)}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    filter === key
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  data-testid={`filter-leads-${key}`}
+                >
+                  {label}
+                  <span className="ml-1.5 tabular-nums opacity-60">{count}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <Button onClick={() => setCapturing(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Log a client
+          </Button>
+        </div>
       </div>
 
       {status.data ? (
@@ -569,30 +635,32 @@ export default function LeadsList() {
         </Card>
       ) : (
         <div className="space-y-6">
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground">
-              Working on ({open.length})
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {open.map((l) => (
-                <LeadCard key={l.id} lead={l} />
-              ))}
-            </div>
-            {open.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nothing open right now.
-              </p>
-            ) : null}
-          </section>
+          {showOpen ? (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground">
+                Working on ({open.length})
+              </h2>
+              <div className="space-y-2.5">
+                {open.map((l) => (
+                  <LeadCard key={l.id} lead={l} tone="open" />
+                ))}
+              </div>
+              {open.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nothing open right now.
+                </p>
+              ) : null}
+            </section>
+          ) : null}
 
-          {closed.length > 0 ? (
+          {showClosed && closed.length > 0 ? (
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-muted-foreground">
                 Closed ({closed.length})
               </h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-2.5">
                 {closed.map((l) => (
-                  <LeadCard key={l.id} lead={l} />
+                  <LeadCard key={l.id} lead={l} tone="closed" />
                 ))}
               </div>
             </section>
