@@ -61,7 +61,9 @@ export function canonicalToLegacyPath(path: string): string {
 
 export function isPublicOrAuthPath(path: string): boolean {
   const pathname = path.split(/[?#]/, 1)[0];
-  return PUBLIC_PATHS.has(pathname);
+  // Role documentation (/docs/<role>/<season>) is public and lives outside
+  // the season namespace, like the guidebook.
+  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/docs/");
 }
 
 function splitPath(path: string): [string, string] {
