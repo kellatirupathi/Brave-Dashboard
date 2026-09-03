@@ -1,0 +1,22 @@
+Here's the recap.
+
+What was there before
+Gate A blocked converting a lead: you needed 3 dated interactions spanning 7+ days before "Client said yes" would work. The lead page showed "Trail still building — 3 more dated interactions needed / must span 7 days."
+Gate C (BRD submission) contained the same two requirements again, as "Trail strength Moderate or better" and "Lead trail complete".
+Any team member could capture leads, log interactions, run projects, record payments.
+Trust standing (Bronze / 0 / "How trust is scored") sat at the top of the student My Team page.
+What I implemented — 2 commits
+c20b663 — Gate A off, Leads leader-only
+
+Gate A blocks nothing. "Client said yes" works from the moment a lead is created — no interactions, no waiting period. Removed at all three server sites, and stageRequiresGateA deleted so it can't creep back.
+Nothing in the UI says "optional" — as you asked. The gate card is replaced with a plain "Has the client agreed?" and the button. A student never learns a rule existed.
+Gate C's two trail checks removed too — otherwise the wall just moved from converting to submitting, and the change would have been pointless.
+Only the team leader runs Leads. Enforced at one chokepoint (allowLeadsAction / allowLeadsSubmit) that all 17 write routes already pass through. Members read everything their team captured and see a banner instead of Add buttons. Admins and coordinators exempt.
+9d4a7be — Trust standing off My Team
+
+The card is gone from the student page. The ledger and API behind it are untouched.
+Corrected four now-wrong passages in the Season 2 student guide (the gate table, the Gate C checklist, "Leader vs members", and the trust section).
+Still not done
+The trust standing → progress score rework — your five items (1 interaction, Work section, Proof it exists, phases, a payment). Blocked on three answers from you: per-team or per-lead, percentage or checklist, and what the "1000" is.
+
+And both commits are local — they need a Publish on Replit before anyone sees them.
