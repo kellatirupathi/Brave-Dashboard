@@ -22,6 +22,11 @@ export type LeadsControlState = {
   message: string;
   permissions: LeadsControlPermissions;
   seasonId: number;
+  /**
+   * Whether THIS user may write to the pipeline at all — the team leader, or
+   * staff. Members read their team's leads but change nothing.
+   */
+  isLeadsWriter: boolean;
 };
 
 export const LEADS_CONTROL_KEY = ["leads-control"] as const;
@@ -31,7 +36,7 @@ export function getLeadsControl(): Promise<LeadsControlState> {
 }
 
 export function saveLeadsControl(
-  body: Omit<LeadsControlState, "seasonId" | "message"> & {
+  body: Omit<LeadsControlState, "seasonId" | "message" | "isLeadsWriter"> & {
     message: string | null;
   },
 ): Promise<LeadsControlState> {
@@ -49,15 +54,23 @@ export function useLeadsControl() {
     retry: false,
   });
   const state = q.data;
+  // Assume no write access until the answer arrives, so a member never sees an
+  // Add button flash and then vanish.
+  const isLeadsWriter = state?.isLeadsWriter ?? false;
   return {
     ...q,
     state,
     locked: state?.locked ?? false,
     message: state?.message ?? "",
+    isLeadsWriter,
     can: (section: LeadsControlSection, action: LeadsControlAction) =>
-      !state?.locked && (state?.permissions[section][action] ?? false),
+      isLeadsWriter &&
+      !state?.locked &&
+      (state?.permissions[section][action] ?? false),
     canSubmit:
-      !state?.locked && (state?.permissions.submitForReview ?? false),
+      isLeadsWriter &&
+      !state?.locked &&
+      (state?.permissions.submitForReview ?? false),
   };
 }
 

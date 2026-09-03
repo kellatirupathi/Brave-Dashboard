@@ -13,7 +13,6 @@ import {
   Map as MapIcon,
   ShieldAlert,
   CheckCircle2,
-  CircleDashed,
   Clock,
   Pencil,
   Trash2,
@@ -658,7 +657,7 @@ export default function LeadDetail() {
     );
   }
 
-  const { lead, interactions, gateA, trailBand, canConvert, gatesEnforced } =
+  const { lead, interactions, trailBand } =
     q.data;
   const writable = canWrite("project");
 
@@ -803,44 +802,25 @@ export default function LeadDetail() {
         </div>
       </Card>
 
-      {/* ── Gate A ─────────────────────────────────────────────────────── */}
+      {/* ── Convert ────────────────────────────────────────────────────── */}
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-2">
-            {gateA.passed ? (
-              <CheckCircle2
-                className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
-                aria-hidden="true"
-              />
-            ) : (
-              <CircleDashed
-                className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-            )}
+            <CheckCircle2
+              className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+              aria-hidden="true"
+            />
             <div>
               <p className="font-semibold">
-                {gateA.passed
-                  ? "Ready to convert"
-                  : q.data.gatesEnforced === false
-                    ? "Trail still building — you can convert anyway"
-                    : "Not ready to convert yet"}
+                {lead.stage === "converted"
+                  ? "This client is yours"
+                  : "Has the client agreed?"}
               </p>
-              {gateA.reasons.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-                  {q.data.gatesEnforced === false ? (
-                    <li>Recommended before converting:</li>
-                  ) : null}
-                  {gateA.reasons.map((r) => (
-                    <li key={r}>{r}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your trail is strong enough. Convert when the client has said
-                  yes.
-                </p>
-              )}
+              <p className="mt-1 text-sm text-muted-foreground">
+                {lead.stage === "converted"
+                  ? "Plan the work, set the phases, and record what they pay you."
+                  : "Convert as soon as they say yes, then plan the work in the project."}
+              </p>
             </div>
           </div>
           {lead.stage === "converted" ? (
@@ -850,10 +830,7 @@ export default function LeadDetail() {
           ) : (
             <Button
               disabled={
-                !canConvert ||
-                !writable ||
-                !controls.can("leads", "edit") ||
-                convert.isPending
+                !writable || !controls.can("leads", "edit") || convert.isPending
               }
               onClick={() => convert.mutate()}
             >

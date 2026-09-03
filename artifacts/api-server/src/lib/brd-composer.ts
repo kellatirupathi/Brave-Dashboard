@@ -23,7 +23,6 @@ import {
 import {
   evaluateGateA,
   trailBand,
-  trailMeetsSubmissionBar,
   type GateAStatus,
 } from "./lead-pipeline";
 
@@ -249,18 +248,6 @@ export async function composeBrd(
       label: "Every phase has a scheduled payment",
       passed: phases.length > 0 && phases.every((p) => scheduleByPhase.has(p.id)),
       detail: "Add an amount and due date for each phase.",
-    },
-    {
-      key: "trail",
-      label: "Trail strength Moderate or better",
-      passed: trailMeetsSubmissionBar(lead.trailStrength),
-      detail: `Currently ${lead.trailStrength}/100 (${trailBand(lead.trailStrength)}).`,
-    },
-    {
-      key: "gate_a",
-      label: "Lead trail complete",
-      passed: gateA.passed,
-      detail: gateA.reasons.join(" "),
     },
     {
       key: "payment",
