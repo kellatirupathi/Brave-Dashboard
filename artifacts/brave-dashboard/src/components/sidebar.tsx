@@ -44,9 +44,6 @@ import {
   Lock,
 } from "lucide-react";
 
-// Student documentation guide (opens in a new tab from the sidebar bottom).
-const STUDENT_DOCS_URL =
-  "https://docs.google.com/document/d/1bMULTjBT_yxsoK-hOU2aw2ezGIw66riidnKF0cbSPbY/edit?tab=t.0";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
@@ -396,6 +393,9 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   if (!user) return null;
 
   const role = user.role;
+  // Role documentation: one public page per role per season, so the link
+  // follows the season currently being viewed (falls back to the live one).
+  const docsHref = `/docs/${role}/${encodeURIComponent(viewing?.slug ?? "2.0")}`;
 
   const navItems = {
     student: hasTeam
@@ -499,6 +499,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
       { name: "Leaderboard", href: "/coordinator/leaderboard", icon: Trophy },
       { name: "Heatmap", href: "/coordinator/heatmap", icon: Activity },
       { name: "Journals", href: "/coordinator/journals", icon: BookOpenCheck },
+      { name: "Notifications", href: "/coordinator/notifications", icon: Bell },
       {
         name: "Announcements",
         href: "/coordinator/announcements",
@@ -745,7 +746,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             </button>
 
             <a
-              href={STUDENT_DOCS_URL}
+              href={docsHref}
               target="_blank"
               rel="noopener noreferrer"
               onClick={onNavigate}
@@ -803,6 +804,19 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                   Edit profile
                 </Link>
               </DropdownMenuItem>
+              {(role === "admin" || role === "coordinator") && (
+                <DropdownMenuItem asChild data-testid="menu-item-documentation">
+                  <a
+                    href={docsHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={onNavigate}
+                  >
+                    <BookOpen className="w-4 h-4 mr-2" />
+                    Documentation
+                  </a>
+                </DropdownMenuItem>
+              )}
               {role === "admin" && (
                 <DropdownMenuItem
                   asChild
