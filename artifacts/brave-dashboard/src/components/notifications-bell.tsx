@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { useAuth } from "@workspace/replit-auth-web";
 import { Bell } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,6 +23,11 @@ const VISIBLE_COUNT = 10;
 
 export function NotificationsBell({ mobile = false }: { mobile?: boolean }) {
   const queryClient = useQueryClient();
+  // The full list lives at a role-specific route: canonical season URLs map
+  // /notifications to /coordinator/notifications for coordinators.
+  const { user } = useAuth();
+  const allHref =
+    user?.role === "coordinator" ? "/coordinator/notifications" : "/notifications";
   const { data: notifications } = useListNotifications(
     {},
     {
@@ -149,7 +155,7 @@ export function NotificationsBell({ mobile = false }: { mobile?: boolean }) {
 
         {!mobile && (
           <div className="px-4 py-2 border-t text-center">
-            <Link href="/notifications">
+            <Link href={allHref}>
               <Button
                 variant="link"
                 size="sm"

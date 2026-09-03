@@ -120,6 +120,7 @@ import CoordinatorHeatmap from "@/pages/coordinator/heatmap";
 // Shared
 import Profile from "@/pages/profile";
 import Guidebook from "@/pages/guidebook";
+import DocsPage from "@/pages/docs";
 
 // Components
 import { Layout } from "@/components/layout";
@@ -355,7 +356,11 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
     "/guidebook",
     ...(import.meta.env.DEV ? ["/dev/login"] : []),
   ]);
-  if (publicPaths.has(raw.split(/[?#]/, 1)[0])) return <>{children}</>;
+  const rawPath = raw.split(/[?#]/, 1)[0];
+  // Role documentation is public and season-agnostic (the season is part of
+  // the docs URL itself), so it must never be canonicalised.
+  if (publicPaths.has(rawPath) || rawPath.startsWith("/docs/"))
+    return <>{children}</>;
   if (!viewing || !user?.role || !["admin", "coordinator", "student"].includes(user.role)) {
     return <BraveLoader />;
   }
@@ -868,6 +873,15 @@ function Router() {
             allowedRoles={["coordinator"]}
           />
         </Route>
+        {/* Coordinators share the generic notifications list. The canonical
+            season URL maps /notifications → /coordinator/notifications for
+            this role, so the page has to exist at this path too. */}
+        <Route path="/coordinator/notifications">
+          <ProtectedRoute
+            component={Notifications}
+            allowedRoles={["coordinator"]}
+          />
+        </Route>
 
         {/* Journal report viewer — admin + coordinator (login-gated). */}
         <Route path="/reports/view/:token">
@@ -1092,6 +1106,11 @@ function Router() {
         {/* Guidebook — standalone full-page experience (its own branded sidebar +
           content, no dashboard chrome). Auth-gated; open to every role. */}
         <Route path="/guidebook" component={GuidebookStandalone} />
+        {/* Role documentation — PUBLIC, one page per role per season, e.g.
+            /docs/student/2.0. Linked from every role's sidebar. */}
+        <Route path="/docs/:role/:version" component={DocsPage} />
+        <Route path="/docs/:role" component={DocsPage} />
+        <Route path="/docs" component={DocsPage} />
 
         <Route component={NotFound} />
       </Switch>
