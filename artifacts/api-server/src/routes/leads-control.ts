@@ -1,6 +1,11 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
-import { db, programmeConfigTable } from "@workspace/db";
+import {
+  db,
+  programmeConfigTable,
+  teamMembersTable,
+  teamsTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { resolveSeason } from "../lib/season";
 import { requireAdminPage } from "../lib/require-admin-page";
@@ -38,7 +43,27 @@ router.get(
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    res.json(await getLeadsControlState(await resolveSeason(req)));
+    const seasonId = await resolveSeason(req);
+    const state = await getLeadsControlState(seasonId);
+    if (req.user.role === "admin") {
+      res.json({ ...state, canManage: true });
+      return;
+    }
+    const [membership] = await db
+      .select({ teamId: teamMembersTable.teamId })
+      .from(teamMembersTable)
+      .where(eq(teamMembersTable.userId, req.user.id))
+      .limit(1);
+    if (!membership) {
+      res.json({ ...state, canManage: false });
+      return;
+    }
+    const [team] = await db
+      .select({ leaderId: teamsTable.leaderId })
+      .from(teamsTable)
+      .where(eq(teamsTable.id, membership.teamId))
+      .limit(1);
+    res.json({ ...state, canManage: team?.leaderId === req.user.id });
   },
 );
 
@@ -84,7 +109,7 @@ router.put(
       row.id,
       `updated Leads controls (${LEADS_CONTROL_SECTIONS.length} sections; lock ${parsed.data.locked ? "on" : "off"})`,
     );
-    res.json(await getLeadsControlState(seasonId));
+    res.json({ ...(await getLeadsControlState(seasonId)), canManage: true });
   },
 );
 

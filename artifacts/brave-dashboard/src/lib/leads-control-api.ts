@@ -22,6 +22,7 @@ export type LeadsControlState = {
   message: string;
   permissions: LeadsControlPermissions;
   seasonId: number;
+  canManage: boolean;
 };
 
 export const LEADS_CONTROL_KEY = ["leads-control"] as const;
@@ -31,7 +32,7 @@ export function getLeadsControl(): Promise<LeadsControlState> {
 }
 
 export function saveLeadsControl(
-  body: Omit<LeadsControlState, "seasonId" | "message"> & {
+  body: Omit<LeadsControlState, "seasonId" | "message" | "canManage"> & {
     message: string | null;
   },
 ): Promise<LeadsControlState> {
@@ -54,10 +55,15 @@ export function useLeadsControl() {
     state,
     locked: state?.locked ?? false,
     message: state?.message ?? "",
+    canManage: state?.canManage ?? false,
     can: (section: LeadsControlSection, action: LeadsControlAction) =>
-      !state?.locked && (state?.permissions[section][action] ?? false),
+      (state?.canManage ?? false) &&
+      !state?.locked &&
+      (state?.permissions[section][action] ?? false),
     canSubmit:
-      !state?.locked && (state?.permissions.submitForReview ?? false),
+      (state?.canManage ?? false) &&
+      !state?.locked &&
+      (state?.permissions.submitForReview ?? false),
   };
 }
 

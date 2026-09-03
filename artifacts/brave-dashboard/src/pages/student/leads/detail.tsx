@@ -1,8 +1,7 @@
 // Season 2 — Stage 2: work the lead.
 //
-// The whole point of this screen is the interaction trail. Gate A (3 dated
-// interactions spanning 7+ days) is what unlocks conversion, so the trail is
-// the primary object here and everything else is context around it.
+// Interactions are one useful part of Lead progress, but never block the team
+// leader from confirming that the client said yes.
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useLocation } from "wouter";
@@ -13,7 +12,7 @@ import {
   Map as MapIcon,
   ShieldAlert,
   CheckCircle2,
-  CircleDashed,
+  Circle,
   Clock,
   Pencil,
   Trash2,
@@ -71,18 +70,6 @@ const OUTCOMES = [
   { value: "objection", label: "They objected" },
   { value: "no_response", label: "No response" },
 ] as const;
-
-const BAND_TONE: Record<TrailBand, string> = {
-  strong: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  moderate: "bg-amber-100 text-amber-800 border-amber-200",
-  weak: "bg-rose-100 text-rose-800 border-rose-200",
-};
-
-const BAND_LABEL: Record<TrailBand, string> = {
-  strong: "Strong trail",
-  moderate: "Moderate trail",
-  weak: "Weak trail",
-};
 
 const SOURCE_LABEL: Record<string, string> = {
   walk_in: "Walked in",
@@ -658,8 +645,7 @@ export default function LeadDetail() {
     );
   }
 
-  const { lead, interactions, gateA, trailBand, canConvert, gatesEnforced } =
-    q.data;
+  const { lead, interactions, canConvert, progress } = q.data;
   const writable = canWrite("project");
 
   return (
@@ -685,9 +671,6 @@ export default function LeadDetail() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{STAGE_LABEL[lead.stage]}</Badge>
-            <Badge variant="outline" className={BAND_TONE[trailBand]}>
-              {BAND_LABEL[trailBand]} · {lead.trailStrength}
-            </Badge>
             {writable && controls.can("leads", "edit") ? (
               <Button
                 size="sm"
@@ -803,44 +786,49 @@ export default function LeadDetail() {
         </div>
       </Card>
 
-      {/* ── Gate A ─────────────────────────────────────────────────────── */}
+      {/* ── Progress ───────────────────────────────────────────────────── */}
       <Card className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-2">
-            {gateA.passed ? (
-              <CheckCircle2
-                className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
-                aria-hidden="true"
-              />
-            ) : (
-              <CircleDashed
-                className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-            )}
-            <div>
-              <p className="font-semibold">
-                {gateA.passed
-                  ? "Ready to convert"
-                  : q.data.gatesEnforced === false
-                    ? "Trail still building — you can convert anyway"
-                    : "Not ready to convert yet"}
-              </p>
-              {gateA.reasons.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-                  {q.data.gatesEnforced === false ? (
-                    <li>Recommended before converting:</li>
-                  ) : null}
-                  {gateA.reasons.map((r) => (
-                    <li key={r}>{r}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your trail is strong enough. Convert when the client has said
-                  yes.
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold">Progress score</p>
+                <p className="text-sm text-muted-foreground">
+                  {progress.completed} of {progress.total} completed
                 </p>
-              )}
+              </div>
+              <span className="text-2xl font-bold tabular-nums">
+                {progress.score}%
+              </span>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-emerald-600 transition-[width]"
+                style={{ width: `${progress.score}%` }}
+              />
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {progress.items.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  {item.complete ? (
+                    <CheckCircle2
+                      className="h-4 w-4 shrink-0 text-emerald-600"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Circle
+                      className="h-4 w-4 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className={item.complete ? "font-medium" : ""}>
+                    {item.label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
           {lead.stage === "converted" ? (
@@ -879,8 +867,7 @@ export default function LeadDetail() {
 
         {interactions.length === 0 ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">
-            Nothing logged yet. Every follow-up you record here is what makes
-            this client credible.
+            Nothing logged yet.
           </Card>
         ) : (
           <div className="space-y-3">

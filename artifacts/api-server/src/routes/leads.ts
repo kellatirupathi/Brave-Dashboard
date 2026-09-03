@@ -21,6 +21,7 @@ import {
   leadInteractionsTable,
   projectsTable,
   paymentsTable,
+  projectPhasesTable,
   teamMembersTable,
 } from "@workspace/db";
 import { resolveSeason } from "../lib/season";
@@ -31,6 +32,7 @@ import {
 import { logger } from "../lib/logger";
 import { areGatesEnforced } from "../lib/pipeline-gates";
 import { allowLeadsAction } from "../lib/leads-control";
+import { requireTeamLeader } from "../lib/auth";
 import {
   buildPipelineStatus,
   computeTrailStrength,
@@ -38,7 +40,6 @@ import {
   findDuplicateClientTeams,
   isRelatedPartySource,
   refreshLeadDerivedState,
-  stageRequiresGateA,
   trailBand,
   upsertClientRegistry,
 } from "../lib/lead-pipeline";
@@ -64,9 +65,9 @@ async function getMyTeamId(userId: string): Promise<number | null> {
 /**
  * Resolve the team whose pipeline this request may touch.
  *
- * ANY team member may capture leads and log interactions — this is field work,
- * and restricting it to the leader would mean the person standing in the shop
- * cannot record the meeting. Staff may read any team by passing ?teamId.
+ * Every team member may read the team's Leads workspace. Student writes are
+ * separately restricted to the current team leader; admins retain their
+ * existing override. Staff may read any team by passing ?teamId.
  */
 async function resolveTeamScope(
   req: Request,
@@ -144,6 +145,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const scope = await resolveTeamScope(req, res);
     if (!scope) return;
+    if (!(await requireTeamLeader(req, res, scope.teamId))) return;
     const parsed = CaptureBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
@@ -282,6 +284,7 @@ router.patch(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
+    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "edit")))
       return;
 
@@ -346,6 +349,7 @@ router.delete(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
+    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "delete")))
       return;
     const [project] = await db
@@ -462,7 +466,71 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
     .orderBy(desc(leadInteractionsTable.interactionDate));
 
   const gateA = evaluateGateA(interactions);
-  const gatesEnforced = await areGatesEnforced(lead.seasonId);
+  const [project] = await db
+    .select({
+      id: projectsTable.id,
+      title: projectsTable.title,
+      serviceCategory: projectsTable.serviceCategory,
+      problemStatement: projectsTable.problemStatement,
+      solutionDescription: projectsTable.solutionDescription,
+      liveProductUrl: projectsTable.liveProductUrl,
+      demoVideoUrl: projectsTable.demoVideoUrl,
+      sourceCodeUrl: projectsTable.sourceCodeUrl,
+      prototypeUrl: projectsTable.prototypeUrl,
+    })
+    .from(projectsTable)
+    .where(eq(projectsTable.leadId, id))
+    .limit(1);
+  const [phaseCount, paymentCount] = project
+    ? await Promise.all([
+        db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(projectPhasesTable)
+          .where(eq(projectPhasesTable.projectId, project.id))
+          .then((rows) => Number(rows[0]?.n ?? 0)),
+        db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(paymentsTable)
+          .where(eq(paymentsTable.projectId, project.id))
+          .then((rows) => Number(rows[0]?.n ?? 0)),
+      ])
+    : [0, 0];
+  const progressItems = [
+    {
+      key: "interaction",
+      label: "At least one interaction",
+      complete: interactions.length > 0,
+    },
+    {
+      key: "work",
+      label: "Work section",
+      complete: Boolean(
+        project?.title?.trim() &&
+          project.serviceCategory?.trim() &&
+          project.problemStatement?.trim() &&
+          project.solutionDescription?.trim(),
+      ),
+    },
+    {
+      key: "proof",
+      label: "Proof it exists",
+      complete: Boolean(
+        project?.liveProductUrl ||
+          project?.demoVideoUrl ||
+          project?.sourceCodeUrl ||
+          project?.prototypeUrl,
+      ),
+    },
+    { key: "phases", label: "Phases", complete: phaseCount > 0 },
+    {
+      key: "payment",
+      label: "At least one payment",
+      complete: paymentCount > 0,
+    },
+  ];
+  const completedProgressItems = progressItems.filter(
+    (item) => item.complete,
+  ).length;
 
   res.json({
     lead,
@@ -471,10 +539,16 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
     gateA,
     trailStrength: computeTrailStrength(interactions),
     trailBand: trailBand(lead.trailStrength),
-    // Advisory mode: Gate A is a recommendation, so converting is always
-    // possible. The gate itself is still reported above.
-    canConvert: gateA.passed || !gatesEnforced,
-    gatesEnforced,
+    progress: {
+      score: completedProgressItems * 20,
+      completed: completedProgressItems,
+      total: progressItems.length,
+      items: progressItems,
+    },
+    // Client confirmation is available immediately after Lead creation.
+    // Interactions improve progress but never gate conversion.
+    canConvert: true,
+    gatesEnforced: false,
   });
 });
 
@@ -533,6 +607,7 @@ router.post(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
+    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (
       !(await allowLeadsAction(
         req,
@@ -596,20 +671,11 @@ router.post(
     let stageApplied: string | null = null;
     let stageRefused: string[] | null = null;
     if (d.stageChange) {
-      // Only refuse when the gates are ENFORCED. In advisory mode the move is
-      // applied and the reasons ride along as a hint instead.
-      const enforced = await areGatesEnforced(lead.seasonId);
-      if (enforced && stageRequiresGateA(d.stageChange) && !gateA.passed) {
-        // The interaction is kept — it is real work. Only the stage move is
-        // refused, and we say exactly what is missing.
-        stageRefused = gateA.reasons;
-      } else {
-        await db
-          .update(leadsTable)
-          .set({ stage: d.stageChange })
-          .where(eq(leadsTable.id, id));
-        stageApplied = d.stageChange;
-      }
+      await db
+        .update(leadsTable)
+        .set({ stage: d.stageChange })
+        .where(eq(leadsTable.id, id));
+      stageApplied = d.stageChange;
     }
 
     if (d.nextActionDate) {
@@ -670,6 +736,7 @@ router.patch(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
+    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (
       !(await allowLeadsAction(
         req,
@@ -757,6 +824,7 @@ router.delete(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
+    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (
       !(await allowLeadsAction(
         req,
@@ -821,27 +889,9 @@ router.patch(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
+    if (!(await requireTeamLeader(req, res, lead.teamId))) return;
     if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "edit")))
       return;
-
-    // GATE A. Blocks only while the gates are ENFORCED (admin Config →
-    // Pipeline gates). In advisory mode the move goes through and reviewers
-    // see the gate state on the admin Leads page instead.
-    if (stageRequiresGateA(parsed.data.stage)) {
-      const interactions = await db
-        .select()
-        .from(leadInteractionsTable)
-        .where(eq(leadInteractionsTable.leadId, id));
-      const gateA = evaluateGateA(interactions);
-      if (!gateA.passed && (await areGatesEnforced(lead.seasonId))) {
-        res.status(409).json({
-          error: "This lead is not ready to move forward yet.",
-          code: "GATE_A_NOT_MET",
-          gateA,
-        });
-        return;
-      }
-    }
 
     const [updated] = await db
       .update(leadsTable)

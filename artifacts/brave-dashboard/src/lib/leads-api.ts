@@ -106,6 +106,16 @@ export type LeadDetail = {
   canConvert: boolean;
   /** False = Gate A is advisory; converting is allowed regardless. */
   gatesEnforced?: boolean;
+  progress: {
+    score: number;
+    completed: number;
+    total: number;
+    items: Array<{
+      key: "interaction" | "work" | "proof" | "phases" | "payment";
+      label: string;
+      complete: boolean;
+    }>;
+  };
 };
 
 // "open": advisory mode — not done yet, but nothing stops the team doing it.
