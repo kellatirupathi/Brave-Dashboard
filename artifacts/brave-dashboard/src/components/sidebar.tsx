@@ -44,6 +44,7 @@ import {
   Lock,
 } from "lucide-react";
 
+import { docsHref } from "@/lib/docs-links";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
@@ -395,7 +396,8 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const role = user.role;
   // Role documentation: one public page per role per season, so the link
   // follows the season currently being viewed (falls back to the live one).
-  const docsHref = `/docs/${role}/${encodeURIComponent(viewing?.slug ?? "2.0")}`;
+  // The staff URLs do not contain the role name — see lib/docs-links.
+  const docsUrl = docsHref(role, viewing?.slug ?? "2.0");
 
   const navItems = {
     student: hasTeam
@@ -746,7 +748,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             </button>
 
             <a
-              href={docsHref}
+              href={docsUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={onNavigate}
@@ -807,7 +809,7 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
               {(role === "admin" || role === "coordinator") && (
                 <DropdownMenuItem asChild data-testid="menu-item-documentation">
                   <a
-                    href={docsHref}
+                    href={docsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={onNavigate}

@@ -51,6 +51,8 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { BraveLogo } from "@/components/brave-logo";
+import NotFound from "@/pages/not-found";
+import { DOC_ROLE_BY_SLUG, DOC_SLUG_BY_ROLE } from "@/lib/docs-links";
 import { cn } from "@/lib/utils";
 import type { DocBlock, DocRole, DocVersion, RoleDoc } from "./content/types";
 import { STUDENT_1 } from "./content/student-1";
@@ -66,7 +68,6 @@ const DOCS: Record<DocRole, Record<DocVersion, RoleDoc>> = {
   admin: { "1.0": ADMIN_1, "2.0": ADMIN_2 },
 };
 
-const ROLES: DocRole[] = ["student", "coordinator", "admin"];
 const VERSIONS: DocVersion[] = ["1.0", "2.0"];
 const ROLE_LABEL: Record<DocRole, string> = {
   student: "Student",
@@ -346,28 +347,31 @@ function Block({ block }: { block: DocBlock }) {
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
-function isRole(v: string | undefined): v is DocRole {
-  return !!v && (ROLES as string[]).includes(v);
-}
 function isVersion(v: string | undefined): v is DocVersion {
   return !!v && (VERSIONS as string[]).includes(v);
 }
 
 export default function DocsPage() {
   const params = useParams<{ role?: string; version?: string }>();
-  const role: DocRole = isRole(params.role) ? params.role : "student";
+  // `params.role` is the URL SLUG, not the role name — see lib/docs-links.
+  // Bare /docs opens the student guide; an unknown slug is not found.
+  const slug = params.role;
+  const role: DocRole | undefined = slug
+    ? DOC_ROLE_BY_SLUG[slug]
+    : "student";
   const version: DocVersion = isVersion(params.version)
     ? params.version
     : "2.0";
-  const doc = DOCS[role][version];
+  const doc = role ? DOCS[role][version] : undefined;
 
-  const [active, setActive] = useState<string>(doc.sections[0]?.id ?? "");
+  const [active, setActive] = useState<string>(doc?.sections[0]?.id ?? "");
   const [navOpen, setNavOpen] = useState(false);
-  const sectionIds = useMemo(() => doc.sections.map((s) => s.id), [doc]);
+  const sectionIds = useMemo(() => doc?.sections.map((s) => s.id) ?? [], [doc]);
   const observer = useRef<IntersectionObserver | null>(null);
 
   // Public page: stamp the tab title, start at the top on every doc change.
   useEffect(() => {
+    if (!role || !doc) return;
     document.title = `${ROLE_LABEL[role]} docs · BRAVE ${version}`;
     window.scrollTo({ top: 0 });
     setActive(doc.sections[0]?.id ?? "");
@@ -395,6 +399,10 @@ export default function DocsPage() {
     }
     return () => observer.current?.disconnect();
   }, [sectionIds]);
+
+  // Hooks are all above this line, so bailing out here keeps their order
+  // stable across renders.
+  if (!role || !doc) return <NotFound />;
 
   const jump = (id: string) => {
     setNavOpen(false);
@@ -452,7 +460,10 @@ export default function DocsPage() {
           >
             {navOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <Link href={`/docs/${role}/${version}`} className="flex items-center gap-2">
+          <Link
+            href={`/docs/${DOC_SLUG_BY_ROLE[role]}/${version}`}
+            className="flex items-center gap-2"
+          >
             <BraveLogo className="text-2xl" />
             <span
               className="rounded-full px-2 py-0.5 text-[11px] font-extrabold tracking-wide"
@@ -471,7 +482,7 @@ export default function DocsPage() {
               {VERSIONS.map((v) => (
                 <Link
                   key={v}
-                  href={`/docs/${role}/${v}`}
+                  href={`/docs/${DOC_SLUG_BY_ROLE[role]}/${v}`}
                   className={cn(
                     "rounded-md px-2.5 py-1 text-xs font-bold tabular-nums transition-colors",
                     v === version ? "text-[#3B0D0D]" : "text-white/80 hover:bg-white/10",
@@ -605,7 +616,7 @@ export default function DocsPage() {
               {VERSIONS.filter((v) => v !== version).map((v) => (
                 <Link
                   key={v}
-                  href={`/docs/${role}/${v}`}
+                  href={`/docs/${DOC_SLUG_BY_ROLE[role]}/${v}`}
                   className="font-medium text-primary hover:underline"
                 >
                   Read the {v} version →
