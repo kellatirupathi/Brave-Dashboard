@@ -83,9 +83,21 @@ router.post(
       return;
     }
 
-    if (size > MAX_UPLOAD_SIZE_BYTES) {
+    // Optional per-field cap. This endpoint is generic and cannot know what a
+    // file is for, so a caller may ask for a tighter limit than the global one
+    // — a payment screenshot has no business being 25 MB. It can only ever
+    // tighten: a request for more than the global cap is ignored.
+    const requestedMax = Number(
+      (req.body as { maxBytes?: unknown } | undefined)?.maxBytes,
+    );
+    const effectiveMax =
+      Number.isFinite(requestedMax) && requestedMax > 0
+        ? Math.min(requestedMax, MAX_UPLOAD_SIZE_BYTES)
+        : MAX_UPLOAD_SIZE_BYTES;
+
+    if (size > effectiveMax) {
       res.status(413).json({
-        error: `File is too large. Maximum allowed size is ${formatBytes(MAX_UPLOAD_SIZE_BYTES)}.`,
+        error: `File is too large. Maximum allowed size is ${formatBytes(effectiveMax)}.`,
       });
       return;
     }

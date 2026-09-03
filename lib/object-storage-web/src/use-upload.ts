@@ -16,6 +16,12 @@ interface UploadResponse {
 interface UseUploadOptions {
   /** Base path where object storage routes are mounted (default: "/api/storage") */
   basePath?: string;
+  /**
+   * Tighter size limit for this particular field, in bytes. Checked here for
+   * an instant message, and sent to the server so it is actually enforced.
+   * Never widens the server's own limit.
+   */
+  maxBytes?: number;
   onSuccess?: (response: UploadResponse) => void;
   onError?: (error: Error) => void;
 }
@@ -70,6 +76,7 @@ export function useUpload(options: UseUploadOptions = {}) {
           name: file.name,
           size: file.size,
           contentType: file.type || "application/octet-stream",
+          ...(options.maxBytes ? { maxBytes: options.maxBytes } : {}),
         }),
       });
 
@@ -87,37 +94,64 @@ export function useUpload(options: UseUploadOptions = {}) {
 
       return response.json();
     },
-    [basePath]
+    [basePath, options.maxBytes]
   );
 
   const uploadToPresignedUrl = useCallback(
-    async (file: File, uploadURL: string): Promise<void> => {
-      const response = await fetch(uploadURL, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": file.type || "application/octet-stream",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to upload file to storage");
-      }
-    },
+    (file: File, uploadURL: string): Promise<void> =>
+      // XHR rather than fetch: fetch cannot report upload progress, and a bar
+      // that sits at 30% and then jumps to 100% is worse than no bar at all on
+      // the slow connections students actually upload from.
+      new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadURL, true);
+        xhr.setRequestHeader(
+          "Content-Type",
+          file.type || "application/octet-stream"
+        );
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          // 5-99. 100 is claimed only once storage has accepted the body, so
+          // the bar never reads complete while the request is still in flight.
+          setProgress(
+            Math.min(99, 5 + Math.round((event.loaded / event.total) * 94))
+          );
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error("Failed to upload file to storage"));
+        };
+        xhr.onerror = () =>
+          reject(new Error("Failed to upload file to storage"));
+        xhr.onabort = () => reject(new Error("Upload cancelled"));
+        xhr.send(file);
+      }),
     []
   );
 
   const uploadFile = useCallback(
     async (file: File): Promise<UploadResponse | null> => {
+      // Refuse an oversized file here rather than after a round trip, so the
+      // student is told immediately instead of watching a request fail.
+      if (options.maxBytes && file.size > options.maxBytes) {
+        const mb = Math.round(options.maxBytes / (1024 * 1024));
+        const error = new Error(
+          `That file is ${Math.round(file.size / (1024 * 1024))} MB. The limit is ${mb} MB.`
+        );
+        setError(error);
+        options.onError?.(error);
+        return null;
+      }
+
       setIsUploading(true);
       setError(null);
       setProgress(0);
 
       try {
-        setProgress(10);
+        setProgress(2);
         const uploadResponse = await requestUploadUrl(file);
 
-        setProgress(30);
+        setProgress(5);
         await uploadToPresignedUrl(file, uploadResponse.uploadURL);
 
         setProgress(100);

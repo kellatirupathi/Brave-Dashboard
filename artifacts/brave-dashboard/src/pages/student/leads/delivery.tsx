@@ -4,7 +4,7 @@
 // trail, the project and the payments, so this screen shows the student the
 // same document a reviewer will read, plus the Gate C checklist that is
 // literally the check the submit button runs.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "wouter";
 import {
@@ -21,6 +21,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
+import { FieldHelp } from "@/components/field-help";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,9 @@ import {
   type ScheduleRow,
 } from "@/lib/leads-api";
 
+/** A payment proof is a receipt screenshot; 5 MB is generous for that. */
+const PROOF_MAX_BYTES = 5 * 1024 * 1024;
+
 const MODES = [
   { value: "upi", label: "UPI" },
   { value: "bank_transfer", label: "Bank transfer" },
@@ -104,6 +108,7 @@ function PaymentDialog({
   projectId,
   leadId,
   phases,
+  payments,
   open,
   onOpenChange,
   payment,
@@ -111,6 +116,8 @@ function PaymentDialog({
   projectId: number;
   leadId: number;
   phases: ProjectPhase[];
+  /** Every payment on this project, so a phase is offered only once. */
+  payments: PaymentRow[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
   payment?: PaymentRow | null;
@@ -125,7 +132,10 @@ function PaymentDialog({
   const [transactionRef, setTransactionRef] = useState("");
   const [paymentProof, setPaymentProof] = useState("");
   const [proofMode, setProofMode] = useState<"link" | "upload">("link");
+  const [proofFileName, setProofFileName] = useState("");
+  const proofFileRef = useRef<HTMLInputElement>(null);
   const uploader = useUpload({
+    maxBytes: PROOF_MAX_BYTES,
     onError: (error) =>
       toast({
         title: "Could not upload payment proof",
@@ -143,7 +153,21 @@ function PaymentDialog({
     setTransactionRef(payment?.transactionRef ?? "");
     setPaymentProof(payment?.paymentProof ?? "");
     setProofMode(payment?.paymentProof?.startsWith("/objects/") ? "upload" : "link");
+    // An existing payment only stores the path, so name it from that.
+    setProofFileName(
+      payment?.paymentProof?.startsWith("/objects/") ? "Uploaded file" : "",
+    );
   }, [open, payment]);
+
+  // A phase that already has a payment is not offered again — recording a
+  // second one against it is how the same money gets counted twice. The phase
+  // being edited stays in the list, or the select would have nothing to show.
+  const takenPhaseIds = new Set(
+    payments
+      .filter((p) => p.id !== payment?.id)
+      .map((p) => p.phaseId),
+  );
+  const selectablePhases = phases.filter((p) => !takenPhaseIds.has(p.id));
 
   // Cash is the only mode exempt from a reference number — that exemption is
   // what makes the duplicate-UTR check meaningful for everything else.
@@ -216,12 +240,18 @@ function PaymentDialog({
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">Choose a phase</option>
-              {phases.map((p) => (
+              {selectablePhases.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
             </select>
+            {selectablePhases.length === 0 ? (
+              <span className="block text-xs text-amber-700">
+                Every phase already has a payment. Edit the existing one, or add
+                a phase for the next instalment.
+              </span>
+            ) : null}
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -271,73 +301,154 @@ function PaymentDialog({
             </Field>
           </div>
 
-          <Field
-            label="Payment proof"
-            required
-            hint="Paste a link or upload an image, PDF, or other file up to 25 MB."
-          >
-            <div className="space-y-3 rounded-md border p-3">
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={proofMode === "link" ? "default" : "outline"}
-                  onClick={() => {
-                    setProofMode("link");
-                    setPaymentProof("");
-                  }}
-                >
-                  <Link2 className="mr-1.5 h-4 w-4" />
-                  Paste link
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={proofMode === "upload" ? "default" : "outline"}
-                  onClick={() => {
-                    setProofMode("upload");
-                    setPaymentProof("");
-                  }}
-                >
-                  <Upload className="mr-1.5 h-4 w-4" />
-                  Upload file
-                </Button>
-              </div>
-              {proofMode === "link" ? (
-                <Input
-                  value={paymentProof}
-                  onChange={(e) => setPaymentProof(e.target.value)}
-                  placeholder="https://"
-                />
-              ) : (
-                <div className="space-y-2">
-                  <Input
-                    type="file"
-                    disabled={uploader.isUploading}
-                    onChange={async (event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) return;
-                      const result = await uploader.uploadFile(file);
-                      if (result) {
-                        setPaymentProof(result.objectPath);
-                        toast({ title: "Payment proof uploaded" });
-                      }
+          {/* Payment proof. Rendered by hand rather than through <Field>,
+              which wraps its children in a <label> — a label would forward
+              clicks on the help and mode buttons to the input. */}
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+              <span className="flex items-center gap-3 text-sm font-medium">
+                <span>
+                  Payment proof
+                  <span className="ml-0.5 text-destructive">*</span>
+                </span>
+                <FieldHelp id="paymentProof" />
+              </span>
+              {/* Source switch, on the label row rather than below it. */}
+              <div className="flex shrink-0 items-center rounded-lg border bg-muted/40 p-0.5">
+                {(
+                  [
+                    ["link", "Paste link", Link2],
+                    ["upload", "Upload file", Upload],
+                  ] as const
+                ).map(([mode, label, Icon]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      if (proofMode === mode) return;
+                      setProofMode(mode);
+                      // The two sources are exclusive: switching clears the
+                      // other one so a stale value is never saved.
+                      setPaymentProof("");
+                      setProofFileName("");
                     }}
-                  />
-                  {uploader.isUploading ? (
-                    <p className="text-xs text-muted-foreground">
-                      Uploading… {uploader.progress}%
-                    </p>
-                  ) : paymentProof.startsWith("/objects/") ? (
-                    <p className="flex items-center gap-1.5 text-xs text-emerald-700">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      File uploaded and ready to save
-                    </p>
-                  ) : null}
-                </div>
-              )}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      proofMode === mode
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                    data-testid={`proof-mode-${mode}`}
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </Field>
+
+            {proofMode === "link" ? (
+              <Input
+                value={paymentProof}
+                onChange={(e) => setPaymentProof(e.target.value)}
+                placeholder="https://"
+                data-testid="input-proof-link"
+              />
+            ) : (
+              <>
+                <input
+                  ref={proofFileRef}
+                  type="file"
+                  className="hidden"
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    setProofFileName(file.name);
+                    const result = await uploader.uploadFile(file);
+                    if (result) {
+                      setPaymentProof(result.objectPath);
+                      toast({ title: "Payment proof uploaded" });
+                    } else {
+                      setProofFileName("");
+                    }
+                    if (proofFileRef.current) proofFileRef.current.value = "";
+                  }}
+                  data-testid="input-proof-file"
+                />
+                {/* One tinted row. While uploading it becomes the progress
+                    bar itself, so the box never changes height. */}
+                <div
+                  className={cn(
+                    "relative min-h-[52px] overflow-hidden rounded-md border-2 border-dashed transition-colors",
+                    paymentProof.startsWith("/objects/")
+                      ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/30"
+                      : "border-primary/30 bg-primary/5",
+                  )}
+                  data-testid="proof-upload-box"
+                >
+                  {uploader.isUploading ? (
+                    <>
+                      <div
+                        className="absolute inset-y-0 left-0 bg-primary/25 transition-[width] duration-200 ease-out"
+                        style={{ width: `${uploader.progress}%` }}
+                        data-testid="proof-progress-fill"
+                      />
+                      <div className="relative flex min-h-[48px] items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <Spinner className="h-4 w-4 shrink-0" />
+                          <span className="truncate font-medium">
+                            Uploading {proofFileName}
+                          </span>
+                        </span>
+                        <span
+                          className="shrink-0 font-mono text-sm font-semibold tabular-nums"
+                          data-testid="proof-progress-percent"
+                        >
+                          {uploader.progress}%
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex min-h-[48px] items-center justify-between gap-3 px-3 py-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0"
+                        onClick={() => proofFileRef.current?.click()}
+                        data-testid="button-proof-choose"
+                      >
+                        <Upload className="mr-1.5 h-4 w-4" />
+                        {paymentProof.startsWith("/objects/")
+                          ? "Replace file"
+                          : "Choose a file"}
+                      </Button>
+                      {/* The file name sits in the same row, on the right. */}
+                      {paymentProof.startsWith("/objects/") ? (
+                        <span
+                          className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+                          data-testid="proof-file-name"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">
+                            {proofFileName || "Uploaded file"}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="truncate text-xs text-muted-foreground">
+                          No file chosen
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <span className="block text-xs text-muted-foreground">
+              Paste a link or upload an image, PDF, or other file up to 5 MB.
+            </span>
+          </div>
         </div>
 
         <DialogFooter>
@@ -1202,6 +1313,7 @@ export default function LeadDelivery() {
         projectId={projectId}
         leadId={leadId}
         phases={phases}
+        payments={payments}
         open={paying}
         onOpenChange={setPaying}
       />
@@ -1209,6 +1321,7 @@ export default function LeadDelivery() {
         projectId={projectId}
         leadId={leadId}
         phases={phases}
+        payments={payments}
         payment={editingPayment}
         open={editingPayment != null}
         onOpenChange={(open) => {
