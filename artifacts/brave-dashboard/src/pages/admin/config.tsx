@@ -34,6 +34,7 @@ import {
   Wrench,
   Unlock,
   BarChart3,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   Select,
@@ -77,6 +78,7 @@ import { LeaderboardConfigCard } from "@/components/leaderboard-config-card";
 import { Label } from "@/components/ui/label";
 import { BraveAppSettingsCard } from "@/components/brave-app-settings-card";
 import { UserStatsCard } from "@/components/user-stats-card";
+import { LeadsControlCard } from "@/components/leads-control-card";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
 type ChatbotProvider = "cloudflare" | "cerebras";
@@ -430,6 +432,12 @@ export default function AdminConfig() {
     { id: "grit", slug: "grit-miles", label: "GRIT Miles", icon: Trophy },
     { id: "user-stats", slug: "user-stats", label: "User Stats", icon: BarChart3 },
     {
+      id: "leads-control",
+      slug: "leads-control",
+      label: "Leads Control",
+      icon: SlidersHorizontal,
+    },
+    {
       id: "reminders",
       slug: "notifications",
       label: "Notifications & Reminders",
@@ -731,6 +739,8 @@ export default function AdminConfig() {
 
           {/* ── User Stats ── */}
           {activeSection === "user-stats" && <UserStatsCard />}
+
+          {activeSection === "leads-control" && <LeadsControlCard />}
 
           {/* ── Notifications & Reminders ── */}
           {activeSection === "whatsapp" && (

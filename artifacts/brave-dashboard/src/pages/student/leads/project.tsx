@@ -37,6 +37,8 @@ import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
 import { usePipelineGatesEnforced } from "@/lib/pipeline-gates-api";
+import { LeadsLockBanner } from "@/components/leads-lock-banner";
+import { useLeadsControl } from "@/lib/leads-control-api";
 import {
   createPipelineProject,
   getLead,
@@ -118,6 +120,7 @@ export default function LeadProject() {
   const { viewingId: seasonId, canWrite } = useSeason();
   // Advisory (default) vs enforced pipeline gates — admin Config toggle.
   const gatesEnforced = usePipelineGatesEnforced();
+  const controls = useLeadsControl();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -285,6 +288,7 @@ export default function LeadProject() {
   if (existing) {
     return (
       <div className="space-y-4 p-4 sm:p-6">
+        <LeadsLockBanner />
         <Link href={`/leads/${leadId}`}>
           <Button variant="ghost" size="sm" className="-ml-2">
             <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -312,6 +316,7 @@ export default function LeadProject() {
   if (lead.stage !== "converted" && gatesEnforced) {
     return (
       <div className="space-y-4 p-4 sm:p-6">
+        <LeadsLockBanner />
         <Link href={`/leads/${leadId}`}>
           <Button variant="ghost" size="sm" className="-ml-2">
             <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -399,6 +404,7 @@ export default function LeadProject() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      <LeadsLockBanner />
       <Link href={`/leads/${leadId}`}>
         <Button variant="ghost" size="sm" className="-ml-2">
           <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -565,7 +571,7 @@ export default function LeadProject() {
                       than repeated down a list of identical blocks. */}
                   {i === 0 ? <FieldHelp id="phase" /> : null}
                 </div>
-                {phases.length > 2 ? (
+                {phases.length > 2 && controls.can("phases", "delete") ? (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -631,14 +637,16 @@ export default function LeadProject() {
           ))}
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setPhases((ps) => [...ps, emptyPhase()])}
-        >
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Add a phase
-        </Button>
+        {controls.can("phases", "add") ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPhases((ps) => [...ps, emptyPhase()])}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Add a phase
+          </Button>
+        ) : null}
 
         {/* Agreement: a link OR an uploaded file. Rendered by hand rather
             than through <Field> because that wraps its children in a <label>,
@@ -826,7 +834,12 @@ export default function LeadProject() {
           <Button variant="ghost">Cancel</Button>
         </Link>
         <Button
-          disabled={!canSubmit || !writable || mutation.isPending}
+          disabled={
+            !canSubmit ||
+            !writable ||
+            !controls.can("projects", "add") ||
+            mutation.isPending
+          }
           onClick={() => mutation.mutate()}
         >
           {mutation.isPending ? "Saving…" : "Create the project"}

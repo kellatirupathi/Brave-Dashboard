@@ -3,7 +3,7 @@
 // The whole point of this screen is the interaction trail. Gate A (3 dated
 // interactions spanning 7+ days) is what unlocks conversion, so the trail is
 // the primary object here and everything else is context around it.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useLocation } from "wouter";
 import {
@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   CircleDashed,
   Clock,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,12 +35,20 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDate, formatINR } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
+import { LeadsLockBanner } from "@/components/leads-lock-banner";
+import { useLeadsControl } from "@/lib/leads-control-api";
 import {
+  deleteInteraction,
+  deleteLead,
   getLead,
   leadKeys,
   logInteraction,
   moveStage,
   STAGE_LABEL,
+  updateInteraction,
+  updateLead,
+  type Lead,
+  type LeadInteraction,
   type LogInteractionBody,
   type TrailBand,
 } from "@/lib/leads-api";
@@ -93,7 +103,7 @@ function Select({
   value: string;
   onChange: (v: string) => void;
   options: ReadonlyArray<{ value: string; label: string }>;
-  placeholder: string;
+  placeholder?: string;
 }) {
   return (
     <select
@@ -111,6 +121,21 @@ function Select({
   );
 }
 
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="space-y-1.5 text-sm">
+      <span className="font-medium">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 const EMPTY: LogInteractionBody = {
   interactionDate: todayIso(),
   interactionType: "",
@@ -122,15 +147,32 @@ function LogDialog({
   leadId,
   open,
   onOpenChange,
+  interaction,
 }: {
   leadId: number;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  interaction?: LeadInteraction | null;
 }) {
   const { viewingId: seasonId } = useSeason();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState<LogInteractionBody>(EMPTY);
+
+  useEffect(() => {
+    if (!open) return;
+    setForm(
+      interaction
+        ? {
+            interactionDate: interaction.interactionDate,
+            interactionType: interaction.interactionType,
+            summary: interaction.summary,
+            outcome: interaction.outcome,
+            objectionNote: interaction.objectionNote ?? undefined,
+          }
+        : { ...EMPTY, interactionDate: todayIso() },
+    );
+  }, [open, interaction]);
 
   const set = <K extends keyof LogInteractionBody>(
     k: K,
@@ -138,7 +180,10 @@ function LogDialog({
   ): void => setForm((f) => ({ ...f, [k]: v }));
 
   const mutation = useMutation({
-    mutationFn: () => logInteraction(leadId, form),
+    mutationFn: () =>
+      interaction
+        ? updateInteraction(leadId, interaction.id, form)
+        : logInteraction(leadId, form),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: leadKeys.detail(seasonId, leadId) });
       void qc.invalidateQueries({ queryKey: leadKeys.list(seasonId) });
@@ -147,14 +192,18 @@ function LogDialog({
       setForm(EMPTY);
       // The interaction is always saved, even when a bundled stage move was
       // refused — so say both things, and never imply the typing was lost.
-      if (res.stageRefused) {
+      const refused =
+        "stageRefused" in res
+          ? (res.stageRefused as { reasons: string[] } | undefined)
+          : undefined;
+      if (refused) {
         toast({
           title: "Interaction saved — stage not changed yet",
-          description: res.stageRefused.reasons.join(" "),
+          description: refused.reasons.join(" "),
         });
       } else {
         toast({
-          title: "Interaction saved",
+          title: interaction ? "Interaction updated" : "Interaction saved",
           description: `Trail strength is now ${res.trailStrength}.`,
         });
       }
@@ -177,7 +226,9 @@ function LogDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Log an interaction</DialogTitle>
+          <DialogTitle>
+            {interaction ? "Edit interaction" : "Log an interaction"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -264,7 +315,244 @@ function LogDialog({
             disabled={!canSubmit || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending ? "Saving…" : "Save"}
+            {mutation.isPending
+              ? "Saving…"
+              : interaction
+                ? "Update"
+                : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LeadEditDialog({
+  lead,
+  open,
+  onOpenChange,
+}: {
+  lead: Lead;
+  open: boolean;
+  onOpenChange: (value: boolean) => void;
+}) {
+  const { viewingId: seasonId } = useSeason();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    source: lead.source,
+    referrerName: lead.referrerName ?? "",
+    relationshipNote: lead.relationshipNote ?? "",
+    businessName: lead.businessName,
+    ownerName: lead.ownerName,
+    phone: lead.phone,
+    altPhone: lead.altPhone ?? "",
+    businessCategory: lead.businessCategory,
+    city: lead.city,
+    areaLocality: lead.areaLocality ?? "",
+    firstMeetingDate: lead.firstMeetingDate,
+    meetingMode: lead.meetingMode,
+    conversationNote: lead.conversationNote,
+    painPoint: lead.painPoint ?? "",
+    estimatedValue:
+      lead.estimatedValue == null ? "" : String(lead.estimatedValue),
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setForm({
+      source: lead.source,
+      referrerName: lead.referrerName ?? "",
+      relationshipNote: lead.relationshipNote ?? "",
+      businessName: lead.businessName,
+      ownerName: lead.ownerName,
+      phone: lead.phone,
+      altPhone: lead.altPhone ?? "",
+      businessCategory: lead.businessCategory,
+      city: lead.city,
+      areaLocality: lead.areaLocality ?? "",
+      firstMeetingDate: lead.firstMeetingDate,
+      meetingMode: lead.meetingMode,
+      conversationNote: lead.conversationNote,
+      painPoint: lead.painPoint ?? "",
+      estimatedValue:
+        lead.estimatedValue == null ? "" : String(lead.estimatedValue),
+    });
+  }, [open, lead]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      updateLead(lead.id, {
+        ...form,
+        referrerName: form.referrerName.trim() || null,
+        relationshipNote: form.relationshipNote.trim() || null,
+        altPhone: form.altPhone.trim() || null,
+        areaLocality: form.areaLocality.trim() || null,
+        painPoint: form.painPoint.trim() || null,
+        estimatedValue: form.estimatedValue
+          ? Number(form.estimatedValue)
+          : null,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: leadKeys.detail(seasonId, lead.id),
+      });
+      void qc.invalidateQueries({ queryKey: leadKeys.list(seasonId) });
+      onOpenChange(false);
+      toast({ title: "Lead updated" });
+    },
+    onError: (err: Error) =>
+      toast({
+        title: "Could not update the lead",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
+
+  const update = (key: keyof typeof form, value: string) =>
+    setForm((current) => ({ ...current, [key]: value }));
+  const canSave =
+    !!form.businessName.trim() &&
+    !!form.ownerName.trim() &&
+    !!form.phone.trim() &&
+    !!form.city.trim() &&
+    !!form.conversationNote.trim();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit lead</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Source">
+            <Select
+              value={form.source}
+              onChange={(value) => update("source", value)}
+              options={[
+                { value: "walk_in", label: "Walk-in" },
+                { value: "online", label: "Online" },
+                { value: "referral", label: "Referral" },
+                { value: "known_contact", label: "Known contact" },
+              ]}
+            />
+          </Field>
+          <Field label="Business category">
+            <Select
+              value={form.businessCategory}
+              onChange={(value) => update("businessCategory", value)}
+              options={[
+                { value: "retail", label: "Retail" },
+                { value: "food_beverage", label: "Food & beverage" },
+                { value: "clinic", label: "Clinic" },
+                { value: "salon", label: "Salon" },
+                { value: "education", label: "Education" },
+                { value: "services", label: "Services" },
+                { value: "manufacturing", label: "Manufacturing" },
+                { value: "other", label: "Other" },
+              ]}
+            />
+          </Field>
+          <Field label="Business name">
+            <Input
+              value={form.businessName}
+              onChange={(e) => update("businessName", e.target.value)}
+            />
+          </Field>
+          <Field label="Owner / contact">
+            <Input
+              value={form.ownerName}
+              onChange={(e) => update("ownerName", e.target.value)}
+            />
+          </Field>
+          <Field label="Phone">
+            <Input
+              value={form.phone}
+              onChange={(e) => update("phone", e.target.value)}
+            />
+          </Field>
+          <Field label="Alternate phone">
+            <Input
+              value={form.altPhone}
+              onChange={(e) => update("altPhone", e.target.value)}
+            />
+          </Field>
+          <Field label="City">
+            <Input
+              value={form.city}
+              onChange={(e) => update("city", e.target.value)}
+            />
+          </Field>
+          <Field label="Area / locality">
+            <Input
+              value={form.areaLocality}
+              onChange={(e) => update("areaLocality", e.target.value)}
+            />
+          </Field>
+          <Field label="First meeting">
+            <Input
+              type="date"
+              value={form.firstMeetingDate}
+              onChange={(e) => update("firstMeetingDate", e.target.value)}
+            />
+          </Field>
+          <Field label="Meeting mode">
+            <Select
+              value={form.meetingMode}
+              onChange={(value) => update("meetingMode", value)}
+              options={[
+                { value: "in_person", label: "In person" },
+                { value: "phone", label: "Phone" },
+                { value: "video", label: "Video" },
+                { value: "whatsapp", label: "WhatsApp" },
+              ]}
+            />
+          </Field>
+          {form.source === "referral" ? (
+            <Field label="Referrer">
+              <Input
+                value={form.referrerName}
+                onChange={(e) => update("referrerName", e.target.value)}
+              />
+            </Field>
+          ) : null}
+          {form.source === "known_contact" ? (
+            <Field label="Relationship">
+              <Input
+                value={form.relationshipNote}
+                onChange={(e) => update("relationshipNote", e.target.value)}
+              />
+            </Field>
+          ) : null}
+          <Field label="Estimated value">
+            <Input
+              inputMode="numeric"
+              value={form.estimatedValue}
+              onChange={(e) => update("estimatedValue", e.target.value)}
+            />
+          </Field>
+        </div>
+        <Field label="Conversation note">
+          <Textarea
+            value={form.conversationNote}
+            onChange={(e) => update("conversationNote", e.target.value)}
+          />
+        </Field>
+        <Field label="Pain point">
+          <Textarea
+            value={form.painPoint}
+            onChange={(e) => update("painPoint", e.target.value)}
+          />
+        </Field>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSave || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? "Saving…" : "Update"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -279,7 +567,11 @@ export default function LeadDetail() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const controls = useLeadsControl();
   const [logging, setLogging] = useState(false);
+  const [editingLead, setEditingLead] = useState(false);
+  const [editingInteraction, setEditingInteraction] =
+    useState<LeadInteraction | null>(null);
 
   const q = useQuery({
     queryKey: leadKeys.detail(seasonId, leadId),
@@ -301,6 +593,41 @@ export default function LeadDetail() {
     onError: (err: Error) =>
       toast({
         title: "Could not convert this lead",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
+
+  const removeLead = useMutation({
+    mutationFn: () => deleteLead(leadId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: leadKeys.list(seasonId) });
+      void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
+      toast({ title: "Lead deleted" });
+      navigate("/leads");
+    },
+    onError: (err: Error) =>
+      toast({
+        title: "Could not delete the lead",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
+
+  const removeInteraction = useMutation({
+    mutationFn: (interactionId: number) =>
+      deleteInteraction(leadId, interactionId),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: leadKeys.detail(seasonId, leadId),
+      });
+      void qc.invalidateQueries({ queryKey: leadKeys.list(seasonId) });
+      void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
+      toast({ title: "Interaction deleted" });
+    },
+    onError: (err: Error) =>
+      toast({
+        title: "Could not delete the interaction",
         description: err.message,
         variant: "destructive",
       }),
@@ -339,6 +666,8 @@ export default function LeadDetail() {
         </Button>
       </Link>
 
+      <LeadsLockBanner />
+
       {/* ── Client ─────────────────────────────────────────────────────── */}
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -354,6 +683,33 @@ export default function LeadDetail() {
             <Badge variant="outline" className={BAND_TONE[trailBand]}>
               {BAND_LABEL[trailBand]} · {lead.trailStrength}
             </Badge>
+            {writable && controls.can("leads", "edit") ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditingLead(true)}
+              >
+                <Pencil className="mr-1 h-3.5 w-3.5" />
+                Edit
+              </Button>
+            ) : null}
+            {writable && controls.can("leads", "delete") ? (
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Delete lead"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Delete this lead and its interaction history? Leads with a project cannot be deleted.",
+                    )
+                  )
+                    removeLead.mutate();
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -489,7 +845,12 @@ export default function LeadDetail() {
             </Link>
           ) : (
             <Button
-              disabled={!canConvert || !writable || convert.isPending}
+              disabled={
+                !canConvert ||
+                !writable ||
+                !controls.can("leads", "edit") ||
+                convert.isPending
+              }
               onClick={() => convert.mutate()}
             >
               {convert.isPending ? "Converting…" : "Client said yes"}
@@ -504,7 +865,7 @@ export default function LeadDetail() {
           <h2 className="font-semibold">
             Interactions ({interactions.length})
           </h2>
-          {writable ? (
+          {writable && controls.can("interactions", "add") ? (
             <Button size="sm" onClick={() => setLogging(true)}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Log an interaction
@@ -531,21 +892,46 @@ export default function LeadDetail() {
                       {formatDate(i.interactionDate)}
                     </span>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-xs",
-                      i.outcome === "positive" &&
-                        "border-emerald-200 bg-emerald-50 text-emerald-800",
-                      i.outcome === "objection" &&
-                        "border-amber-200 bg-amber-50 text-amber-800",
-                      i.outcome === "no_response" &&
-                        "border-rose-200 bg-rose-50 text-rose-800",
-                    )}
-                  >
-                    {OUTCOMES.find((o) => o.value === i.outcome)?.label ??
-                      i.outcome}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-xs",
+                        i.outcome === "positive" &&
+                          "border-emerald-200 bg-emerald-50 text-emerald-800",
+                        i.outcome === "objection" &&
+                          "border-amber-200 bg-amber-50 text-amber-800",
+                        i.outcome === "no_response" &&
+                          "border-rose-200 bg-rose-50 text-rose-800",
+                      )}
+                    >
+                      {OUTCOMES.find((o) => o.value === i.outcome)?.label ??
+                        i.outcome}
+                    </Badge>
+                    {writable && controls.can("interactions", "edit") ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Edit interaction"
+                        onClick={() => setEditingInteraction(i)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : null}
+                    {writable && controls.can("interactions", "delete") ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Delete interaction"
+                        onClick={() => {
+                          if (window.confirm("Delete this interaction?"))
+                            removeInteraction.mutate(i.id);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm">{i.summary}</p>
                 {i.objectionNote ? (
@@ -566,6 +952,19 @@ export default function LeadDetail() {
       </div>
 
       <LogDialog leadId={leadId} open={logging} onOpenChange={setLogging} />
+      <LogDialog
+        leadId={leadId}
+        interaction={editingInteraction}
+        open={editingInteraction != null}
+        onOpenChange={(open) => {
+          if (!open) setEditingInteraction(null);
+        }}
+      />
+      <LeadEditDialog
+        lead={lead}
+        open={editingLead}
+        onOpenChange={setEditingLead}
+      />
     </div>
   );
 }

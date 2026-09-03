@@ -4,9 +4,9 @@
 // trail, the project and the payments, so this screen shows the student the
 // same document a reviewer will read, plus the Gate C checklist that is
 // literally the check the submit button runs.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import {
   ArrowLeft,
   Plus,
@@ -15,6 +15,8 @@ import {
   Send,
   FileText,
   ShieldAlert,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,16 +35,29 @@ import { cn } from "@/lib/utils";
 import { formatDate, formatINR } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
 import { usePipelineGatesEnforced } from "@/lib/pipeline-gates-api";
+import { LeadsLockBanner } from "@/components/leads-lock-banner";
+import { useLeadsControl } from "@/lib/leads-control-api";
 import {
+  addProjectPhase,
   apiErrorData,
+  deletePayment,
+  deletePipelineProject,
+  deleteProjectPhase,
   getBrd,
   getPipelineProject,
   leadKeys,
   recordPayment,
   submitProject,
+  updatePayment,
+  updatePipelineProject,
+  updateProjectPhase,
   type ChecklistItem,
+  type PaymentRow,
+  type PhaseInput,
+  type PipelineProjectRow,
   type ProjectPhase,
   type RecordPaymentBody,
+  type ScheduleRow,
 } from "@/lib/leads-api";
 
 const MODES = [
@@ -87,12 +102,14 @@ function PaymentDialog({
   phases,
   open,
   onOpenChange,
+  payment,
 }: {
   projectId: number;
   leadId: number;
   phases: ProjectPhase[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  payment?: PaymentRow | null;
 }) {
   const { viewingId: seasonId } = useSeason();
   const qc = useQueryClient();
@@ -104,6 +121,17 @@ function PaymentDialog({
   const [transactionRef, setTransactionRef] = useState("");
   const [paymentProof, setPaymentProof] = useState("");
   const [invoiceDoc, setInvoiceDoc] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setPhaseId(payment ? String(payment.phaseId) : "");
+    setAmountReceived(payment ? String(payment.amountReceived) : "");
+    setPaymentDate(payment?.paymentDate ?? todayIso());
+    setPaymentMode(payment?.paymentMode ?? "");
+    setTransactionRef(payment?.transactionRef ?? "");
+    setPaymentProof(payment?.paymentProof ?? "");
+    setInvoiceDoc(payment?.invoiceDoc ?? "");
+  }, [open, payment]);
 
   // Cash is the only mode exempt from a reference number — that exemption is
   // what makes the duplicate-UTR check meaningful for everything else.
@@ -122,7 +150,9 @@ function PaymentDialog({
           ? { transactionRef: transactionRef.trim() }
           : {}),
       };
-      return recordPayment(projectId, body);
+      return payment
+        ? updatePayment(projectId, payment.id, body)
+        : recordPayment(projectId, body);
     },
     onSuccess: () => {
       void qc.invalidateQueries({
@@ -135,7 +165,7 @@ function PaymentDialog({
       setTransactionRef("");
       setPaymentProof("");
       setInvoiceDoc("");
-      toast({ title: "Payment recorded" });
+      toast({ title: payment ? "Payment updated" : "Payment recorded" });
     },
     onError: (err: Error) => {
       const data = apiErrorData<{ code?: string; error?: string }>(err);
@@ -143,7 +173,9 @@ function PaymentDialog({
         title:
           data?.code === "DUPLICATE_TRANSACTION_REF"
             ? "That reference number is already recorded"
-            : "Could not record the payment",
+            : payment
+              ? "Could not update the payment"
+              : "Could not record the payment",
         description: data?.error ?? err.message,
         variant: "destructive",
       });
@@ -163,7 +195,7 @@ function PaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Record a payment</DialogTitle>
+          <DialogTitle>{payment ? "Edit payment" : "Record a payment"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -257,7 +289,328 @@ function PaymentDialog({
             disabled={!canSubmit || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending ? "Saving…" : "Record payment"}
+            {mutation.isPending
+              ? "Saving…"
+              : payment
+                ? "Update"
+                : "Record payment"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const emptyPhase = (): PhaseInput => ({
+  name: "",
+  deliverables: "",
+  startDate: "",
+  endDate: "",
+  amount: 0,
+  dueDate: "",
+  revenueType: "one_time",
+});
+
+function PhaseDialog({
+  projectId,
+  open,
+  onOpenChange,
+  phase,
+  schedule,
+}: {
+  projectId: number;
+  open: boolean;
+  onOpenChange: (value: boolean) => void;
+  phase?: ProjectPhase | null;
+  schedule?: ScheduleRow | null;
+}) {
+  const { viewingId: seasonId } = useSeason();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [form, setForm] = useState<PhaseInput>(emptyPhase);
+
+  useEffect(() => {
+    if (!open) return;
+    setForm(
+      phase
+        ? {
+            name: phase.name,
+            deliverables: phase.deliverables ?? "",
+            startDate: phase.startDate ?? "",
+            endDate: phase.endDate ?? "",
+            amount: schedule?.amount ?? 0,
+            dueDate: schedule?.dueDate ?? "",
+            revenueType:
+              schedule?.revenueType === "recurring"
+                ? "recurring"
+                : "one_time",
+          }
+        : emptyPhase(),
+    );
+  }, [open, phase, schedule]);
+
+  const set = <K extends keyof PhaseInput>(key: K, value: PhaseInput[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      phase
+        ? updateProjectPhase(projectId, phase.id, form)
+        : addProjectPhase(projectId, form),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: leadKeys.project(seasonId, projectId),
+      });
+      void qc.invalidateQueries({ queryKey: leadKeys.brd(seasonId, projectId) });
+      void qc.invalidateQueries({ queryKey: leadKeys.projects(seasonId) });
+      void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
+      onOpenChange(false);
+      toast({ title: phase ? "Phase updated" : "Phase added" });
+    },
+    onError: (err: Error) =>
+      toast({
+        title: phase ? "Could not update the phase" : "Could not add the phase",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
+
+  const canSave = !!form.name.trim() && Number(form.amount) > 0;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{phase ? "Edit phase" : "Add phase"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Field label="Phase name" required>
+            <Input
+              value={form.name}
+              onChange={(event) => set("name", event.target.value)}
+            />
+          </Field>
+          <Field label="Deliverables">
+            <Input
+              value={form.deliverables ?? ""}
+              onChange={(event) => set("deliverables", event.target.value)}
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Starts">
+              <Input
+                type="date"
+                value={form.startDate ?? ""}
+                onChange={(event) => set("startDate", event.target.value)}
+              />
+            </Field>
+            <Field label="Ends">
+              <Input
+                type="date"
+                value={form.endDate ?? ""}
+                onChange={(event) => set("endDate", event.target.value)}
+              />
+            </Field>
+            <Field label="Amount (₹)" required>
+              <Input
+                inputMode="numeric"
+                value={form.amount || ""}
+                onChange={(event) =>
+                  set("amount", Number(event.target.value) || 0)
+                }
+              />
+            </Field>
+            <Field label="Payment due by">
+              <Input
+                type="date"
+                value={form.dueDate ?? ""}
+                onChange={(event) => set("dueDate", event.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Revenue type" required>
+            <select
+              value={form.revenueType}
+              onChange={(event) =>
+                set(
+                  "revenueType",
+                  event.target.value as PhaseInput["revenueType"],
+                )
+              }
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="one_time">One-off</option>
+              <option value="recurring">Recurring</option>
+            </select>
+          </Field>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSave || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? "Saving…" : phase ? "Update" : "Add phase"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProjectDialog({
+  project,
+  open,
+  onOpenChange,
+}: {
+  project: PipelineProjectRow;
+  open: boolean;
+  onOpenChange: (value: boolean) => void;
+}) {
+  const { viewingId: seasonId } = useSeason();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [title, setTitle] = useState("");
+  const [serviceCategory, setServiceCategory] = useState("");
+  const [problemStatement, setProblemStatement] = useState("");
+  const [solutionDescription, setSolutionDescription] = useState("");
+  const [techStack, setTechStack] = useState("");
+  const [liveProductUrl, setLiveProductUrl] = useState("");
+  const [demoVideoUrl, setDemoVideoUrl] = useState("");
+  const [sourceCodeUrl, setSourceCodeUrl] = useState("");
+  const [prototypeUrl, setPrototypeUrl] = useState("");
+  const [demoCredentials, setDemoCredentials] = useState("");
+  const [agreementDoc, setAgreementDoc] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(project.title);
+    setServiceCategory(project.serviceCategory ?? "");
+    setProblemStatement(project.problemStatement ?? "");
+    setSolutionDescription(project.solutionDescription ?? "");
+    setTechStack(project.techStack?.join(", ") ?? "");
+    setLiveProductUrl(project.liveProductUrl ?? "");
+    setDemoVideoUrl(project.demoVideoUrl ?? "");
+    setSourceCodeUrl(project.sourceCodeUrl ?? "");
+    setPrototypeUrl(project.prototypeUrl ?? "");
+    setDemoCredentials(project.demoCredentials ?? "");
+    setAgreementDoc(project.agreementDoc ?? "");
+  }, [open, project]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      updatePipelineProject(project.id, {
+        title: title.trim(),
+        serviceCategory: serviceCategory.trim(),
+        problemStatement: problemStatement.trim(),
+        solutionDescription: solutionDescription.trim(),
+        techStack: techStack
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+        liveProductUrl: liveProductUrl.trim() || undefined,
+        demoVideoUrl: demoVideoUrl.trim() || undefined,
+        sourceCodeUrl: sourceCodeUrl.trim() || undefined,
+        prototypeUrl: prototypeUrl.trim() || undefined,
+        demoCredentials: demoCredentials.trim() || undefined,
+        agreementDoc: agreementDoc.trim() || undefined,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: leadKeys.project(seasonId, project.id),
+      });
+      void qc.invalidateQueries({ queryKey: leadKeys.brd(seasonId, project.id) });
+      void qc.invalidateQueries({ queryKey: leadKeys.projects(seasonId) });
+      onOpenChange(false);
+      toast({ title: "Project updated" });
+    },
+    onError: (err: Error) =>
+      toast({
+        title: "Could not update the project",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
+
+  const canSave =
+    !!title.trim() &&
+    !!serviceCategory.trim() &&
+    !!problemStatement.trim() &&
+    !!solutionDescription.trim();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit project</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Project title" required>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            </Field>
+            <Field label="Service category" required>
+              <Input
+                value={serviceCategory}
+                onChange={(e) => setServiceCategory(e.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Problem statement" required>
+            <Input
+              value={problemStatement}
+              onChange={(e) => setProblemStatement(e.target.value)}
+            />
+          </Field>
+          <Field label="Solution description" required>
+            <Input
+              value={solutionDescription}
+              onChange={(e) => setSolutionDescription(e.target.value)}
+            />
+          </Field>
+          <Field label="Tech stack" hint="Comma separated">
+            <Input value={techStack} onChange={(e) => setTechStack(e.target.value)} />
+          </Field>
+          {[
+            ["Live product URL", liveProductUrl, setLiveProductUrl],
+            ["Demo video URL", demoVideoUrl, setDemoVideoUrl],
+            ["Source code URL", sourceCodeUrl, setSourceCodeUrl],
+            ["Prototype URL", prototypeUrl, setPrototypeUrl],
+          ].map(([label, value, setter]) => (
+            <Field key={label as string} label={label as string}>
+              <Input
+                value={value as string}
+                onChange={(e) =>
+                  (setter as React.Dispatch<React.SetStateAction<string>>)(
+                    e.target.value,
+                  )
+                }
+                placeholder="https://"
+              />
+            </Field>
+          ))}
+          <Field label="Demo login details">
+            <Input
+              value={demoCredentials}
+              onChange={(e) => setDemoCredentials(e.target.value)}
+            />
+          </Field>
+          <Field label="Agreement or work order">
+            <Input
+              value={agreementDoc}
+              onChange={(e) => setAgreementDoc(e.target.value)}
+            />
+          </Field>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSave || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? "Saving…" : "Update"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -302,7 +655,13 @@ export default function LeadDelivery() {
   const gatesEnforced = usePipelineGatesEnforced();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
+  const controls = useLeadsControl();
   const [paying, setPaying] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<PaymentRow | null>(null);
+  const [phaseDialogOpen, setPhaseDialogOpen] = useState(false);
+  const [editingPhase, setEditingPhase] = useState<ProjectPhase | null>(null);
+  const [editingProject, setEditingProject] = useState(false);
 
   const projectQ = useQuery({
     queryKey: leadKeys.project(seasonId, projectId),
@@ -340,6 +699,58 @@ export default function LeadDelivery() {
         variant: "destructive",
       });
     },
+  });
+
+  const deletePhaseMutation = useMutation({
+    mutationFn: (phaseId: number) => deleteProjectPhase(projectId, phaseId),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: leadKeys.project(seasonId, projectId),
+      });
+      void qc.invalidateQueries({ queryKey: leadKeys.brd(seasonId, projectId) });
+      void qc.invalidateQueries({ queryKey: leadKeys.projects(seasonId) });
+      toast({ title: "Phase deleted" });
+    },
+    onError: (err: Error) =>
+      toast({
+        title: "Could not delete the phase",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
+
+  const deletePaymentMutation = useMutation({
+    mutationFn: (paymentId: number) => deletePayment(projectId, paymentId),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: leadKeys.project(seasonId, projectId),
+      });
+      void qc.invalidateQueries({ queryKey: leadKeys.brd(seasonId, projectId) });
+      void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
+      toast({ title: "Payment deleted" });
+    },
+    onError: (err: Error) =>
+      toast({
+        title: "Could not delete the payment",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: () => deletePipelineProject(projectId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: leadKeys.projects(seasonId) });
+      void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
+      toast({ title: "Project deleted" });
+      navigate(`/leads/${leadId}`);
+    },
+    onError: (err: Error) =>
+      toast({
+        title: "Could not delete the project",
+        description: err.message,
+        variant: "destructive",
+      }),
   });
 
   if (projectQ.isLoading || brdQ.isLoading) {
@@ -384,6 +795,8 @@ export default function LeadDelivery() {
         </Button>
       </Link>
 
+      <LeadsLockBanner />
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">{project.title}</h1>
@@ -392,17 +805,56 @@ export default function LeadDelivery() {
             {formatINR(project.totalContractValue ?? 0)} agreed
           </p>
         </div>
-        {writable ? (
-          <Button onClick={() => setPaying(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Record a payment
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {writable && controls.can("projects", "edit") ? (
+            <Button variant="outline" onClick={() => setEditingProject(true)}>
+              <Pencil className="mr-1.5 h-4 w-4" />
+              Edit project
+            </Button>
+          ) : null}
+          {writable && controls.can("projects", "delete") ? (
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Delete this project? Projects with payments or submissions cannot be deleted.",
+                  )
+                )
+                  deleteProjectMutation.mutate();
+              }}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Delete project
+            </Button>
+          ) : null}
+          {writable && controls.can("payments", "add") ? (
+            <Button onClick={() => setPaying(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Record a payment
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* ── Phases ─────────────────────────────────────────────────────── */}
       <Card className="p-5">
-        <h2 className="font-semibold">Phases</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-semibold">Phases</h2>
+          {writable && controls.can("phases", "add") ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditingPhase(null);
+                setPhaseDialogOpen(true);
+              }}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Add phase
+            </Button>
+          ) : null}
+        </div>
         <div className="mt-4 space-y-3">
           {phases.map((ph) => {
             const due = scheduledByPhase.get(ph.id)?.amount ?? 0;
@@ -421,7 +873,7 @@ export default function LeadDelivery() {
                     </p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="text-muted-foreground">
                     {formatINR(got)} / {formatINR(due)}
                   </span>
@@ -437,6 +889,36 @@ export default function LeadDelivery() {
                   >
                     {settled ? "Paid" : got > 0 ? "Part paid" : "Unpaid"}
                   </Badge>
+                  {writable && controls.can("phases", "edit") ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingPhase(ph);
+                        setPhaseDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                  ) : null}
+                  {writable && controls.can("phases", "delete") ? (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={`Delete ${ph.name}`}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Delete "${ph.name}"? A phase with recorded payments cannot be deleted.`,
+                          )
+                        )
+                          deletePhaseMutation.mutate(ph.id);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             );
@@ -468,6 +950,7 @@ export default function LeadDelivery() {
                     {p.transactionRef ? ` · ${p.transactionRef}` : ""}
                   </p>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
                 {p.clientConfirmed === true ? (
                   <Badge
                     variant="outline"
@@ -485,6 +968,34 @@ export default function LeadDelivery() {
                 ) : (
                   <Badge variant="outline">Awaiting client call</Badge>
                 )}
+                  {writable &&
+                  controls.can("payments", "edit") &&
+                  !p.clientConfirmed ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setEditingPayment(p)}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                  ) : null}
+                  {writable &&
+                  controls.can("payments", "delete") &&
+                  !p.clientConfirmed ? (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Delete payment"
+                      onClick={() => {
+                        if (window.confirm("Delete this payment record?"))
+                          deletePaymentMutation.mutate(p.id);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>
@@ -514,6 +1025,7 @@ export default function LeadDelivery() {
                 disabled={
                   (gatesEnforced && !brd.gateC.passed) ||
                   !writable ||
+                  !controls.canSubmit ||
                   submit.isPending
                 }
                 onClick={() => submit.mutate()}
@@ -624,6 +1136,32 @@ export default function LeadDelivery() {
         phases={phases}
         open={paying}
         onOpenChange={setPaying}
+      />
+      <PaymentDialog
+        projectId={projectId}
+        leadId={leadId}
+        phases={phases}
+        payment={editingPayment}
+        open={editingPayment != null}
+        onOpenChange={(open) => {
+          if (!open) setEditingPayment(null);
+        }}
+      />
+      <PhaseDialog
+        projectId={projectId}
+        phase={editingPhase}
+        schedule={
+          editingPhase
+            ? (scheduledByPhase.get(editingPhase.id) ?? null)
+            : null
+        }
+        open={phaseDialogOpen}
+        onOpenChange={setPhaseDialogOpen}
+      />
+      <ProjectDialog
+        project={project}
+        open={editingProject}
+        onOpenChange={setEditingProject}
       />
     </div>
   );

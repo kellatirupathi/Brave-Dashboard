@@ -454,6 +454,19 @@ async function ensurePipelineGatesColumn(): Promise<void> {
   `);
 }
 
+// Season-scoped Leads CRUD controls and master lock. The JSON column deliberately
+// stays nullable: null means the safe product defaults (add on, edit/delete off).
+// Production does not run drizzle-kit push, so keep this bootstrap in sync with
+// the Drizzle schema.
+async function ensureLeadsControlColumns(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE programme_config
+      ADD COLUMN IF NOT EXISTS leads_control_permissions jsonb,
+      ADD COLUMN IF NOT EXISTS leads_submissions_locked boolean NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS leads_submissions_lock_message text
+  `);
+}
+
 // Page-view source tracking is additive and nullable. Existing rows and older
 // cached dashboard bundles remain valid with a null/unknown platform. Production
 // deploys do not run drizzle-kit push, so keep this bootstrap in sync with the
@@ -1698,6 +1711,11 @@ async function runBootstrap(): Promise<void> {
     await ensurePipelineGatesColumn();
   } catch (err) {
     logger.error({ err }, "ensurePipelineGatesColumn failed");
+  }
+  try {
+    await ensureLeadsControlColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureLeadsControlColumns failed");
   }
   try {
     await ensureAgreementAccessColumn();

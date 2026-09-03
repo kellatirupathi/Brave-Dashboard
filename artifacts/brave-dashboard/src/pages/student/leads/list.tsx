@@ -34,6 +34,8 @@ import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
 import { PipelineStepper } from "@/components/pipeline-stepper";
+import { LeadsLockBanner } from "@/components/leads-lock-banner";
+import { useLeadsControl } from "@/lib/leads-control-api";
 import {
   createLead,
   getPipelineStatus,
@@ -525,6 +527,7 @@ function LeadCard({
 
 export default function LeadsList() {
   const { viewingId: seasonId } = useSeason();
+  const controls = useLeadsControl();
   const [capturing, setCapturing] = useState(false);
   const [filter, setFilter] = useState<LeadFilter>("all");
 
@@ -545,6 +548,7 @@ export default function LeadsList() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      <LeadsLockBanner />
       <div
         className="flex flex-wrap items-start justify-between gap-3"
         data-tour="student-pipeline"
@@ -584,10 +588,12 @@ export default function LeadsList() {
               ))}
             </div>
           ) : null}
-          <Button onClick={() => setCapturing(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Log a client
-          </Button>
+          {controls.can("leads", "add") ? (
+            <Button onClick={() => setCapturing(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Log a client
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -628,10 +634,12 @@ export default function LeadsList() {
             Go and talk to a business near your campus, then log what they said
             while it is still fresh.
           </p>
-          <Button className="mt-4" onClick={() => setCapturing(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Log your first client
-          </Button>
+          {controls.can("leads", "add") ? (
+            <Button className="mt-4" onClick={() => setCapturing(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Log your first client
+            </Button>
+          ) : null}
         </Card>
       ) : (
         <div className="space-y-6">

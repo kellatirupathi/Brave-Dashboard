@@ -51,6 +51,7 @@ import seasonsRouter from "./seasons";
 import leadsRouter from "./leads";
 import pipelineRouter from "./pipeline";
 import pipelineGatesRouter from "./pipeline-gates";
+import leadsControlRouter from "./leads-control";
 import cronLeadNudgesRouter from "./cron-lead-nudges";
 import whatsappRouter from "./whatsapp";
 import trustRouter from "./trust";
@@ -152,6 +153,8 @@ router.use(leadsRouter);
 router.use(pipelineRouter);
 // Pipeline gate mode (advisory vs enforced), read + admin toggle (additive).
 router.use(pipelineGatesRouter);
+// Season-scoped CRUD matrix + master lock for every student Leads mutation.
+router.use(leadsControlRouter);
 // Season 2 lead nudge / escalation / dormancy sweep (additive, isolated)
 router.use(cronLeadNudgesRouter);
 // WhatsApp broadcasts via Karix (additive, isolated). Super-admin only.

@@ -188,6 +188,20 @@ export function createLead(body: CreateLeadBody): Promise<{
   });
 }
 
+export function updateLead(
+  leadId: number,
+  body: Record<string, unknown>,
+): Promise<Lead> {
+  return customFetch<Lead>(`/api/leads/${leadId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteLead(leadId: number): Promise<void> {
+  return customFetch<void>(`/api/leads/${leadId}`, { method: "DELETE" });
+}
+
 export type LogInteractionBody = {
   interactionDate: string;
   interactionType: string;
@@ -221,6 +235,27 @@ export function logInteraction(
   });
 }
 
+export function updateInteraction(
+  leadId: number,
+  interactionId: number,
+  body: Partial<LogInteractionBody>,
+): Promise<{ interaction: LeadInteraction; trailStrength: number }> {
+  return customFetch(`/api/leads/${leadId}/interactions/${interactionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteInteraction(
+  leadId: number,
+  interactionId: number,
+): Promise<void> {
+  return customFetch<void>(
+    `/api/leads/${leadId}/interactions/${interactionId}`,
+    { method: "DELETE" },
+  );
+}
+
 export function moveStage(
   leadId: number,
   stage: LeadStage,
@@ -246,6 +281,16 @@ export type PipelineProjectRow = {
   revenueType: string | null;
   createdAt: string;
   received: number;
+  problemStatement: string | null;
+  solutionDescription: string | null;
+  techStack: string[] | null;
+  liveProductUrl: string | null;
+  demoVideoUrl: string | null;
+  sourceCodeUrl: string | null;
+  prototypeUrl: string | null;
+  demoCredentials: string | null;
+  recurringFrequency: string | null;
+  agreementDoc: string | null;
 };
 
 export function listPipelineProjects(): Promise<PipelineProjectRow[]> {
@@ -294,6 +339,39 @@ export function createPipelineProject(
   });
 }
 
+export type UpdatePipelineProjectBody = Partial<
+  Pick<
+    CreatePipelineProjectBody,
+    | "title"
+    | "serviceCategory"
+    | "problemStatement"
+    | "solutionDescription"
+    | "techStack"
+    | "liveProductUrl"
+    | "demoVideoUrl"
+    | "sourceCodeUrl"
+    | "prototypeUrl"
+    | "demoCredentials"
+    | "agreementDoc"
+  >
+>;
+
+export function updatePipelineProject(
+  projectId: number,
+  body: UpdatePipelineProjectBody,
+): Promise<PipelineProjectRow> {
+  return customFetch(`/api/pipeline/projects/${projectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deletePipelineProject(projectId: number): Promise<void> {
+  return customFetch<void>(`/api/pipeline/projects/${projectId}`, {
+    method: "DELETE",
+  });
+}
+
 export type ProjectPhase = {
   id: number;
   projectId: number;
@@ -319,7 +397,10 @@ export type PaymentRow = {
   paymentDate: string;
   paymentMode: string;
   transactionRef: string | null;
-  clientConfirmed: boolean | null;
+  paymentProof: string;
+  invoiceDoc: string;
+  deliveryProof: string[] | null;
+  clientConfirmed: boolean;
 };
 
 export function getPipelineProject(id: number): Promise<{
@@ -350,6 +431,58 @@ export function recordPayment(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export function addProjectPhase(
+  projectId: number,
+  body: PhaseInput,
+): Promise<{ phase: ProjectPhase; schedule: ScheduleRow }> {
+  return customFetch(`/api/pipeline/projects/${projectId}/phases`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateProjectPhase(
+  projectId: number,
+  phaseId: number,
+  body: PhaseInput,
+): Promise<{ phase: ProjectPhase; schedule: ScheduleRow }> {
+  return customFetch(`/api/pipeline/projects/${projectId}/phases/${phaseId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteProjectPhase(
+  projectId: number,
+  phaseId: number,
+): Promise<void> {
+  return customFetch<void>(
+    `/api/pipeline/projects/${projectId}/phases/${phaseId}`,
+    { method: "DELETE" },
+  );
+}
+
+export function updatePayment(
+  projectId: number,
+  paymentId: number,
+  body: RecordPaymentBody,
+): Promise<PaymentRow> {
+  return customFetch(
+    `/api/pipeline/projects/${projectId}/payments/${paymentId}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+export function deletePayment(
+  projectId: number,
+  paymentId: number,
+): Promise<void> {
+  return customFetch<void>(
+    `/api/pipeline/projects/${projectId}/payments/${paymentId}`,
+    { method: "DELETE" },
+  );
 }
 
 export type ChecklistItem = {
