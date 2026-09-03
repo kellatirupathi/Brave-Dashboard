@@ -55,50 +55,85 @@ const LABEL_TONE: Record<StepState, string> = {
 export function PipelineStepper({
   status,
   className,
+  compact = false,
 }: {
   status: PipelineStatus;
   className?: string;
+  /**
+   * Phone layout: all five steps stay on ONE row, with smaller rings, shorter
+   * type and dashed connectors, so the journey costs a strip rather than a
+   * screen. The desktop stepper is unchanged.
+   */
+  compact?: boolean;
 }) {
   return (
     <div className={cn("w-full", className)}>
-      <ol className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-0">
+      <ol
+        className={cn(
+          compact
+            ? "flex items-start gap-0"
+            : "flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-0",
+        )}
+      >
         {status.steps.map((s, i) => {
           const Icon = STATE_ICON[s.state] ?? STEP_ICON[s.key];
           const isLast = i === status.steps.length - 1;
           return (
             <li
               key={s.key}
-              className="flex flex-1 items-start gap-3 sm:flex-col sm:items-center sm:text-center"
+              className={cn(
+                "flex flex-1",
+                compact
+                  ? "min-w-0 flex-col items-center text-center"
+                  : "items-start gap-3 sm:flex-col sm:items-center sm:text-center",
+              )}
             >
-              <div className="flex items-center sm:w-full">
+              <div className={cn("flex items-center", compact ? "w-full" : "sm:w-full")}>
                 {/* Left connector — hidden on the first step and on mobile,
                     where the list stacks vertically. */}
                 <span
                   className={cn(
-                    "hidden h-px flex-1 sm:block",
-                    i === 0 ? "invisible" : "bg-border",
+                    "flex-1 border-t border-dashed border-border",
+                    compact ? "block" : "hidden sm:block",
+                    i === 0 && "invisible",
                   )}
                 />
                 <span
                   className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold",
+                    "flex shrink-0 items-center justify-center rounded-full border-2 font-semibold",
+                    compact ? "h-7 w-7" : "h-8 w-8 text-xs",
                     RING[s.state],
                   )}
                 >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  <Icon
+                    className={compact ? "h-3.5 w-3.5" : "h-4 w-4"}
+                    aria-hidden="true"
+                  />
                 </span>
                 <span
                   className={cn(
-                    "hidden h-px flex-1 sm:block",
-                    isLast ? "invisible" : "bg-border",
+                    "flex-1 border-t border-dashed border-border",
+                    compact ? "block" : "hidden sm:block",
+                    isLast && "invisible",
                   )}
                 />
               </div>
-              <div className="sm:mt-2 sm:px-2">
-                <p className={cn("text-sm leading-tight", LABEL_TONE[s.state])}>
+              <div className={compact ? "mt-1.5 px-0.5" : "sm:mt-2 sm:px-2"}>
+                <p
+                  className={cn(
+                    "leading-tight",
+                    compact ? "text-[10px]" : "text-sm",
+                    LABEL_TONE[s.state],
+                  )}
+                >
                   {s.label}
                 </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
+                <p
+                  className={cn(
+                    "mt-0.5 leading-tight text-muted-foreground",
+                    compact ? "text-[9px]" : "text-xs",
+                  )}
+                >
                   {s.caption}
                 </p>
               </div>
@@ -110,7 +145,7 @@ export function PipelineStepper({
       {/* Advisory mode note. The A/B/C gate legend that used to sit here was
           removed: the step captions already say what each step needs, and the
           full rules live in the role documentation. */}
-      {status.enforced === false ? (
+      {status.enforced === false && !compact ? (
         <p className="mt-5 border-t pt-4 text-xs text-muted-foreground">
           These checks are recommendations this season — every step is open.
           Reviewers still see which ones were met.
