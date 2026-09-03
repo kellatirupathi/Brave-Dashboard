@@ -1119,13 +1119,17 @@ async function ensureLeadPipeline(): Promise<void> {
         payment_mode payment_mode NOT NULL,
         transaction_ref text,
         payment_proof text NOT NULL,
-        invoice_doc text NOT NULL,
+        invoice_doc text,
         delivery_proof jsonb,
         client_confirmed boolean NOT NULL DEFAULT false,
         client_confirmed_at timestamptz,
         recorded_by text NOT NULL,
         created_at timestamptz NOT NULL DEFAULT now()
       )
+    `);
+    await db.execute(sql`
+      ALTER TABLE payments
+        ALTER COLUMN invoice_doc DROP NOT NULL
     `);
     await db.execute(
       sql`CREATE INDEX IF NOT EXISTS payments_project_idx ON payments (project_id)`,

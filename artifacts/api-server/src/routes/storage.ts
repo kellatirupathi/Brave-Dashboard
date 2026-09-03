@@ -17,6 +17,7 @@ import {
   teamMembersTable,
   programmeConfigTable,
   uploadedFilesTable,
+  paymentsTable,
 } from "@workspace/db";
 import {
   ObjectStorageService,
@@ -33,19 +34,6 @@ const objectStorageService = new ObjectStorageService();
  * relax/tighten what the platform will accept before signing an upload URL.
  */
 export const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
-
-export const ALLOWED_UPLOAD_MIME_TYPES: readonly string[] = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  // PowerPoint decks — the BRAVE Finale pptx submissions.
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-];
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
@@ -98,14 +86,6 @@ router.post(
     if (size > MAX_UPLOAD_SIZE_BYTES) {
       res.status(413).json({
         error: `File is too large. Maximum allowed size is ${formatBytes(MAX_UPLOAD_SIZE_BYTES)}.`,
-      });
-      return;
-    }
-
-    const normalizedType = contentType.trim().toLowerCase();
-    if (!ALLOWED_UPLOAD_MIME_TYPES.includes(normalizedType)) {
-      res.status(415).json({
-        error: `Unsupported file type "${contentType}". Allowed types: PDF, JPEG, PNG, GIF, WEBP, DOC, DOCX.`,
       });
       return;
     }
@@ -318,6 +298,13 @@ async function findOwningTeamId(objectPath: string): Promise<number | null> {
     .where(eq(milestonesTable.imageUrl, objectPath))
     .limit(1);
   if (milestone) return milestone.teamId;
+
+  const [payment] = await db
+    .select({ teamId: paymentsTable.teamId })
+    .from(paymentsTable)
+    .where(eq(paymentsTable.paymentProof, objectPath))
+    .limit(1);
+  if (payment) return payment.teamId;
 
   return null;
 }

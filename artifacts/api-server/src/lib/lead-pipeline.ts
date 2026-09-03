@@ -406,7 +406,7 @@ export function buildPipelineStatus(input: {
       c: {
         passed: brdReadyCount > 0,
         label:
-          "All mandatory fields, trail strength Moderate or better, payment proof and invoice",
+          "All mandatory fields, trail strength Moderate or better, and payment proof",
       },
     },
     enforced,

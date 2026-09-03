@@ -389,9 +389,7 @@ export async function computeSignals(
           .from(paymentsTable)
           .where(eq(paymentsTable.projectId, project.id))
       : [];
-    const missingProof = payments.filter(
-      (p) => !p.paymentProof || !p.invoiceDoc,
-    ).length;
+    const missingProof = payments.filter((p) => !p.paymentProof).length;
     const cashOnly = payments.filter((p) => p.paymentMode === "cash").length;
     add({
       key: "payment_evidence",
@@ -406,12 +404,12 @@ export async function computeSignals(
             : "ok",
       detail:
         missingProof > 0
-          ? `${missingProof} payment${missingProof === 1 ? "" : "s"} missing proof or an invoice.`
+          ? `${missingProof} payment${missingProof === 1 ? "" : "s"} missing payment proof.`
           : payments.length === 0
             ? "No payments recorded."
             : cashOnly === payments.length
               ? `All ${payments.length} payments are cash, so there is no bank record to check against.`
-              : `${payments.length} payments, all with proof and an invoice.`,
+              : `${payments.length} payments, all with proof.`,
       value: missingProof,
     });
 

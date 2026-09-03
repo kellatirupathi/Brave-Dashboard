@@ -1041,7 +1041,9 @@ function LeadDetailSheet({
                           <TableCell className="text-xs">
                             <div className="flex flex-col gap-0.5">
                               <DocLink href={p.paymentProof} label="Payment proof" />
-                              <DocLink href={p.invoiceDoc} label="Invoice" />
+                              {p.invoiceDoc ? (
+                                <DocLink href={p.invoiceDoc} label="Invoice" />
+                              ) : null}
                             </div>
                           </TableCell>
                           <TableCell className="text-xs">

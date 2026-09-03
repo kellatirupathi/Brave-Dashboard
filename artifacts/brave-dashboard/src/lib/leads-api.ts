@@ -398,7 +398,7 @@ export type PaymentRow = {
   paymentMode: string;
   transactionRef: string | null;
   paymentProof: string;
-  invoiceDoc: string;
+  invoiceDoc: string | null;
   deliveryProof: string[] | null;
   clientConfirmed: boolean;
 };
@@ -419,7 +419,6 @@ export type RecordPaymentBody = {
   paymentMode: "upi" | "bank_transfer" | "cash" | "cheque";
   transactionRef?: string;
   paymentProof: string;
-  invoiceDoc: string;
   deliveryProof?: string[];
 };
 

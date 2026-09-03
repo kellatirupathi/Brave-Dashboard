@@ -17,7 +17,10 @@ import {
   ShieldAlert,
   Pencil,
   Trash2,
+  Link2,
+  Upload,
 } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +40,7 @@ import { useSeason } from "@/lib/season-context";
 import { usePipelineGatesEnforced } from "@/lib/pipeline-gates-api";
 import { LeadsLockBanner } from "@/components/leads-lock-banner";
 import { useLeadsControl } from "@/lib/leads-control-api";
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
 import {
   addProjectPhase,
   apiErrorData,
@@ -120,7 +124,15 @@ function PaymentDialog({
   const [paymentMode, setPaymentMode] = useState("");
   const [transactionRef, setTransactionRef] = useState("");
   const [paymentProof, setPaymentProof] = useState("");
-  const [invoiceDoc, setInvoiceDoc] = useState("");
+  const [proofMode, setProofMode] = useState<"link" | "upload">("link");
+  const uploader = useUpload({
+    onError: (error) =>
+      toast({
+        title: "Could not upload payment proof",
+        description: error.message,
+        variant: "destructive",
+      }),
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -130,7 +142,7 @@ function PaymentDialog({
     setPaymentMode(payment?.paymentMode ?? "");
     setTransactionRef(payment?.transactionRef ?? "");
     setPaymentProof(payment?.paymentProof ?? "");
-    setInvoiceDoc(payment?.invoiceDoc ?? "");
+    setProofMode(payment?.paymentProof?.startsWith("/objects/") ? "upload" : "link");
   }, [open, payment]);
 
   // Cash is the only mode exempt from a reference number — that exemption is
@@ -145,7 +157,6 @@ function PaymentDialog({
         paymentDate,
         paymentMode: paymentMode as RecordPaymentBody["paymentMode"],
         paymentProof: paymentProof.trim(),
-        invoiceDoc: invoiceDoc.trim(),
         ...(transactionRef.trim()
           ? { transactionRef: transactionRef.trim() }
           : {}),
@@ -164,7 +175,6 @@ function PaymentDialog({
       setAmountReceived("");
       setTransactionRef("");
       setPaymentProof("");
-      setInvoiceDoc("");
       toast({ title: payment ? "Payment updated" : "Payment recorded" });
     },
     onError: (err: Error) => {
@@ -188,7 +198,7 @@ function PaymentDialog({
     !!paymentDate &&
     !!paymentMode &&
     !!paymentProof.trim() &&
-    !!invoiceDoc.trim() &&
+    !uploader.isUploading &&
     (!refRequired || !!transactionRef.trim());
 
   return (
@@ -264,20 +274,69 @@ function PaymentDialog({
           <Field
             label="Payment proof"
             required
-            hint="Screenshot of the transfer, or a photo of the receipt."
+            hint="Paste a link or upload an image, PDF, or other file up to 25 MB."
           >
-            <Input
-              value={paymentProof}
-              onChange={(e) => setPaymentProof(e.target.value)}
-              placeholder="Link to the file"
-            />
-          </Field>
-          <Field label="Invoice you gave the client" required>
-            <Input
-              value={invoiceDoc}
-              onChange={(e) => setInvoiceDoc(e.target.value)}
-              placeholder="Link to the file"
-            />
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={proofMode === "link" ? "default" : "outline"}
+                  onClick={() => {
+                    setProofMode("link");
+                    setPaymentProof("");
+                  }}
+                >
+                  <Link2 className="mr-1.5 h-4 w-4" />
+                  Paste link
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={proofMode === "upload" ? "default" : "outline"}
+                  onClick={() => {
+                    setProofMode("upload");
+                    setPaymentProof("");
+                  }}
+                >
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  Upload file
+                </Button>
+              </div>
+              {proofMode === "link" ? (
+                <Input
+                  value={paymentProof}
+                  onChange={(e) => setPaymentProof(e.target.value)}
+                  placeholder="https://"
+                />
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    type="file"
+                    disabled={uploader.isUploading}
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      const result = await uploader.uploadFile(file);
+                      if (result) {
+                        setPaymentProof(result.objectPath);
+                        toast({ title: "Payment proof uploaded" });
+                      }
+                    }}
+                  />
+                  {uploader.isUploading ? (
+                    <p className="text-xs text-muted-foreground">
+                      Uploading… {uploader.progress}%
+                    </p>
+                  ) : paymentProof.startsWith("/objects/") ? (
+                    <p className="flex items-center gap-1.5 text-xs text-emerald-700">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      File uploaded and ready to save
+                    </p>
+                  ) : null}
+                </div>
+              )}
+            </div>
           </Field>
         </div>
 
@@ -662,6 +721,12 @@ export default function LeadDelivery() {
   const [phaseDialogOpen, setPhaseDialogOpen] = useState(false);
   const [editingPhase, setEditingPhase] = useState<ProjectPhase | null>(null);
   const [editingProject, setEditingProject] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<
+    | { type: "project"; id: number; name: string }
+    | { type: "phase"; id: number; name: string }
+    | { type: "payment"; id: number; name: string }
+    | null
+  >(null);
 
   const projectQ = useQuery({
     queryKey: leadKeys.project(seasonId, projectId),
@@ -710,6 +775,7 @@ export default function LeadDelivery() {
       void qc.invalidateQueries({ queryKey: leadKeys.brd(seasonId, projectId) });
       void qc.invalidateQueries({ queryKey: leadKeys.projects(seasonId) });
       toast({ title: "Phase deleted" });
+      setDeleteTarget(null);
     },
     onError: (err: Error) =>
       toast({
@@ -728,6 +794,7 @@ export default function LeadDelivery() {
       void qc.invalidateQueries({ queryKey: leadKeys.brd(seasonId, projectId) });
       void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
       toast({ title: "Payment deleted" });
+      setDeleteTarget(null);
     },
     onError: (err: Error) =>
       toast({
@@ -815,14 +882,13 @@ export default function LeadDelivery() {
           {writable && controls.can("projects", "delete") ? (
             <Button
               variant="destructive"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "Delete this project? Projects with payments or submissions cannot be deleted.",
-                  )
-                )
-                  deleteProjectMutation.mutate();
-              }}
+              onClick={() =>
+                setDeleteTarget({
+                  type: "project",
+                  id: projectId,
+                  name: project.title,
+                })
+              }
             >
               <Trash2 className="mr-1.5 h-4 w-4" />
               Delete project
@@ -907,14 +973,13 @@ export default function LeadDelivery() {
                       size="icon"
                       variant="ghost"
                       aria-label={`Delete ${ph.name}`}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Delete "${ph.name}"? A phase with recorded payments cannot be deleted.`,
-                          )
-                        )
-                          deletePhaseMutation.mutate(ph.id);
-                      }}
+                      onClick={() =>
+                        setDeleteTarget({
+                          type: "phase",
+                          id: ph.id,
+                          name: ph.name,
+                        })
+                      }
                     >
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>
@@ -987,10 +1052,13 @@ export default function LeadDelivery() {
                       size="icon"
                       variant="ghost"
                       aria-label="Delete payment"
-                      onClick={() => {
-                        if (window.confirm("Delete this payment record?"))
-                          deletePaymentMutation.mutate(p.id);
-                      }}
+                      onClick={() =>
+                        setDeleteTarget({
+                          type: "payment",
+                          id: p.id,
+                          name: `${formatINR(p.amountReceived)} payment`,
+                        })
+                      }
                     >
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>
@@ -1162,6 +1230,41 @@ export default function LeadDelivery() {
         project={project}
         open={editingProject}
         onOpenChange={setEditingProject}
+      />
+      <ConfirmDeleteDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={
+          deleteTarget?.type === "project"
+            ? `Delete project "${deleteTarget.name}"?`
+            : deleteTarget?.type === "phase"
+              ? `Delete phase "${deleteTarget.name}"?`
+              : `Delete ${deleteTarget?.name ?? "payment"}?`
+        }
+        description={
+          deleteTarget?.type === "project"
+            ? "Projects with recorded payments or review submissions cannot be deleted."
+            : deleteTarget?.type === "phase"
+              ? "A phase with recorded payments cannot be deleted."
+              : "This payment record will be permanently removed. Client-confirmed payments cannot be deleted."
+        }
+        pending={
+          deleteProjectMutation.isPending ||
+          deletePhaseMutation.isPending ||
+          deletePaymentMutation.isPending
+        }
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          if (deleteTarget.type === "project") {
+            deleteProjectMutation.mutate();
+          } else if (deleteTarget.type === "phase") {
+            deletePhaseMutation.mutate(deleteTarget.id);
+          } else {
+            deletePaymentMutation.mutate(deleteTarget.id);
+          }
+        }}
       />
     </div>
   );
