@@ -18,3 +18,4 @@
 - [Access approval provisioning](access-approval-provisioning.md) — approving access must atomically provision whitelist access; approved status alone leaves students trapped in the gate.
 - [Public app install link](public-app-install-link.md) — `/get-app`, its minimal config, and the configured programme QR are public; all unrelated stored documents remain authenticated.
 - [App usage metrics](app-usage-metrics.md) — report native activity as “Ever opened the app,” never installs; historical page views with no platform remain unknown.
+- [Leads control policy](leads-control-policy.md) — Leads CRUD and review submission controls are season-scoped; only admins bypass them, and the master lock blocks every student mutation.

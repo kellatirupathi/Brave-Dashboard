@@ -30,6 +30,7 @@ import {
 } from "../middlewares/seasonGuard";
 import { logger } from "../lib/logger";
 import { areGatesEnforced } from "../lib/pipeline-gates";
+import { allowLeadsAction } from "../lib/leads-control";
 import {
   buildPipelineStatus,
   computeTrailStrength,
@@ -160,6 +161,7 @@ router.post(
     }
 
     const season = await resolveSeason(req);
+    if (!(await allowLeadsAction(req, res, season, "leads", "add"))) return;
     const [lead] = await db
       .insert(leadsTable)
       .values({
@@ -210,6 +212,163 @@ router.post(
       duplicateClientTeams: duplicateTeams,
       relatedParty: lead.isRelatedParty,
     });
+  },
+);
+
+const UpdateLeadBody = z
+  .object({
+    source: z
+      .enum(["walk_in", "online", "referral", "known_contact"])
+      .optional(),
+    referrerName: z.string().trim().max(200).nullable().optional(),
+    relationshipNote: z.string().trim().max(1000).nullable().optional(),
+    businessName: z.string().trim().min(1).max(200).optional(),
+    ownerName: z.string().trim().min(1).max(200).optional(),
+    phone: z.string().trim().min(6).max(30).optional(),
+    altPhone: z.string().trim().max(30).nullable().optional(),
+    businessCategory: z
+      .enum([
+        "retail",
+        "food_beverage",
+        "clinic",
+        "salon",
+        "education",
+        "services",
+        "manufacturing",
+        "other",
+      ])
+      .optional(),
+    city: z.string().trim().min(1).max(120).optional(),
+    areaLocality: z.string().trim().max(200).nullable().optional(),
+    geoLat: z.string().trim().max(40).nullable().optional(),
+    geoLng: z.string().trim().max(40).nullable().optional(),
+    firstMeetingDate: DATE.optional(),
+    meetingMode: z
+      .enum(["in_person", "phone", "video", "whatsapp"])
+      .optional(),
+    conversationNote: z.string().trim().min(1).max(4000).optional(),
+    painPoint: z.string().trim().max(4000).nullable().optional(),
+    estimatedValue: z.number().int().min(0).max(100_000_000).nullable().optional(),
+    evidence: z.array(z.string().url().max(2000)).max(10).nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, "No changes provided");
+
+router.patch(
+  "/leads/:id",
+  requireWritableSeason(),
+  async (req: Request, res: Response): Promise<void> => {
+    const scope = await resolveTeamScope(req, res);
+    if (!scope) return;
+    const id = Number(req.params["id"]);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid lead id" });
+      return;
+    }
+    const parsed = UpdateLeadBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [lead] = await db
+      .select()
+      .from(leadsTable)
+      .where(eq(leadsTable.id, id))
+      .limit(1);
+    if (!lead) {
+      res.status(404).json({ error: "Lead not found" });
+      return;
+    }
+    if (!scope.isStaff && lead.teamId !== scope.teamId) {
+      res.status(403).json({ error: "Not your team's lead" });
+      return;
+    }
+    if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "edit")))
+      return;
+
+    const candidate = { ...lead, ...parsed.data };
+    if (
+      candidate.source === "referral" &&
+      !candidate.referrerName?.trim()
+    ) {
+      res.status(400).json({ error: "Tell us who referred this client." });
+      return;
+    }
+    if (
+      candidate.source === "known_contact" &&
+      !candidate.relationshipNote?.trim()
+    ) {
+      res.status(400).json({
+        error: "Describe your relationship to this client.",
+      });
+      return;
+    }
+    if (candidate.firstMeetingDate > todayIso()) {
+      res
+        .status(400)
+        .json({ error: "The first meeting date cannot be in the future." });
+      return;
+    }
+
+    const [updated] = await db
+      .update(leadsTable)
+      .set({
+        ...parsed.data,
+        isRelatedParty: isRelatedPartySource(candidate.source),
+      })
+      .where(eq(leadsTable.id, id))
+      .returning();
+    if (updated) await upsertClientRegistry(updated);
+    res.json(updated);
+  },
+);
+
+router.delete(
+  "/leads/:id",
+  requireWritableSeason(),
+  async (req: Request, res: Response): Promise<void> => {
+    const scope = await resolveTeamScope(req, res);
+    if (!scope) return;
+    const id = Number(req.params["id"]);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid lead id" });
+      return;
+    }
+    const [lead] = await db
+      .select()
+      .from(leadsTable)
+      .where(eq(leadsTable.id, id))
+      .limit(1);
+    if (!lead) {
+      res.status(404).json({ error: "Lead not found" });
+      return;
+    }
+    if (!scope.isStaff && lead.teamId !== scope.teamId) {
+      res.status(403).json({ error: "Not your team's lead" });
+      return;
+    }
+    if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "delete")))
+      return;
+    const [project] = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(eq(projectsTable.leadId, id))
+      .limit(1);
+    if (project) {
+      res.status(409).json({
+        error:
+          "This lead already has a project. Delete the project before deleting the lead.",
+        code: "LEAD_HAS_PROJECT",
+        projectId: project.id,
+      });
+      return;
+    }
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(leadInteractionsTable)
+        .where(eq(leadInteractionsTable.leadId, id));
+      await tx.delete(leadsTable).where(eq(leadsTable.id, id));
+    });
+    res.status(204).end();
   },
 );
 
@@ -374,6 +533,16 @@ router.post(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        lead.seasonId,
+        "interactions",
+        "add",
+      ))
+    )
+      return;
 
     if (d.interactionDate > todayIso()) {
       res
@@ -461,6 +630,161 @@ router.post(
   },
 );
 
+const UpdateInteractionBody = InteractionBody.partial().refine(
+  (v) => Object.keys(v).length > 0,
+  "No changes provided",
+);
+
+router.patch(
+  "/leads/:leadId/interactions/:interactionId",
+  requireWritableSeason(),
+  async (req: Request, res: Response): Promise<void> => {
+    const scope = await resolveTeamScope(req, res);
+    if (!scope) return;
+    const leadId = Number(req.params["leadId"]);
+    const interactionId = Number(req.params["interactionId"]);
+    if (
+      !Number.isInteger(leadId) ||
+      leadId <= 0 ||
+      !Number.isInteger(interactionId) ||
+      interactionId <= 0
+    ) {
+      res.status(400).json({ error: "Invalid interaction id" });
+      return;
+    }
+    const parsed = UpdateInteractionBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [lead] = await db
+      .select()
+      .from(leadsTable)
+      .where(eq(leadsTable.id, leadId))
+      .limit(1);
+    if (!lead) {
+      res.status(404).json({ error: "Lead not found" });
+      return;
+    }
+    if (!scope.isStaff && lead.teamId !== scope.teamId) {
+      res.status(403).json({ error: "Not your team's lead" });
+      return;
+    }
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        lead.seasonId,
+        "interactions",
+        "edit",
+      ))
+    )
+      return;
+    const [interaction] = await db
+      .select()
+      .from(leadInteractionsTable)
+      .where(
+        and(
+          eq(leadInteractionsTable.id, interactionId),
+          eq(leadInteractionsTable.leadId, leadId),
+        ),
+      )
+      .limit(1);
+    if (!interaction) {
+      res.status(404).json({ error: "Interaction not found" });
+      return;
+    }
+    const candidate = { ...interaction, ...parsed.data };
+    if (candidate.interactionDate > todayIso()) {
+      res
+        .status(400)
+        .json({ error: "An interaction cannot be dated in the future." });
+      return;
+    }
+    if (candidate.interactionDate < lead.firstMeetingDate) {
+      res.status(400).json({
+        error: `An interaction cannot predate the first meeting (${lead.firstMeetingDate}).`,
+      });
+      return;
+    }
+    if (candidate.outcome === "objection" && !candidate.objectionNote?.trim()) {
+      res.status(400).json({ error: "Tell us what the objection was." });
+      return;
+    }
+    const [updated] = await db
+      .update(leadInteractionsTable)
+      .set(parsed.data)
+      .where(eq(leadInteractionsTable.id, interactionId))
+      .returning();
+    if (parsed.data.nextActionDate !== undefined) {
+      await db
+        .update(leadsTable)
+        .set({ nextActionDate: parsed.data.nextActionDate ?? null })
+        .where(eq(leadsTable.id, leadId));
+    }
+    const trailStrength = await refreshLeadDerivedState(leadId);
+    res.json({ interaction: updated, trailStrength });
+  },
+);
+
+router.delete(
+  "/leads/:leadId/interactions/:interactionId",
+  requireWritableSeason(),
+  async (req: Request, res: Response): Promise<void> => {
+    const scope = await resolveTeamScope(req, res);
+    if (!scope) return;
+    const leadId = Number(req.params["leadId"]);
+    const interactionId = Number(req.params["interactionId"]);
+    if (
+      !Number.isInteger(leadId) ||
+      leadId <= 0 ||
+      !Number.isInteger(interactionId) ||
+      interactionId <= 0
+    ) {
+      res.status(400).json({ error: "Invalid interaction id" });
+      return;
+    }
+    const [lead] = await db
+      .select()
+      .from(leadsTable)
+      .where(eq(leadsTable.id, leadId))
+      .limit(1);
+    if (!lead) {
+      res.status(404).json({ error: "Lead not found" });
+      return;
+    }
+    if (!scope.isStaff && lead.teamId !== scope.teamId) {
+      res.status(403).json({ error: "Not your team's lead" });
+      return;
+    }
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        lead.seasonId,
+        "interactions",
+        "delete",
+      ))
+    )
+      return;
+    const [deleted] = await db
+      .delete(leadInteractionsTable)
+      .where(
+        and(
+          eq(leadInteractionsTable.id, interactionId),
+          eq(leadInteractionsTable.leadId, leadId),
+        ),
+      )
+      .returning({ id: leadInteractionsTable.id });
+    if (!deleted) {
+      res.status(404).json({ error: "Interaction not found" });
+      return;
+    }
+    await refreshLeadDerivedState(leadId);
+    res.status(204).end();
+  },
+);
+
 // ── stage change on its own ─────────────────────────────────────────────────
 
 const StageBody = z.object({
@@ -497,6 +821,8 @@ router.patch(
       res.status(403).json({ error: "Not your team's lead" });
       return;
     }
+    if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "edit")))
+      return;
 
     // GATE A. Blocks only while the gates are ENFORCED (admin Config →
     // Pipeline gates). In advisory mode the move goes through and reviewers

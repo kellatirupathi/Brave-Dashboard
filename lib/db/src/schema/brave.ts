@@ -1226,6 +1226,16 @@ export const programmeConfigTable = pgTable("programme_config", {
   pipelineGatesEnforced: boolean("pipeline_gates_enforced")
     .notNull()
     .default(false),
+  // Season-scoped student controls for the Season 2 Leads pipeline. The JSON
+  // stores the add/edit/delete matrix so new controlled sections can be added
+  // without another column per checkbox. Missing/null uses the server defaults:
+  // add allowed, edit/delete denied. Admins are the only bypass.
+  leadsControlPermissions: jsonb("leads_control_permissions"),
+  // Master pause for every student Leads mutation, including Submit for review.
+  leadsSubmissionsLocked: boolean("leads_submissions_locked")
+    .notNull()
+    .default(false),
+  leadsSubmissionsLockMessage: text("leads_submissions_lock_message"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

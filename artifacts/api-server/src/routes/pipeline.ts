@@ -35,6 +35,10 @@ import { composeBrd, renderBrdText } from "../lib/brd-composer";
 import { blockingLinkFailures, checkLinks } from "../lib/link-check";
 import { computeRecognition } from "../lib/trust-score";
 import { areGatesEnforced } from "../lib/pipeline-gates";
+import {
+  allowLeadsAction,
+  allowLeadsSubmit,
+} from "../lib/leads-control";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -96,6 +100,38 @@ async function loadPipelineProject(
     }
   }
   return project;
+}
+
+async function ensureProjectNotSubmitted(
+  res: Response,
+  projectId: number,
+): Promise<boolean> {
+  const [entry] = await db
+    .select({ id: revenueEntriesTable.id, status: revenueEntriesTable.status })
+    .from(revenueEntriesTable)
+    .where(eq(revenueEntriesTable.projectId, projectId))
+    .limit(1);
+  if (!entry || entry.status === "draft") return true;
+  res.status(409).json({
+    error:
+      "This project has already been submitted for review. Its project, phases and payments are now frozen.",
+    code: "PROJECT_ALREADY_SUBMITTED",
+    entryId: entry.id,
+  });
+  return false;
+}
+
+async function refreshProjectContractValue(projectId: number): Promise<void> {
+  await db
+    .update(projectsTable)
+    .set({
+      totalContractValue: sql<number>`(
+        SELECT COALESCE(SUM(amount), 0)::int
+        FROM payment_schedule
+        WHERE project_id = ${projectId}
+      )`,
+    })
+    .where(eq(projectsTable.id, projectId));
 }
 
 // ── Stage 3: open the project (17 fields, 10 mandatory) ────────────────────
@@ -164,6 +200,16 @@ router.post(
       res.status(404).json({ error: "Lead not found" });
       return;
     }
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        lead.seasonId,
+        "projects",
+        "add",
+      ))
+    )
+      return;
     if (!(await requireTeamLeader(req, res, lead.teamId))) return;
 
     // ── GATE B ────────────────────────────────────────────────────────────
@@ -291,6 +337,149 @@ router.post(
   },
 );
 
+const UpdateProjectBody = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    serviceCategory: z.string().trim().min(1).max(120).optional(),
+    problemStatement: z.string().trim().min(1).max(4000).optional(),
+    solutionDescription: z.string().trim().min(1).max(4000).optional(),
+    techStack: z.array(z.string().trim().max(60)).max(30).nullable().optional(),
+    liveProductUrl: z.string().trim().url().max(2000).nullable().optional(),
+    demoVideoUrl: z.string().trim().url().max(2000).nullable().optional(),
+    sourceCodeUrl: z.string().trim().url().max(2000).nullable().optional(),
+    prototypeUrl: z.string().trim().url().max(2000).nullable().optional(),
+    demoCredentials: z.string().trim().max(500).nullable().optional(),
+    agreementDoc: z.string().trim().max(2000).nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, "No changes provided");
+
+router.patch(
+  "/pipeline/projects/:id",
+  requireWritableSeason("project"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params["id"]);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid project id" });
+      return;
+    }
+    const parsed = UpdateProjectBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const project = await loadPipelineProject(req, res, id);
+    if (!project) return;
+    if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        project.seasonId,
+        "projects",
+        "edit",
+      ))
+    )
+      return;
+    if (!(await ensureProjectNotSubmitted(res, id))) return;
+
+    const candidateLinks = {
+      liveProductUrl:
+        parsed.data.liveProductUrl === undefined
+          ? project.liveProductUrl
+          : parsed.data.liveProductUrl,
+      demoVideoUrl:
+        parsed.data.demoVideoUrl === undefined
+          ? project.demoVideoUrl
+          : parsed.data.demoVideoUrl,
+      sourceCodeUrl:
+        parsed.data.sourceCodeUrl === undefined
+          ? project.sourceCodeUrl
+          : parsed.data.sourceCodeUrl,
+      prototypeUrl:
+        parsed.data.prototypeUrl === undefined
+          ? project.prototypeUrl
+          : parsed.data.prototypeUrl,
+    };
+    const linkVerdicts = await checkLinks(candidateLinks);
+    const blocking = blockingLinkFailures(linkVerdicts);
+    if (blocking.length > 0) {
+      res.status(400).json({
+        error: "One or more links cannot be opened.",
+        code: "LINK_UNREACHABLE",
+        links: linkVerdicts,
+      });
+      return;
+    }
+    const patch = { ...parsed.data } as Record<string, unknown>;
+    if (parsed.data.solutionDescription !== undefined) {
+      patch.description = parsed.data.solutionDescription;
+    }
+    const [updated] = await db
+      .update(projectsTable)
+      .set(patch)
+      .where(eq(projectsTable.id, id))
+      .returning();
+    res.json(updated);
+  },
+);
+
+router.delete(
+  "/pipeline/projects/:id",
+  requireWritableSeason("project"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params["id"]);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid project id" });
+      return;
+    }
+    const project = await loadPipelineProject(req, res, id);
+    if (!project) return;
+    if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        project.seasonId,
+        "projects",
+        "delete",
+      ))
+    )
+      return;
+    if (!(await ensureProjectNotSubmitted(res, id))) return;
+    const [payment] = await db
+      .select({ id: paymentsTable.id })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.projectId, id))
+      .limit(1);
+    if (payment) {
+      res.status(409).json({
+        error:
+          "This project has recorded payments. Delete those payments before deleting the project.",
+        code: "PROJECT_HAS_PAYMENTS",
+      });
+      return;
+    }
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(paymentScheduleTable)
+        .where(eq(paymentScheduleTable.projectId, id));
+      await tx
+        .delete(projectPhasesTable)
+        .where(eq(projectPhasesTable.projectId, id));
+      await tx.delete(projectsTable).where(eq(projectsTable.id, id));
+    });
+    res.status(204).end();
+  },
+);
+
 // ── project detail ──────────────────────────────────────────────────────────
 
 router.get(
@@ -324,6 +513,241 @@ router.get(
       .orderBy(asc(paymentsTable.paymentDate));
 
     res.json({ project, phases, schedule, payments });
+  },
+);
+
+router.post(
+  "/pipeline/projects/:id/phases",
+  requireWritableSeason("project"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params["id"]);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid project id" });
+      return;
+    }
+    const parsed = PhaseInput.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const project = await loadPipelineProject(req, res, id);
+    if (!project) return;
+    if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        project.seasonId,
+        "phases",
+        "add",
+      ))
+    )
+      return;
+    if (!(await ensureProjectNotSubmitted(res, id))) return;
+    const existing = await db
+      .select({ id: projectPhasesTable.id })
+      .from(projectPhasesTable)
+      .where(eq(projectPhasesTable.projectId, id));
+    if (existing.length >= 12) {
+      res.status(409).json({ error: "A project can have at most 12 phases." });
+      return;
+    }
+    const d = parsed.data;
+    const created = await db.transaction(async (tx) => {
+      const [phase] = await tx
+        .insert(projectPhasesTable)
+        .values({
+          projectId: id,
+          sortOrder: existing.length,
+          name: d.name,
+          deliverables: d.deliverables ?? null,
+          startDate: d.startDate ?? null,
+          endDate: d.endDate ?? null,
+        })
+        .returning();
+      if (!phase) throw new Error("phase insert returned nothing");
+      const [schedule] = await tx
+        .insert(paymentScheduleTable)
+        .values({
+          projectId: id,
+          phaseId: phase.id,
+          amount: d.amount,
+          dueDate: d.dueDate ?? null,
+          revenueType: d.revenueType,
+        })
+        .returning();
+      return { phase, schedule };
+    });
+    await refreshProjectContractValue(id);
+    res.status(201).json(created);
+  },
+);
+
+router.patch(
+  "/pipeline/projects/:id/phases/:phaseId",
+  requireWritableSeason("project"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params["id"]);
+    const phaseId = Number(req.params["phaseId"]);
+    if (
+      !Number.isInteger(id) ||
+      id <= 0 ||
+      !Number.isInteger(phaseId) ||
+      phaseId <= 0
+    ) {
+      res.status(400).json({ error: "Invalid phase id" });
+      return;
+    }
+    const parsed = PhaseInput.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const project = await loadPipelineProject(req, res, id);
+    if (!project) return;
+    if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        project.seasonId,
+        "phases",
+        "edit",
+      ))
+    )
+      return;
+    if (!(await ensureProjectNotSubmitted(res, id))) return;
+    const [phase] = await db
+      .select({ id: projectPhasesTable.id })
+      .from(projectPhasesTable)
+      .where(
+        and(
+          eq(projectPhasesTable.id, phaseId),
+          eq(projectPhasesTable.projectId, id),
+        ),
+      )
+      .limit(1);
+    if (!phase) {
+      res.status(404).json({ error: "Phase not found" });
+      return;
+    }
+    const d = parsed.data;
+    const updated = await db.transaction(async (tx) => {
+      const [updatedPhase] = await tx
+        .update(projectPhasesTable)
+        .set({
+          name: d.name,
+          deliverables: d.deliverables ?? null,
+          startDate: d.startDate ?? null,
+          endDate: d.endDate ?? null,
+        })
+        .where(eq(projectPhasesTable.id, phaseId))
+        .returning();
+      const [updatedSchedule] = await tx
+        .update(paymentScheduleTable)
+        .set({
+          amount: d.amount,
+          dueDate: d.dueDate ?? null,
+          revenueType: d.revenueType,
+        })
+        .where(
+          and(
+            eq(paymentScheduleTable.projectId, id),
+            eq(paymentScheduleTable.phaseId, phaseId),
+          ),
+        )
+        .returning();
+      return { phase: updatedPhase, schedule: updatedSchedule };
+    });
+    await refreshProjectContractValue(id);
+    res.json(updated);
+  },
+);
+
+router.delete(
+  "/pipeline/projects/:id/phases/:phaseId",
+  requireWritableSeason("project"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params["id"]);
+    const phaseId = Number(req.params["phaseId"]);
+    if (
+      !Number.isInteger(id) ||
+      id <= 0 ||
+      !Number.isInteger(phaseId) ||
+      phaseId <= 0
+    ) {
+      res.status(400).json({ error: "Invalid phase id" });
+      return;
+    }
+    const project = await loadPipelineProject(req, res, id);
+    if (!project) return;
+    if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        project.seasonId,
+        "phases",
+        "delete",
+      ))
+    )
+      return;
+    if (!(await ensureProjectNotSubmitted(res, id))) return;
+    const phases = await db
+      .select({ id: projectPhasesTable.id })
+      .from(projectPhasesTable)
+      .where(eq(projectPhasesTable.projectId, id));
+    if (!phases.some((p) => p.id === phaseId)) {
+      res.status(404).json({ error: "Phase not found" });
+      return;
+    }
+    if (phases.length <= 2) {
+      res.status(409).json({
+        error: "A project must keep at least two phases.",
+        code: "MINIMUM_PHASES_REQUIRED",
+      });
+      return;
+    }
+    const [payment] = await db
+      .select({ id: paymentsTable.id })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.phaseId, phaseId))
+      .limit(1);
+    if (payment) {
+      res.status(409).json({
+        error:
+          "This phase has recorded payments and cannot be deleted. Move or remove the payments first.",
+        code: "PHASE_HAS_PAYMENTS",
+      });
+      return;
+    }
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(paymentScheduleTable)
+        .where(
+          and(
+            eq(paymentScheduleTable.projectId, id),
+            eq(paymentScheduleTable.phaseId, phaseId),
+          ),
+        );
+      await tx
+        .delete(projectPhasesTable)
+        .where(eq(projectPhasesTable.id, phaseId));
+    });
+    await refreshProjectContractValue(id);
+    res.status(204).end();
   },
 );
 
@@ -363,6 +787,17 @@ router.post(
     const project = await loadPipelineProject(req, res, id);
     if (!project) return;
     if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        project.seasonId,
+        "payments",
+        "add",
+      ))
+    )
+      return;
+    if (!(await ensureProjectNotSubmitted(res, id))) return;
 
     // Anything but cash must carry a reference — that is what makes the
     // duplicate-UTR check possible. Cash is exempt rather than forbidden,
@@ -447,6 +882,189 @@ router.post(
       logger.error({ err }, "[pipeline] payment insert failed");
       res.status(500).json({ error: "Could not record the payment." });
     }
+  },
+);
+
+router.patch(
+  "/pipeline/projects/:id/payments/:paymentId",
+  requireWritableSeason("revenue"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params["id"]);
+    const paymentId = Number(req.params["paymentId"]);
+    if (
+      !Number.isInteger(id) ||
+      id <= 0 ||
+      !Number.isInteger(paymentId) ||
+      paymentId <= 0
+    ) {
+      res.status(400).json({ error: "Invalid payment id" });
+      return;
+    }
+    const parsed = PaymentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const project = await loadPipelineProject(req, res, id);
+    if (!project) return;
+    if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        project.seasonId,
+        "payments",
+        "edit",
+      ))
+    )
+      return;
+    if (!(await ensureProjectNotSubmitted(res, id))) return;
+    const [payment] = await db
+      .select()
+      .from(paymentsTable)
+      .where(
+        and(eq(paymentsTable.id, paymentId), eq(paymentsTable.projectId, id)),
+      )
+      .limit(1);
+    if (!payment) {
+      res.status(404).json({ error: "Payment not found" });
+      return;
+    }
+    if (payment.clientConfirmed) {
+      res.status(409).json({
+        error:
+          "A client-confirmed payment cannot be edited. Ask an administrator to correct it.",
+        code: "PAYMENT_CONFIRMED",
+      });
+      return;
+    }
+    const d = parsed.data;
+    if (d.paymentMode !== "cash" && !d.transactionRef?.trim()) {
+      res.status(400).json({
+        error:
+          "Add the UTR or reference number. Only cash payments can be recorded without one.",
+      });
+      return;
+    }
+    const [phase] = await db
+      .select({ id: projectPhasesTable.id })
+      .from(projectPhasesTable)
+      .where(
+        and(
+          eq(projectPhasesTable.id, d.phaseId),
+          eq(projectPhasesTable.projectId, id),
+        ),
+      )
+      .limit(1);
+    if (!phase) {
+      res.status(400).json({ error: "That phase is not part of this project." });
+      return;
+    }
+    if (d.paymentDate > todayIso()) {
+      res
+        .status(400)
+        .json({ error: "A payment cannot be dated in the future." });
+      return;
+    }
+    const [lead] = await db
+      .select({ firstMeetingDate: leadsTable.firstMeetingDate })
+      .from(leadsTable)
+      .where(eq(leadsTable.id, project.leadId!))
+      .limit(1);
+    if (lead && d.paymentDate < lead.firstMeetingDate) {
+      res.status(400).json({
+        error: `A payment cannot predate the first client meeting (${lead.firstMeetingDate}).`,
+      });
+      return;
+    }
+    try {
+      const [updated] = await db
+        .update(paymentsTable)
+        .set({
+          phaseId: d.phaseId,
+          amountReceived: d.amountReceived,
+          paymentDate: d.paymentDate,
+          paymentMode: d.paymentMode,
+          transactionRef: d.transactionRef?.trim() || null,
+          paymentProof: d.paymentProof,
+          invoiceDoc: d.invoiceDoc,
+          deliveryProof: d.deliveryProof ?? null,
+        })
+        .where(eq(paymentsTable.id, paymentId))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      if ((err as { code?: string })?.code === "23505") {
+        res.status(409).json({
+          error: "That transaction reference has already been recorded.",
+          code: "DUPLICATE_TRANSACTION_REF",
+        });
+        return;
+      }
+      logger.error({ err }, "[pipeline] payment update failed");
+      res.status(500).json({ error: "Could not update the payment." });
+    }
+  },
+);
+
+router.delete(
+  "/pipeline/projects/:id/payments/:paymentId",
+  requireWritableSeason("revenue"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const id = Number(req.params["id"]);
+    const paymentId = Number(req.params["paymentId"]);
+    if (
+      !Number.isInteger(id) ||
+      id <= 0 ||
+      !Number.isInteger(paymentId) ||
+      paymentId <= 0
+    ) {
+      res.status(400).json({ error: "Invalid payment id" });
+      return;
+    }
+    const project = await loadPipelineProject(req, res, id);
+    if (!project) return;
+    if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (
+      !(await allowLeadsAction(
+        req,
+        res,
+        project.seasonId,
+        "payments",
+        "delete",
+      ))
+    )
+      return;
+    if (!(await ensureProjectNotSubmitted(res, id))) return;
+    const [payment] = await db
+      .select()
+      .from(paymentsTable)
+      .where(
+        and(eq(paymentsTable.id, paymentId), eq(paymentsTable.projectId, id)),
+      )
+      .limit(1);
+    if (!payment) {
+      res.status(404).json({ error: "Payment not found" });
+      return;
+    }
+    if (payment.clientConfirmed) {
+      res.status(409).json({
+        error:
+          "A client-confirmed payment cannot be deleted. Ask an administrator to correct it.",
+        code: "PAYMENT_CONFIRMED",
+      });
+      return;
+    }
+    await db.delete(paymentsTable).where(eq(paymentsTable.id, paymentId));
+    res.status(204).end();
   },
 );
 
@@ -553,6 +1171,7 @@ router.post(
     const project = await loadPipelineProject(req, res, id);
     if (!project) return;
     if (!(await requireTeamLeader(req, res, project.teamId))) return;
+    if (!(await allowLeadsSubmit(req, res, project.seasonId))) return;
 
     const brd = await composeBrd(id);
     if (!brd) {

@@ -1,0 +1,14 @@
+in this leads/1/delivery/871
+
+in the delivery page Phases section is there right that section right aise add one button add phases and already add phases must be editable so right side show edit icon and text edit so edit button format when clcik on edit button to open in modal popup format and below update and cancel buttons in the modal and next payments sections also must be editable  Payments right side add small button edit buttons when clcik on open edit modal opens like this 
+
+and in the admin config next one thing these all payments and phases and projects and  edit and  delete buttons to show or not can be control by admin confgi page new menu add in the config page that leads control is the menu name 
+
+when click on this to show section wise controlling students need to add or edit or delete these three controlling must be admin can control in the leads control page to show section wise in this section to show name and right side three columns one add column nad another column is edit column and another column is delte column checkboxes checkboxes if checked they can do if unchecked they cann't do anyhting like that in the students page already add option is there but these all control by admin and next edit and delete also deafult only add must be checked on remaaning  edit and delte must be uncheck format 
+
+and you cna think in the entire leads page wherever there operations handling thoswe all ca be crud operations format like leads and projects and payments and phases and interactions and submit for review button enable or not and next 
+
+we need to control entitre leads page one thing turned on button and below customise message if turned on this they unable to add or edit or delete these all crud operatiosn they cann't do and in the top to show that customise message  
+leads submission lock and Message shown to students like this
+
+like previously how projects page so check and first plan this entire these all controlling must be add in the config page under new page leads-control 
