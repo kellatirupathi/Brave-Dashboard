@@ -464,22 +464,9 @@ export default function DocsPage() {
           <span className="hidden text-sm text-white/60 sm:inline">/ Documentation</span>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* Role switcher */}
-            <div className="hidden items-center rounded-lg bg-white/10 p-0.5 sm:flex">
-              {ROLES.map((r) => (
-                <Link
-                  key={r}
-                  href={`/docs/${r}/${version}`}
-                  className={cn(
-                    "rounded-md px-3 py-1 text-xs font-semibold transition-colors",
-                    r === role ? "bg-white text-[#3B0D0D]" : "text-white/80 hover:bg-white/10",
-                  )}
-                >
-                  {ROLE_LABEL[r]}
-                </Link>
-              ))}
-            </div>
-            {/* Version switcher */}
+            {/* Version switcher. There is deliberately NO role switcher:
+                each role's documentation is its own page, shared as its own
+                link, and should not advertise the other two. */}
             <div className="flex items-center rounded-lg bg-white/10 p-0.5">
               {VERSIONS.map((v) => (
                 <Link
@@ -503,21 +490,6 @@ export default function DocsPage() {
               <ArrowUpRight className="h-3.5 w-3.5" />
             </a>
           </div>
-        </div>
-        {/* Mobile role switcher */}
-        <div className="flex gap-1 overflow-x-auto px-4 pb-2 sm:hidden">
-          {ROLES.map((r) => (
-            <Link
-              key={r}
-              href={`/docs/${r}/${version}`}
-              className={cn(
-                "shrink-0 rounded-full px-3 py-1 text-xs font-semibold",
-                r === role ? "bg-white text-[#3B0D0D]" : "bg-white/10 text-white/80",
-              )}
-            >
-              {ROLE_LABEL[r]}
-            </Link>
-          ))}
         </div>
       </header>
 
@@ -565,11 +537,11 @@ export default function DocsPage() {
         {/* Section index — sticky on desktop, drawer on mobile */}
         <aside
           className={cn(
-            "fixed inset-x-0 top-[57px] z-30 max-h-[calc(100vh-57px)] overflow-y-auto border-b bg-background p-4 shadow-lg lg:static lg:block lg:w-64 lg:shrink-0 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none",
+            "fixed inset-x-0 top-[57px] z-30 max-h-[calc(100vh-57px)] overflow-y-auto border-b bg-background p-4 shadow-lg lg:static lg:block lg:max-h-none lg:w-64 lg:shrink-0 lg:overflow-visible lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none",
             navOpen ? "block" : "hidden",
           )}
         >
-          <div className="lg:sticky lg:top-24">
+          <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
             <p className="mb-2 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               On this page
             </p>
