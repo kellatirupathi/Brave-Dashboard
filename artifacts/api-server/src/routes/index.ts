@@ -54,9 +54,7 @@ import pipelineGatesRouter from "./pipeline-gates";
 import leadsControlRouter from "./leads-control";
 import cronLeadNudgesRouter from "./cron-lead-nudges";
 import whatsappRouter from "./whatsapp";
-import trustRouter from "./trust";
 import pricingRouter from "./pricing";
-import cronTrustAwardsRouter from "./cron-trust-awards";
 import reviewRouter from "./review";
 import productTourRouter from "./product-tour";
 import publicAppRouter from "./public-app";
@@ -160,12 +158,8 @@ router.use(cronLeadNudgesRouter);
 // WhatsApp broadcasts via Karix (additive, isolated). Super-admin only.
 // Deleting whatsapp.ts means removing this line and its import above.
 router.use(whatsappRouter);
-// Phase 6 trust ledger reads + coordinator adjustment (additive, isolated)
-router.use(trustRouter);
 // Phase 6 pricing categories + recognition caps (additive, isolated)
 router.use(pricingRouter);
-// Phase 6 time-based trust award sweep (additive, isolated)
-router.use(cronTrustAwardsRouter);
 // Phase 7 evaluation: assignment, decisions, appeals, audit (additive, isolated)
 router.use(reviewRouter);
 router.use(productTourRouter);

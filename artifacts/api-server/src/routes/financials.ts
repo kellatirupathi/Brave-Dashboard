@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { awardTrust } from "../lib/trust-score";
 import {
   db,
   orderBookEntriesTable,
@@ -769,40 +768,6 @@ router.post(
       return;
     }
 
-    // Trust ledger (additive, non-blocking). Verification is the core honest
-    // outcome, so it earns points; a materially trimmed claim also records the
-    // overstatement. Both carry refType/refId so the partial unique index makes
-    // a re-verify idempotent rather than doubling the award.
-    //
-    // The 10% threshold is deliberate: a coordinator correcting Rs 200 on a
-    // Rs 40,000 claim is bookkeeping, not overstatement, and penalising it
-    // would teach teams to argue with small corrections.
-    try {
-      await awardTrust({
-        teamId: entry.teamId,
-        seasonId: entry.seasonId,
-        kind: "revenue_verified",
-        refType: "revenue_entry",
-        refId: entry.id,
-      });
-      const verified = parsed.data.verifiedAmount;
-      if (verified < entry.amount * 0.9) {
-        await awardTrust({
-          teamId: entry.teamId,
-          seasonId: entry.seasonId,
-          kind: "amount_overstated",
-          refType: "revenue_entry",
-          refId: entry.id,
-          reason: `Claimed ${entry.amount}, verified ${verified}.`,
-          createdBy: req.user?.id,
-        });
-      }
-    } catch (err) {
-      // A trust-ledger failure must never fail the verification itself - the
-      // money being confirmed is the important outcome here.
-      logger.error({ err, entryId: entry.id }, "[trust] verify award failed");
-    }
-
     // Milestone checks
     const [team] = await db
       .select()
@@ -994,25 +959,6 @@ router.post(
     if (!entry) {
       res.status(404).json({ error: "Entry not found" });
       return;
-    }
-
-    // Trust ledger. A rejection is recorded as evidence_missing rather than
-    // amount_overstated: the coordinator has declined the claim, but nothing
-    // here establishes the amount was inflated - only that the submission did
-    // not stand up. The heavier overstatement penalty is reserved for a verify
-    // that materially trims the figure, where the shortfall is measured.
-    try {
-      await awardTrust({
-        teamId: entry.teamId,
-        seasonId: entry.seasonId,
-        kind: "evidence_missing",
-        refType: "revenue_entry_rejected",
-        refId: entry.id,
-        reason: parsed.data.adminNotes,
-        createdBy: req.user?.id,
-      });
-    } catch (err) {
-      logger.error({ err, entryId: entry.id }, "[trust] reject award failed");
     }
 
     const [team] = await db

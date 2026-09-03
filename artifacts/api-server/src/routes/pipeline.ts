@@ -9,8 +9,9 @@
  * - Season 1 projects are unaffected: they carry `lead_id = NULL`, and every
  *   handler here refuses to operate on such a row.
  *
- * Gate B is enforced at creation (converted lead only). Gate C is evaluated by
- * the composer, so the checklist the student sees is the check that blocks.
+ * Gate B is enforced at creation (converted lead only). Submission progress is
+ * evaluated by the composer, so the checklist the student sees is the check
+ * that blocks.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
@@ -1144,7 +1145,7 @@ router.get(
 // ── Stage 5: submit for review ─────────────────────────────────────────────
 
 /**
- * Gate C. The submission does NOT create a parallel review queue — it writes a
+ * Submission does NOT create a parallel review queue — it writes a
  * normal `revenue_entries` row, so every existing coordinator screen, verifier
  * action, leaderboard total and export keeps working untouched. The only
  * difference is that brd_url is NULL and the composed BRD lives in
@@ -1177,16 +1178,12 @@ router.post(
       return;
     }
 
-    // ── GATE C ────────────────────────────────────────────────────────────
-    // The checklist the student sees IS the check that blocks, because both
-    // come from composeBrd(). There is no second, stricter server-side list to
-    // be surprised by. Blocks only while the gates are ENFORCED; in advisory
-    // mode the submission goes through with the failing items recorded in the
-    // composed BRD, where reviewers see them.
-    if (!brd.gateC.passed && (await areGatesEnforced(project.seasonId))) {
+    // The five-item progress checklist is the only submission gate. It always
+    // applies so the UI and server cannot disagree.
+    if (!brd.gateC.passed) {
       res.status(409).json({
-        error: "Some things are still missing.",
-        code: "GATE_C_NOT_MET",
+        error: "Complete all five progress items before submitting.",
+        code: "LEAD_PROGRESS_INCOMPLETE",
         remaining: brd.gateC.remaining,
         items: brd.gateC.items.filter((i) => !i.passed),
       });

@@ -1,13 +1,13 @@
 /**
- * Season 2 BRD composition + Gate C (additive, isolated).
+ * Season 2 BRD composition + submission progress (additive, isolated).
  *
  * THERE IS NO BRD FORM IN SEASON 2. The document is assembled from what was
  * already recorded at stages 1-4 and shown to the student to confirm. That is
  * the single change that removes the largest fabrication surface in Season 1:
  * a BRD can no longer contain anything that was not logged as it happened.
  *
- * Gate C lives here too, so the submission checklist the student sees and the
- * check that actually blocks submission are the same code.
+ * Submission progress lives here too, so the checklist the student sees and
+ * the check that actually blocks submission are the same code.
  */
 import { and, asc, eq } from "drizzle-orm";
 import {
@@ -26,7 +26,7 @@ import {
   type GateAStatus,
 } from "./lead-pipeline";
 
-// ── Gate C ──────────────────────────────────────────────────────────────────
+// ── Submission progress ─────────────────────────────────────────────────────
 
 export type ChecklistItem = {
   key: string;
@@ -220,56 +220,48 @@ export async function composeBrd(
     };
   });
 
-  // ── Gate C ────────────────────────────────────────────────────────────────
-  // Every recorded payment must carry proof. Phases not yet paid are not held
-  // against the student — partial delivery is normal and must be submittable.
-  const paidPhaseIds = new Set(payments.map((p) => p.phaseId));
-  const paymentsMissingProof = payments.filter((p) => !p.paymentProof);
-
+  // Five equally weighted completion items. This is the only checklist that
+  // controls submission; interaction volume, elapsed days and trail bands are
+  // deliberately not gates.
   const items: ChecklistItem[] = [
     {
-      key: "mandatory_fields",
-      label: "All mandatory fields present",
+      key: "interaction",
+      label: "At least one interaction",
+      passed: interactions.length > 0,
+      detail: "Record at least one client interaction.",
+    },
+    {
+      key: "work",
+      label: "Work section",
       passed:
+        !!project.title?.trim() &&
         !!project.serviceCategory &&
         !!project.problemStatement &&
-        !!project.solutionDescription &&
-        !!project.revenueType,
-      detail: "Service category, problem, solution and revenue type.",
-    },
-    {
-      key: "phases",
-      label: "Phase-wise delivery plan (2 minimum)",
-      passed: phases.length >= 2,
-      detail: `${phases.length} phase${phases.length === 1 ? "" : "s"} defined.`,
-    },
-    {
-      key: "schedule",
-      label: "Every phase has a scheduled payment",
-      passed: phases.length > 0 && phases.every((p) => scheduleByPhase.has(p.id)),
-      detail: "Add an amount and due date for each phase.",
-    },
-    {
-      key: "payment",
-      label: "At least one payment recorded",
-      passed: payments.length > 0,
-      detail: "Log the money you have actually received.",
+        !!project.solutionDescription,
+      detail: "Complete the project title, service, problem and solution.",
     },
     {
       key: "proof",
-      label: "Payment proof attached to every payment",
-      passed: paymentsMissingProof.length === 0,
-      detail: `${paymentsMissingProof.length} payment(s) without proof.`,
+      label: "Proof it exists",
+      passed: Boolean(
+        project.liveProductUrl ||
+          project.demoVideoUrl ||
+          project.sourceCodeUrl ||
+          project.prototypeUrl,
+      ),
+      detail: "Add a live product, demo video, source code or prototype link.",
     },
     {
-      key: "disclosure",
-      label: "Relationship disclosure complete",
-      // Related-party leads must carry the explanatory field for their source.
-      passed:
-        !lead.isRelatedParty ||
-        !!lead.referrerName?.trim() ||
-        !!lead.relationshipNote?.trim(),
-      detail: "Tell us how you know this client.",
+      key: "phases",
+      label: "Phases",
+      passed: phases.length > 0,
+      detail: "Add the delivery phases.",
+    },
+    {
+      key: "payment",
+      label: "At least one payment",
+      passed: payments.length > 0,
+      detail: "Record at least one received payment.",
     },
   ];
 
@@ -418,9 +410,6 @@ export function renderBrdText(brd: ComposedBrd): string {
   }
   L.push("");
   L.push(`SYSTEM ASSESSMENT`);
-  L.push(
-    `  Trail strength: ${brd.systemAssessment.trailStrength}/100 (${brd.systemAssessment.trailBand})`,
-  );
   L.push(`  Claimed: ${brd.systemAssessment.claimedAmount}`);
   L.push(`  Received: ${brd.systemAssessment.receivedAmount}`);
   return L.join("\n");

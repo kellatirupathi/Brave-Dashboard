@@ -21,6 +21,7 @@ import {
   leadInteractionsTable,
   projectsTable,
   paymentsTable,
+  projectPhasesTable,
   teamMembersTable,
 } from "@workspace/db";
 import { resolveSeason } from "../lib/season";
@@ -461,6 +462,71 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
     .orderBy(desc(leadInteractionsTable.interactionDate));
 
   const gateA = evaluateGateA(interactions);
+  const [project] = await db
+    .select({
+      id: projectsTable.id,
+      title: projectsTable.title,
+      serviceCategory: projectsTable.serviceCategory,
+      problemStatement: projectsTable.problemStatement,
+      solutionDescription: projectsTable.solutionDescription,
+      liveProductUrl: projectsTable.liveProductUrl,
+      demoVideoUrl: projectsTable.demoVideoUrl,
+      sourceCodeUrl: projectsTable.sourceCodeUrl,
+      prototypeUrl: projectsTable.prototypeUrl,
+    })
+    .from(projectsTable)
+    .where(eq(projectsTable.leadId, id))
+    .limit(1);
+  const [phaseCount, paymentCount] = project
+    ? await Promise.all([
+        db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(projectPhasesTable)
+          .where(eq(projectPhasesTable.projectId, project.id))
+          .then((rows) => Number(rows[0]?.n ?? 0)),
+        db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(paymentsTable)
+          .where(eq(paymentsTable.projectId, project.id))
+          .then((rows) => Number(rows[0]?.n ?? 0)),
+      ])
+    : [0, 0];
+  const progressItems = [
+    {
+      key: "interaction",
+      label: "At least one interaction",
+      complete: interactions.length > 0,
+    },
+    {
+      key: "work",
+      label: "Work section",
+      complete: Boolean(
+        project?.title?.trim() &&
+          project.serviceCategory?.trim() &&
+          project.problemStatement?.trim() &&
+          project.solutionDescription?.trim(),
+      ),
+    },
+    {
+      key: "proof",
+      label: "Proof it exists",
+      complete: Boolean(
+        project?.liveProductUrl ||
+          project?.demoVideoUrl ||
+          project?.sourceCodeUrl ||
+          project?.prototypeUrl,
+      ),
+    },
+    { key: "phases", label: "Phases", complete: phaseCount > 0 },
+    {
+      key: "payment",
+      label: "At least one payment",
+      complete: paymentCount > 0,
+    },
+  ];
+  const completedProgressItems = progressItems.filter(
+    (item) => item.complete,
+  ).length;
   const gatesEnforced = await areGatesEnforced(lead.seasonId);
 
   res.json({
@@ -470,6 +536,12 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
     gateA,
     trailStrength: computeTrailStrength(interactions),
     trailBand: trailBand(lead.trailStrength),
+    progress: {
+      score: completedProgressItems * 20,
+      completed: completedProgressItems,
+      total: progressItems.length,
+      items: progressItems,
+    },
     // Gate A never blocks conversion. A student who closes a client on the
     // first visit has done the work, not skipped it — the trail is evidence
     // for the reviewer, not a turnstile. Still reported above so admins can
