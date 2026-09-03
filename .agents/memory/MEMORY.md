@@ -19,3 +19,4 @@
 - [Public app install link](public-app-install-link.md) — `/get-app`, its minimal config, and the configured programme QR are public; all unrelated stored documents remain authenticated.
 - [App usage metrics](app-usage-metrics.md) — report native activity as “Ever opened the app,” never installs; historical page views with no platform remain unknown.
 - [Leads control policy](leads-control-policy.md) — Leads CRUD and review submission controls are season-scoped; only admins bypass them, and the master lock blocks every student mutation.
+- [Production data merges](production-data-merges.md) — verify the actual target connection and reconcile ID collisions by business keys before importing.
