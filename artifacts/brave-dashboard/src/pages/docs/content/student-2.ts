@@ -31,7 +31,6 @@ export const STUDENT_2: RoleDoc = {
             ["You wrote and uploaded a BRD PDF", "The BRD is **composed automatically** from what you logged"],
             ["Demo Day threshold progress", "**GRIT Miles** ladder with levels and rewards"],
             ["Website only", "Website, installable app (PWA) and the Android app from `/get-app`"],
-            ["—", "**Trust standing** on My Team, built from verified behaviour"],
           ],
         },
         {
@@ -82,7 +81,7 @@ export const STUDENT_2: RoleDoc = {
         },
         {
           type: "p",
-          text: "**My Team** also shows your team's **Trust standing** (see below) and the milestone timeline.",
+          text: "**My Team** also shows your team's milestone timeline.",
         },
       ],
     },
@@ -120,21 +119,20 @@ export const STUDENT_2: RoleDoc = {
             ["5 · BRD ready", "Review the composed BRD and submit for review", "same page"],
           ],
         },
-        { type: "h3", text: "The three gates" },
+        { type: "h3", text: "The two gates" },
         {
           type: "table",
           columns: ["Gate", "Rule", "Where it applies"],
           rows: [
-            ["A", "3 dated interactions spanning 7+ days before converting", "Client said yes"],
             ["B", "A project starts only from a Converted lead", "Open the project"],
-            ["C", "The 9-item checklist before the BRD can be submitted", "Submit for review"],
+            ["C", "The 7-item checklist before the BRD can be submitted", "Submit for review"],
           ],
         },
         {
           type: "callout",
           tone: "info",
-          title: "Gates are recommendations unless your admin enforces them",
-          text: "By default the gates are **advisory**: the checks are always shown, but you can convert, open a project and submit at any time. Reviewers see which checks were met, so skipping them is visible. An admin can switch the gates to *Enforced*, in which case the buttons block until the rule is met.",
+          title: "Convert whenever the client says yes",
+          text: "There is no minimum number of interactions and no waiting period. If a client agrees on your first visit, convert the lead the same day. Log interactions because the record is what makes the client credible to a reviewer — not because a button is waiting on them.",
         },
       ],
     },
@@ -186,7 +184,7 @@ export const STUDENT_2: RoleDoc = {
         },
         {
           type: "p",
-          text: "Bands: **Weak** < 45 · **Moderate** 45–69 · **Strong** 70+. Gate C wants Moderate or better; a strong trail also earns trust. Time and evidence weigh more than volume on purpose — ten messages in one afternoon count as one date.",
+          text: "Bands: **Weak** < 45 · **Moderate** 45–69 · **Strong** 70+. Nothing is blocked by the band — it tells your reviewer how well documented the client is. Time and evidence weigh more than volume on purpose — ten messages in one afternoon count as one date.",
         },
         { type: "h3", text: "Stages" },
         {
@@ -256,8 +254,6 @@ export const STUDENT_2: RoleDoc = {
             "Service category, problem, solution and revenue type filled",
             "At least 2 phases",
             "Every phase has a scheduled payment",
-            "Trail strength Moderate or better",
-            "Gate A met on the lead",
             "At least one payment recorded",
             "Payment proof on every payment",
             "Invoice on every payment",
@@ -336,34 +332,6 @@ export const STUDENT_2: RoleDoc = {
       ],
     },
     {
-      id: "trust",
-      title: "Trust standing (My Team)",
-      icon: "shield",
-      blocks: [
-        {
-          type: "p",
-          text: "An append-only ledger of points your team earns through verified behaviour and loses through proven misreporting. It is shown line by line, with the published rules, so you can always account for your number.",
-        },
-        {
-          type: "table",
-          columns: ["Event", "Points"],
-          rows: [
-            ["Revenue verified by your coordinator", "+10"],
-            ["A lead reached a strong interaction trail", "+5"],
-            ["Four weeks of journals with no gaps", "+5"],
-            ["A phase delivered by its agreed date", "+5"],
-            ["Location captured at the client's premises", "+3"],
-            ["Claimed more than the evidence supports (verified < 90% of claim)", "−25"],
-            ["Proof asked for and not supplied (entry rejected)", "−10"],
-          ],
-        },
-        {
-          type: "p",
-          text: "Tiers: **Bronze** 0+ (everyone starts here) · **Silver** 40+ · **Gold** 90+ (submissions sampled rather than fully re-checked) · **Watch** below 0 (every submission checked in full).",
-        },
-      ],
-    },
-    {
       id: "members",
       title: "Leader vs members",
       icon: "user",
@@ -371,12 +339,12 @@ export const STUDENT_2: RoleDoc = {
         {
           type: "cando",
           can: [
-            "Any member: capture leads and log interactions — field work should be logged by whoever did it",
             "Any member: submit or edit the weekly journal",
-            "Everyone: view leads, projects, payments, the composed BRD, leaderboard, GRIT Miles, trust standing",
+            "Everyone: view every lead, project, payment and the composed BRD their team has recorded",
+            "Everyone: leaderboard and GRIT Miles",
           ],
           cannot: [
-            "Only the leader can open a project, record payments and submit for review",
+            "Only the leader runs Leads — capturing clients, logging interactions, converting, projects, phases, payments and submitting for review",
             "Only the leader manages invitations and join requests",
           ],
         },

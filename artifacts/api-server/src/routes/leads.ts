@@ -38,7 +38,6 @@ import {
   findDuplicateClientTeams,
   isRelatedPartySource,
   refreshLeadDerivedState,
-  stageRequiresGateA,
   trailBand,
   upsertClientRegistry,
 } from "../lib/lead-pipeline";
@@ -471,9 +470,11 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
     gateA,
     trailStrength: computeTrailStrength(interactions),
     trailBand: trailBand(lead.trailStrength),
-    // Advisory mode: Gate A is a recommendation, so converting is always
-    // possible. The gate itself is still reported above.
-    canConvert: gateA.passed || !gatesEnforced,
+    // Gate A never blocks conversion. A student who closes a client on the
+    // first visit has done the work, not skipped it — the trail is evidence
+    // for the reviewer, not a turnstile. Still reported above so admins can
+    // see how well-documented the lead is.
+    canConvert: true,
     gatesEnforced,
   });
 });
@@ -594,22 +595,15 @@ router.post(
     const gateA = evaluateGateA(interactions);
 
     let stageApplied: string | null = null;
-    let stageRefused: string[] | null = null;
+    // Kept in the response shape so existing clients keep parsing it; Gate A
+    // no longer refuses a stage move, so it is always null.
+    const stageRefused: string[] | null = null;
     if (d.stageChange) {
-      // Only refuse when the gates are ENFORCED. In advisory mode the move is
-      // applied and the reasons ride along as a hint instead.
-      const enforced = await areGatesEnforced(lead.seasonId);
-      if (enforced && stageRequiresGateA(d.stageChange) && !gateA.passed) {
-        // The interaction is kept — it is real work. Only the stage move is
-        // refused, and we say exactly what is missing.
-        stageRefused = gateA.reasons;
-      } else {
-        await db
-          .update(leadsTable)
-          .set({ stage: d.stageChange })
-          .where(eq(leadsTable.id, id));
-        stageApplied = d.stageChange;
-      }
+      await db
+        .update(leadsTable)
+        .set({ stage: d.stageChange })
+        .where(eq(leadsTable.id, id));
+      stageApplied = d.stageChange;
     }
 
     if (d.nextActionDate) {
@@ -823,25 +817,6 @@ router.patch(
     }
     if (!(await allowLeadsAction(req, res, lead.seasonId, "leads", "edit")))
       return;
-
-    // GATE A. Blocks only while the gates are ENFORCED (admin Config →
-    // Pipeline gates). In advisory mode the move goes through and reviewers
-    // see the gate state on the admin Leads page instead.
-    if (stageRequiresGateA(parsed.data.stage)) {
-      const interactions = await db
-        .select()
-        .from(leadInteractionsTable)
-        .where(eq(leadInteractionsTable.leadId, id));
-      const gateA = evaluateGateA(interactions);
-      if (!gateA.passed && (await areGatesEnforced(lead.seasonId))) {
-        res.status(409).json({
-          error: "This lead is not ready to move forward yet.",
-          code: "GATE_A_NOT_MET",
-          gateA,
-        });
-        return;
-      }
-    }
 
     const [updated] = await db
       .update(leadsTable)

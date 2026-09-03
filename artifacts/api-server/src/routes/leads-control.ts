@@ -7,6 +7,7 @@ import { requireAdminPage } from "../lib/require-admin-page";
 import { logAudit } from "../lib/audit";
 import {
   getLeadsControlState,
+  isLeadsWriter,
   LEADS_CONTROL_SECTIONS,
 } from "../lib/leads-control";
 
@@ -38,7 +39,13 @@ router.get(
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    res.json(await getLeadsControlState(await resolveSeason(req)));
+    // isLeadsWriter rides along so the UI can hide write controls a member
+    // would only be refused on. The server refuses regardless.
+    const [state, canWrite] = await Promise.all([
+      getLeadsControlState(await resolveSeason(req)),
+      isLeadsWriter(req),
+    ]);
+    res.json({ ...state, isLeadsWriter: canWrite });
   },
 );
 

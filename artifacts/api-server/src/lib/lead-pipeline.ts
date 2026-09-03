@@ -6,7 +6,9 @@
  * blocked by. A gate implemented twice is a gate that eventually disagrees with
  * itself.
  *
- *   Gate A  lead -> qualified/converted   3+ dated interactions over 7+ days
+ *   Gate A  ADVISORY ONLY — never blocks a stage move. It measures how well
+ *           documented a lead is (3+ dated interactions over 7+ days) for the
+ *           admin Leads page and the BRD, nothing more.
  *   Gate B  converted lead -> project     enforced at project creation
  *   Gate C  project -> BRD submission     mandatory fields + trail + proof
  */
@@ -46,10 +48,11 @@ function daysBetween(aIso: string, bIso: string): number {
 /**
  * Evaluate Gate A from a lead's interaction rows.
  *
- * This is the rule that kills the "register ten clients the night before the
- * deadline" pattern: relationship-building takes time, and the record has to
- * show it. Deliberately counts DISTINCT DATES rather than rows, so five
- * messages on one afternoon do not look like five days of work.
+ * Reporting only — nothing refuses a stage move on this result. A student who
+ * closes a client on the first visit is not cheating, so the pipeline no
+ * longer holds them back; reviewers see the trail quality instead.
+ * Deliberately counts DISTINCT DATES rather than rows, so five messages on one
+ * afternoon do not look like five days of work.
  */
 export function evaluateGateA(interactions: LeadInteraction[]): GateAStatus {
   const dates = [
@@ -84,17 +87,6 @@ export function evaluateGateA(interactions: LeadInteraction[]): GateAStatus {
     hasEvidence,
     reasons,
   };
-}
-
-/** Stages a lead may only reach once Gate A has passed. */
-const GATE_A_GUARDED_STAGES = new Set([
-  "qualified",
-  "proposal_sent",
-  "converted",
-]);
-
-export function stageRequiresGateA(stage: string): boolean {
-  return GATE_A_GUARDED_STAGES.has(stage);
 }
 
 // ── Trail strength ──────────────────────────────────────────────────────────
