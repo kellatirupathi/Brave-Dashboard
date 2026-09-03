@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { customFetch } from "@workspace/api-client-react";
+import { FieldHelp, type FieldHelpId } from "@/components/field-help";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/format";
@@ -76,24 +77,32 @@ function Field({
   label,
   required,
   hint,
+  help,
   children,
 }: {
   label: string;
   required?: boolean;
   hint?: string;
+  /** Shows a "what goes here" button on the right of the label row. */
+  help?: FieldHelpId;
   children: React.ReactNode;
 }) {
+  // A div rather than a label: the help button is interactive, and a label
+  // forwards clicks on its contents to the field it wraps.
   return (
-    <label className="block space-y-1.5">
-      <span className="text-sm font-medium">
-        {label}
-        {required ? <span className="ml-0.5 text-destructive">*</span> : null}
-      </span>
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="text-sm font-medium">
+          {label}
+          {required ? <span className="ml-0.5 text-destructive">*</span> : null}
+        </span>
+        {help ? <FieldHelp id={help} /> : null}
+      </div>
       {children}
       {hint ? (
         <span className="block text-xs text-muted-foreground">{hint}</span>
       ) : null}
-    </label>
+    </div>
   );
 }
 
@@ -424,6 +433,7 @@ export default function LeadProject() {
         <Field
           label="What problem are you solving?"
           required
+          help="problem"
           hint="In the client's terms, not technical ones."
         >
           <Textarea
@@ -432,7 +442,7 @@ export default function LeadProject() {
             onChange={(e) => setProblemStatement(e.target.value)}
           />
         </Field>
-        <Field label="What are you building?" required>
+        <Field label="What are you building?" required help="solution">
           <Textarea
             rows={3}
             value={solutionDescription}
@@ -458,13 +468,25 @@ export default function LeadProject() {
         </div>
         {(
           [
-            ["liveProductUrl", "Live product URL", liveProductUrl, setLiveProductUrl],
-            ["demoVideoUrl", "Demo video", demoVideoUrl, setDemoVideoUrl],
-            ["sourceCodeUrl", "Source code", sourceCodeUrl, setSourceCodeUrl],
-            ["prototypeUrl", "Prototype / design", prototypeUrl, setPrototypeUrl],
+            [
+              "liveProductUrl",
+              "Live product URL",
+              liveProductUrl,
+              setLiveProductUrl,
+              "liveProductUrl",
+            ],
+            ["demoVideoUrl", "Demo video", demoVideoUrl, setDemoVideoUrl, "demoVideo"],
+            ["sourceCodeUrl", "Source code", sourceCodeUrl, setSourceCodeUrl, "sourceCode"],
+            [
+              "prototypeUrl",
+              "Prototype / design",
+              prototypeUrl,
+              setPrototypeUrl,
+              "prototype",
+            ],
           ] as const
-        ).map(([key, label, value, setter]) => (
-          <Field key={key} label={label}>
+        ).map(([key, label, value, setter, helpId]) => (
+          <Field key={key} label={label} help={helpId}>
             <Input
               value={value}
               onChange={(e) => setter(e.target.value)}
@@ -480,6 +502,7 @@ export default function LeadProject() {
         ))}
         <Field
           label="Demo login details"
+          help="demoCredentials"
           hint="Only if a reviewer needs to sign in to see it."
         >
           <Input
@@ -536,7 +559,12 @@ export default function LeadProject() {
           {phases.map((p, i) => (
             <div key={i} className="rounded-md border p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">Phase {i + 1}</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-medium">Phase {i + 1}</p>
+                  {/* Only on the first, so the guidance is offered once rather
+                      than repeated down a list of identical blocks. */}
+                  {i === 0 ? <FieldHelp id="phase" /> : null}
+                </div>
                 {phases.length > 2 ? (
                   <Button
                     variant="ghost"
@@ -617,7 +645,10 @@ export default function LeadProject() {
             and a label would forward clicks on these buttons to the input. */}
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm font-medium">Agreement or work order</span>
+            <span className="flex items-center gap-3 text-sm font-medium">
+              Agreement or work order
+              <FieldHelp id="agreement" />
+            </span>
             {/* The confirmation, on the right of the label row. */}
             {agreementMode === "link" && agreementDoc.trim() ? (
               agreementAccessConfirmed === true ? (
