@@ -35,6 +35,7 @@ import { FieldHelp, type FieldHelpId } from "@/components/field-help";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDate, formatINR } from "@/lib/format";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 import { useSeason } from "@/lib/season-context";
 import { usePipelineGatesEnforced } from "@/lib/pipeline-gates-api";
 import { LeadsLockBanner } from "@/components/leads-lock-banner";
@@ -476,7 +477,7 @@ export default function LeadProject() {
                         Agreement or work order:{" "}
                       </span>
                       <a
-                        href={existing.agreementDoc}
+                        href={resolveStoredObjectUrl(existing.agreementDoc)}
                         target="_blank"
                         rel="noreferrer"
                         className="break-all underline"

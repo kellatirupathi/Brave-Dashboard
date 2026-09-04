@@ -5,6 +5,7 @@ import {
   leaderboardQueryKey,
 } from "@/lib/leaderboard-api";
 import { formatINR } from "@/lib/format";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
@@ -55,7 +56,9 @@ export default function Leaderboard({
   // Hide rank ONLY for students, and only when the admin toggle is on. Admins
   // and coordinators always see rank.
   const hideRank = isStudent && (lbConfig?.hideRankForStudents ?? false);
-  const bannerImage = lbConfig?.imageUrl ?? null;
+  const bannerImage = lbConfig?.imageUrl
+    ? resolveStoredObjectUrl(lbConfig.imageUrl)
+    : null;
   const bannerSource = lbConfig?.bannerSource ?? "image";
   const bannerTemplate = lbConfig?.bannerTemplate ?? "broadcast";
   const bannerContent = {
@@ -222,7 +225,7 @@ export default function Leaderboard({
 
                 {entry.photoUrl ? (
                   <img
-                    src={entry.photoUrl}
+                    src={resolveStoredObjectUrl(entry.photoUrl)}
                     alt=""
                     className="h-10 w-10 shrink-0 rounded-lg object-cover sm:h-12 sm:w-12"
                   />

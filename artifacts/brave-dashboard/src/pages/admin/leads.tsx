@@ -37,6 +37,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { formatINR, formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 import { useSeason } from "@/lib/season-context";
 import { useAdminPageAccess } from "@/lib/admin-access";
 import { STAGE_LABEL, LEAD_STAGES, type LeadStage } from "@/lib/leads-api";
@@ -524,7 +525,7 @@ function DocLink({ href, label }: { href: string | null; label: string }) {
   if (!href) return <span className="text-muted-foreground">—</span>;
   return (
     <a
-      href={href}
+      href={resolveStoredObjectUrl(href)}
       target="_blank"
       rel="noreferrer"
       className="inline-flex items-center gap-1 text-primary hover:underline"

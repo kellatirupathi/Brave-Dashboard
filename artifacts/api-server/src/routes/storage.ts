@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
-import { eq, or } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { requireWritableSeason } from "../middlewares/seasonGuard";
 import {
   RequestUploadUrlBody,
@@ -18,6 +18,8 @@ import {
   programmeConfigTable,
   uploadedFilesTable,
   paymentsTable,
+  projectsTable,
+  finaleSubmissionsTable,
 } from "@workspace/db";
 import {
   ObjectStorageService,
@@ -314,9 +316,29 @@ async function findOwningTeamId(objectPath: string): Promise<number | null> {
   const [payment] = await db
     .select({ teamId: paymentsTable.teamId })
     .from(paymentsTable)
-    .where(eq(paymentsTable.paymentProof, objectPath))
+    .where(
+      or(
+        eq(paymentsTable.paymentProof, objectPath),
+        eq(paymentsTable.invoiceDoc, objectPath),
+        sql`${paymentsTable.deliveryProof} @> ${JSON.stringify([objectPath])}::jsonb`,
+      ),
+    )
     .limit(1);
   if (payment) return payment.teamId;
+
+  const [project] = await db
+    .select({ teamId: projectsTable.teamId })
+    .from(projectsTable)
+    .where(eq(projectsTable.agreementDoc, objectPath))
+    .limit(1);
+  if (project) return project.teamId;
+
+  const [finale] = await db
+    .select({ teamId: finaleSubmissionsTable.teamId })
+    .from(finaleSubmissionsTable)
+    .where(eq(finaleSubmissionsTable.fileUrl, objectPath))
+    .limit(1);
+  if (finale) return finale.teamId;
 
   return null;
 }
@@ -331,7 +353,12 @@ async function isProgrammeAsset(objectPath: string): Promise<boolean> {
   const [asset] = await db
     .select({ id: programmeConfigTable.id })
     .from(programmeConfigTable)
-    .where(eq(programmeConfigTable.braveAppQrObjectPath, objectPath))
+    .where(
+      or(
+        eq(programmeConfigTable.braveAppQrObjectPath, objectPath),
+        eq(programmeConfigTable.leaderboardImageUrl, objectPath),
+      ),
+    )
     .limit(1);
   return Boolean(asset);
 }
