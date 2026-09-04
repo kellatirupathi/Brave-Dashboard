@@ -39,6 +39,7 @@ import {
   findDuplicateClientTeams,
   isRelatedPartySource,
   refreshLeadDerivedState,
+  resolveLeadRef,
   trailBand,
   upsertClientRegistry,
 } from "../lib/lead-pipeline";
@@ -259,25 +260,18 @@ router.patch(
   async (req: Request, res: Response): Promise<void> => {
     const scope = await resolveTeamScope(req, res);
     if (!scope) return;
-    const id = Number(req.params["id"]);
-    if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Invalid lead id" });
-      return;
-    }
+    const ref = String(req.params["id"] ?? "");
     const parsed = UpdateLeadBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const [lead] = await db
-      .select()
-      .from(leadsTable)
-      .where(eq(leadsTable.id, id))
-      .limit(1);
+    const lead = await resolveLeadRef(ref);
     if (!lead) {
       res.status(404).json({ error: "Lead not found" });
       return;
     }
+    const id = lead.id;
     if (!scope.isStaff && lead.teamId !== scope.teamId) {
       res.status(403).json({ error: "Not your team's lead" });
       return;
@@ -328,20 +322,13 @@ router.delete(
   async (req: Request, res: Response): Promise<void> => {
     const scope = await resolveTeamScope(req, res);
     if (!scope) return;
-    const id = Number(req.params["id"]);
-    if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Invalid lead id" });
-      return;
-    }
-    const [lead] = await db
-      .select()
-      .from(leadsTable)
-      .where(eq(leadsTable.id, id))
-      .limit(1);
+    const ref = String(req.params["id"] ?? "");
+    const lead = await resolveLeadRef(ref);
     if (!lead) {
       res.status(404).json({ error: "Lead not found" });
       return;
     }
+    const id = lead.id;
     if (!scope.isStaff && lead.teamId !== scope.teamId) {
       res.status(403).json({ error: "Not your team's lead" });
       return;
@@ -435,21 +422,12 @@ router.get("/leads", async (req: Request, res: Response): Promise<void> => {
 router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
   const scope = await resolveTeamScope(req, res);
   if (!scope) return;
-  const id = Number(req.params["id"]);
-  if (!Number.isInteger(id) || id <= 0) {
-    res.status(400).json({ error: "Invalid lead id" });
-    return;
-  }
-
-  const [lead] = await db
-    .select()
-    .from(leadsTable)
-    .where(eq(leadsTable.id, id))
-    .limit(1);
+  const lead = await resolveLeadRef(String(req.params["id"] ?? ""));
   if (!lead) {
     res.status(404).json({ error: "Lead not found" });
     return;
   }
+  const id = lead.id;
   if (!scope.isStaff && lead.teamId !== scope.teamId) {
     res.status(403).json({ error: "Not your team's lead" });
     return;
@@ -581,11 +559,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const scope = await resolveTeamScope(req, res);
     if (!scope) return;
-    const id = Number(req.params["id"]);
-    if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Invalid lead id" });
-      return;
-    }
+    const ref = String(req.params["id"] ?? "");
     const parsed = InteractionBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
@@ -593,15 +567,12 @@ router.post(
     }
     const d = parsed.data;
 
-    const [lead] = await db
-      .select()
-      .from(leadsTable)
-      .where(eq(leadsTable.id, id))
-      .limit(1);
+    const lead = await resolveLeadRef(ref);
     if (!lead) {
       res.status(404).json({ error: "Lead not found" });
       return;
     }
+    const id = lead.id;
     if (!scope.isStaff && lead.teamId !== scope.teamId) {
       res.status(403).json({ error: "Not your team's lead" });
       return;
@@ -863,26 +834,19 @@ router.patch(
   async (req: Request, res: Response): Promise<void> => {
     const scope = await resolveTeamScope(req, res);
     if (!scope) return;
-    const id = Number(req.params["id"]);
-    if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Invalid lead id" });
-      return;
-    }
+    const ref = String(req.params["id"] ?? "");
     const parsed = StageBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
 
-    const [lead] = await db
-      .select()
-      .from(leadsTable)
-      .where(eq(leadsTable.id, id))
-      .limit(1);
+    const lead = await resolveLeadRef(ref);
     if (!lead) {
       res.status(404).json({ error: "Lead not found" });
       return;
     }
+    const id = lead.id;
     if (!scope.isStaff && lead.teamId !== scope.teamId) {
       res.status(403).json({ error: "Not your team's lead" });
       return;

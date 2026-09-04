@@ -33,6 +33,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -55,7 +56,8 @@ import {
   updatePayment,
   updatePipelineProject,
   updateProjectPhase,
-  type ChecklistItem,
+  type ComposedBrd,
+  type LeadRef,
   type PaymentRow,
   type PhaseInput,
   type PipelineProjectRow,
@@ -113,7 +115,7 @@ function PaymentDialog({
   payment,
 }: {
   projectId: number;
-  leadId: number;
+  leadId: LeadRef;
   phases: ProjectPhase[];
   /** Every payment on this project, so a phase is offered only once. */
   payments: PaymentRow[];
@@ -787,37 +789,255 @@ function ProjectDialog({
   );
 }
 
-function Checklist({ items }: { items: ChecklistItem[] }) {
+
+/**
+ * The composed BRD, exactly as a reviewer sees it, behind a dialog.
+ *
+ * This used to be a permanently-expanded card at the bottom of the delivery
+ * page. It is reference material, not a task, so it now opens on demand from
+ * the BRD review section and leaves the page itself about what is missing.
+ */
+function BrdPreviewDialog({
+  brd,
+  open,
+  onOpenChange,
+}: {
+  brd: ComposedBrd;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   return (
-    <ul className="space-y-2">
-      {items.map((i) => (
-        <li key={i.key} className="flex items-start gap-2 text-sm">
-          {i.passed ? (
-            <CheckCircle2
-              className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
-              aria-hidden="true"
-            />
-          ) : (
-            <XCircle
-              className="mt-0.5 h-4 w-4 shrink-0 text-rose-600"
-              aria-hidden="true"
-            />
-          )}
-          <div>
-            <p className={i.passed ? "" : "font-medium"}>{i.label}</p>
-            {i.detail && !i.passed ? (
-              <p className="text-xs text-muted-foreground">{i.detail}</p>
-            ) : null}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-4xl">
+        <DialogHeader className="border-b p-5 text-left">
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-4 w-4" aria-hidden="true" />
+            Your BRD
+          </DialogTitle>
+          <DialogDescription>
+            A page-by-page preview built from your Lead and project records.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[calc(92vh-5.5rem)] overflow-y-auto">
+          <div className="max-h-[1500px] space-y-5 overflow-y-auto bg-slate-100 p-3 sm:p-6">
+            <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
+              <div className="flex h-full min-h-[660px] flex-col">
+                <div className="border-b-2 border-slate-900 pb-6">
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
+                    Business Requirement Document
+                  </p>
+                  <h3 className="mt-4 text-3xl font-bold">{brd.project.title}</h3>
+                  <p className="mt-2 text-base text-slate-600">
+                    Prepared by {brd.project.teamName}
+                  </p>
+                </div>
+                <div className="mt-10 grid gap-8 md:grid-cols-2">
+                  <section>
+                    <h4 className="text-sm font-bold uppercase tracking-wide">
+                      Client
+                    </h4>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <p><strong>Business:</strong> {brd.client.businessName}</p>
+                      <p><strong>Contact:</strong> {brd.client.ownerName}</p>
+                      <p><strong>Phone:</strong> {brd.client.phone}</p>
+                      <p>
+                        <strong>Location:</strong>{" "}
+                        {[brd.client.areaLocality, brd.client.city]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </p>
+                      <p><strong>Category:</strong> {brd.client.category}</p>
+                    </div>
+                  </section>
+                  <section>
+                    <h4 className="text-sm font-bold uppercase tracking-wide">
+                      Project summary
+                    </h4>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <p>
+                        <strong>Service:</strong>{" "}
+                        {brd.project.serviceCategory || "Not recorded"}
+                      </p>
+                      <p>
+                        <strong>Revenue model:</strong>{" "}
+                        {brd.project.revenueType || "Not recorded"}
+                      </p>
+                      <p>
+                        <strong>Contract value:</strong>{" "}
+                        {formatINR(brd.project.totalContractValue ?? 0)}
+                      </p>
+                      <p>
+                        <strong>Amount received:</strong>{" "}
+                        {formatINR(brd.systemAssessment.receivedAmount)}
+                      </p>
+                    </div>
+                  </section>
+                </div>
+                <section className="mt-10">
+                  <h4 className="text-sm font-bold uppercase tracking-wide">
+                    Business problem
+                  </h4>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {brd.problemStatement || "Not recorded"}
+                  </p>
+                </section>
+                {brd.relationship.isRelatedParty ? (
+                  <div className="mt-auto flex items-start gap-2 border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                    <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>
+                      Relationship disclosed:{" "}
+                      {brd.relationship.relationshipNote ||
+                        brd.relationship.referrerName ||
+                        "Known contact"}
+                    </p>
+                  </div>
+                ) : null}
+                <p className="mt-auto pt-8 text-right text-xs text-slate-400">
+                  Page 1 of 3
+                </p>
+              </div>
+            </article>
+
+            <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
+              <div className="flex min-h-[660px] flex-col">
+                <h3 className="border-b pb-4 text-xl font-bold">
+                  Proposed solution and delivery plan
+                </h3>
+                <section className="mt-7">
+                  <h4 className="text-sm font-bold uppercase tracking-wide">
+                    Solution
+                  </h4>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {brd.solutionDescription || "Not recorded"}
+                  </p>
+                </section>
+                <section className="mt-8">
+                  <h4 className="text-sm font-bold uppercase tracking-wide">
+                    Proof it exists
+                  </h4>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {Object.entries(brd.links)
+                      .filter(([key, value]) => key !== "demoCredentials" && value)
+                      .map(([key, value]) => (
+                        <p key={key} className="break-all">
+                          <strong>
+                            {key
+                              .replace(/Url$/, "")
+                              .replace(/([A-Z])/g, " $1")
+                              .replace(/^./, (c) => c.toUpperCase())}
+                            :
+                          </strong>{" "}
+                          {value}
+                        </p>
+                      ))}
+                  </div>
+                </section>
+                <section className="mt-8">
+                  <h4 className="text-sm font-bold uppercase tracking-wide">
+                    Phases
+                  </h4>
+                  <div className="mt-3 overflow-hidden border">
+                    {brd.phases.map((phase, index) => (
+                      <div
+                        key={phase.id ?? index}
+                        className="grid gap-2 border-b p-3 text-sm last:border-b-0 md:grid-cols-[1fr_auto]"
+                      >
+                        <div>
+                          <p className="font-semibold">
+                            {index + 1}. {phase.name}
+                          </p>
+                          {phase.deliverables ? (
+                            <p className="mt-1 text-slate-600">
+                              {phase.deliverables}
+                            </p>
+                          ) : null}
+                        </div>
+                        <p className="font-medium">
+                          {formatINR(phase.scheduledAmount ?? 0)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <p className="mt-auto pt-8 text-right text-xs text-slate-400">
+                  Page 2 of 3
+                </p>
+              </div>
+            </article>
+
+            <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
+              <div className="flex min-h-[660px] flex-col">
+                <h3 className="border-b pb-4 text-xl font-bold">
+                  Client engagement and revenue
+                </h3>
+                <section className="mt-7">
+                  <h4 className="text-sm font-bold uppercase tracking-wide">
+                    Interaction record
+                  </h4>
+                  <ol className="mt-3 space-y-3">
+                    {brd.interactionTrail.map((interaction, index) => (
+                      <li
+                        key={`${interaction.date}-${index}`}
+                        className="border-l-2 border-slate-300 pl-4 text-sm"
+                      >
+                        <p className="font-semibold">
+                          {formatDate(interaction.date)} · {interaction.type}
+                        </p>
+                        <p className="mt-1 text-slate-700">
+                          {interaction.summary}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+                <section className="mt-8">
+                  <h4 className="text-sm font-bold uppercase tracking-wide">
+                    Payments received
+                  </h4>
+                  <div className="mt-3 overflow-hidden border">
+                    {brd.payments.map((payment, index) => (
+                      <div
+                        key={`${payment.date}-${index}`}
+                        className="grid gap-2 border-b p-3 text-sm last:border-b-0 md:grid-cols-[1fr_auto]"
+                      >
+                        <div>
+                          <p className="font-semibold">{payment.phaseName}</p>
+                          <p className="text-slate-600">
+                            {formatDate(payment.date)} · {payment.mode}
+                            {payment.transactionRef
+                              ? ` · ${payment.transactionRef}`
+                              : ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold">
+                            {formatINR(payment.amount)}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {payment.hasProof ? "Proof attached" : "No proof"}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <p className="mt-auto pt-8 text-right text-xs text-slate-400">
+                  Page 3 of 3
+                </p>
+              </div>
+            </article>
           </div>
-        </li>
-      ))}
-    </ul>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 export default function LeadDelivery() {
   const params = useParams<{ id: string; projectId: string }>();
-  const leadId = Number(params.id);
+  // Either the public UUID (what links now carry) or a legacy numeric id —
+  // the API resolves both, so this is passed through untouched.
+  const leadId = String(params.id ?? "");
   const projectId = Number(params.projectId);
   const { viewingId: seasonId, canWrite } = useSeason();
   const qc = useQueryClient();
@@ -829,6 +1049,7 @@ export default function LeadDelivery() {
   const [phaseDialogOpen, setPhaseDialogOpen] = useState(false);
   const [editingPhase, setEditingPhase] = useState<ProjectPhase | null>(null);
   const [editingProject, setEditingProject] = useState(false);
+  const [brdPreviewOpen, setBrdPreviewOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<
     | { type: "project"; id: number; name: string }
     | { type: "phase"; id: number; name: string }
@@ -960,14 +1181,8 @@ export default function LeadDelivery() {
   }
   const totalReceived = payments.reduce((n, p) => n + p.amountReceived, 0);
   const writable = canWrite("revenue");
-  const progressCompleted = brd
-    ? brd.gateC.items.filter((item) => item.passed).length
-    : 0;
-  const progressTotal = brd?.gateC.items.length ?? 5;
-  const progressScore =
-    progressTotal > 0
-      ? Math.round((progressCompleted / progressTotal) * 100)
-      : 0;
+  // Only the outstanding items are shown now — a passed item needs no words.
+  const missingItems = brd?.gateC.items.filter((item) => !item.passed) ?? [];
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -1186,36 +1401,68 @@ export default function LeadDelivery() {
         )}
       </Card>
 
-      {/* ── Submission progress + the composed BRD ────────────────────── */}
+      {/* ── BRD review ─────────────────────────────────────────────────
+          One section, not two. A student at this point needs exactly two
+          things: what is still missing, and the way to act on it. The score
+          and the progress bar were noise on top of the same five items, and
+          the full BRD is reference material, so it moved behind a dialog. */}
       {brd ? (
-        <>
-          <Card className="p-5">
-             <div className="flex flex-wrap items-start justify-between gap-5">
-               <div className="min-w-0 flex-1">
-                 <div className="flex items-end justify-between gap-3">
-                   <div>
-                     <h2 className="font-semibold">Progress score</h2>
-                     <p className="text-sm text-muted-foreground">
-                       Complete all five items to submit for review.
-                     </p>
-                   </div>
-                   <p className="text-2xl font-bold tabular-nums">
-                     {progressScore}%
-                   </p>
-                 </div>
-                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                   <div
-                     className="h-full rounded-full bg-emerald-600 transition-[width]"
-                     style={{ width: `${progressScore}%` }}
-                   />
-                 </div>
-                 <div className="mt-4">
-                   <Checklist items={brd.gateC.items} />
-                 </div>
-               </div>
+        <Card className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4" aria-hidden="true" />
+                <h2 className="font-semibold">BRD Review Section</h2>
+              </div>
+              {missingItems.length === 0 ? (
+                <div className="mt-3 flex items-start gap-2 text-sm">
+                  <CheckCircle2
+                    className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
+                    aria-hidden="true"
+                  />
+                  <p>
+                    Everything needed is recorded. Preview the BRD, then submit
+                    it for review.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Add these before you can submit for review.
+                  </p>
+                  <ul className="mt-4 space-y-2">
+                    {missingItems.map((item) => (
+                      <li
+                        key={item.key}
+                        className="flex items-start gap-2 text-sm"
+                      >
+                        <XCircle
+                          className="mt-0.5 h-4 w-4 shrink-0 text-rose-600"
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <p className="font-medium">{item.label}</p>
+                          {item.detail ? (
+                            <p className="text-xs text-muted-foreground">
+                              {item.detail}
+                            </p>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setBrdPreviewOpen(true)}>
+                <FileText className="mr-1.5 h-4 w-4" />
+                BRD Preview
+              </Button>
               <Button
                 disabled={
-                   !brd.gateC.passed ||
+                  !brd.gateC.passed ||
                   !writable ||
                   !controls.canSubmit ||
                   submit.isPending
@@ -1223,232 +1470,19 @@ export default function LeadDelivery() {
                 onClick={() => submit.mutate()}
               >
                 <Send className="mr-1.5 h-4 w-4" />
-                {submit.isPending ? "Submitting…" : "Submit for review"}
+                {submit.isPending ? "Submitting…" : "Submit for Review"}
               </Button>
             </div>
-          </Card>
+          </div>
+        </Card>
+      ) : null}
 
-          <Card className="overflow-hidden p-0">
-            <div className="border-b p-5">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4" aria-hidden="true" />
-                <h2 className="font-semibold">Your BRD</h2>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                A page-by-page preview built from your Lead and project records.
-              </p>
-            </div>
-
-            <div className="max-h-[1500px] space-y-5 overflow-y-auto bg-slate-100 p-3 sm:p-6">
-              <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
-                <div className="flex h-full min-h-[660px] flex-col">
-                  <div className="border-b-2 border-slate-900 pb-6">
-                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
-                      Business Requirement Document
-                    </p>
-                    <h3 className="mt-4 text-3xl font-bold">{brd.project.title}</h3>
-                    <p className="mt-2 text-base text-slate-600">
-                      Prepared by {brd.project.teamName}
-                    </p>
-                  </div>
-                  <div className="mt-10 grid gap-8 md:grid-cols-2">
-                    <section>
-                      <h4 className="text-sm font-bold uppercase tracking-wide">
-                        Client
-                      </h4>
-                      <div className="mt-3 space-y-2 text-sm">
-                        <p><strong>Business:</strong> {brd.client.businessName}</p>
-                        <p><strong>Contact:</strong> {brd.client.ownerName}</p>
-                        <p><strong>Phone:</strong> {brd.client.phone}</p>
-                        <p>
-                          <strong>Location:</strong>{" "}
-                          {[brd.client.areaLocality, brd.client.city]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
-                        <p><strong>Category:</strong> {brd.client.category}</p>
-                      </div>
-                    </section>
-                    <section>
-                      <h4 className="text-sm font-bold uppercase tracking-wide">
-                        Project summary
-                      </h4>
-                      <div className="mt-3 space-y-2 text-sm">
-                        <p>
-                          <strong>Service:</strong>{" "}
-                          {brd.project.serviceCategory || "Not recorded"}
-                        </p>
-                        <p>
-                          <strong>Revenue model:</strong>{" "}
-                          {brd.project.revenueType || "Not recorded"}
-                        </p>
-                        <p>
-                          <strong>Contract value:</strong>{" "}
-                          {formatINR(brd.project.totalContractValue ?? 0)}
-                        </p>
-                        <p>
-                          <strong>Amount received:</strong>{" "}
-                          {formatINR(brd.systemAssessment.receivedAmount)}
-                        </p>
-                      </div>
-                    </section>
-                  </div>
-                  <section className="mt-10">
-                    <h4 className="text-sm font-bold uppercase tracking-wide">
-                      Business problem
-                    </h4>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                      {brd.problemStatement || "Not recorded"}
-                    </p>
-                  </section>
-                  {brd.relationship.isRelatedParty ? (
-                    <div className="mt-auto flex items-start gap-2 border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-                      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                      <p>
-                        Relationship disclosed:{" "}
-                        {brd.relationship.relationshipNote ||
-                          brd.relationship.referrerName ||
-                          "Known contact"}
-                      </p>
-                    </div>
-                  ) : null}
-                  <p className="mt-auto pt-8 text-right text-xs text-slate-400">
-                    Page 1 of 3
-                  </p>
-                </div>
-              </article>
-
-              <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
-                <div className="flex min-h-[660px] flex-col">
-                  <h3 className="border-b pb-4 text-xl font-bold">
-                    Proposed solution and delivery plan
-                  </h3>
-                  <section className="mt-7">
-                    <h4 className="text-sm font-bold uppercase tracking-wide">
-                      Solution
-                    </h4>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                      {brd.solutionDescription || "Not recorded"}
-                    </p>
-                  </section>
-                  <section className="mt-8">
-                    <h4 className="text-sm font-bold uppercase tracking-wide">
-                      Proof it exists
-                    </h4>
-                    <div className="mt-3 space-y-2 text-sm">
-                      {Object.entries(brd.links)
-                        .filter(([key, value]) => key !== "demoCredentials" && value)
-                        .map(([key, value]) => (
-                          <p key={key} className="break-all">
-                            <strong>
-                              {key
-                                .replace(/Url$/, "")
-                                .replace(/([A-Z])/g, " $1")
-                                .replace(/^./, (c) => c.toUpperCase())}
-                              :
-                            </strong>{" "}
-                            {value}
-                          </p>
-                        ))}
-                    </div>
-                  </section>
-                  <section className="mt-8">
-                    <h4 className="text-sm font-bold uppercase tracking-wide">
-                      Phases
-                    </h4>
-                    <div className="mt-3 overflow-hidden border">
-                      {brd.phases.map((phase, index) => (
-                        <div
-                          key={phase.id ?? index}
-                          className="grid gap-2 border-b p-3 text-sm last:border-b-0 md:grid-cols-[1fr_auto]"
-                        >
-                          <div>
-                            <p className="font-semibold">
-                              {index + 1}. {phase.name}
-                            </p>
-                            {phase.deliverables ? (
-                              <p className="mt-1 text-slate-600">
-                                {phase.deliverables}
-                              </p>
-                            ) : null}
-                          </div>
-                          <p className="font-medium">
-                            {formatINR(phase.scheduledAmount ?? 0)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                  <p className="mt-auto pt-8 text-right text-xs text-slate-400">
-                    Page 2 of 3
-                  </p>
-                </div>
-              </article>
-
-              <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
-                <div className="flex min-h-[660px] flex-col">
-                  <h3 className="border-b pb-4 text-xl font-bold">
-                    Client engagement and revenue
-                  </h3>
-                  <section className="mt-7">
-                    <h4 className="text-sm font-bold uppercase tracking-wide">
-                      Interaction record
-                    </h4>
-                    <ol className="mt-3 space-y-3">
-                      {brd.interactionTrail.map((interaction, index) => (
-                        <li
-                          key={`${interaction.date}-${index}`}
-                          className="border-l-2 border-slate-300 pl-4 text-sm"
-                        >
-                          <p className="font-semibold">
-                            {formatDate(interaction.date)} · {interaction.type}
-                          </p>
-                          <p className="mt-1 text-slate-700">
-                            {interaction.summary}
-                          </p>
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
-                  <section className="mt-8">
-                    <h4 className="text-sm font-bold uppercase tracking-wide">
-                      Payments received
-                    </h4>
-                    <div className="mt-3 overflow-hidden border">
-                      {brd.payments.map((payment, index) => (
-                        <div
-                          key={`${payment.date}-${index}`}
-                          className="grid gap-2 border-b p-3 text-sm last:border-b-0 md:grid-cols-[1fr_auto]"
-                        >
-                          <div>
-                            <p className="font-semibold">{payment.phaseName}</p>
-                            <p className="text-slate-600">
-                              {formatDate(payment.date)} · {payment.mode}
-                              {payment.transactionRef
-                                ? ` · ${payment.transactionRef}`
-                                : ""}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">
-                              {formatINR(payment.amount)}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {payment.hasProof ? "Proof attached" : "No proof"}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                  <p className="mt-auto pt-8 text-right text-xs text-slate-400">
-                    Page 3 of 3
-                  </p>
-                </div>
-              </article>
-            </div>
-          </Card>
-        </>
+      {brd ? (
+        <BrdPreviewDialog
+          brd={brd}
+          open={brdPreviewOpen}
+          onOpenChange={setBrdPreviewOpen}
+        />
       ) : null}
 
       <PaymentDialog

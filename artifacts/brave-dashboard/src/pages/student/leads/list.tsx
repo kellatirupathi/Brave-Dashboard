@@ -50,6 +50,7 @@ import {
   type CreateLeadBody,
   type LeadListRow,
   type TrailBand,
+  leadRef,
 } from "@/lib/leads-api";
 import { successFeedback, errorFeedback } from "@/lib/haptics";
 
@@ -502,7 +503,7 @@ function MobileLeadCard({
 }) {
   const t = MOBILE_TONE[tone];
   return (
-    <Link href={`/leads/${lead.id}`}>
+    <Link href={`/leads/${leadRef(lead)}`}>
       <Card
         className="cursor-pointer overflow-hidden p-0 transition-colors active:bg-muted/40"
         data-testid={`mobile-lead-${lead.id}`}
@@ -597,7 +598,7 @@ function LeadCard({
   tone: keyof typeof ROW_TONE;
 }) {
   return (
-    <Link href={`/leads/${lead.id}`}>
+    <Link href={`/leads/${leadRef(lead)}`}>
       <Card className={cn("cursor-pointer p-4 transition-colors", ROW_TONE[tone])}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           {/* Who */}

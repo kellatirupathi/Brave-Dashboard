@@ -21,6 +21,17 @@ export const LEAD_STAGES = [
 ] as const;
 export type LeadStage = (typeof LEAD_STAGES)[number];
 
+/**
+ * How a lead is addressed in a URL or an API call. The server accepts the
+ * public UUID and the legacy serial id alike, so old links keep working.
+ */
+export type LeadRef = string | number;
+
+/** The URL segment for a lead: its public id when it has one. */
+export function leadRef(lead: { id: number; publicId?: string | null }): string {
+  return lead.publicId ?? String(lead.id);
+}
+
 export const STAGE_LABEL: Record<LeadStage, string> = {
   new: "New",
   qualified: "Qualified",
@@ -37,6 +48,12 @@ export type TrailBand = "strong" | "moderate" | "weak";
 
 export type Lead = {
   id: number;
+  /**
+   * The identifier used in URLs. Nullable only for the moment between a row
+   * being created and the bootstrap backfill reaching it — treat a missing
+   * value as "fall back to the numeric id", never as an error.
+   */
+  publicId: string | null;
   teamId: number;
   seasonId: number;
   source: string;
@@ -157,7 +174,7 @@ export function listLeads(params?: {
   });
 }
 
-export function getLead(id: number): Promise<LeadDetail> {
+export function getLead(id: LeadRef): Promise<LeadDetail> {
   return customFetch<LeadDetail>(`/api/leads/${id}`, { method: "GET" });
 }
 
@@ -199,7 +216,7 @@ export function createLead(body: CreateLeadBody): Promise<{
 }
 
 export function updateLead(
-  leadId: number,
+  leadId: LeadRef,
   body: Record<string, unknown>,
 ): Promise<Lead> {
   return customFetch<Lead>(`/api/leads/${leadId}`, {
@@ -208,7 +225,7 @@ export function updateLead(
   });
 }
 
-export function deleteLead(leadId: number): Promise<void> {
+export function deleteLead(leadId: LeadRef): Promise<void> {
   return customFetch<void>(`/api/leads/${leadId}`, { method: "DELETE" });
 }
 
@@ -229,7 +246,7 @@ export type LogInteractionBody = {
  * loses what they typed.
  */
 export function logInteraction(
-  leadId: number,
+  leadId: LeadRef,
   body: LogInteractionBody,
 ): Promise<{
   interaction: LeadInteraction;
@@ -246,7 +263,7 @@ export function logInteraction(
 }
 
 export function updateInteraction(
-  leadId: number,
+  leadId: LeadRef,
   interactionId: number,
   body: Partial<LogInteractionBody>,
 ): Promise<{ interaction: LeadInteraction; trailStrength: number }> {
@@ -257,7 +274,7 @@ export function updateInteraction(
 }
 
 export function deleteInteraction(
-  leadId: number,
+  leadId: LeadRef,
   interactionId: number,
 ): Promise<void> {
   return customFetch<void>(
@@ -267,7 +284,7 @@ export function deleteInteraction(
 }
 
 export function moveStage(
-  leadId: number,
+  leadId: LeadRef,
   stage: LeadStage,
 ): Promise<{ stage: LeadStage }> {
   return customFetch(`/api/leads/${leadId}/stage`, {
@@ -619,8 +636,8 @@ export function apiErrorData<T = Record<string, unknown>>(
 export const leadKeys = {
   list: (seasonId: number | null, stage?: LeadStage) =>
     ["leads", seasonId, stage ?? "all"] as const,
-  detail: (seasonId: number | null, id: number) =>
-    ["lead", seasonId, id] as const,
+  detail: (seasonId: number | null, id: LeadRef) =>
+    ["lead", seasonId, String(id)] as const,
   status: (seasonId: number | null) => ["pipeline-status", seasonId] as const,
   projects: (seasonId: number | null) =>
     ["pipeline-projects", seasonId] as const,
