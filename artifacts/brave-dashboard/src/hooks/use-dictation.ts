@@ -86,6 +86,17 @@ export function useDictation({
   // Distinguishes "the engine stopped because we paused/cancelled" from "the
   // engine stopped on its own", which it does after a few seconds of silence.
   const intentRef = useRef<"none" | "pause" | "cancel" | "stop">("none");
+  /**
+   * How far into the current session's result list has already been committed.
+   *
+   * `results` is cumulative for the life of a session and some engines — Chrome
+   * on Android especially — report `resultIndex` as 0 on every event rather
+   * than pointing at the new entries. Walking the list from `resultIndex` then
+   * re-commits every sentence already typed, which is the duplication this
+   * guards against. Reset on each start(), because a new session starts a new
+   * list.
+   */
+  const committedThroughRef = useRef(0);
   // Callbacks live in refs so the recognition handlers never go stale without
   // tearing down and rebuilding the engine mid-sentence.
   const onCommitRef = useRef(onCommit);
@@ -105,11 +116,15 @@ export function useDictation({
 
     recognition.onresult = (event) => {
       let pending = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      // Start from whichever is further along: what the engine says is new, or
+      // what we know we have already taken. Never re-read a finalised index.
+      const from = Math.max(event.resultIndex, committedThroughRef.current);
+      for (let i = from; i < event.results.length; i += 1) {
         const result = event.results[i];
         if (!result) continue;
         const text = result[0]?.transcript ?? "";
         if (result.isFinal) {
+          committedThroughRef.current = i + 1;
           const chunk = text.trim();
           if (chunk) {
             committedRef.current = `${committedRef.current} ${chunk}`.trim();
@@ -145,6 +160,7 @@ export function useDictation({
       // does not silently end the recording.
       if (intent === "none" && recognitionRef.current) {
         try {
+          committedThroughRef.current = 0;
           recognitionRef.current.start();
           return;
         } catch {
@@ -163,6 +179,7 @@ export function useDictation({
     if (!recognition) return;
     recognitionRef.current = recognition;
     committedRef.current = "";
+    committedThroughRef.current = 0;
     intentRef.current = "none";
     try {
       recognition.start();
@@ -205,6 +222,7 @@ export function useDictation({
       return;
     }
     intentRef.current = "none";
+    committedThroughRef.current = 0;
     try {
       recognition.start();
       setState("listening");

@@ -800,3 +800,40 @@
 .team-tab-panel > *:nth-child(3) {
   animation-delay: 100ms;
 }
+
+/* Printing the BRD.
+   `visibility` rather than `display` so the document keeps its own layout
+   while everything around it stops painting — collapsing the app with
+   `display:none` also collapses the dialog the document lives inside. */
+@media print {
+  body.printing-brd * {
+    visibility: hidden;
+  }
+
+  body.printing-brd .brd-print-root,
+  body.printing-brd .brd-print-root * {
+    visibility: visible;
+  }
+
+  body.printing-brd .brd-print-root {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    background: #fff;
+    padding: 0;
+  }
+
+  /* One page of the document per sheet of paper. */
+  body.printing-brd .brd-print-root article {
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  body.printing-brd .brd-print-root article:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
