@@ -33,14 +33,14 @@ import { logger } from "../lib/logger";
 import { areGatesEnforced } from "../lib/pipeline-gates";
 import { allowLeadsAction } from "../lib/leads-control";
 import {
+  GATE_A_MIN_INTERACTIONS,
+  GATE_A_MIN_SPAN_DAYS,
   buildPipelineStatus,
-  computeTrailStrength,
   evaluateGateA,
   findDuplicateClientTeams,
   isRelatedPartySource,
   refreshLeadDerivedState,
   resolveLeadRef,
-  trailBand,
   upsertClientRegistry,
 } from "../lib/lead-pipeline";
 
@@ -417,7 +417,6 @@ router.get("/leads", async (req: Request, res: Response): Promise<void> => {
         // 10 / 21 / 30-day thresholds the crons use.
         silentDays,
         needsFollowUp: silentDays != null && silentDays >= 10,
-        trailBand: trailBand(l.trailStrength),
       };
     }),
   );
@@ -516,8 +515,6 @@ router.get("/leads/:id", async (req: Request, res: Response): Promise<void> => {
     // Newest first for display; the gate evaluator is order-independent.
     interactions,
     gateA,
-    trailStrength: computeTrailStrength(interactions),
-    trailBand: trailBand(lead.trailStrength),
     progress: {
       score: completedProgressItems * 20,
       completed: completedProgressItems,
@@ -662,8 +659,6 @@ router.post(
 
     res.status(201).json({
       interaction: created,
-      trailStrength: strength,
-      trailBand: trailBand(strength),
       gateA,
       stageApplied,
       stageRefused,
@@ -763,8 +758,8 @@ router.patch(
         .set({ nextActionDate: parsed.data.nextActionDate ?? null })
         .where(eq(leadsTable.id, leadId));
     }
-    const trailStrength = await refreshLeadDerivedState(leadId);
-    res.json({ interaction: updated, trailStrength });
+    await refreshLeadDerivedState(leadId);
+    res.json({ interaction: updated });
   },
 );
 
@@ -882,7 +877,6 @@ router.get(
           id: leadsTable.id,
           stage: leadsTable.stage,
           lastContactAt: leadsTable.lastContactAt,
-          trailStrength: leadsTable.trailStrength,
         })
         .from(leadsTable)
         .where(
@@ -913,6 +907,30 @@ router.get(
           ),
         );
 
+      // Gate A is "3+ distinct contact dates spanning 7+ days". Asked of the
+      // interaction rows directly and grouped in one query, so this does not
+      // become an N+1 over the board.
+      const [gateARow] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(
+          db
+            .select({ leadId: leadInteractionsTable.leadId })
+            .from(leadInteractionsTable)
+            .where(
+              and(
+                eq(leadInteractionsTable.teamId, scope.teamId),
+                eq(leadInteractionsTable.seasonId, season),
+              ),
+            )
+            .groupBy(leadInteractionsTable.leadId)
+            .having(
+              sql`count(distinct ${leadInteractionsTable.interactionDate}) >= ${GATE_A_MIN_INTERACTIONS}
+                  AND (max(${leadInteractionsTable.interactionDate}::date)
+                       - min(${leadInteractionsTable.interactionDate}::date)) >= ${GATE_A_MIN_SPAN_DAYS}`,
+            )
+            .as("qualified_leads"),
+        );
+
       const cutoff = Date.now() - 10 * 86_400_000;
       res.json(
         buildPipelineStatus({
@@ -920,7 +938,7 @@ router.get(
           needsFollowUp: leads.filter(
             (l) => l.lastContactAt && l.lastContactAt.getTime() < cutoff,
           ).length,
-          anyGateAPassed: leads.some((l) => l.trailStrength >= 45),
+          anyGateAPassed: Number(gateARow?.n ?? 0) > 0,
           convertedCount: leads.filter((l) => l.stage === "converted").length,
           projectCount: Number(projCount?.n ?? 0),
           paymentCount: Number(payCount?.n ?? 0),

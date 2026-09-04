@@ -16,13 +16,18 @@ export type GeminiUploadedFile = {
 };
 
 /**
- * Upload a PDF (raw bytes) to the Gemini Files API. Returns the file URI that
- * can be referenced in a subsequent generateContent call.
+ * Upload raw bytes of any supported type to the Gemini Files API. Returns the
+ * file URI that can be referenced in a subsequent generateContent call.
  * Files are retained by Google for ~48h.
+ *
+ * Season 1 sends one PDF; Season 2 has no PDF and sends the payment proofs and
+ * meet-proof photos as images, which is why the content type is a parameter
+ * rather than baked in.
  */
-export async function uploadPdfToGemini(
+export async function uploadFileToGemini(
   apiKey: string,
-  pdfBytes: Buffer,
+  bytes: Buffer,
+  mimeType: string,
   displayName: string,
 ): Promise<GeminiUploadedFile> {
   const url = `${GEMINI_FILES_UPLOAD_URL}?key=${encodeURIComponent(apiKey)}`;
@@ -30,11 +35,11 @@ export async function uploadPdfToGemini(
     method: "POST",
     headers: {
       "X-Goog-Upload-Command": "start, upload, finalize",
-      "X-Goog-Upload-Header-Content-Type": "application/pdf",
-      "Content-Type": "application/pdf",
+      "X-Goog-Upload-Header-Content-Type": mimeType,
+      "Content-Type": mimeType,
       "X-Goog-File-Display-Name": displayName.slice(0, 80),
     },
-    body: new Uint8Array(pdfBytes),
+    body: new Uint8Array(bytes),
     signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) {
@@ -51,8 +56,17 @@ export async function uploadPdfToGemini(
   }
   return {
     uri: json.file.uri,
-    mimeType: json.file.mimeType ?? "application/pdf",
+    mimeType: json.file.mimeType ?? mimeType,
   };
+}
+
+/** Season 1's PDF path, unchanged in behaviour. */
+export async function uploadPdfToGemini(
+  apiKey: string,
+  pdfBytes: Buffer,
+  displayName: string,
+): Promise<GeminiUploadedFile> {
+  return uploadFileToGemini(apiKey, pdfBytes, "application/pdf", displayName);
 }
 
 /**

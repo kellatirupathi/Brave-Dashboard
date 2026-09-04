@@ -28,7 +28,7 @@ import {
   teamsTable,
   usersTable,
 } from "@workspace/db";
-import { evaluateGateA, normalisePhone, trailBand } from "./lead-pipeline";
+import { evaluateGateA, normalisePhone } from "./lead-pipeline";
 import { getTrustSummary, type TrustSummary } from "./trust-score";
 import { logger } from "./logger";
 
@@ -300,17 +300,21 @@ export async function computeSignals(
         .from(leadInteractionsTable)
         .where(eq(leadInteractionsTable.leadId, lead.id));
       const gateA = evaluateGateA(interactions);
-      const band = trailBand(lead.trailStrength);
       add({
         key: "trail",
         label: "Interaction trail",
-        severity:
-          band === "strong" ? "ok" : band === "moderate" ? "attention" : "concern",
-        detail:
-          band === "strong"
-            ? `${interactions.length} interactions, strong trail (${lead.trailStrength}).`
-            : `${interactions.length} interactions, ${band} trail (${lead.trailStrength}). ${gateA.reasons.join(" ")}`.trim(),
-        value: lead.trailStrength,
+        // Read straight off the trail: enough dated contact spread over enough
+        // days, or not. The old 0-100 score said the same thing through a
+        // rubric nobody could see.
+        severity: gateA.passed
+          ? "ok"
+          : interactions.length > 0
+            ? "attention"
+            : "concern",
+        detail: gateA.passed
+          ? `${interactions.length} interactions over ${gateA.spanDays} days.`
+          : `${interactions.length} interactions over ${gateA.spanDays} days. ${gateA.reasons.join(" ")}`.trim(),
+        value: gateA.interactionCount,
       });
 
       // ── 2. Backdating ─────────────────────────────────────────────────

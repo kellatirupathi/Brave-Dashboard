@@ -2,7 +2,7 @@
 // the same convention as leads-api.ts. Every request goes through customFetch
 // so the viewed-season header is attached automatically.
 import { customFetch } from "@workspace/api-client-react";
-import type { LeadStage, TrailBand } from "./leads-api";
+import type { LeadStage } from "./leads-api";
 
 export const BRD_STATUSES = [
   "no_project",
@@ -81,8 +81,6 @@ export type AdminLeadRow = {
   estimatedValue: number | null;
   evidenceCount: number;
   stage: LeadStage;
-  trailStrength: number;
-  trailBand: TrailBand;
   interactionCount: number;
   interactionsWithEvidence: number;
   lastInteractionDate: string | null;
@@ -163,7 +161,6 @@ export type AdminLeadsSortKey =
   | "team"
   | "campus"
   | "stage"
-  | "trail"
   | "interactions"
   | "lastContact"
   | "estimatedValue"
@@ -178,7 +175,6 @@ export type AdminLeadsQuery = {
   teamId?: number;
   stage?: string;
   source?: string;
-  trail?: string;
   brd?: string;
   gateA?: "passed" | "pending";
   relatedParty?: boolean;
@@ -286,8 +282,6 @@ export type ComposedBrd = {
     remaining: number;
   };
   systemAssessment: {
-    trailStrength: number;
-    trailBand: string;
     isRelatedParty: boolean;
     claimedAmount: number;
     receivedAmount: number;

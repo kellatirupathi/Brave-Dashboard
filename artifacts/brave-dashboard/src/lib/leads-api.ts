@@ -44,8 +44,6 @@ export const STAGE_LABEL: Record<LeadStage, string> = {
 /** Stages that still need work from the team. */
 export const OPEN_STAGES: LeadStage[] = ["new", "qualified", "proposal_sent"];
 
-export type TrailBand = "strong" | "moderate" | "weak";
-
 export type Lead = {
   id: number;
   /**
@@ -76,7 +74,6 @@ export type Lead = {
   evidence: unknown;
   stage: LeadStage;
   isRelatedParty: boolean;
-  trailStrength: number;
   lastContactAt: string | null;
   nextActionDate: string | null;
   createdBy: string;
@@ -110,7 +107,6 @@ export type LeadListRow = Lead & {
   /** Null when nothing has been logged yet. */
   silentDays: number | null;
   needsFollowUp: boolean;
-  trailBand: TrailBand;
 };
 
 export type LeadDetail = {
@@ -118,8 +114,6 @@ export type LeadDetail = {
   /** Newest first. */
   interactions: LeadInteraction[];
   gateA: GateStatus;
-  trailStrength: number;
-  trailBand: TrailBand;
   canConvert: boolean;
   /** False = Gate A is advisory; converting is allowed regardless. */
   gatesEnforced?: boolean;
@@ -250,8 +244,6 @@ export function logInteraction(
   body: LogInteractionBody,
 ): Promise<{
   interaction: LeadInteraction;
-  trailStrength: number;
-  trailBand: TrailBand;
   gateA: GateStatus;
   stageApplied: LeadStage | null;
   stageRefused: { reasons: string[] } | null;
@@ -266,7 +258,7 @@ export function updateInteraction(
   leadId: LeadRef,
   interactionId: number,
   body: Partial<LogInteractionBody>,
-): Promise<{ interaction: LeadInteraction; trailStrength: number }> {
+): Promise<{ interaction: LeadInteraction }> {
   return customFetch(`/api/leads/${leadId}/interactions/${interactionId}`, {
     method: "PATCH",
     body: JSON.stringify(body),
@@ -590,8 +582,6 @@ export type ComposedBrd = {
     invoiceDoc: string | null;
   }>;
   systemAssessment: {
-    trailStrength: number;
-    trailBand: TrailBand;
     gateA: GateStatus;
     isRelatedParty: boolean;
     claimedAmount: number;

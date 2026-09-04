@@ -721,7 +721,11 @@ router.post(
       res.status(404).json({ error: "Entry not found" });
       return;
     }
-    if (!entry.brdUrl || entry.brdUrl.trim() === "") {
+    // Season 1 attaches a PDF; Season 2 composes the document from logged
+    // records and has no file. Either is analysable — only an entry with
+    // neither has nothing to audit.
+    const hasPdf = !!entry.brdUrl && entry.brdUrl.trim() !== "";
+    if (!hasPdf && !entry.brdComposed) {
       res
         .status(400)
         .json({ error: "Entry has no BRD attached; nothing to analyse." });

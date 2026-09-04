@@ -17,7 +17,7 @@
  *   line in routes/index.ts plus its import.
  *
  * WHY THE LIST IS FILTERED IN JS
- * Most filters (BRD status, Gate A, trail band) are derived from aggregates
+ * Most filters (BRD status, Gate A) are derived from aggregates
  * across four tables. Pushing them into SQL would mean re-deriving the gates
  * in a second language. Leads are season-scoped and a season's whole set is
  * small enough to hold in memory (thousands, not millions), so we load once,
@@ -46,9 +46,6 @@ import {
   GATE_A_MIN_INTERACTIONS,
   GATE_A_MIN_SPAN_DAYS,
   findDuplicateClientTeams,
-  trailBand,
-  trailMeetsSubmissionBar,
-  type TrailBand,
 } from "../lib/lead-pipeline";
 import { composeBrd } from "../lib/brd-composer";
 import { logger } from "../lib/logger";
@@ -119,8 +116,6 @@ type LeadRow = {
   estimatedValue: number | null;
   evidenceCount: number;
   stage: string;
-  trailStrength: number;
-  trailBand: TrailBand;
   interactionCount: number;
   interactionsWithEvidence: number;
   lastInteractionDate: string | null;
@@ -379,7 +374,6 @@ async function loadSeasonLeads(seasonId: number): Promise<LeadRow[]> {
           !!project.revenueType,
         phaseCount >= 2,
         phaseCount > 0 && scheduled >= phaseCount,
-        trailMeetsSubmissionBar(lead.trailStrength),
         gateA.passed,
         payments.count > 0,
         !lead.isRelatedParty ||
@@ -443,8 +437,6 @@ async function loadSeasonLeads(seasonId: number): Promise<LeadRow[]> {
       estimatedValue: lead.estimatedValue,
       evidenceCount: evidence,
       stage: lead.stage,
-      trailStrength: lead.trailStrength,
-      trailBand: trailBand(lead.trailStrength),
       interactionCount: ia?.n ?? 0,
       interactionsWithEvidence: ia?.withEvidence ?? 0,
       lastInteractionDate: lastDate,
@@ -502,7 +494,6 @@ type ListFilters = {
   teamId: number | null;
   stage: string | null;
   source: string | null;
-  trail: string | null;
   brd: string | null;
   gateA: "passed" | "pending" | null;
   relatedParty: boolean | null;
@@ -536,7 +527,6 @@ function readFilters(q: Request["query"]): ListFilters {
     teamId: num("teamId"),
     stage: str("stage"),
     source: str("source"),
-    trail: str("trail"),
     brd: str("brd"),
     gateA: gate === "passed" || gate === "pending" ? gate : null,
     relatedParty: bool("relatedParty"),
@@ -551,7 +541,6 @@ function applyFilters(rows: LeadRow[], f: ListFilters): LeadRow[] {
     if (f.teamId != null && r.teamId !== f.teamId) return false;
     if (f.stage && r.stage !== f.stage) return false;
     if (f.source && r.source !== f.source) return false;
-    if (f.trail && r.trailBand !== f.trail) return false;
     if (f.brd && r.brdStatus !== f.brd) return false;
     if (f.gateA === "passed" && !r.gateA.passed) return false;
     if (f.gateA === "pending" && r.gateA.passed) return false;
@@ -585,7 +574,6 @@ const SORT_KEYS = [
   "team",
   "campus",
   "stage",
-  "trail",
   "interactions",
   "lastContact",
   "estimatedValue",
@@ -620,8 +608,6 @@ function sortRows(rows: LeadRow[], key: SortKey, dir: "asc" | "desc"): LeadRow[]
         return cmpStr(a.campusName ?? "", b.campusName ?? "");
       case "stage":
         return cmpNum(STAGE_ORDER[a.stage] ?? 9, STAGE_ORDER[b.stage] ?? 9);
-      case "trail":
-        return cmpNum(a.trailStrength, b.trailStrength);
       case "interactions":
         return cmpNum(a.interactionCount, b.interactionCount);
       case "lastContact":
@@ -797,8 +783,6 @@ router.get(
         "Related party",
         "Stage",
         "Pipeline step",
-        "Trail strength",
-        "Trail band",
         "Interactions",
         "With evidence",
         "Last contact",
@@ -848,8 +832,6 @@ router.get(
             r.isRelatedParty ? "yes" : "no",
             r.stage,
             r.pipelineStep,
-            r.trailStrength,
-            r.trailBand,
             r.interactionCount,
             r.interactionsWithEvidence,
             r.lastInteractionDate,

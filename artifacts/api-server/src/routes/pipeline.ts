@@ -41,6 +41,7 @@ import {
   allowLeadsSubmit,
 } from "../lib/leads-control";
 import { logger } from "../lib/logger";
+import { scheduleBrdAnalysis } from "../lib/ai/brd-scheduler";
 
 const router: IRouter = Router();
 
@@ -1284,6 +1285,11 @@ router.post(
               .returning()
           )[0]
         : (await db.insert(revenueEntriesTable).values(values).returning())[0];
+
+      // Audit the claim once the student has stopped changing it. Scheduled,
+      // never awaited: a slow Gemini call must not hold the submit response,
+      // and a failed audit must still leave a reviewable entry.
+      if (entry?.id) scheduleBrdAnalysis(entry.id);
 
       res.status(201).json({
         entryId: entry?.id,
