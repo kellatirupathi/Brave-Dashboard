@@ -50,6 +50,7 @@ import {
   deleteProjectPhase,
   getBrd,
   getPipelineProject,
+  leadRef,
   leadKeys,
   recordPayment,
   submitProject,
@@ -808,7 +809,7 @@ function BrdPreviewDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-4xl">
+      <DialogContent className="h-[92vh] max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-4xl">
         {/* The pages carry their own "Business Requirement Document" banner, so
             a visible header would say it twice. Radix still requires a title on
             every dialog, and a screen reader has no banner to read — so it stays,
@@ -819,8 +820,8 @@ function BrdPreviewDialog({
             A page-by-page preview built from your Lead and project records.
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[92vh] overflow-y-auto">
-          <div className="max-h-[1500px] space-y-5 overflow-y-auto bg-slate-100 p-3 sm:p-6">
+        <div className="min-h-0 overflow-y-auto bg-slate-100 p-3 sm:p-6">
+          <div className="space-y-5">
             <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
               <div className="flex h-full min-h-[660px] flex-col">
                 <div className="border-b-2 border-slate-900 pb-6">
@@ -1068,6 +1069,22 @@ export default function LeadDelivery() {
     queryFn: () => getBrd(projectId),
     enabled: Number.isInteger(projectId) && projectId > 0,
   });
+  const canonicalLeadId =
+    projectQ.data?.project.leadPublicId ??
+    (projectQ.data?.project.leadId != null
+      ? leadRef({
+          id: projectQ.data.project.leadId,
+          publicId: projectQ.data.project.leadPublicId,
+        })
+      : leadId);
+
+  useEffect(() => {
+    if (canonicalLeadId && canonicalLeadId !== leadId) {
+      navigate(`/leads/${canonicalLeadId}/delivery/${projectId}`, {
+        replace: true,
+      });
+    }
+  }, [canonicalLeadId, leadId, navigate, projectId]);
 
   const submit = useMutation({
     mutationFn: () => submitProject(projectId),
@@ -1140,7 +1157,7 @@ export default function LeadDelivery() {
       void qc.invalidateQueries({ queryKey: leadKeys.projects(seasonId) });
       void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
       toast({ title: "Project deleted" });
-      navigate(`/leads/${leadId}`);
+      navigate(`/leads/${canonicalLeadId}`);
     },
     onError: (err: Error) =>
       toast({
@@ -1187,7 +1204,7 @@ export default function LeadDelivery() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      <Link href={`/leads/${leadId}`}>
+      <Link href={`/leads/${canonicalLeadId}`}>
         <Button variant="ghost" size="sm" className="-ml-2">
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           Back to the lead

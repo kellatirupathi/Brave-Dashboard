@@ -4,7 +4,7 @@
 // project this screen forwards to the delivery screen instead of offering a
 // second one — one project per lead is a server rule, and the UI should not
 // let a student walk into it.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useLocation } from "wouter";
 import {
@@ -42,6 +42,7 @@ import { useLeadsControl } from "@/lib/leads-control-api";
 import {
   createPipelineProject,
   getLead,
+  leadRef,
   leadKeys,
   listPipelineProjects,
   apiErrorData,
@@ -136,6 +137,13 @@ export default function LeadProject() {
     queryKey: leadKeys.projects(seasonId),
     queryFn: () => listPipelineProjects(),
   });
+  const canonicalLeadId = leadQ.data ? leadRef(leadQ.data.lead) : null;
+
+  useEffect(() => {
+    if (canonicalLeadId && canonicalLeadId !== leadId) {
+      navigate(`/leads/${canonicalLeadId}/project`, { replace: true });
+    }
+  }, [canonicalLeadId, leadId, navigate]);
 
   const leadNumericId = leadQ.data?.lead.id ?? null;
   const existing = useMemo(
@@ -242,7 +250,7 @@ export default function LeadProject() {
       void qc.invalidateQueries({ queryKey: leadKeys.projects(seasonId) });
       void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
       toast({ title: "Project created" });
-      navigate(`/leads/${leadId}/delivery/${res.projectId}`);
+      navigate(`/leads/${canonicalLeadId ?? leadId}/delivery/${res.projectId}`);
     },
     onError: (err: Error) => {
       // A broken or restricted link comes back as a structured refusal on the
@@ -301,7 +309,7 @@ export default function LeadProject() {
     return (
       <div className="space-y-4 p-4 sm:p-6">
         <LeadsLockBanner />
-        <Link href={`/leads/${leadId}`}>
+        <Link href={`/leads/${canonicalLeadId ?? leadId}`}>
           <Button variant="ghost" size="sm" className="-ml-2">
             <ArrowLeft className="mr-1.5 h-4 w-4" />
             {lead.businessName}
@@ -314,7 +322,7 @@ export default function LeadProject() {
             {formatINR(existing.totalContractValue ?? 0)}, received{" "}
             {formatINR(existing.received)}.
           </p>
-          <Link href={`/leads/${leadId}/delivery/${existing.id}`}>
+          <Link href={`/leads/${canonicalLeadId ?? leadId}/delivery/${existing.id}`}>
             <Button className="mt-4">Open delivery &amp; payments</Button>
           </Link>
         </Card>
@@ -329,7 +337,7 @@ export default function LeadProject() {
     return (
       <div className="space-y-4 p-4 sm:p-6">
         <LeadsLockBanner />
-        <Link href={`/leads/${leadId}`}>
+        <Link href={`/leads/${canonicalLeadId ?? leadId}`}>
           <Button variant="ghost" size="sm" className="-ml-2">
             <ArrowLeft className="mr-1.5 h-4 w-4" />
             {lead.businessName}
@@ -346,7 +354,7 @@ export default function LeadProject() {
               A project can only be created once the client has agreed. Keep
               working the lead, then convert it from the lead page.
             </p>
-            <Link href={`/leads/${leadId}`}>
+            <Link href={`/leads/${canonicalLeadId ?? leadId}`}>
               <Button variant="outline" className="mt-4">
                 Back to the lead
               </Button>
@@ -417,7 +425,7 @@ export default function LeadProject() {
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <LeadsLockBanner />
-      <Link href={`/leads/${leadId}`}>
+      <Link href={`/leads/${canonicalLeadId ?? leadId}`}>
         <Button variant="ghost" size="sm" className="-ml-2">
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           {lead.businessName}
@@ -842,7 +850,7 @@ export default function LeadProject() {
       </Dialog>
 
       <div className="flex items-center justify-end gap-3">
-        <Link href={`/leads/${leadId}`}>
+        <Link href={`/leads/${canonicalLeadId ?? leadId}`}>
           <Button variant="ghost">Cancel</Button>
         </Link>
         <Button
