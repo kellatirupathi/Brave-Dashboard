@@ -16,6 +16,7 @@ import {
   Clock,
   Pencil,
   Trash2,
+  BookOpen,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import { useSeason } from "@/lib/season-context";
 import { LeadsLockBanner } from "@/components/leads-lock-banner";
 import { useLeadsControl } from "@/lib/leads-control-api";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
+import { InteractionGuideDialog } from "@/components/interaction-guide-dialog";
 import {
   deleteInteraction,
   deleteLead,
@@ -49,6 +51,7 @@ import {
   updateLead,
   type Lead,
   type LeadInteraction,
+  type LeadRef,
   type LogInteractionBody,
   type TrailBand,
 } from "@/lib/leads-api";
@@ -149,7 +152,7 @@ function LogDialog({
   onOpenChange,
   interaction,
 }: {
-  leadId: number;
+  leadId: LeadRef;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   interaction?: LeadInteraction | null;
@@ -562,13 +565,16 @@ function LeadEditDialog({
 
 export default function LeadDetail() {
   const params = useParams<{ id: string }>();
-  const leadId = Number(params.id);
+  // Either the public UUID (what links now carry) or a legacy numeric id —
+  // the API resolves both, so this is passed through untouched.
+  const leadId = String(params.id ?? "");
   const { viewingId: seasonId, canWrite } = useSeason();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const controls = useLeadsControl();
   const [logging, setLogging] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [editingLead, setEditingLead] = useState(false);
   const [editingInteraction, setEditingInteraction] =
     useState<LeadInteraction | null>(null);
@@ -579,7 +585,7 @@ export default function LeadDetail() {
   const q = useQuery({
     queryKey: leadKeys.detail(seasonId, leadId),
     queryFn: () => getLead(leadId),
-    enabled: Number.isInteger(leadId) && leadId > 0,
+    enabled: leadId.length > 0,
   });
 
   const convert = useMutation({
@@ -824,7 +830,7 @@ export default function LeadDetail() {
             </div>
           </div>
           {lead.stage === "converted" ? (
-            <Link href={`/leads/${lead.id}/project`}>
+            <Link href={`/leads/${leadId}/project`}>
               <Button>Open the project</Button>
             </Link>
           ) : (
@@ -842,10 +848,23 @@ export default function LeadDetail() {
 
       {/* ── Trail ──────────────────────────────────────────────────────── */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-semibold">
-            Interactions ({interactions.length})
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-semibold">
+              Interactions ({interactions.length})
+            </h2>
+            {/* Sits with the heading rather than with the action, because it
+                teaches what to write — it does not write anything. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setGuideOpen(true)}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              How to write interactions
+            </Button>
+          </div>
           {writable && controls.can("interactions", "add") ? (
             <Button size="sm" onClick={() => setLogging(true)}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -938,6 +957,7 @@ export default function LeadDetail() {
         )}
       </div>
 
+      <InteractionGuideDialog open={guideOpen} onOpenChange={setGuideOpen} />
       <LogDialog leadId={leadId} open={logging} onOpenChange={setLogging} />
       <LogDialog
         leadId={leadId}

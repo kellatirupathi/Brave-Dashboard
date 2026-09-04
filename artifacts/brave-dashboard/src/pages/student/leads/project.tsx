@@ -116,7 +116,9 @@ const emptyPhase = (): PhaseInput => ({
 
 export default function LeadProject() {
   const params = useParams<{ id: string }>();
-  const leadId = Number(params.id);
+  // Either the public UUID (what links now carry) or a legacy numeric id —
+  // the API resolves both, so this is passed through untouched.
+  const leadId = String(params.id ?? "");
   const { viewingId: seasonId, canWrite } = useSeason();
   // Advisory (default) vs enforced pipeline gates — admin Config toggle.
   const gatesEnforced = usePipelineGatesEnforced();
@@ -128,16 +130,20 @@ export default function LeadProject() {
   const leadQ = useQuery({
     queryKey: leadKeys.detail(seasonId, leadId),
     queryFn: () => getLead(leadId),
-    enabled: Number.isInteger(leadId) && leadId > 0,
+    enabled: leadId.length > 0,
   });
   const projectsQ = useQuery({
     queryKey: leadKeys.projects(seasonId),
     queryFn: () => listPipelineProjects(),
   });
 
+  const leadNumericId = leadQ.data?.lead.id ?? null;
   const existing = useMemo(
-    () => projectsQ.data?.find((p) => p.leadId === leadId),
-    [projectsQ.data, leadId],
+    () =>
+      leadNumericId == null
+        ? undefined
+        : projectsQ.data?.find((p) => p.leadId === leadNumericId),
+    [projectsQ.data, leadNumericId],
   );
 
   const [title, setTitle] = useState("");
@@ -184,9 +190,14 @@ export default function LeadProject() {
   const total = phases.reduce((n, p) => n + (Number(p.amount) || 0), 0);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      createPipelineProject({
-        leadId,
+    mutationFn: () => {
+      // Unreachable from the UI: the submit button only renders after the
+      // lead query has resolved. Explicit so the invariant survives a refactor.
+      if (leadNumericId == null) {
+        throw new Error("The lead is still loading.");
+      }
+      return createPipelineProject({
+        leadId: leadNumericId,
         title: title.trim(),
         serviceCategory: serviceCategory.trim(),
         problemStatement: problemStatement.trim(),
@@ -224,7 +235,8 @@ export default function LeadProject() {
           ...p,
           amount: Number(p.amount) || 0,
         })),
-      }),
+      });
+    },
     onSuccess: (res) => {
       setLinkErrors({});
       void qc.invalidateQueries({ queryKey: leadKeys.projects(seasonId) });

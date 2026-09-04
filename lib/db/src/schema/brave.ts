@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   primaryKey,
   jsonb,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -2226,6 +2227,14 @@ export const leadsTable = pgTable(
   "leads",
   {
     id: serial("id").primaryKey(),
+    // The identifier used in URLs and shared links. The serial `id` stays the
+    // primary key (projects.lead_id and lead_interactions.lead_id reference it,
+    // and prod has no migration pipeline to rewrite them), but it is guessable:
+    // /leads/6 invites walking the range across teams. Every lead URL the
+    // student sees carries this instead. Nullable so the bootstrap backfill can
+    // fill existing rows without a NOT NULL rewrite; treat it as always present
+    // on read and let `resolveLeadRef` accept either form.
+    publicId: uuid("public_id").defaultRandom(),
     teamId: integer("team_id").notNull(),
     seasonId: integer("season_id").notNull().default(2),
 
@@ -2289,6 +2298,7 @@ export const leadsTable = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
+    uniqueIndex("leads_public_id_unique").on(t.publicId),
     index("leads_team_idx").on(t.teamId),
     index("leads_season_team_idx").on(t.seasonId, t.teamId),
     index("leads_stage_idx").on(t.stage),

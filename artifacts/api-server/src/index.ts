@@ -1026,6 +1026,19 @@ async function ensureLeadPipeline(): Promise<void> {
     await db.execute(
       sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_nudge_at timestamptz`,
     );
+    // Public lead identifier. The serial id stays the primary key — every
+    // foreign key points at it — but it is enumerable, so URLs use this
+    // instead. Added nullable with a default, then backfilled, so an existing
+    // production table gains it without a rewrite or a NOT NULL failure.
+    await db.execute(
+      sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS public_id uuid DEFAULT gen_random_uuid()`,
+    );
+    await db.execute(
+      sql`UPDATE leads SET public_id = gen_random_uuid() WHERE public_id IS NULL`,
+    );
+    await db.execute(
+      sql`CREATE UNIQUE INDEX IF NOT EXISTS leads_public_id_unique ON leads (public_id)`,
+    );
   } catch (err) {
     logger.error({ err }, "Failed to ensure leads table");
   }

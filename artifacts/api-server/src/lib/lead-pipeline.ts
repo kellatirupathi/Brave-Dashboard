@@ -405,4 +405,47 @@ export function buildPipelineStatus(input: {
   };
 }
 
+// ── lead references ─────────────────────────────────────────────────────────
+
+/**
+ * Matches a canonical UUID. Anything else is treated as a legacy numeric id, so
+ * a malformed value falls through to the integer branch and fails there rather
+ * than reaching the database as an invalid uuid literal (which Postgres rejects
+ * with a 500 instead of the 400 the caller deserves).
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
+/**
+ * Resolves the `:id` segment of a lead URL to a row, accepting either the
+ * public UUID (what the dashboard now emits) or the legacy serial id (what
+ * existing links, bookmarks and already-sent WhatsApp nudges still carry).
+ *
+ * Returns null for both "malformed reference" and "no such lead" — callers
+ * answer 404 either way, and distinguishing them would confirm to a caller
+ * probing ids which numbers exist.
+ */
+export async function resolveLeadRef(ref: string): Promise<Lead | null> {
+  if (isUuid(ref)) {
+    const [lead] = await db
+      .select()
+      .from(leadsTable)
+      .where(eq(leadsTable.publicId, ref))
+      .limit(1);
+    return lead ?? null;
+  }
+  const id = Number(ref);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const [lead] = await db
+    .select()
+    .from(leadsTable)
+    .where(eq(leadsTable.id, id))
+    .limit(1);
+  return lead ?? null;
+}
+
 export type { Lead };
