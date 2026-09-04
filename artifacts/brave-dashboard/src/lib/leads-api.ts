@@ -431,7 +431,10 @@ export type PaymentRow = {
 };
 
 export function getPipelineProject(id: number): Promise<{
-  project: PipelineProjectRow & { problemStatement: string | null };
+  project: PipelineProjectRow & {
+    problemStatement: string | null;
+    leadPublicId: string | null;
+  };
   phases: ProjectPhase[];
   schedule: ScheduleRow[];
   payments: PaymentRow[];

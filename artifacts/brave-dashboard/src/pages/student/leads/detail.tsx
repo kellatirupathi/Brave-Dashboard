@@ -43,6 +43,7 @@ import {
   deleteInteraction,
   deleteLead,
   getLead,
+  leadRef,
   leadKeys,
   logInteraction,
   moveStage,
@@ -587,6 +588,13 @@ export default function LeadDetail() {
     queryFn: () => getLead(leadId),
     enabled: leadId.length > 0,
   });
+  const canonicalLeadId = q.data ? leadRef(q.data.lead) : null;
+
+  useEffect(() => {
+    if (canonicalLeadId && canonicalLeadId !== leadId) {
+      navigate(`/leads/${canonicalLeadId}`, { replace: true });
+    }
+  }, [canonicalLeadId, leadId, navigate]);
 
   const convert = useMutation({
     mutationFn: () => moveStage(leadId, "converted"),
@@ -597,7 +605,7 @@ export default function LeadDetail() {
         title: "Converted",
         description: "Now describe what you are building for them.",
       });
-      navigate(`/leads/${leadId}/project`);
+      navigate(`/leads/${canonicalLeadId ?? leadId}/project`);
     },
     onError: (err: Error) =>
       toast({
@@ -663,8 +671,7 @@ export default function LeadDetail() {
     );
   }
 
-  const { lead, interactions, trailBand } =
-    q.data;
+  const { lead, interactions, trailBand } = q.data;
   const writable = canWrite("project");
 
   return (
@@ -830,7 +837,7 @@ export default function LeadDetail() {
             </div>
           </div>
           {lead.stage === "converted" ? (
-            <Link href={`/leads/${leadId}/project`}>
+            <Link href={`/leads/${canonicalLeadId ?? leadId}/project`}>
               <Button>Open the project</Button>
             </Link>
           ) : (

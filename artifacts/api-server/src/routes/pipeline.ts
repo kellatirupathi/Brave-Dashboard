@@ -498,22 +498,35 @@ router.get(
     const project = await loadPipelineProject(req, res, id);
     if (!project) return;
 
-    const phases = await db
-      .select()
-      .from(projectPhasesTable)
-      .where(eq(projectPhasesTable.projectId, id))
-      .orderBy(asc(projectPhasesTable.sortOrder));
-    const schedule = await db
-      .select()
-      .from(paymentScheduleTable)
-      .where(eq(paymentScheduleTable.projectId, id));
-    const payments = await db
-      .select()
-      .from(paymentsTable)
-      .where(eq(paymentsTable.projectId, id))
-      .orderBy(asc(paymentsTable.paymentDate));
+    const [leadIdentity, phases, schedule, payments] = await Promise.all([
+      db
+        .select({ publicId: leadsTable.publicId })
+        .from(leadsTable)
+        .where(eq(leadsTable.id, project.leadId!))
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
+      db
+        .select()
+        .from(projectPhasesTable)
+        .where(eq(projectPhasesTable.projectId, id))
+        .orderBy(asc(projectPhasesTable.sortOrder)),
+      db
+        .select()
+        .from(paymentScheduleTable)
+        .where(eq(paymentScheduleTable.projectId, id)),
+      db
+        .select()
+        .from(paymentsTable)
+        .where(eq(paymentsTable.projectId, id))
+        .orderBy(asc(paymentsTable.paymentDate)),
+    ]);
 
-    res.json({ project, phases, schedule, payments });
+    res.json({
+      project: { ...project, leadPublicId: leadIdentity?.publicId ?? null },
+      phases,
+      schedule,
+      payments,
+    });
   },
 );
 
