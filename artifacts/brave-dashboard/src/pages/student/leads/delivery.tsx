@@ -26,6 +26,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
@@ -562,7 +563,8 @@ function PhaseDialog({
             />
           </Field>
           <Field label="Deliverables">
-            <Input
+            <Textarea
+              rows={2}
               value={form.deliverables ?? ""}
               onChange={(event) => set("deliverables", event.target.value)}
             />
@@ -729,19 +731,25 @@ function ProjectDialog({
             </Field>
           </div>
           <Field label="Problem statement" required>
-            <Input
+            <Textarea
+              rows={3}
               value={problemStatement}
               onChange={(e) => setProblemStatement(e.target.value)}
             />
           </Field>
           <Field label="Solution description" required>
-            <Input
+            <Textarea
+              rows={3}
               value={solutionDescription}
               onChange={(e) => setSolutionDescription(e.target.value)}
             />
           </Field>
           <Field label="Tech stack" hint="Comma separated">
-            <Input value={techStack} onChange={(e) => setTechStack(e.target.value)} />
+            <Textarea
+              rows={2}
+              value={techStack}
+              onChange={(e) => setTechStack(e.target.value)}
+            />
           </Field>
           {[
             ["Live product URL", liveProductUrl, setLiveProductUrl],
@@ -762,7 +770,8 @@ function ProjectDialog({
             </Field>
           ))}
           <Field label="Demo login details">
-            <Input
+            <Textarea
+              rows={2}
               value={demoCredentials}
               onChange={(e) => setDemoCredentials(e.target.value)}
             />
@@ -798,6 +807,95 @@ function ProjectDialog({
  * page. It is reference material, not a task, so it now opens on demand from
  * the BRD review section and leaves the page itself about what is missing.
  */
+/**
+ * Object-storage paths are relative (`/objects/...`); the API serves them under
+ * /api/storage. An absolute URL a student pasted is left alone.
+ */
+function resolveBrdAsset(url: string): string {
+  if (url.startsWith("/objects/") || url.startsWith("/public-objects/")) {
+    return `/api/storage${url}`;
+  }
+  return url;
+}
+
+function isImageAsset(url: string): boolean {
+  return /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(url);
+}
+
+/** A section heading inside the printed document. */
+function BrdHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h4 className="text-sm font-bold uppercase tracking-wide">{children}</h4>
+  );
+}
+
+/** One `Label: value` line. Renders nothing when there is no value. */
+function BrdRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  if (!value) return null;
+  return (
+    <p>
+      <strong>{label}:</strong> {value}
+    </p>
+  );
+}
+
+/**
+ * Attached evidence. Images are shown, because a payment screenshot a reviewer
+ * has to click away to see may as well not be attached; anything else (a PDF
+ * invoice, say) becomes a link.
+ */
+function BrdAttachments({
+  urls,
+  labels,
+}: {
+  urls: string[];
+  labels?: string[];
+}) {
+  if (urls.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-3">
+      {urls.map((url, index) => {
+        const href = resolveBrdAsset(url);
+        const label = labels?.[index] ?? `Attachment ${index + 1}`;
+        return isImageAsset(url) ? (
+          <a
+            key={`${url}-${index}`}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="block"
+            title={label}
+          >
+            <img
+              src={href}
+              alt={label}
+              loading="lazy"
+              className="h-28 w-28 border border-slate-300 object-cover"
+            />
+          </a>
+        ) : (
+          <a
+            key={`${url}-${index}`}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 border border-slate-300 px-2 py-1 text-xs underline"
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            {label}
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function BrdPreviewDialog({
   brd,
   open,
@@ -807,226 +905,464 @@ function BrdPreviewDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const techStack = Array.isArray(brd.techStack)
+    ? (brd.techStack as unknown[]).filter(
+        (t): t is string => typeof t === "string" && t.trim() !== "",
+      )
+    : [];
+  const proofLinks = Object.entries(brd.links).filter(
+    ([key, value]) => key !== "demoCredentials" && !!value,
+  ) as Array<[string, string]>;
+  const scheduledTotal = brd.phases.reduce(
+    (n, p) => n + (p.scheduledAmount ?? 0),
+    0,
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[92vh] max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-4xl">
-        {/* The pages carry their own "Business Requirement Document" banner, so
-            a visible header would say it twice. Radix still requires a title on
-            every dialog, and a screen reader has no banner to read — so it stays,
-            announced but not drawn. */}
-        <DialogHeader className="sr-only">
-          <DialogTitle>Your BRD</DialogTitle>
-          <DialogDescription>
-            A page-by-page preview built from your Lead and project records.
-          </DialogDescription>
+      <DialogContent
+        className="flex h-[92vh] max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+      >
+        {/* Sticky, so the title and the way out stay put however far down the
+            document the reader has scrolled. */}
+        <DialogHeader className="sticky top-0 z-10 shrink-0 space-y-0 border-b bg-background px-5 py-4 text-left">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">Your BRD</span>
+              </DialogTitle>
+              <DialogDescription className="truncate">
+                Composed from your lead, project and payment records.
+              </DialogDescription>
+            </div>
+            {/* DialogContent renders its own close button, absolutely
+                positioned at the top right — inside this sticky header it
+                lands exactly where it belongs, so no second one is added.
+                The spacer reserves its width. */}
+            <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+          </div>
         </DialogHeader>
-        <div className="min-h-0 overflow-y-auto bg-slate-100 p-3 sm:p-6">
+
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-3 sm:p-6">
           <div className="space-y-5">
-            <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
-              <div className="flex h-full min-h-[660px] flex-col">
-                <div className="border-b-2 border-slate-900 pb-6">
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
-                    Business Requirement Document
-                  </p>
-                  <h3 className="mt-4 text-3xl font-bold">{brd.project.title}</h3>
-                  <p className="mt-2 text-base text-slate-600">
-                    Prepared by {brd.project.teamName}
-                  </p>
-                </div>
-                <div className="mt-10 grid gap-8 md:grid-cols-2">
-                  <section>
-                    <h4 className="text-sm font-bold uppercase tracking-wide">
-                      Client
-                    </h4>
-                    <div className="mt-3 space-y-2 text-sm">
-                      <p><strong>Business:</strong> {brd.client.businessName}</p>
-                      <p><strong>Contact:</strong> {brd.client.ownerName}</p>
-                      <p><strong>Phone:</strong> {brd.client.phone}</p>
-                      <p>
-                        <strong>Location:</strong>{" "}
-                        {[brd.client.areaLocality, brd.client.city]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </p>
-                      <p><strong>Category:</strong> {brd.client.category}</p>
-                    </div>
-                  </section>
-                  <section>
-                    <h4 className="text-sm font-bold uppercase tracking-wide">
-                      Project summary
-                    </h4>
-                    <div className="mt-3 space-y-2 text-sm">
-                      <p>
-                        <strong>Service:</strong>{" "}
-                        {brd.project.serviceCategory || "Not recorded"}
-                      </p>
-                      <p>
-                        <strong>Revenue model:</strong>{" "}
-                        {brd.project.revenueType || "Not recorded"}
-                      </p>
-                      <p>
-                        <strong>Contract value:</strong>{" "}
-                        {formatINR(brd.project.totalContractValue ?? 0)}
-                      </p>
-                      <p>
-                        <strong>Amount received:</strong>{" "}
-                        {formatINR(brd.systemAssessment.receivedAmount)}
-                      </p>
-                    </div>
-                  </section>
-                </div>
-                <section className="mt-10">
-                  <h4 className="text-sm font-bold uppercase tracking-wide">
-                    Business problem
-                  </h4>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                    {brd.problemStatement || "Not recorded"}
-                  </p>
-                </section>
-                {brd.relationship.isRelatedParty ? (
-                  <div className="mt-auto flex items-start gap-2 border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-                    <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                    <p>
-                      Relationship disclosed:{" "}
-                      {brd.relationship.relationshipNote ||
-                        brd.relationship.referrerName ||
-                        "Known contact"}
-                    </p>
-                  </div>
-                ) : null}
-                <p className="mt-auto pt-8 text-right text-xs text-slate-400">
-                  Page 1 of 3
+            {/* ── Page 1: who, what and the commercial terms ─────────────── */}
+            <article className="w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
+              <div className="border-b-2 border-slate-900 pb-6">
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
+                  Business Requirement Document
+                </p>
+                <h3 className="mt-4 text-3xl font-bold">{brd.project.title}</h3>
+                <p className="mt-2 text-base text-slate-600">
+                  Prepared by {brd.project.teamName}
                 </p>
               </div>
-            </article>
 
-            <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
-              <div className="flex min-h-[660px] flex-col">
-                <h3 className="border-b pb-4 text-xl font-bold">
-                  Proposed solution and delivery plan
-                </h3>
-                <section className="mt-7">
-                  <h4 className="text-sm font-bold uppercase tracking-wide">
-                    Solution
-                  </h4>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                    {brd.solutionDescription || "Not recorded"}
-                  </p>
-                </section>
-                <section className="mt-8">
-                  <h4 className="text-sm font-bold uppercase tracking-wide">
-                    Proof it exists
-                  </h4>
+              <div className="mt-10 grid gap-8 md:grid-cols-2">
+                <section>
+                  <BrdHeading>Client</BrdHeading>
                   <div className="mt-3 space-y-2 text-sm">
-                    {Object.entries(brd.links)
-                      .filter(([key, value]) => key !== "demoCredentials" && value)
-                      .map(([key, value]) => (
-                        <p key={key} className="break-all">
-                          <strong>
-                            {key
-                              .replace(/Url$/, "")
-                              .replace(/([A-Z])/g, " $1")
-                              .replace(/^./, (c) => c.toUpperCase())}
-                            :
-                          </strong>{" "}
-                          {value}
-                        </p>
-                      ))}
+                    <BrdRow label="Business" value={brd.client.businessName} />
+                    <BrdRow label="Contact" value={brd.client.ownerName} />
+                    <BrdRow label="Phone" value={brd.client.phone} />
+                    <BrdRow
+                      label="Location"
+                      value={
+                        [brd.client.areaLocality, brd.client.city]
+                          .filter(Boolean)
+                          .join(", ") || null
+                      }
+                    />
+                    <BrdRow label="Category" value={brd.client.category} />
                   </div>
                 </section>
+                <section>
+                  <BrdHeading>Project summary</BrdHeading>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <BrdRow
+                      label="Service"
+                      value={brd.project.serviceCategory}
+                    />
+                    <BrdRow
+                      label="Revenue model"
+                      value={
+                        brd.project.revenueType === "recurring"
+                          ? `Recurring${
+                              brd.project.recurringFrequency
+                                ? ` · ${brd.project.recurringFrequency}`
+                                : ""
+                            }`
+                          : brd.project.revenueType === "one_time"
+                            ? "One-off"
+                            : brd.project.revenueType
+                      }
+                    />
+                    <BrdRow
+                      label="Contract value"
+                      value={formatINR(brd.project.totalContractValue ?? 0)}
+                    />
+                    <BrdRow
+                      label="Amount received"
+                      value={formatINR(brd.systemAssessment.receivedAmount)}
+                    />
+                  </div>
+                </section>
+              </div>
+
+              {/* How the relationship began. Kept on page 1 because a
+                  related-party disclosure changes how everything after it
+                  should be read. */}
+              <section className="mt-10">
+                <BrdHeading>How this client was found</BrdHeading>
+                <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+                  <BrdRow label="Source" value={brd.relationship.source} />
+                  <BrdRow
+                    label="First meeting"
+                    value={formatDate(brd.relationship.firstMeetingDate)}
+                  />
+                  <BrdRow
+                    label="Meeting mode"
+                    value={brd.relationship.meetingMode}
+                  />
+                  <BrdRow
+                    label="Location captured"
+                    value={
+                      brd.relationship.geoCaptured
+                        ? "Yes — GPS recorded at the client's premises"
+                        : "No"
+                    }
+                  />
+                  <BrdRow
+                    label="Referred by"
+                    value={brd.relationship.referrerName}
+                  />
+                  <BrdRow
+                    label="Relationship"
+                    value={brd.relationship.relationshipNote}
+                  />
+                </div>
+              </section>
+
+              <section className="mt-10">
+                <BrdHeading>Business problem</BrdHeading>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                  {brd.problemStatement || "Not recorded"}
+                </p>
+              </section>
+
+              {brd.clientEvidence.length > 0 ? (
+                <section className="mt-10">
+                  <BrdHeading>Evidence from the first visit</BrdHeading>
+                  <BrdAttachments urls={brd.clientEvidence} />
+                </section>
+              ) : null}
+
+              {brd.relationship.isRelatedParty ? (
+                <div className="mt-10 flex items-start gap-2 border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>
+                    Relationship disclosed:{" "}
+                    {brd.relationship.relationshipNote ||
+                      brd.relationship.referrerName ||
+                      "Known contact"}
+                  </p>
+                </div>
+              ) : null}
+
+              <p className="mt-10 pt-8 text-right text-xs text-slate-400">
+                Page 1 of 3
+              </p>
+            </article>
+
+            {/* ── Page 2: what was built, and the proof it exists ────────── */}
+            <article className="w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
+              <h3 className="border-b pb-4 text-xl font-bold">
+                Proposed solution and delivery plan
+              </h3>
+
+              <section className="mt-7">
+                <BrdHeading>Solution</BrdHeading>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                  {brd.solutionDescription || "Not recorded"}
+                </p>
+              </section>
+
+              {techStack.length > 0 ? (
                 <section className="mt-8">
-                  <h4 className="text-sm font-bold uppercase tracking-wide">
-                    Phases
-                  </h4>
-                  <div className="mt-3 overflow-hidden border">
-                    {brd.phases.map((phase, index) => (
-                      <div
-                        key={phase.id ?? index}
-                        className="grid gap-2 border-b p-3 text-sm last:border-b-0 md:grid-cols-[1fr_auto]"
+                  <BrdHeading>Tech stack</BrdHeading>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {techStack.map((tech) => (
+                      <span
+                        key={tech}
+                        className="border border-slate-300 px-2 py-0.5 text-xs"
                       >
-                        <div>
-                          <p className="font-semibold">
-                            {index + 1}. {phase.name}
-                          </p>
-                          {phase.deliverables ? (
-                            <p className="mt-1 text-slate-600">
-                              {phase.deliverables}
-                            </p>
-                          ) : null}
-                        </div>
-                        <p className="font-medium">
-                          {formatINR(phase.scheduledAmount ?? 0)}
-                        </p>
-                      </div>
+                        {tech}
+                      </span>
                     ))}
                   </div>
                 </section>
-                <p className="mt-auto pt-8 text-right text-xs text-slate-400">
-                  Page 2 of 3
-                </p>
-              </div>
+              ) : null}
+
+              <section className="mt-8">
+                <BrdHeading>Proof it exists</BrdHeading>
+                <div className="mt-3 space-y-2 text-sm">
+                  {proofLinks.length === 0 ? (
+                    <p className="text-slate-500">Not recorded</p>
+                  ) : (
+                    proofLinks.map(([key, value]) => (
+                      <p key={key} className="break-all">
+                        <strong>
+                          {key
+                            .replace(/Url$/, "")
+                            .replace(/([A-Z])/g, " $1")
+                            .replace(/^./, (c) => c.toUpperCase())}
+                          :
+                        </strong>{" "}
+                        <a
+                          href={value}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline"
+                        >
+                          {value}
+                        </a>
+                      </p>
+                    ))
+                  )}
+                  {brd.links["demoCredentials"] ? (
+                    <p className="break-all">
+                      <strong>Demo login:</strong>{" "}
+                      {brd.links["demoCredentials"]}
+                    </p>
+                  ) : null}
+                  {brd.agreementDoc ? (
+                    <p className="break-all">
+                      <strong>Agreement or work order:</strong>{" "}
+                      <a
+                        href={resolveBrdAsset(brd.agreementDoc)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline"
+                      >
+                        Open document
+                      </a>
+                    </p>
+                  ) : null}
+                </div>
+              </section>
+
+              <section className="mt-8">
+                <BrdHeading>Delivery phases</BrdHeading>
+                {brd.phases.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">
+                    No phases recorded
+                  </p>
+                ) : (
+                  <div className="mt-3 border">
+                    {brd.phases.map((phase) => (
+                      <div key={phase.id} className="border-b p-3 last:border-b-0">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold">{phase.name}</p>
+                            {phase.startDate || phase.endDate ? (
+                              <p className="text-xs text-slate-600">
+                                {[
+                                  phase.startDate
+                                    ? formatDate(phase.startDate)
+                                    : null,
+                                  phase.endDate
+                                    ? formatDate(phase.endDate)
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" – ")}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="text-right text-sm">
+                            <p className="font-semibold">
+                              {formatINR(phase.receivedAmount)}
+                              {phase.scheduledAmount != null
+                                ? ` / ${formatINR(phase.scheduledAmount)}`
+                                : ""}
+                            </p>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">
+                              {phase.status === "received"
+                                ? "Received"
+                                : phase.status === "due"
+                                  ? `Due${phase.dueDate ? ` ${formatDate(phase.dueDate)}` : ""}`
+                                  : "Pending"}
+                            </p>
+                          </div>
+                        </div>
+                        {phase.deliverables ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                            {phase.deliverables}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                    {scheduledTotal > 0 ? (
+                      <div className="flex justify-between border-t-2 border-slate-900 p-3 text-sm font-semibold">
+                        <span>Total scheduled</span>
+                        <span>{formatINR(scheduledTotal)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </section>
+
+              <p className="mt-10 pt-8 text-right text-xs text-slate-400">
+                Page 2 of 3
+              </p>
             </article>
 
-            <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
-              <div className="flex min-h-[660px] flex-col">
-                <h3 className="border-b pb-4 text-xl font-bold">
-                  Client engagement and revenue
-                </h3>
-                <section className="mt-7">
-                  <h4 className="text-sm font-bold uppercase tracking-wide">
-                    Interaction record
-                  </h4>
-                  <ol className="mt-3 space-y-3">
+            {/* ── Page 3: the evidence trail and the money ───────────────── */}
+            <article className="w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
+              <h3 className="border-b pb-4 text-xl font-bold">
+                Evidence and payments
+              </h3>
+
+              <section className="mt-7">
+                <BrdHeading>Client interaction trail</BrdHeading>
+                {brd.interactionTrail.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">
+                    No interactions recorded
+                  </p>
+                ) : (
+                  <ol className="mt-3 space-y-4">
                     {brd.interactionTrail.map((interaction, index) => (
                       <li
                         key={`${interaction.date}-${index}`}
                         className="border-l-2 border-slate-300 pl-4 text-sm"
                       >
                         <p className="font-semibold">
-                          {formatDate(interaction.date)} · {interaction.type}
+                          {formatDate(interaction.date)} · {interaction.type} ·{" "}
+                          {interaction.outcome}
                         </p>
-                        <p className="mt-1 text-slate-700">
+                        <p className="mt-1 whitespace-pre-wrap leading-6 text-slate-700">
                           {interaction.summary}
                         </p>
+                        {interaction.objectionNote ? (
+                          <p className="mt-1 text-slate-700">
+                            <strong>Objection:</strong>{" "}
+                            {interaction.objectionNote}
+                          </p>
+                        ) : null}
+                        {interaction.loggedAfterHours != null &&
+                        interaction.loggedAfterHours >= 48 ? (
+                          <p className="mt-1 text-xs text-amber-700">
+                            Logged{" "}
+                            {Math.round(interaction.loggedAfterHours / 24)} days
+                            after it happened
+                          </p>
+                        ) : null}
+                        {interaction.attachments.length > 0 ? (
+                          <BrdAttachments urls={interaction.attachments} />
+                        ) : null}
                       </li>
                     ))}
                   </ol>
-                </section>
-                <section className="mt-8">
-                  <h4 className="text-sm font-bold uppercase tracking-wide">
-                    Payments received
-                  </h4>
-                  <div className="mt-3 overflow-hidden border">
+                )}
+              </section>
+
+              <section className="mt-8">
+                <BrdHeading>Payments received</BrdHeading>
+                {brd.payments.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">
+                    No payments recorded
+                  </p>
+                ) : (
+                  <div className="mt-3 border">
                     {brd.payments.map((payment, index) => (
                       <div
                         key={`${payment.date}-${index}`}
-                        className="grid gap-2 border-b p-3 text-sm last:border-b-0 md:grid-cols-[1fr_auto]"
+                        className="border-b p-3 text-sm last:border-b-0"
                       >
-                        <div>
-                          <p className="font-semibold">{payment.phaseName}</p>
-                          <p className="text-slate-600">
-                            {formatDate(payment.date)} · {payment.mode}
-                            {payment.transactionRef
-                              ? ` · ${payment.transactionRef}`
-                              : ""}
-                          </p>
+                        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                          <div>
+                            <p className="font-semibold">{payment.phaseName}</p>
+                            <p className="text-slate-600">
+                              {formatDate(payment.date)} · {payment.mode}
+                              {payment.transactionRef
+                                ? ` · ${payment.transactionRef}`
+                                : ""}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">
+                              {formatINR(payment.amount)}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {payment.clientConfirmed
+                                ? "Confirmed by the client"
+                                : payment.hasProof
+                                  ? "Proof attached"
+                                  : "No proof"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold">
-                            {formatINR(payment.amount)}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {payment.hasProof ? "Proof attached" : "No proof"}
-                          </p>
-                        </div>
+                        {payment.paymentProof || payment.invoiceDoc ? (
+                          <BrdAttachments
+                            urls={[
+                              payment.paymentProof,
+                              payment.invoiceDoc,
+                            ].filter((u): u is string => !!u)}
+                            labels={["Payment proof", "Invoice"]}
+                          />
+                        ) : null}
                       </div>
                     ))}
+                    <div className="flex justify-between border-t-2 border-slate-900 p-3 text-sm font-semibold">
+                      <span>Total received</span>
+                      <span>
+                        {formatINR(brd.systemAssessment.receivedAmount)}
+                      </span>
+                    </div>
                   </div>
-                </section>
-                <p className="mt-auto pt-8 text-right text-xs text-slate-400">
-                  Page 3 of 3
-                </p>
-              </div>
+                )}
+              </section>
+
+              {/* Written by the system, never by the student. Set apart so a
+                  reviewer can see at a glance what was asserted and what was
+                  measured. */}
+              <section className="mt-8 border border-slate-300 bg-slate-50 p-4">
+                <BrdHeading>System assessment</BrdHeading>
+                <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+                  <BrdRow
+                    label="Trail strength"
+                    value={`${brd.systemAssessment.trailStrength}/100 · ${brd.systemAssessment.trailBand}`}
+                  />
+                  <BrdRow
+                    label="Documentation check"
+                    value={
+                      brd.systemAssessment.gateA.passed
+                        ? "Met"
+                        : "Not met — advisory only"
+                    }
+                  />
+                  <BrdRow
+                    label="Amount claimed"
+                    value={formatINR(brd.systemAssessment.claimedAmount)}
+                  />
+                  <BrdRow
+                    label="Amount received"
+                    value={formatINR(brd.systemAssessment.receivedAmount)}
+                  />
+                  <BrdRow
+                    label="Related party"
+                    value={brd.systemAssessment.isRelatedParty ? "Yes" : "No"}
+                  />
+                  <BrdRow
+                    label="Composed"
+                    value={formatDate(brd.systemAssessment.composedAt)}
+                  />
+                </div>
+              </section>
+
+              <p className="mt-10 pt-8 text-right text-xs text-slate-400">
+                Page 3 of 3
+              </p>
             </article>
           </div>
         </div>
