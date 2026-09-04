@@ -34,7 +34,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { FieldHelp, type FieldHelpId } from "@/components/field-help";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { formatINR } from "@/lib/format";
+import { formatDate, formatINR } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
 import { usePipelineGatesEnforced } from "@/lib/pipeline-gates-api";
 import { LeadsLockBanner } from "@/components/leads-lock-banner";
@@ -47,6 +47,7 @@ import {
   listPipelineProjects,
   apiErrorData,
   type PhaseInput,
+  type PipelineProjectRow,
 } from "@/lib/leads-api";
 
 function Select({
@@ -114,6 +115,46 @@ const emptyPhase = (): PhaseInput => ({
   amount: 0,
   revenueType: "one_time",
 });
+
+const RECURRING_LABEL: Record<string, string> = {
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  annual: "Annually",
+};
+
+/** The four proof links, in the order the BRD reads them. */
+const PROOF_LINKS = [
+  { key: "liveProductUrl", label: "Live product" },
+  { key: "demoVideoUrl", label: "Demo video" },
+  { key: "sourceCodeUrl", label: "Source code" },
+  { key: "prototypeUrl", label: "Prototype" },
+] as const satisfies ReadonlyArray<{
+  key: keyof PipelineProjectRow;
+  label: string;
+}>;
+
+/** One labelled field of the saved project record. Renders nothing when empty. */
+function Detail({
+  label,
+  value,
+  multiline,
+}: {
+  label: string;
+  value: string | null | undefined;
+  multiline?: boolean;
+}) {
+  if (!value) return null;
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className={cn("mt-1 text-sm", multiline && "whitespace-pre-wrap leading-relaxed")}>
+        {value}
+      </dd>
+    </div>
+  );
+}
 
 export default function LeadProject() {
   const params = useParams<{ id: string }>();
@@ -316,15 +357,144 @@ export default function LeadProject() {
           </Button>
         </Link>
         <Card className="p-6">
-          <p className="font-semibold">{existing.title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            This lead already has a project. Contract value{" "}
-            {formatINR(existing.totalContractValue ?? 0)}, received{" "}
-            {formatINR(existing.received)}.
-          </p>
-          <Link href={`/leads/${canonicalLeadId ?? leadId}/delivery/${existing.id}`}>
-            <Button className="mt-4">Open delivery &amp; payments</Button>
-          </Link>
+          {/* The action sits with the heading rather than at the foot of the
+              record, so it stays reachable without scrolling past the detail. */}
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold">{existing.title}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatINR(existing.received)} received of{" "}
+                {formatINR(existing.totalContractValue ?? 0)} agreed
+                {existing.createdAt
+                  ? ` · started ${formatDate(existing.createdAt)}`
+                  : ""}
+              </p>
+            </div>
+            <Link
+              href={`/leads/${canonicalLeadId ?? leadId}/delivery/${existing.id}`}
+            >
+              <Button>Open delivery &amp; payments</Button>
+            </Link>
+          </div>
+
+          <dl className="mt-6 grid gap-x-8 gap-y-4 border-t pt-6 sm:grid-cols-2">
+            <Detail label="Service" value={existing.serviceCategory} />
+            <Detail
+              label="Revenue model"
+              value={
+                existing.revenueType === "recurring"
+                  ? `Recurring${
+                      existing.recurringFrequency
+                        ? ` · ${RECURRING_LABEL[existing.recurringFrequency] ?? existing.recurringFrequency}`
+                        : ""
+                    }`
+                  : existing.revenueType === "one_time"
+                    ? "One-off"
+                    : null
+              }
+            />
+            <Detail
+              label="Contract value"
+              value={
+                existing.totalContractValue != null
+                  ? formatINR(existing.totalContractValue)
+                  : null
+              }
+            />
+            <Detail label="Received" value={formatINR(existing.received)} />
+          </dl>
+
+          <div className="mt-6 space-y-5 border-t pt-6">
+            <Detail
+              label="Business problem"
+              value={existing.problemStatement}
+              multiline
+            />
+            <Detail
+              label="Solution"
+              value={existing.solutionDescription}
+              multiline
+            />
+            {existing.techStack && existing.techStack.length > 0 ? (
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Tech stack
+                </dt>
+                <dd className="mt-2 flex flex-wrap gap-1.5">
+                  {existing.techStack.map((tech) => (
+                    <span
+                      key={tech}
+                      className="rounded-md bg-muted px-2 py-0.5 text-xs"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            ) : null}
+          </div>
+
+          {PROOF_LINKS.some(({ key }) => existing[key]) ||
+          existing.demoCredentials ||
+          existing.agreementDoc ? (
+            <div className="mt-6 border-t pt-6">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Proof it exists
+              </p>
+              <ul className="mt-3 space-y-2">
+                {PROOF_LINKS.map(({ key, label }) => {
+                  const href = existing[key];
+                  if (!href) return null;
+                  return (
+                    <li key={key} className="flex items-start gap-2 text-sm">
+                      <Link2
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0">
+                        <span className="text-muted-foreground">{label}: </span>
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="break-all underline"
+                        >
+                          {href}
+                        </a>
+                      </span>
+                    </li>
+                  );
+                })}
+                {existing.agreementDoc ? (
+                  <li className="flex items-start gap-2 text-sm">
+                    <FileText
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0">
+                      <span className="text-muted-foreground">
+                        Agreement or work order:{" "}
+                      </span>
+                      <a
+                        href={existing.agreementDoc}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all underline"
+                      >
+                        {existing.agreementDoc}
+                      </a>
+                    </span>
+                  </li>
+                ) : null}
+              </ul>
+              {existing.demoCredentials ? (
+                <p className="mt-3 text-sm">
+                  <span className="text-muted-foreground">Demo login: </span>
+                  {existing.demoCredentials}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </Card>
       </div>
     );
