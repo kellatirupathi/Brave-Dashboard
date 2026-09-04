@@ -3,7 +3,7 @@
 // Replaces "Projects" in the Season 2 sidebar. Season 1 keeps its own Projects
 // page untouched; this route is additive and only reachable while Season 2 is
 // the season being viewed.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -17,6 +17,14 @@ import {
   ChevronRight,
   Users,
   CalendarDays,
+  Mic,
+  Pause,
+  Play,
+  Square,
+  X,
+  Camera,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +43,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useDictation } from "@/hooks/use-dictation";
+import { useUpload } from "@workspace/object-storage-web";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 import { formatDate } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
 import { PipelineStepper } from "@/components/pipeline-stepper";
@@ -90,6 +101,10 @@ function todayIso() {
 }
 
 /** A field label that says whether it is required, because 10 of 17 are. */
+/** The server caps evidence at 10; the grid shows five to a row. */
+const MAX_PHOTOS = 10;
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
 function Field({
   label,
   required,
@@ -171,6 +186,9 @@ function CaptureDialog({
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [form, setForm] = useState<CreateLeadBody>(EMPTY);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
 
   const set = <K extends keyof CreateLeadBody>(
@@ -178,12 +196,96 @@ function CaptureDialog({
     v: CreateLeadBody[K],
   ): void => setForm((f) => ({ ...f, [k]: v }));
 
+  const dictation = useDictation({
+    onCommit: (chunk) =>
+      setForm((f) => ({
+        ...f,
+        conversationNote: f.conversationNote
+          ? `${f.conversationNote.trimEnd()} ${chunk}`
+          : chunk,
+      })),
+    // Cancel takes back exactly what this run added, leaving anything the
+    // student typed themselves untouched.
+    onCancel: (committed) =>
+      setForm((f) => {
+        const note = f.conversationNote.trimEnd();
+        if (!note.endsWith(committed)) return f;
+        return {
+          ...f,
+          conversationNote: note.slice(0, note.length - committed.length).trimEnd(),
+        };
+      }),
+  });
+
+  // Every route out of the dialog goes through here, so the microphone is
+  // never left open behind a closed sheet.
+  const closeDialog = (): void => {
+    dictation.stop();
+    onOpenChange(false);
+  };
+
+  const photos = form.evidence ?? [];
+  const photoUploader = useUpload({
+    maxBytes: PHOTO_MAX_BYTES,
+    onError: (error) =>
+      toast({
+        title: "Could not add the photo",
+        description: error.message,
+        variant: "destructive",
+      }),
+  });
+
+  const addPhotos = async (files: FileList | null): Promise<void> => {
+    if (!files || files.length === 0) return;
+    const room = MAX_PHOTOS - photos.length;
+    if (room <= 0) {
+      toast({
+        title: `That is the limit`,
+        description: `You can attach up to ${MAX_PHOTOS} photos.`,
+      });
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      for (const file of Array.from(files).slice(0, room)) {
+        // Images only — a reviewer needs to see the meeting, not read a PDF
+        // about it, and the accept attribute alone is a suggestion.
+        if (!file.type.startsWith("image/")) {
+          toast({
+            title: "Photos only",
+            description: `${file.name} is not an image.`,
+            variant: "destructive",
+          });
+          continue;
+        }
+        if (file.size > PHOTO_MAX_BYTES) {
+          toast({
+            title: "That photo is too large",
+            description: `${file.name} is over 5 MB.`,
+            variant: "destructive",
+          });
+          continue;
+        }
+        const result = await photoUploader.uploadFile(file);
+        if (result?.objectPath) {
+          setForm((f) => ({
+            ...f,
+            evidence: [...(f.evidence ?? []), result.objectPath],
+          }));
+        }
+      }
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: () => createLead(form),
     onSuccess: (res) => {
       successFeedback();
       void qc.invalidateQueries({ queryKey: leadKeys.list(seasonId) });
       void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
+      dictation.stop();
       onOpenChange(false);
       setForm(EMPTY);
       // Both of these are signals, not refusals — the student is told so they
@@ -262,7 +364,13 @@ function CaptureDialog({
     (!needsRelationship || !!form.relationshipNote?.trim());
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) dictation.stop();
+        onOpenChange(next);
+      }}
+    >
       {/* On a phone this is a screen, not a dialog: capture happens standing
           in front of the client, and a centred sheet with its own scrollbar
           inside a scrolling page is the wrong shape for that. Same form either
@@ -403,17 +511,106 @@ function CaptureDialog({
             </Field>
           </div>
 
-          <Field
-            label="What did they say?"
-            required
-            hint="Their words, not a summary. This is the strongest part of your trail."
-          >
+          {/* Not a <Field>: that wraps its children in a <label>, so a click
+              on any of these buttons would focus the textarea instead. */}
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label
+                htmlFor="conversation-note"
+                className="text-sm font-medium"
+              >
+                What did they say?
+                <span className="ml-0.5 text-destructive">*</span>
+              </label>
+              {dictation.supported ? (
+                <div className="flex items-center gap-1.5">
+                  {dictation.state === "idle" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      onClick={dictation.start}
+                    >
+                      <Mic className="mr-1.5 h-3.5 w-3.5" />
+                      Speak
+                    </Button>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                        <span
+                          className={cn(
+                            "h-2 w-2 rounded-full bg-destructive",
+                            dictation.state === "listening" && "animate-pulse",
+                          )}
+                          aria-hidden="true"
+                        />
+                        {dictation.state === "listening"
+                          ? "Listening…"
+                          : "Paused"}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={
+                          dictation.state === "listening" ? "Pause" : "Resume"
+                        }
+                        onClick={
+                          dictation.state === "listening"
+                            ? dictation.pause
+                            : dictation.resume
+                        }
+                      >
+                        {dictation.state === "listening" ? (
+                          <Pause className="h-3.5 w-3.5" />
+                        ) : (
+                          <Play className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label="Stop and keep the text"
+                        onClick={dictation.stop}
+                      >
+                        <Square className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label="Cancel and discard"
+                        onClick={dictation.cancel}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
             <Textarea
-              rows={4}
+              id="conversation-note"
+              rows={5}
               value={form.conversationNote}
               onChange={(e) => set("conversationNote", e.target.value)}
             />
-          </Field>
+            {/* Words heard but not yet finalised. Shown separately so the
+                field itself only ever holds text that is settled. */}
+            {dictation.interim ? (
+              <p className="text-xs italic text-muted-foreground">
+                {dictation.interim}
+              </p>
+            ) : null}
+            <span className="block text-xs text-muted-foreground">
+              Their words, not a summary. This is the strongest part of your
+              trail.
+            </span>
+          </div>
 
           <Field label="What problem do they have?">
             <Textarea
@@ -445,6 +642,108 @@ function CaptureDialog({
               </Button>
             </div>
           </div>
+
+          {/* Meet proofs. Sits after Location because both answer the same
+              question — were you actually there. */}
+          <div className="rounded-md border bg-muted/40 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Meet proofs</p>
+                <p className="text-xs text-muted-foreground">
+                  {photos.length > 0
+                    ? `${photos.length} of ${MAX_PHOTOS} added.`
+                    : "A photo with the owner, the shopfront, or a visiting card."}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={photoBusy || photos.length >= MAX_PHOTOS}
+                  onClick={() => cameraInputRef.current?.click()}
+                >
+                  <Camera className="mr-1.5 h-3.5 w-3.5" />
+                  Take photo
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={photoBusy || photos.length >= MAX_PHOTOS}
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  Upload
+                </Button>
+              </div>
+            </div>
+
+            {/* capture="environment" asks a phone for the rear camera; on a
+                desktop it degrades to an ordinary file picker. */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                void addPhotos(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                void addPhotos(e.target.files);
+                e.target.value = "";
+              }}
+            />
+
+            {photoBusy ? (
+              <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <Spinner className="h-3.5 w-3.5" />
+                Adding photo…
+              </p>
+            ) : null}
+
+            {photos.length > 0 ? (
+              <div className="mt-3 grid grid-cols-5 gap-2">
+                {photos.map((url, index) => (
+                  <div
+                    key={`${url}-${index}`}
+                    className="group relative aspect-square overflow-hidden rounded border bg-background"
+                  >
+                    <img
+                      src={resolveStoredObjectUrl(url)}
+                      alt={`Meet proof ${index + 1}`}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Remove photo ${index + 1}`}
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          evidence: (f.evidence ?? []).filter(
+                            (_, i) => i !== index,
+                          ),
+                        }))
+                      }
+                      className="absolute right-0.5 top-0.5 rounded-full bg-background/90 p-0.5 text-destructive shadow-sm"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {/* Cancel left, Save right, both reachable with a thumb. On desktop
@@ -460,7 +759,7 @@ function CaptureDialog({
           <Button
             variant={isMobile ? "outline" : "ghost"}
             className={cn(isMobile && "flex-1")}
-            onClick={() => onOpenChange(false)}
+            onClick={closeDialog}
           >
             Cancel
           </Button>
