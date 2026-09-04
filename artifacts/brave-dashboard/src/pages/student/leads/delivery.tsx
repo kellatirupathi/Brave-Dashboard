@@ -39,6 +39,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDate, formatINR } from "@/lib/format";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 import { useSeason } from "@/lib/season-context";
 import { LeadsLockBanner } from "@/components/leads-lock-banner";
 import { useLeadsControl } from "@/lib/leads-control-api";
@@ -807,17 +808,6 @@ function ProjectDialog({
  * page. It is reference material, not a task, so it now opens on demand from
  * the BRD review section and leaves the page itself about what is missing.
  */
-/**
- * Object-storage paths are relative (`/objects/...`); the API serves them under
- * /api/storage. An absolute URL a student pasted is left alone.
- */
-function resolveBrdAsset(url: string): string {
-  if (url.startsWith("/objects/") || url.startsWith("/public-objects/")) {
-    return `/api/storage${url}`;
-  }
-  return url;
-}
-
 function isImageAsset(url: string): boolean {
   return /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(url);
 }
@@ -861,7 +851,7 @@ function BrdAttachments({
   return (
     <div className="mt-3 flex flex-wrap gap-3">
       {urls.map((url, index) => {
-        const href = resolveBrdAsset(url);
+        const href = resolveStoredObjectUrl(url);
         const label = labels?.[index] ?? `Attachment ${index + 1}`;
         return isImageAsset(url) ? (
           <a
@@ -1139,7 +1129,7 @@ function BrdPreviewDialog({
                     <p className="break-all">
                       <strong>Agreement or work order:</strong>{" "}
                       <a
-                        href={resolveBrdAsset(brd.agreementDoc)}
+                        href={resolveStoredObjectUrl(brd.agreementDoc)}
                         target="_blank"
                         rel="noreferrer"
                         className="underline"

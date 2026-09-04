@@ -17,6 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { formatINR } from "@/lib/format";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 import {
   Rocket,
   CheckCircle2,
@@ -235,7 +236,7 @@ export default function AdminDemoDaySubmissions() {
                 {detail.fileUrl && (
                   <div>
                     <a
-                      href={detail.fileUrl}
+                      href={resolveStoredObjectUrl(detail.fileUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-blue-600 underline"

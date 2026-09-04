@@ -27,6 +27,7 @@ import {
 import type { TeamDetail } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { checkTeamNameAvailability } from "@/lib/team-name-uniqueness-api";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PendingMembershipBanner } from "@/components/pending-membership-banner";
 import { Badge } from "@/components/ui/badge";
@@ -574,7 +575,7 @@ function TeamView({
             <div className="shrink-0">
               {team.photoUrl ? (
                 <img
-                  src={team.photoUrl}
+                  src={resolveStoredObjectUrl(team.photoUrl)}
                   alt={team.name}
                   className="h-28 w-28 rounded-2xl object-cover shadow-lg ring-4 ring-background"
                 />

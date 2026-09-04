@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { Trophy, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 import {
   getLeaderboardConfig,
   saveLeaderboardConfig,
@@ -156,7 +157,7 @@ export function LeaderboardConfigCard() {
             </p>
             {imageUrl.trim() ? (
               <img
-                src={imageUrl.trim()}
+                src={resolveStoredObjectUrl(imageUrl.trim())}
                 alt="Leaderboard preview"
                 className="mt-1 w-full max-h-56 rounded-md border object-contain"
               />

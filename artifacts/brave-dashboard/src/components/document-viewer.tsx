@@ -6,6 +6,7 @@ import {
   useGetUploadedFileMetadata,
   getGetUploadedFileMetadataQueryKey,
 } from "@workspace/api-client-react";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 
 export type DocumentViewerProps = {
   open: boolean;
@@ -20,8 +21,8 @@ type PreviewKind = "pdf" | "image" | "unknown";
 
 function resolveStorageUrl(url: string): string {
   if (!url) return url;
-  if (url.startsWith("/objects/")) return `/api/storage${url}`;
-  if (url.startsWith("/public-objects/")) return `/api/storage${url}`;
+  const storedObjectUrl = resolveStoredObjectUrl(url);
+  if (storedObjectUrl !== url) return storedObjectUrl;
   if (url.startsWith("/")) return `/api${url}`;
   return url;
 }

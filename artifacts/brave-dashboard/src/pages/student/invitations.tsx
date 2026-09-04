@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { formatDate } from "@/lib/format";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 
 export default function Invitations() {
   const { data: invitations, isLoading } = useListMyInvitations();
@@ -113,7 +114,13 @@ export default function Invitations() {
               <Card key={inv.id} data-testid={`invitation-${inv.id}`}>
                 <CardContent className="p-4 flex items-center gap-4">
                   <Avatar>
-                    <AvatarImage src={inv.teamPhotoUrl ?? undefined} />
+                    <AvatarImage
+                      src={
+                        inv.teamPhotoUrl
+                          ? resolveStoredObjectUrl(inv.teamPhotoUrl)
+                          : undefined
+                      }
+                    />
                     <AvatarFallback>
                       {inv.teamName.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
@@ -156,7 +163,13 @@ export default function Invitations() {
               <Card key={inv.id} className="opacity-75">
                 <CardContent className="p-3 flex items-center gap-3">
                   <Avatar className="w-8 h-8">
-                    <AvatarImage src={inv.teamPhotoUrl ?? undefined} />
+                    <AvatarImage
+                      src={
+                        inv.teamPhotoUrl
+                          ? resolveStoredObjectUrl(inv.teamPhotoUrl)
+                          : undefined
+                      }
+                    />
                     <AvatarFallback>
                       {inv.teamName.slice(0, 2).toUpperCase()}
                     </AvatarFallback>

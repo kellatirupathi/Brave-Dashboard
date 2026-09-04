@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ArrowLeft, Users } from "lucide-react";
+import { resolveStoredObjectUrl } from "@/lib/storage-url";
 
 const TEAM_MAX_MEMBERS = 5;
 import { useToast } from "@/hooks/use-toast";
@@ -94,7 +95,7 @@ export default function BrowseTeams() {
                   <div className="flex items-center gap-4">
                     {t.photoUrl ? (
                       <img
-                        src={t.photoUrl}
+                        src={resolveStoredObjectUrl(t.photoUrl)}
                         alt={t.name}
                         className="w-12 h-12 rounded-lg object-cover"
                       />
