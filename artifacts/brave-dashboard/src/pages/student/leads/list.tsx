@@ -60,7 +60,6 @@ import {
   STAGE_LABEL,
   type CreateLeadBody,
   type LeadListRow,
-  type TrailBand,
   leadRef,
 } from "@/lib/leads-api";
 import { successFeedback, errorFeedback } from "@/lib/haptics";
@@ -89,12 +88,6 @@ const MODES = [
   { value: "video", label: "Video call" },
   { value: "whatsapp", label: "WhatsApp" },
 ] as const;
-
-const BAND_TONE: Record<TrailBand, string> = {
-  strong: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  moderate: "bg-amber-100 text-amber-800 border-amber-200",
-  weak: "bg-rose-100 text-rose-800 border-rose-200",
-};
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -962,12 +955,6 @@ function LeadCard({
               {lead.interactionCount} interaction
               {lead.interactionCount === 1 ? "" : "s"}
             </span>
-            <Badge
-              variant="outline"
-              className={cn("shrink-0", BAND_TONE[lead.trailBand])}
-            >
-              {lead.trailStrength}
-            </Badge>
           </div>
         </div>
 

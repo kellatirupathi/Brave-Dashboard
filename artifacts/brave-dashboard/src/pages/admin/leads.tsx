@@ -115,7 +115,6 @@ const ALL = "all";
 
 // Columns that default to descending on first click (largest / newest first).
 const NUMERIC_SORT_KEYS = new Set<AdminLeadsSortKey>([
-  "trail",
   "interactions",
   "lastContact",
   "estimatedValue",
@@ -206,36 +205,6 @@ function BrdBadge({ status }: { status: BrdStatus }) {
   );
 }
 
-const TRAIL_TONE: Record<string, string> = {
-  strong: "text-emerald-700",
-  moderate: "text-amber-700",
-  weak: "text-rose-700",
-};
-
-function TrailCell({ strength, band }: { strength: number; band: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-        <span
-          className={cn(
-            "block h-full rounded-full",
-            band === "strong"
-              ? "bg-emerald-500"
-              : band === "moderate"
-                ? "bg-amber-500"
-                : "bg-rose-500",
-          )}
-          style={{ width: `${Math.max(0, Math.min(100, strength))}%` }}
-        />
-      </span>
-      <span
-        className={cn("text-xs font-medium tabular-nums", TRAIL_TONE[band])}
-      >
-        {strength}
-      </span>
-    </div>
-  );
-}
 
 function GateACell({
   gateA,
@@ -748,13 +717,7 @@ function LeadDetailSheet({
                   2 · Trail ({d.interactions.length} interaction
                   {d.interactions.length === 1 ? "" : "s"})
                 </SectionTitle>
-                <div className="flex items-center gap-3">
-                  <TrailCell
-                    strength={lead.trailStrength}
-                    band={lead.trailBand}
-                  />
-                  <GateACell gateA={lead.gateA} />
-                </div>
+                <GateACell gateA={lead.gateA} />
               </div>
               <p className="text-xs text-muted-foreground">
                 Gate A: {lead.gateA.passed ? "passed" : lead.gateA.reasons.join(" ")}
@@ -1178,7 +1141,6 @@ type Filters = {
   team: string;
   stage: string;
   source: string;
-  trail: string;
   brd: string;
   gateA: string;
   flag: string;
@@ -1189,7 +1151,6 @@ const EMPTY_FILTERS: Filters = {
   team: ALL,
   stage: ALL,
   source: ALL,
-  trail: ALL,
   brd: ALL,
   gateA: ALL,
   flag: ALL,
@@ -1310,20 +1271,6 @@ function FiltersSheet({
                     {SOURCE_LABEL[src]}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
-
-          <FilterField label="Trail strength">
-            <Select value={draft.trail} onValueChange={(v) => set("trail", v)}>
-              <SelectTrigger className={selectClass} data-testid="select-leads-trail">
-                <SelectValue placeholder="Trail" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Any trail</SelectItem>
-                <SelectItem value="strong">Strong (70+)</SelectItem>
-                <SelectItem value="moderate">Moderate (45–69)</SelectItem>
-                <SelectItem value="weak">Weak (&lt;45)</SelectItem>
               </SelectContent>
             </Select>
           </FilterField>
@@ -1450,7 +1397,6 @@ export default function AdminLeads() {
     teamId: filters.team !== ALL ? Number(filters.team) : undefined,
     stage: filters.stage !== ALL ? filters.stage : undefined,
     source: filters.source !== ALL ? filters.source : undefined,
-    trail: filters.trail !== ALL ? filters.trail : undefined,
     brd: filters.brd !== ALL ? filters.brd : undefined,
     gateA:
       filters.gateA === "passed" || filters.gateA === "pending"
@@ -1520,8 +1466,6 @@ export default function AdminLeads() {
         SOURCE_LABEL[filters.source as keyof typeof SOURCE_LABEL] ??
         filters.source,
     });
-  if (filters.trail !== ALL)
-    activeChips.push({ key: "trail", label: `Trail: ${filters.trail}` });
   if (filters.gateA !== ALL)
     activeChips.push({ key: "gateA", label: `Gate A ${filters.gateA}` });
   if (filters.brd !== ALL)
@@ -1767,13 +1711,6 @@ export default function AdminLeads() {
                     onSort={handleSort}
                   />
                   <SortHeader
-                    label="Trail"
-                    sortKey="trail"
-                    activeKey={sortBy}
-                    dir={sortDir}
-                    onSort={handleSort}
-                  />
-                  <SortHeader
                     label="Interactions"
                     sortKey="interactions"
                     activeKey={sortBy}
@@ -1889,9 +1826,6 @@ export default function AdminLeads() {
                     </TableCell>
                     <TableCell>
                       <StepDots step={r.pipelineStep} />
-                    </TableCell>
-                    <TableCell>
-                      <TrailCell strength={r.trailStrength} band={r.trailBand} />
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {r.interactionCount}

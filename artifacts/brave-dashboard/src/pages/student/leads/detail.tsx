@@ -54,7 +54,6 @@ import {
   type LeadInteraction,
   type LeadRef,
   type LogInteractionBody,
-  type TrailBand,
 } from "@/lib/leads-api";
 
 const TYPES = [
@@ -74,18 +73,6 @@ const OUTCOMES = [
   { value: "objection", label: "They objected" },
   { value: "no_response", label: "No response" },
 ] as const;
-
-const BAND_TONE: Record<TrailBand, string> = {
-  strong: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  moderate: "bg-amber-100 text-amber-800 border-amber-200",
-  weak: "bg-rose-100 text-rose-800 border-rose-200",
-};
-
-const BAND_LABEL: Record<TrailBand, string> = {
-  strong: "Strong trail",
-  moderate: "Moderate trail",
-  weak: "Weak trail",
-};
 
 const SOURCE_LABEL: Record<string, string> = {
   walk_in: "Walked in",
@@ -208,7 +195,6 @@ function LogDialog({
       } else {
         toast({
           title: interaction ? "Interaction updated" : "Interaction saved",
-          description: `Trail strength is now ${res.trailStrength}.`,
         });
       }
     },
@@ -671,7 +657,7 @@ export default function LeadDetail() {
     );
   }
 
-  const { lead, interactions, trailBand } = q.data;
+  const { lead, interactions } = q.data;
   const writable = canWrite("project");
 
   return (
@@ -697,9 +683,6 @@ export default function LeadDetail() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{STAGE_LABEL[lead.stage]}</Badge>
-            <Badge variant="outline" className={BAND_TONE[trailBand]}>
-              {BAND_LABEL[trailBand]} · {lead.trailStrength}
-            </Badge>
             {writable && controls.can("leads", "edit") ? (
               <Button
                 size="sm"

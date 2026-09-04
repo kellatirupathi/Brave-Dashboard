@@ -10,7 +10,7 @@
  *           documented a lead is (3+ dated interactions over 7+ days) for the
  *           admin Leads page and the BRD, nothing more.
  *   Gate B  converted lead -> project     enforced at project creation
- *   Gate C  project -> BRD submission     mandatory fields + trail + proof
+ *   Gate C  project -> BRD submission     mandatory fields, phases and proof
  */
 import { and, asc, eq, sql } from "drizzle-orm";
 import {
@@ -89,55 +89,6 @@ export function evaluateGateA(interactions: LeadInteraction[]): GateAStatus {
   };
 }
 
-// ── Trail strength ──────────────────────────────────────────────────────────
-
-/**
- * 0-100 measure of how well-documented a relationship is. Feeds Gate C and the
- * reviewer's first impression.
- *
- * Weighted so that EVIDENCE and TIME matter more than volume — otherwise the
- * cheapest way to a strong-looking trail would be to log many empty entries in
- * one sitting, which is exactly the behaviour the pipeline exists to prevent.
- */
-export function computeTrailStrength(interactions: LeadInteraction[]): number {
-  if (interactions.length === 0) return 0;
-
-  const gate = evaluateGateA(interactions);
-
-  // Distinct days of contact, up to 6 → max 30.
-  const cadence = Math.min(gate.interactionCount, 6) * 5;
-  // Span up to 42 days → max 30.
-  const duration = Math.min(gate.spanDays, 42) * (30 / 42);
-  // Share of entries carrying an attachment → max 30.
-  const withEvidence = interactions.filter(
-    (i) => Array.isArray(i.attachments) && i.attachments.length > 0,
-  ).length;
-  const evidence = (withEvidence / interactions.length) * 30;
-  // A recorded outcome on every entry → max 10. Cheap, but it is the field
-  // that makes the trail readable to a reviewer.
-  const withOutcome = interactions.filter((i) => !!i.outcome).length;
-  const completeness = (withOutcome / interactions.length) * 10;
-
-  return Math.max(
-    0,
-    Math.min(100, Math.round(cadence + duration + evidence + completeness)),
-  );
-}
-
-/** Label bands used by Gate C and the review UI. */
-export type TrailBand = "weak" | "moderate" | "strong";
-
-export function trailBand(strength: number): TrailBand {
-  if (strength >= 70) return "strong";
-  if (strength >= 45) return "moderate";
-  return "weak";
-}
-
-/** Gate C requires Moderate or better. */
-export function trailMeetsSubmissionBar(strength: number): boolean {
-  return trailBand(strength) !== "weak";
-}
-
 // ── Derived lead state ──────────────────────────────────────────────────────
 
 /** Referral and known-contact leads are related-party. */
@@ -147,16 +98,17 @@ export function isRelatedPartySource(source: string): boolean {
 
 /**
  * Recompute and persist a lead's derived state after its trail changes.
- * Returns the new trail strength.
+ *
+ * Only the silence clock now: the trail-strength score it used to write is
+ * gone, and Gate A is evaluated from the interactions themselves wherever it
+ * is needed rather than cached on the row.
  */
-export async function refreshLeadDerivedState(leadId: number): Promise<number> {
+export async function refreshLeadDerivedState(leadId: number): Promise<void> {
   const interactions = await db
     .select()
     .from(leadInteractionsTable)
     .where(eq(leadInteractionsTable.leadId, leadId))
     .orderBy(asc(leadInteractionsTable.interactionDate));
-
-  const strength = computeTrailStrength(interactions);
 
   // Latest CONTACT date, not latest logged-at — silence is measured from when
   // the student last actually spoke to the client.
@@ -169,7 +121,6 @@ export async function refreshLeadDerivedState(leadId: number): Promise<number> {
   await db
     .update(leadsTable)
     .set({
-      trailStrength: strength,
       ...(latestDate
         ? {
             lastContactAt: new Date(`${latestDate}T00:00:00Z`),
@@ -180,8 +131,6 @@ export async function refreshLeadDerivedState(leadId: number): Promise<number> {
         : {}),
     })
     .where(eq(leadsTable.id, leadId));
-
-  return strength;
 }
 
 // ── Client registry ─────────────────────────────────────────────────────────
@@ -398,7 +347,7 @@ export function buildPipelineStatus(input: {
       c: {
         passed: brdReadyCount > 0,
         label:
-          "All mandatory fields, trail strength Moderate or better, and payment proof",
+          "All mandatory fields, phases, a payment and proof the work exists",
       },
     },
     enforced,

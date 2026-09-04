@@ -33,8 +33,6 @@ const LOCK = "cron:trust-awards";
 
 /** Consecutive weeks of journals that earn the streak award. */
 const STREAK_WEEKS = 4;
-/** Trail strength that counts as "strong" — mirrors trailBand() in lead-pipeline. */
-const STRONG_TRAIL = 70;
 
 function verifyCronSecret(req: Request, res: Response): boolean {
   const expected = process.env.CRON_SECRET;
@@ -113,42 +111,36 @@ async function journalStreaks(seasonId: number): Promise<Award[]> {
   );
 }
 
-/** Leads whose trail reached the strong band, and leads captured on site. */
+/**
+ * Leads captured on site.
+ *
+ * The trail-strength award that used to sit here is gone with the score
+ * itself. GPS at the client's premises is the stronger signal anyway, and it
+ * is one a team cannot manufacture from a desk. Historical `trail_strong`
+ * ledger rows are left alone: the ledger is append-only, so past awards stand
+ * and simply stop accruing.
+ */
 async function leadAwards(seasonId: number): Promise<Award[]> {
   const rows = await db.execute<{
     id: number;
     team_id: number;
-    strong: boolean;
-    geo: boolean;
   }>(sql`
-    SELECT id, team_id,
-           (trail_strength >= ${STRONG_TRAIL}) AS strong,
-           (geo_lat IS NOT NULL AND geo_lng IS NOT NULL) AS geo
+    SELECT id, team_id
     FROM leads
     WHERE season_id = ${seasonId}
-      AND (trail_strength >= ${STRONG_TRAIL}
-           OR (geo_lat IS NOT NULL AND geo_lng IS NOT NULL))
+      AND geo_lat IS NOT NULL
+      AND geo_lng IS NOT NULL
   `);
   const out: Award[] = [];
   for (const r of (rows as unknown as {
-    rows: Array<{ id: number; team_id: number; strong: boolean; geo: boolean }>;
+    rows: Array<{ id: number; team_id: number }>;
   }).rows) {
-    if (r.strong) {
-      out.push({
-        teamId: r.team_id,
-        kind: "trail_strong",
-        refType: "lead_trail",
-        refId: r.id,
-      });
-    }
-    if (r.geo) {
-      out.push({
-        teamId: r.team_id,
-        kind: "geo_verified",
-        refType: "lead_geo",
-        refId: r.id,
-      });
-    }
+    out.push({
+      teamId: r.team_id,
+      kind: "geo_verified",
+      refType: "lead_geo",
+      refId: r.id,
+    });
   }
   return out;
 }

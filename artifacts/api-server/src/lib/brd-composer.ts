@@ -20,11 +20,7 @@ import {
   projectsTable,
   teamsTable,
 } from "@workspace/db";
-import {
-  evaluateGateA,
-  trailBand,
-  type GateAStatus,
-} from "./lead-pipeline";
+import { evaluateGateA, type GateAStatus } from "./lead-pipeline";
 
 /**
  * Evidence and attachment columns are jsonb holding a string[] of URLs. They
@@ -142,8 +138,6 @@ export type ComposedBrd = {
    * the document can render it visually set apart.
    */
   systemAssessment: {
-    trailStrength: number;
-    trailBand: string;
     gateA: GateAStatus;
     isRelatedParty: boolean;
     claimedAmount: number;
@@ -366,8 +360,6 @@ export async function composeBrd(
       invoiceDoc: p.invoiceDoc,
     })),
     systemAssessment: {
-      trailStrength: lead.trailStrength,
-      trailBand: trailBand(lead.trailStrength),
       gateA,
       isRelatedParty: lead.isRelatedParty,
       claimedAmount: claimed,
