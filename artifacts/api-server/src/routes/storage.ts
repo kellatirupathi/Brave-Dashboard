@@ -20,6 +20,8 @@ import {
   paymentsTable,
   projectsTable,
   finaleSubmissionsTable,
+  leadsTable,
+  leadInteractionsTable,
 } from "@workspace/db";
 import {
   ObjectStorageService,
@@ -340,7 +342,48 @@ async function findOwningTeamId(objectPath: string): Promise<number | null> {
     .limit(1);
   if (finale) return finale.teamId;
 
+  // Season 2 lead evidence: the meet proofs captured with the lead, and the
+  // attachments on each logged interaction. Both are jsonb arrays of object
+  // paths, so they match by containment the way deliveryProof does. Without
+  // these the team that recorded a photo cannot read it back, and neither can
+  // the reviewer opening the BRD that shows it.
+  const [lead] = await db
+    .select({ teamId: leadsTable.teamId })
+    .from(leadsTable)
+    .where(sql`${leadsTable.evidence} @> ${JSON.stringify([objectPath])}::jsonb`)
+    .limit(1);
+  if (lead) return lead.teamId;
+
+  const [interaction] = await db
+    .select({ teamId: leadInteractionsTable.teamId })
+    .from(leadInteractionsTable)
+    .where(
+      sql`${leadInteractionsTable.attachments} @> ${JSON.stringify([objectPath])}::jsonb`,
+    )
+    .limit(1);
+  if (interaction) return interaction.teamId;
+
   return null;
+}
+
+/**
+ * True when this user requested the upload URL for this object.
+ *
+ * A file is unattached between being uploaded and the form that references it
+ * being saved — a meet proof photo shows in the capture form long before the
+ * lead row exists. During that window no record owns it, so ownership cannot
+ * answer; the uploader's own identity can.
+ */
+async function userUploadedObject(
+  userId: string,
+  objectPath: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ uploadedById: uploadedFilesTable.uploadedById })
+    .from(uploadedFilesTable)
+    .where(eq(uploadedFilesTable.objectPath, objectPath))
+    .limit(1);
+  return row?.uploadedById === userId;
 }
 
 /**
@@ -410,8 +453,15 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
 
     const owningTeamId = await findOwningTeamId(objectPath);
     if (owningTeamId === null) {
+      // Nothing references this object yet. Admins and shared programme assets
+      // pass as before; otherwise the only person who may read it is whoever
+      // uploaded it, which covers a form still being filled in.
+      const ownUpload =
+        req.isAuthenticated() &&
+        (await userUploadedObject(req.user.id, objectPath));
       if (
         !isSharedProgrammeAsset &&
+        !ownUpload &&
         (!req.isAuthenticated() || req.user.role !== "admin")
       ) {
         res.status(404).json({ error: "Object not found" });
