@@ -809,16 +809,17 @@ function BrdPreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] gap-0 overflow-hidden p-0 sm:max-w-4xl">
-        <DialogHeader className="border-b p-5 text-left">
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-4 w-4" aria-hidden="true" />
-            Your BRD
-          </DialogTitle>
+        {/* The pages carry their own "Business Requirement Document" banner, so
+            a visible header would say it twice. Radix still requires a title on
+            every dialog, and a screen reader has no banner to read — so it stays,
+            announced but not drawn. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>Your BRD</DialogTitle>
           <DialogDescription>
             A page-by-page preview built from your Lead and project records.
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[calc(92vh-5.5rem)] overflow-y-auto">
+        <div className="max-h-[92vh] overflow-y-auto">
           <div className="max-h-[1500px] space-y-5 overflow-y-auto bg-slate-100 p-3 sm:p-6">
             <article className="min-h-[760px] w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
               <div className="flex h-full min-h-[660px] flex-col">
