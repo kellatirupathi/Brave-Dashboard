@@ -29,12 +29,12 @@ import { isNativeApp } from "@/lib/native-auth";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { formatDate } from "@/lib/format";
 import { useSeason } from "@/lib/season-context";
 import { PipelineStepper } from "@/components/pipeline-stepper";
@@ -169,6 +169,7 @@ function CaptureDialog({
   const { viewingId: seasonId } = useSeason();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [form, setForm] = useState<CreateLeadBody>(EMPTY);
   const [geoBusy, setGeoBusy] = useState(false);
 
@@ -262,12 +263,31 @@ function CaptureDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
+      {/* On a phone this is a screen, not a dialog: capture happens standing
+          in front of the client, and a centred sheet with its own scrollbar
+          inside a scrolling page is the wrong shape for that. Same form either
+          way — only the frame changes.
+          sm:rounded-none is not redundant: tailwind-merge treats the base
+          component's sm:rounded-lg as a separate key from rounded-none, so
+          without it the sheet keeps rounded corners from 640px to 767px. */}
+      <DialogContent
+        className={cn(
+          "flex flex-col gap-0 p-0",
+          isMobile
+            ? "inset-0 left-0 top-0 h-[100dvh] max-h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 sm:rounded-none"
+            : "max-h-[90vh] max-w-2xl",
+        )}
+      >
+        <DialogHeader
+          className={cn(
+            "shrink-0 border-b px-5 py-4 text-left",
+            isMobile && "sticky top-0 z-10 bg-background",
+          )}
+        >
           <DialogTitle>Log a client</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           {/* How they met is asked FIRST, because it decides whether this is a
               related-party lead — and that changes how it is reviewed. */}
           <Field label="How did you meet them?" required>
@@ -427,17 +447,31 @@ function CaptureDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+        {/* Cancel left, Save right, both reachable with a thumb. On desktop
+            it stays the usual right-aligned dialog footer. */}
+        <div
+          className={cn(
+            "shrink-0 border-t bg-background p-4",
+            isMobile
+              ? "flex items-center justify-between gap-3 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+              : "flex justify-end gap-2",
+          )}
+        >
+          <Button
+            variant={isMobile ? "outline" : "ghost"}
+            className={cn(isMobile && "flex-1")}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button
+            className={cn(isMobile && "flex-1")}
             disabled={!canSubmit || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
             {mutation.isPending ? "Saving…" : "Save lead"}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
