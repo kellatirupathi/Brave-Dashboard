@@ -718,11 +718,18 @@ function CaptureDialog({
                     key={`${url}-${index}`}
                     className="group relative aspect-square overflow-hidden rounded border bg-background"
                   >
+                    {/* An empty alt keeps a failed thumbnail from sprawling
+                        its label across the tile; the title carries the
+                        description instead. */}
                     <img
                       src={resolveStoredObjectUrl(url)}
-                      alt={`Meet proof ${index + 1}`}
+                      alt=""
+                      title={`Meet proof ${index + 1}`}
                       loading="lazy"
                       className="h-full w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
                     />
                     <button
                       type="button"

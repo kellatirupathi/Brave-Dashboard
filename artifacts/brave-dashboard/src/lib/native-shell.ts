@@ -10,7 +10,6 @@
 //
 // Deleting this file means removing its one call in main.tsx.
 import { isNativeApp } from "./native-auth";
-import { canonicalToLegacyPath } from "./season-routing";
 
 /**
  * Exactly --sidebar from index.css, hsl(0 65% 22%), converted to hex because
@@ -92,36 +91,59 @@ export async function setStatusBarContrast(
  * Anything deeper (/leads/12, /leads/12/project) is a drill-down and goes back
  * a screen normally.
  */
-const TOP_LEVEL = ["/", "/leads", "/projects", "/journal"];
-const ROUTER_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-function routePathname(): string {
-  const pathname = window.location.pathname;
-  if (!ROUTER_BASE) return pathname;
-  if (pathname === ROUTER_BASE) return "/";
-  return pathname.startsWith(ROUTER_BASE + "/")
-    ? pathname.slice(ROUTER_BASE.length)
-    : pathname;
-}
 
 /**
- * Android's back button at the root of the app should EXIT, not navigate into
- * browser history and reveal the login screen the student already passed.
+ * How many screens the student has opened since the app started.
+ *
+ * The WebView's own `canGoBack` is not usable here: it counts entries from
+ * before the app's first screen, so trusting it can unwind back through the
+ * Forms sign-in the student already passed. This counter only ever describes
+ * navigation that happened inside the app, so it can never walk out of the
+ * bottom of our own stack.
+ *
+ * A replace — the canonical-season redirects, for one — deliberately does not
+ * count, because it did not open a screen the student can meaningfully return
+ * to.
+ */
+let navigationDepth = 0;
+
+/**
+ * Count in-app navigation. wouter pushes through the History API, so patching
+ * it observes every route change without coupling this file to the router.
+ */
+function trackNavigationDepth(): void {
+  const push = window.history.pushState.bind(window.history);
+  window.history.pushState = function patchedPushState(
+    ...args: Parameters<History["pushState"]>
+  ) {
+    navigationDepth += 1;
+    return push(...args);
+  };
+  window.addEventListener("popstate", () => {
+    navigationDepth = Math.max(0, navigationDepth - 1);
+  });
+}
+
+
+/**
+ * Android's back button returns to the previous screen, and leaves the app only
+ * once there is no previous screen left.
+ *
+ * It used to exit from any of four "top level" routes even when the student had
+ * navigated there from somewhere else, so Dashboard → Leads → back closed the
+ * app instead of returning to the dashboard. Depth is the honest question:
+ * did this app open a screen that can be returned to?
  */
 async function wireBackButton(): Promise<void> {
   try {
     const { App } = await import("@capacitor/app");
-    await App.addListener("backButton", ({ canGoBack }) => {
-      const path = canonicalToLegacyPath(routePathname());
-      // Trailing slashes and nothing else must still count as top level.
-      const normalised = path.length > 1 ? path.replace(/\/+$/, "") : path;
-      const atTopLevel = TOP_LEVEL.includes(normalised);
-      // Anywhere below the top level, go back a screen.
-      if (canGoBack && !atTopLevel) {
+    await App.addListener("backButton", () => {
+      if (navigationDepth > 0) {
         window.history.back();
         return;
       }
-      // At a start destination, leave the app rather than unwinding.
+      // Nothing left in our own stack — this is the first screen of the
+      // session, so behave like a launcher activity and leave.
       void App.exitApp();
     });
   } catch {
@@ -133,5 +155,6 @@ async function wireBackButton(): Promise<void> {
 export function initNativeShell(): void {
   if (!isNativeApp()) return;
   void styleStatusBar();
+  trackNavigationDepth();
   void wireBackButton();
 }
