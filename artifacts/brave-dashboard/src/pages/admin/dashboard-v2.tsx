@@ -510,6 +510,34 @@ export default function AdminDashboardV2() {
               Program-wide health, pending work, and live activity at a glance.
             </p>
           </div>
+          {/* Roster access requests. Season 1 shows these in a full-width
+              banner under the header; this season's dashboard is dense enough
+              that a banner would push the KPIs below the fold, so the same
+              signal rides in the header row instead. Hidden at zero — an
+              always-present "0 pending" trains people to stop looking. */}
+          {summary.pendingAccessRequestCount > 0 ? (
+            <Link
+              href="/admin/roster"
+              data-testid="admin-v2-roster-requests-card"
+              className="order-last flex items-center gap-2 self-start rounded-lg border border-amber-400/50 bg-amber-50 px-2.5 py-1.5 transition-colors hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 sm:order-none"
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-amber-200/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                <UserPlus className="h-3.5 w-3.5" />
+              </span>
+              <span className="min-w-0 leading-tight">
+                <span className="block text-[11px] font-semibold text-amber-900 dark:text-amber-100">
+                  {summary.pendingAccessRequestCount} roster{" "}
+                  {summary.pendingAccessRequestCount === 1
+                    ? "request"
+                    : "requests"}
+                </span>
+                <span className={cn("block text-[9px]", MUTED)}>
+                  Awaiting your review
+                </span>
+              </span>
+              <ArrowRight className="h-3 w-3 shrink-0 text-amber-700 dark:text-amber-200" />
+            </Link>
+          ) : null}
           <div className="flex items-center gap-1.5 self-start">
             <SeasonSwitcher />
             <HelpMenu inline />

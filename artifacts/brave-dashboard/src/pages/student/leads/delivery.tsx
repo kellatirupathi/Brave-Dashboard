@@ -19,6 +19,7 @@ import {
   Trash2,
   Link2,
   Upload,
+  Download,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { FieldHelp } from "@/components/field-help";
@@ -44,6 +45,16 @@ import { useSeason } from "@/lib/season-context";
 import { LeadsLockBanner } from "@/components/leads-lock-banner";
 import { useLeadsControl } from "@/lib/leads-control-api";
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   addProjectPhase,
   apiErrorData,
@@ -928,6 +939,32 @@ function BrdPreviewDialog({
     0,
   );
 
+  /**
+   * Print the document, which is how the browser turns it into a PDF.
+   *
+   * Deliberately not a generated file: the pages on screen already are the
+   * document, images and all, and re-rendering them into a PDF library would
+   * be a second implementation to keep in step with this one. Printing the
+   * live DOM cannot drift from what the student just read. The body class is
+   * what the print stylesheet keys on to hide the rest of the app.
+   */
+  const downloadBrd = (): void => {
+    const body = document.body;
+    body.classList.add("printing-brd");
+    const cleanup = () => {
+      body.classList.remove("printing-brd");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    try {
+      window.print();
+    } finally {
+      // Safari resolves print() before afterprint fires; the listener above
+      // covers the browsers that do fire it, and this covers the rest.
+      window.setTimeout(cleanup, 1000);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -935,7 +972,9 @@ function BrdPreviewDialog({
       >
         {/* Sticky, so the title and the way out stay put however far down the
             document the reader has scrolled. */}
-        <DialogHeader className="sticky top-0 z-10 shrink-0 space-y-0 border-b bg-background px-5 py-4 text-left">
+        {/* The right padding leaves the column that DialogContent's own close
+            cross occupies, so these buttons never sit under it. */}
+        <DialogHeader className="sticky top-0 z-10 shrink-0 space-y-0 border-b bg-background py-4 pl-5 pr-14 text-left">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <DialogTitle className="flex items-center gap-2 text-base">
@@ -946,15 +985,30 @@ function BrdPreviewDialog({
                 Composed from your lead, project and payment records.
               </DialogDescription>
             </div>
-            {/* DialogContent renders its own close button, absolutely
-                positioned at the top right — inside this sticky header it
-                lands exactly where it belongs, so no second one is added.
-                The spacer reserves its width. */}
-            <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={downloadBrd}
+                data-testid="button-brd-download"
+              >
+                <Download className="mr-1.5 h-4 w-4" />
+                Download
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-3 sm:p-6">
+        <div className="brd-print-root min-h-0 flex-1 overflow-y-auto bg-slate-100 p-3 sm:p-6">
           <div className="space-y-5">
             {/* ── Page 1: who, what and the commercial terms ─────────────── */}
             <article className="w-full bg-white p-7 text-slate-900 shadow-sm sm:p-12">
@@ -1062,7 +1116,7 @@ function BrdPreviewDialog({
 
               {brd.clientEvidence.length > 0 ? (
                 <section className="mt-10">
-                  <BrdHeading>Evidence from the first visit</BrdHeading>
+                  <BrdHeading>Meet proofs</BrdHeading>
                   <BrdAttachments urls={brd.clientEvidence} />
                 </section>
               ) : null}
@@ -1333,43 +1387,6 @@ function BrdPreviewDialog({
                 )}
               </section>
 
-              {/* Written by the system, never by the student. Set apart so a
-                  reviewer can see at a glance what was asserted and what was
-                  measured. */}
-              <section className="mt-8 border border-slate-300 bg-slate-50 p-4">
-                <BrdHeading>System assessment</BrdHeading>
-                <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
-                  <BrdRow
-                    label="Trail strength"
-                    value={`${brd.systemAssessment.trailStrength}/100 · ${brd.systemAssessment.trailBand}`}
-                  />
-                  <BrdRow
-                    label="Documentation check"
-                    value={
-                      brd.systemAssessment.gateA.passed
-                        ? "Met"
-                        : "Not met — advisory only"
-                    }
-                  />
-                  <BrdRow
-                    label="Amount claimed"
-                    value={formatINR(brd.systemAssessment.claimedAmount)}
-                  />
-                  <BrdRow
-                    label="Amount received"
-                    value={formatINR(brd.systemAssessment.receivedAmount)}
-                  />
-                  <BrdRow
-                    label="Related party"
-                    value={brd.systemAssessment.isRelatedParty ? "Yes" : "No"}
-                  />
-                  <BrdRow
-                    label="Composed"
-                    value={formatDate(brd.systemAssessment.composedAt)}
-                  />
-                </div>
-              </section>
-
               <p className="mt-10 pt-8 text-right text-xs text-slate-400">
                 Page 3 of 3
               </p>
@@ -1398,6 +1415,7 @@ export default function LeadDelivery() {
   const [editingPhase, setEditingPhase] = useState<ProjectPhase | null>(null);
   const [editingProject, setEditingProject] = useState(false);
   const [brdPreviewOpen, setBrdPreviewOpen] = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<
     | { type: "project"; id: number; name: string }
     | { type: "phase"; id: number; name: string }
@@ -1435,6 +1453,7 @@ export default function LeadDelivery() {
   const submit = useMutation({
     mutationFn: () => submitProject(projectId),
     onSuccess: (res) => {
+      setConfirmSubmit(false);
       void qc.invalidateQueries({ queryKey: leadKeys.brd(seasonId, projectId) });
       void qc.invalidateQueries({ queryKey: leadKeys.status(seasonId) });
       toast({
@@ -1443,6 +1462,7 @@ export default function LeadDelivery() {
       });
     },
     onError: (err: Error) => {
+      setConfirmSubmit(false);
       const data = apiErrorData<{
         code?: string;
         error?: string;
@@ -1831,7 +1851,7 @@ export default function LeadDelivery() {
                   !controls.canSubmit ||
                   submit.isPending
                 }
-                onClick={() => submit.mutate()}
+                onClick={() => setConfirmSubmit(true)}
               >
                 <Send className="mr-1.5 h-4 w-4" />
                 {submit.isPending ? "Submitting…" : "Submit for Review"}
@@ -1848,6 +1868,41 @@ export default function LeadDelivery() {
           onOpenChange={setBrdPreviewOpen}
         />
       ) : null}
+
+      {/* Submitting freezes the project, its phases and its payments for
+          review, so it gets a confirmation rather than firing on one click. */}
+      <AlertDialog
+        open={confirmSubmit}
+        onOpenChange={(open) => {
+          if (!open && !submit.isPending) setConfirmSubmit(false);
+        }}
+      >
+        <AlertDialogContent data-testid="dialog-confirm-submit-review">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit this project for review?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your BRD goes to a coordinator as it stands. The project, its
+              phases and its payments are locked while it is being reviewed, so
+              check the preview first if you still need to change anything.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submit.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                submit.mutate();
+              }}
+              disabled={submit.isPending}
+              data-testid="button-confirm-submit-review"
+            >
+              {submit.isPending ? "Submitting…" : "Submit for review"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <PaymentDialog
         projectId={projectId}

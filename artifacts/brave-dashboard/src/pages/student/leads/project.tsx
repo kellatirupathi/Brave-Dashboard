@@ -147,7 +147,7 @@ function Detail({
   if (!value) return null;
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <dt className="text-xs font-bold uppercase tracking-wide text-foreground">
         {label}
       </dt>
       <dd className={cn("mt-1 text-sm", multiline && "whitespace-pre-wrap leading-relaxed")}>
@@ -418,7 +418,7 @@ export default function LeadProject() {
             />
             {existing.techStack && existing.techStack.length > 0 ? (
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <dt className="text-xs font-bold uppercase tracking-wide text-foreground">
                   Tech stack
                 </dt>
                 <dd className="mt-2 flex flex-wrap gap-1.5">
@@ -439,7 +439,7 @@ export default function LeadProject() {
           existing.demoCredentials ||
           existing.agreementDoc ? (
             <div className="mt-6 border-t pt-6">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-bold uppercase tracking-wide text-foreground">
                 Proof it exists
               </p>
               <ul className="mt-3 space-y-2">
@@ -490,7 +490,7 @@ export default function LeadProject() {
               </ul>
               {existing.demoCredentials ? (
                 <p className="mt-3 text-sm">
-                  <span className="text-muted-foreground">Demo login: </span>
+                  <span className="font-bold">Demo login: </span>
                   {existing.demoCredentials}
                 </p>
               ) : null}
