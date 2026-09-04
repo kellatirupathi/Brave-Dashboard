@@ -64,7 +64,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -1186,106 +1185,16 @@ function TeamView({
                     ({team.members.length})
                   </span>
                 </CardTitle>
-                <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      data-testid="button-open-invite"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Invite a teammate</DialogTitle>
-                      <DialogDescription>
-                        Search students at {team.campusName} who aren't on a team
-                        yet.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3">
-                      <Input
-                        placeholder="Search by name, email, NIAT ID or student ID…"
-                        value={searchQ}
-                        onChange={(e) => setSearchQ(e.target.value)}
-                        data-testid="input-search-students"
-                        autoFocus
-                      />
-                      <div className="max-h-72 space-y-1 overflow-y-auto">
-                        {searchQ.trim().length < 2 ? (
-                          <p className="p-2 text-sm text-muted-foreground">
-                            Type at least 2 characters to search.
-                          </p>
-                        ) : students.length === 0 ? (
-                          <p className="p-2 text-sm text-muted-foreground">
-                            No matching students.
-                          </p>
-                        ) : (
-                          students.map((s) => {
-                            const alreadyInvited =
-                              !!s.id &&
-                              pendingInvitations.some(
-                                (i) => i.inviteeId === s.id,
-                              );
-                            const rowKey = s.id ?? `roster-${s.rosterId}`;
-                            return (
-                              <div
-                                key={rowKey}
-                                className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/50"
-                                data-testid={`student-${rowKey}`}
-                              >
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage
-                                    src={s.profileImage ?? undefined}
-                                  />
-                                  <AvatarFallback>
-                                    {memberInitials(
-                                      s.firstName,
-                                      s.lastName,
-                                      s.email,
-                                    )}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-medium">
-                                    {s.firstName} {s.lastName}
-                                  </p>
-                                  <p className="truncate text-xs text-muted-foreground">
-                                    {s.niatId ?? s.email}
-                                  </p>
-                                </div>
-                                {alreadyInvited ? (
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-[10px]"
-                                  >
-                                    Invited
-                                  </Badge>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    onClick={() =>
-                                      handleInvite(
-                                        { inviteeId: s.id, rosterId: s.rosterId },
-                                        `${s.firstName} ${s.lastName}`,
-                                      )
-                                    }
-                                    disabled={sendInvite.isPending}
-                                    data-testid={`button-invite-${rowKey}`}
-                                  >
-                                    Invite
-                                  </Button>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={() => setInviteOpen(true)}
+                  data-testid="button-open-invite"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Invite member
+                </Button>
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">
@@ -1531,6 +1440,100 @@ function TeamView({
       </Link>
 
       {/* DIALOGS */}
+      {/* Invite a teammate. Mounted here, outside the tab panels: the hero's
+          own invite button lives on Overview while the members list is on
+          another tab, and a dialog that is not rendered cannot open. */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Invite a teammate</DialogTitle>
+          <DialogDescription>
+            Search students at {team.campusName} who aren't on a team
+            yet.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Input
+            placeholder="Search by name, email, NIAT ID or student ID…"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            data-testid="input-search-students"
+            autoFocus
+          />
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {searchQ.trim().length < 2 ? (
+              <p className="p-2 text-sm text-muted-foreground">
+                Type at least 2 characters to search.
+              </p>
+            ) : students.length === 0 ? (
+              <p className="p-2 text-sm text-muted-foreground">
+                No matching students.
+              </p>
+            ) : (
+              students.map((s) => {
+                const alreadyInvited =
+                  !!s.id &&
+                  pendingInvitations.some(
+                    (i) => i.inviteeId === s.id,
+                  );
+                const rowKey = s.id ?? `roster-${s.rosterId}`;
+                return (
+                  <div
+                    key={rowKey}
+                    className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/50"
+                    data-testid={`student-${rowKey}`}
+                  >
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage
+                        src={s.profileImage ?? undefined}
+                      />
+                      <AvatarFallback>
+                        {memberInitials(
+                          s.firstName,
+                          s.lastName,
+                          s.email,
+                        )}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {s.firstName} {s.lastName}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {s.niatId ?? s.email}
+                      </p>
+                    </div>
+                    {alreadyInvited ? (
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px]"
+                      >
+                        Invited
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          handleInvite(
+                            { inviteeId: s.id, rosterId: s.rosterId },
+                            `${s.firstName} ${s.lastName}`,
+                          )
+                        }
+                        disabled={sendInvite.isPending}
+                        data-testid={`button-invite-${rowKey}`}
+                      >
+                        Invite
+                      </Button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </DialogContent>
+      </Dialog>
+
       <AlertDialog
         open={cancelInviteTarget !== null}
         onOpenChange={(open) => {
