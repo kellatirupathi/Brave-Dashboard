@@ -837,3 +837,34 @@
     page-break-after: auto;
   }
 }
+
+/* GRIT Miles entrance. Short and one-shot — the page is read, not watched. */
+@keyframes grit-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.grit-enter {
+  animation: grit-in 280ms ease-out both;
+}
+
+.grit-enter-2 {
+  animation-delay: 60ms;
+}
+
+.grit-row {
+  animation: grit-in 280ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grit-enter,
+  .grit-row {
+    animation: none;
+  }
+}

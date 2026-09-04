@@ -18,6 +18,7 @@ import {
   buildUniquenessPrompt,
   type UniquenessCandidateSummary,
 } from "./brd-prompt";
+import { analysePipelineBrd } from "./analyse-pipeline-brd";
 
 const objectStorage = new ObjectStorageService();
 
@@ -88,6 +89,12 @@ export async function analyseRevenueEntryBrd(entryId: number): Promise<void> {
       return;
     }
     if (!entry.brdUrl || entry.brdUrl.trim() === "") {
+      // Season 2 submits no PDF — the BRD is composed from logged records and
+      // its evidence is a set of images. Same output columns, different input.
+      if (entry.brdComposed) {
+        await analysePipelineBrd(entryId);
+        return;
+      }
       logger.debug({ entryId }, "[brd-ai] no brdUrl on entry — skipping");
       return;
     }
@@ -251,7 +258,7 @@ function toScore(v: unknown): number | null {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-type UniquenessMatch = {
+export type UniquenessMatch = {
   entry_id: number;
   team_id: number;
   team_name: string;
@@ -263,7 +270,7 @@ type UniquenessMatch = {
   reason: string;
 };
 
-type UniquenessResult = {
+export type UniquenessResult = {
   score: number;
   flag: "unique" | "duplicate";
   summary: string;
@@ -271,7 +278,7 @@ type UniquenessResult = {
   matches: UniquenessMatch[];
 };
 
-type CandidateRow = {
+export type CandidateRow = {
   id: number;
   teamId: number;
   teamName: string | null;
@@ -288,10 +295,10 @@ type CandidateRow = {
 // context window.
 const AI_BATCH_SIZE = 400;
 
-const normText = (v: unknown): string =>
+export const normText = (v: unknown): string =>
   typeof v === "string" ? v.replace(/\s+/g, "").toLowerCase() : "";
 
-function summaryFieldsOf(detail: unknown): Record<string, unknown> {
+export function summaryFieldsOf(detail: unknown): Record<string, unknown> {
   if (detail && typeof detail === "object") {
     const s = (detail as Record<string, unknown>)["brd_summary"];
     if (s && typeof s === "object") return s as Record<string, unknown>;
@@ -299,7 +306,7 @@ function summaryFieldsOf(detail: unknown): Record<string, unknown> {
   return {};
 }
 
-function asString(v: unknown): string {
+export function asString(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
@@ -559,7 +566,7 @@ async function runAiUniquenessBatch(
  * transaction id with the current BRD. Amount, date, payer and payee are
  * ignored — there is no "suspicious" tier, only duplicate or unique.
  */
-function ruleBasedUniqueness(
+export function ruleBasedUniqueness(
   entry: { id: number; teamId: number },
   curSummary: Record<string, unknown>,
   candidates: CandidateRow[],
@@ -619,8 +626,12 @@ export async function catchUpPendingBrdAnalyses(): Promise<void> {
       .from(revenueEntriesTable)
       .where(
         and(
-          isNotNull(revenueEntriesTable.brdUrl),
-          sql`${revenueEntriesTable.brdUrl} <> ''`,
+          // Either an uploaded PDF (Season 1) or a composed document (Season 2)
+          // — both are analysable, and both route through the same entry point.
+          sql`(
+            (${revenueEntriesTable.brdUrl} IS NOT NULL AND ${revenueEntriesTable.brdUrl} <> '')
+            OR ${revenueEntriesTable.brdComposed} IS NOT NULL
+          )`,
           sql`${revenueEntriesTable.aiAnalysedAt} IS NULL`,
           isNotNull(revenueEntriesTable.submittedAt),
           lte(revenueEntriesTable.submittedAt, cutoff),
