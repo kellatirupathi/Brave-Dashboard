@@ -79,6 +79,21 @@ const MODES = [
   { value: "cheque", label: "Cheque" },
 ] as const;
 
+/**
+ * Shorten a file name from the middle, keeping the extension.
+ *
+ * CSS truncation would cut the tail, which is the half that says what the file
+ * actually is — "Tirupathi_Rao_Kella_Resume_With_Project_Links_Upda…" tells the
+ * student nothing about whether they attached the PDF or the screenshot.
+ */
+function shortenFileName(name: string, keep = 14): string {
+  if (name.length <= keep + 8) return name;
+  const dot = name.lastIndexOf(".");
+  // No extension, or a name that is all extension: fall back to a plain head.
+  if (dot <= 0 || name.length - dot > 6) return `${name.slice(0, keep)}…`;
+  return `${name.slice(0, keep)}…${name.slice(dot)}`;
+}
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -231,7 +246,7 @@ function PaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>{payment ? "Edit payment" : "Record a payment"}</DialogTitle>
         </DialogHeader>
@@ -401,7 +416,7 @@ function PaymentDialog({
                         <span className="flex min-w-0 items-center gap-2">
                           <Spinner className="h-4 w-4 shrink-0" />
                           <span className="truncate font-medium">
-                            Uploading {proofFileName}
+                            Uploading {shortenFileName(proofFileName)}
                           </span>
                         </span>
                         <span
@@ -434,8 +449,13 @@ function PaymentDialog({
                           data-testid="proof-file-name"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            {proofFileName || "Uploaded file"}
+                          <span
+                            className="truncate"
+                            title={proofFileName || undefined}
+                          >
+                            {proofFileName
+                              ? shortenFileName(proofFileName)
+                              : "Uploaded file"}
                           </span>
                         </span>
                       ) : (
@@ -552,7 +572,7 @@ function PhaseDialog({
   const canSave = !!form.name.trim() && Number(form.amount) > 0;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>{phase ? "Edit phase" : "Add phase"}</DialogTitle>
         </DialogHeader>

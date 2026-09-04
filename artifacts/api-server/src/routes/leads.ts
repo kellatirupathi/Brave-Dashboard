@@ -126,7 +126,7 @@ const CaptureBody = z
     conversationNote: z.string().trim().min(1).max(4000),
     painPoint: z.string().trim().max(4000).optional(),
     estimatedValue: z.number().int().min(0).max(100_000_000).optional(),
-    evidence: z.array(z.string().url().max(2000)).max(10).optional(),
+    evidence: z.array(z.string().trim().min(1).max(2000)).max(10).optional(),
   })
   // The conditional fields are required by the SOURCE, which is why this is a
   // refinement rather than two optional columns the UI is trusted to fill.
@@ -250,7 +250,11 @@ const UpdateLeadBody = z
     conversationNote: z.string().trim().min(1).max(4000).optional(),
     painPoint: z.string().trim().max(4000).nullable().optional(),
     estimatedValue: z.number().int().min(0).max(100_000_000).nullable().optional(),
-    evidence: z.array(z.string().url().max(2000)).max(10).nullable().optional(),
+    evidence: z
+      .array(z.string().trim().min(1).max(2000))
+      .max(10)
+      .nullable()
+      .optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "No changes provided");
 
