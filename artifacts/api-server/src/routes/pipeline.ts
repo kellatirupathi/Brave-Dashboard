@@ -1135,6 +1135,19 @@ router.get(
         totalContractValue: projectsTable.totalContractValue,
         revenueType: projectsTable.revenueType,
         createdAt: projectsTable.createdAt,
+        // The rest of the record. The declared PipelineProjectRow has always
+        // promised these, and the lead's project page shows the whole project,
+        // so a board-shaped subset left it rendering four fields out of a dozen.
+        recurringFrequency: projectsTable.recurringFrequency,
+        problemStatement: projectsTable.problemStatement,
+        solutionDescription: projectsTable.solutionDescription,
+        techStack: projectsTable.techStack,
+        liveProductUrl: projectsTable.liveProductUrl,
+        demoVideoUrl: projectsTable.demoVideoUrl,
+        sourceCodeUrl: projectsTable.sourceCodeUrl,
+        prototypeUrl: projectsTable.prototypeUrl,
+        demoCredentials: projectsTable.demoCredentials,
+        agreementDoc: projectsTable.agreementDoc,
         received: sql<number>`(
           SELECT COALESCE(SUM(p.amount_received), 0)::int
           FROM payments p WHERE p.project_id = ${projectsTable.id}
