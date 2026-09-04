@@ -26,6 +26,16 @@ import {
   type GateAStatus,
 } from "./lead-pipeline";
 
+/**
+ * Evidence and attachment columns are jsonb holding a string[] of URLs. They
+ * are read back defensively: a hand-edited row, or one written before the shape
+ * settled, must not throw while composing a document.
+ */
+function toUrlList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === "string" && v !== "");
+}
+
 // ── Submission progress ─────────────────────────────────────────────────────
 
 export type ChecklistItem = {
@@ -77,6 +87,8 @@ export type ComposedBrd = {
   problemStatement: string | null;
   solutionDescription: string | null;
   techStack: unknown;
+  /** The signed agreement or work order, when one was recorded. */
+  agreementDoc: string | null;
   links: {
     liveProductUrl: string | null;
     demoVideoUrl: string | null;
@@ -84,12 +96,17 @@ export type ComposedBrd = {
     prototypeUrl: string | null;
     demoCredentials: string | null;
   };
+  /** The lead's own capture evidence: shopfront photo, visiting card, etc. */
+  clientEvidence: string[];
   interactionTrail: Array<{
     date: string;
     type: string;
     summary: string;
     outcome: string;
+    objectionNote: string | null;
     hasAttachment: boolean;
+    /** The attachment URLs themselves, so the document can show them. */
+    attachments: string[];
     /** Hours between the event and the row being written. */
     loggedAfterHours: number | null;
   }>;
@@ -113,6 +130,12 @@ export type ComposedBrd = {
     hasProof: boolean;
     hasInvoice: boolean;
     clientConfirmed: boolean;
+    /**
+     * The proof and invoice themselves. A reviewer reading the BRD should not
+     * have to leave it to see what a payment claim rests on.
+     */
+    paymentProof: string | null;
+    invoiceDoc: string | null;
   }>;
   /**
    * Added by the system, not editable by the student. Kept as its own block so
@@ -298,6 +321,7 @@ export async function composeBrd(
     problemStatement: project.problemStatement,
     solutionDescription: project.solutionDescription,
     techStack: project.techStack,
+    agreementDoc: project.agreementDoc,
     links: {
       liveProductUrl: project.liveProductUrl,
       demoVideoUrl: project.demoVideoUrl,
@@ -305,13 +329,16 @@ export async function composeBrd(
       prototypeUrl: project.prototypeUrl,
       demoCredentials: project.demoCredentials,
     },
+    clientEvidence: toUrlList(lead.evidence),
     interactionTrail: interactions.map((i) => ({
       date: i.interactionDate,
       type: i.interactionType,
       summary: i.summary,
       outcome: i.outcome,
+      objectionNote: i.objectionNote,
       hasAttachment:
         Array.isArray(i.attachments) && i.attachments.length > 0,
+      attachments: toUrlList(i.attachments),
       // The gap between when it happened and when it was written. A large gap
       // is the backdating signal a reviewer looks for.
       loggedAfterHours: i.loggedAt
@@ -335,6 +362,8 @@ export async function composeBrd(
       hasProof: !!p.paymentProof,
       hasInvoice: !!p.invoiceDoc,
       clientConfirmed: p.clientConfirmed,
+      paymentProof: p.paymentProof,
+      invoiceDoc: p.invoiceDoc,
     })),
     systemAssessment: {
       trailStrength: lead.trailStrength,

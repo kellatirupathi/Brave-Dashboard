@@ -552,13 +552,18 @@ export type ComposedBrd = {
   problemStatement: string | null;
   solutionDescription: string | null;
   techStack: unknown;
+  agreementDoc: string | null;
   links: Record<string, string | null>;
+  /** Capture evidence from the lead itself: shopfront photo, visiting card. */
+  clientEvidence: string[];
   interactionTrail: Array<{
     date: string;
     type: string;
     summary: string;
     outcome: string;
+    objectionNote: string | null;
     hasAttachment: boolean;
+    attachments: string[];
     loggedAfterHours: number | null;
   }>;
   phases: Array<{
@@ -581,6 +586,8 @@ export type ComposedBrd = {
     hasProof: boolean;
     hasInvoice: boolean;
     clientConfirmed: boolean | null;
+    paymentProof: string | null;
+    invoiceDoc: string | null;
   }>;
   systemAssessment: {
     trailStrength: number;
