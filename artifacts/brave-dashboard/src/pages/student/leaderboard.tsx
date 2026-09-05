@@ -1,87 +1,35 @@
-import { useSeason } from "@/lib/season-context";
-import { cn } from "@/lib/utils";
-import {
-  getLeaderboard,
-  leaderboardQueryKey,
-} from "@/lib/leaderboard-api";
-import { formatINR } from "@/lib/format";
-import { resolveStoredObjectUrl } from "@/lib/storage-url";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+// Leaderboard — the season boundary.
+//
+// Two versions of this page exist because two cohorts do. Season 1 is
+// finished: its revenue is settled and its rankings are read back for
+// reference, so it keeps the UI it ran with. Season 2 is live and gets the
+// redesigned ranking list.
+//
+//   1.0 (and anything earlier)  →  leaderboard-season1.tsx   frozen
+//   2.0 (and later)             →  leaderboard-season2.tsx   current
+//
+// Split at the PAGE boundary rather than with branches inside one component,
+// mirroring pages/student/dashboard-legacy.tsx. Only one ever mounts, so
+// neither pays for the other's queries, and a change to the live design cannot
+// reach back and alter how a finished season reads.
+//
+// This file keeps its name and its `headerExtra` prop because three routes
+// import it: the student page, pages/coordinator/leaderboard.tsx, and
+// pages/admin/leaderboard.tsx — which passes its CSV export button through.
+import type { ReactNode } from "react";
 import { Spinner } from "@/components/ui/spinner";
-import { Trophy, Medal, Building2, TrendingUp, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { useState, type ReactNode } from "react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useAuth } from "@workspace/replit-auth-web";
-import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { getLeaderboardConfig } from "@/lib/leaderboard-config-api";
-import {
-  DEFAULT_BANNER_CONTENT,
-  LeaderboardBannerTemplateView,
-} from "@/components/leaderboard-banner-templates";
+import { useSeason } from "@/lib/season-context";
+import LeaderboardSeason1 from "./leaderboard-season1";
+import LeaderboardSeason2 from "./leaderboard-season2";
 
 export default function Leaderboard({
   headerExtra,
 }: { headerExtra?: ReactNode } = {}) {
-  const { user } = useAuth();
-  const [, setLocation] = useLocation();
-  // Coordinators default to their own campus view; students/admins to national.
-  // "overall" is a third tab that combines every season. It reuses the
-  // national scope server-side and only drops the season predicate.
-  const [view, setView] = useState<"national" | "campus" | "overall">(
-    user?.role === "coordinator" ? "campus" : "national",
-  );
-  const [search, setSearch] = useState("");
-  // The Overall tab only appears when there is more than one season to combine.
-  const { seasons, viewingId } = useSeason();
-  const showOverall = seasons.length > 1;
-  const canOpenTeam = user?.role === "admin" || user?.role === "coordinator";
+  const { viewingId, viewing, isLoading } = useSeason();
 
-  // Leaderboard display config: banner (image or template) + hide-rank flag.
-  const isStudent = user?.role === "student";
-  const { data: lbConfig, isLoading: lbConfigLoading } = useQuery({
-    queryKey: ["leaderboard-config"],
-    queryFn: getLeaderboardConfig,
-    staleTime: 60_000,
-  });
-  // Hide rank ONLY for students, and only when the admin toggle is on. Admins
-  // and coordinators always see rank.
-  const hideRank = isStudent && (lbConfig?.hideRankForStudents ?? false);
-  const bannerImage = lbConfig?.imageUrl
-    ? resolveStoredObjectUrl(lbConfig.imageUrl)
-    : null;
-  const bannerSource = lbConfig?.bannerSource ?? "image";
-  const bannerTemplate = lbConfig?.bannerTemplate ?? "broadcast";
-  const bannerContent = {
-    ...DEFAULT_BANNER_CONTENT,
-    ...(lbConfig?.bannerContent ?? {}),
-  };
-
-  // Hand-written fetcher rather than the generated hook, because the Overall
-  // tab needs a `lifetime` flag the generated query params cannot express.
-  const lbQuery = {
-    view: view === "campus" ? ("campus" as const) : ("national" as const),
-    campusId: view === "campus" ? (user?.campusId ?? undefined) : undefined,
-    search: search || undefined,
-    lifetime: view === "overall",
-  };
-  const { data: leaderboard, isLoading } = useQuery({
-    queryKey: leaderboardQueryKey(lbQuery, viewingId),
-    queryFn: () => getLeaderboard(lbQuery),
-  });
-
-  // Avoid a flash of the normal leaderboard (National / My Campus tabs) for a
-  // student before we know whether rank is hidden. Wait for the config first.
-  if (isStudent && lbConfigLoading) {
+  // Wait for the season before choosing. Rendering one version and swapping it
+  // a beat later would flash the wrong cohort's design at the reader.
+  if (isLoading || viewingId == null || !viewing) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Spinner size="lg" />
@@ -89,230 +37,11 @@ export default function Leaderboard({
     );
   }
 
-  // When an admin hides rank from students, the entire ranking (search, tabs
-  // and the list) is hidden — students see ONLY the banner (image or template).
-  // Admins & coordinators are never affected.
-  if (hideRank) {
-    const hasBanner =
-      bannerSource === "template"
-        ? true
-        : !!(bannerImage && bannerImage.trim());
-    return (
-      <div className="space-y-4 sm:space-y-6">
-        <div className="mobile-page-heading">
-          <h1 className="text-3xl font-bold tracking-tight">Leaderboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Race to ₹2,00,000 Verified Revenue
-          </p>
-        </div>
-        {bannerSource === "template" ? (
-          <LeaderboardBannerTemplateView
-            template={bannerTemplate}
-            content={bannerContent}
-          />
-        ) : hasBanner ? (
-          <img
-            src={bannerImage as string}
-            alt="Leaderboard"
-            className="w-full rounded-xl border object-contain"
-            data-testid="leaderboard-banner-image"
-          />
-        ) : (
-          <div
-            className="text-center py-20 bg-card border rounded-xl border-dashed"
-            data-testid="leaderboard-hidden-placeholder"
-          >
-            <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-semibold">
-              The leaderboard is being finalised
-            </h3>
-            <p className="text-muted-foreground mt-2">
-              Rankings are hidden for now — check back soon.
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3 sm:space-y-6">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center md:gap-4">
-        <div className="mobile-page-heading">
-          <h1 className="text-3xl font-bold tracking-tight">Leaderboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Race to ₹2,00,000 Verified Revenue
-          </p>
-        </div>
-
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:gap-3 md:w-auto">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by team, campus, member name or NIAT ID…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10 w-full pl-9 sm:w-64"
-            />
-          </div>
-
-          <Tabs
-            value={view}
-            onValueChange={(v: any) => setView(v)}
-            className="w-full sm:w-auto"
-          >
-            <TabsList
-              className={cn(
-                "w-full sm:w-auto grid",
-                showOverall ? "grid-cols-3" : "grid-cols-2",
-              )}
-            >
-              <TabsTrigger value="national">National</TabsTrigger>
-              <TabsTrigger value="campus">My Campus</TabsTrigger>
-              {/* Only meaningful once a second season exists. */}
-              {showOverall && (
-                <TabsTrigger value="overall" title="Season 1 + Season 2 combined">
-                  Overall
-                </TabsTrigger>
-              )}
-            </TabsList>
-          </Tabs>
-
-          {headerExtra}
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Spinner size="lg" />
-        </div>
-      ) : (
-        <div className="space-y-2.5 sm:space-y-4">
-          {leaderboard?.map((entry, index) => {
-            const isTop3 = entry.rank <= 3;
-            const isCurrentUserTeam = entry.teamId === user?.teamId;
-
-            return (
-              <Card
-                key={entry.teamId}
-                {...(canOpenTeam
-                  ? {
-                      onClick: () => setLocation(`/teams/${entry.teamId}`),
-                      role: "button",
-                      tabIndex: 0,
-                      onKeyDown: (e: React.KeyboardEvent) => {
-                        if (e.key === "Enter")
-                          setLocation(`/teams/${entry.teamId}`);
-                      },
-                    }
-                  : {})}
-                data-testid={`leaderboard-row-${entry.teamId}`}
-                className={`flex items-start gap-2.5 p-3 transition-all sm:items-center sm:gap-4 sm:p-4 ${canOpenTeam ? "hover-elevate cursor-pointer" : ""} ${isCurrentUserTeam ? "border-primary shadow-sm bg-primary/5" : ""}`}
-              >
-                <div className="flex h-10 w-7 shrink-0 items-center justify-center sm:h-12 sm:w-12">
-                  {entry.rank === 1 ? (
-                    <Trophy className="h-5 w-5 text-yellow-500 sm:h-8 sm:w-8" />
-                  ) : entry.rank === 2 ? (
-                    <Medal className="h-5 w-5 text-gray-400 sm:h-7 sm:w-7" />
-                  ) : entry.rank === 3 ? (
-                    <Medal className="h-5 w-5 text-amber-600 sm:h-6 sm:w-6" />
-                  ) : (
-                    <span className="w-7 text-center text-sm font-bold text-muted-foreground sm:w-8 sm:text-xl">
-                      {entry.rank}
-                    </span>
-                  )}
-                </div>
-
-                {entry.photoUrl ? (
-                  <img
-                    src={resolveStoredObjectUrl(entry.photoUrl)}
-                    alt=""
-                    className="h-10 w-10 shrink-0 rounded-lg object-cover sm:h-12 sm:w-12"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-bold text-muted-foreground sm:h-12 sm:w-12 sm:text-base">
-                    {entry.teamName.substring(0, 2).toUpperCase()}
-                  </div>
-                )}
-
-                <div className="min-w-0 flex-1 text-left">
-                  <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                    <h3 className="min-w-0 truncate text-sm font-bold sm:text-lg">{entry.teamName}</h3>
-                    {isCurrentUserTeam && (
-                      <Badge
-                        variant="default"
-                        className="text-[10px] h-5 px-1.5 py-0"
-                      >
-                        You
-                      </Badge>
-                    )}
-                    {entry.isDemoEligible && (
-                      <Badge
-                        variant="secondary"
-                        className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100 border-none text-[10px] h-5 px-1.5 py-0"
-                      >
-                        Qualified
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground sm:gap-3 sm:text-sm">
-                    <span className="flex min-w-0 items-center gap-1">
-                      <Building2 className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" />
-                      <span className="truncate">{entry.campusName}</span>
-                    </span>
-                    <span className="shrink-0">•</span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />{" "}
-                      {entry.activeProjects} Projects
-                    </span>
-                  </div>
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <div className="mb-0.5 text-[9px] font-medium text-muted-foreground sm:mb-1 sm:text-xs">
-                    {view === "overall" ? "Overall Revenue" : "Verified Revenue"}
-                  </div>
-                  <div className="text-lg font-extrabold leading-none text-primary sm:text-2xl">
-                    {formatINR(entry.totalRevenue)}
-                  </div>
-                  {/* Overall view only: how that total splits across seasons,
-                      so a team can see which season it came from. Seasons with
-                      no revenue are shown as zero rather than omitted, so every
-                      row lines up. */}
-                  {entry.revenueBySeason && seasons.length > 1 && (
-                    <div className="mt-1 flex max-w-24 flex-wrap justify-end gap-x-2 gap-y-0.5 sm:mt-1.5 sm:max-w-none sm:gap-x-3">
-                      {seasons.map((s) => (
-                        <span
-                          key={s.id}
-                          className="text-[9px] text-muted-foreground tabular-nums sm:text-xs"
-                        >
-                          <span className="font-semibold">{s.slug}</span>{" "}
-                          {formatINR(entry.revenueBySeason?.[s.id] ?? 0)}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {entry.totalOrderBook > 0 && (
-                    <div className="mt-1 text-[9px] text-muted-foreground sm:text-xs">
-                      + {formatINR(entry.totalOrderBook)} in order book
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
-
-          {leaderboard?.length === 0 && (
-            <div className="rounded-xl border border-dashed bg-card py-12 text-center sm:py-20">
-              <Trophy className="mx-auto mb-3 h-9 w-9 text-muted-foreground opacity-50 sm:mb-4 sm:h-12 sm:w-12" />
-              <h3 className="text-base font-semibold sm:text-lg">No teams found</h3>
-              <p className="mt-1 text-sm text-muted-foreground sm:mt-2 sm:text-base">
-                Try adjusting your filters.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+  // Anything that is not Season 1 gets the current design, so a future 3.0
+  // inherits it rather than silently falling back to the frozen one.
+  return viewing.slug === "1.0" ? (
+    <LeaderboardSeason1 headerExtra={headerExtra} />
+  ) : (
+    <LeaderboardSeason2 headerExtra={headerExtra} />
   );
 }

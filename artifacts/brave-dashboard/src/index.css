@@ -868,3 +868,31 @@
     animation: none;
   }
 }
+
+/* Leaderboard entrance. Rows are keyed on the active query, so changing the
+   search or the scope replays this instead of swapping text under the reader. */
+@keyframes lb-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lb-enter {
+  animation: lb-in 220ms ease-out both;
+}
+
+.lb-row {
+  animation: lb-in 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-enter,
+  .lb-row {
+    animation: none;
+  }
+}
