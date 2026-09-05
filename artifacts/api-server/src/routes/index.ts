@@ -58,11 +58,15 @@ import pricingRouter from "./pricing";
 import reviewRouter from "./review";
 import productTourRouter from "./product-tour";
 import publicAppRouter from "./public-app";
+import seasonOverridesRouter from "./season-overrides";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(publicAppRouter);
+// Per-user season overrides: pins named students to a season while everyone
+// else follows the live one (additive, isolated, super-admin only).
+router.use(seasonOverridesRouter);
 router.use(authRouter);
 router.use(devAuthRouter);
 router.use(storageRouter);

@@ -24,6 +24,7 @@ import {
   Mail,
   CalendarDays,
   CalendarRange,
+  Pin,
   MessageCircle,
   Trophy,
   Bell,
@@ -60,6 +61,7 @@ import {
 import { ProgrammeWeeksManager } from "@/components/programme-weeks-manager";
 import { ReminderSettingsCard } from "@/components/reminder-settings-card";
 import { SeasonsAdminCard } from "@/components/seasons-admin-card";
+import { SeasonOverridesCard } from "@/components/season-overrides-card";
 import { WhatsAppAdminCard } from "@/components/whatsapp-admin-card";
 import { useMyAdminAccess } from "@/lib/admin-access";
 import { ResourcesSettingsCard } from "@/components/resources-settings-card";
@@ -418,6 +420,12 @@ export default function AdminConfig() {
   }> = [
     { id: "seasons", slug: "seasons", label: "Seasons", icon: CalendarRange },
     {
+      id: "season-overrides",
+      slug: "season-overrides",
+      label: "Season Overrides",
+      icon: Pin,
+    },
+    {
       id: "schedule",
       slug: "programme-schedule",
       label: "Programme Schedule",
@@ -751,6 +759,12 @@ export default function AdminConfig() {
 
           {activeSection === "seasons" && (
             <SeasonsAdminCard
+              callerIsSuperAdmin={!!adminAccess?.isSuperAdmin}
+            />
+          )}
+
+          {activeSection === "season-overrides" && (
+            <SeasonOverridesCard
               callerIsSuperAdmin={!!adminAccess?.isSuperAdmin}
             />
           )}

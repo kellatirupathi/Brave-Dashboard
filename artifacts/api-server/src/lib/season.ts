@@ -26,6 +26,7 @@ import {
   db,
   programmeConfigTable,
   seasonsTable,
+  usersTable,
   SEASON_1_ID,
   SEASON_2_ID,
   type ProgrammeConfig,
@@ -108,7 +109,8 @@ function parseSeasonId(raw: unknown): number | null {
  *   2. a `?season=` query param         — so links stay shareable
  *   3. the session's remembered choice  — survives a refresh
  *   4. the staff default                — for admins and coordinators
- *   5. the active season                — the default for everyone else
+ *   5. this user's season override      — pins one named user to a season
+ *   6. the active season                — the default for everyone else
  *
  * An id that does not exist is ignored rather than rejected, so a stale client
  * can never 400 its way out of the dashboard.
@@ -135,7 +137,66 @@ export async function resolveSeason(req: Request): Promise<number> {
     if (staffDefault) return staffDefault.id;
   }
 
+  // A pinned user follows their own season instead of the live one. Sits below
+  // an explicit request so staff can still look at any season, and above the
+  // active season so the pin actually wins for the user it names. Everyone
+  // else has no pin and falls straight through, exactly as before.
+  const override = await getSeasonOverride(req.user?.id);
+  if (override != null) return override;
+
   return getActiveSeasonId();
+}
+
+/**
+ * The season this user is pinned to, or null when they follow the live one.
+ *
+ * Cached per user for the same window as the season list, because this now
+ * runs on every request that resolves a season. Never throws: an unreadable
+ * users row must fall through to the global season rather than break the
+ * request, which is the same posture as the rest of this module.
+ */
+const overrideCache = new Map<string, { at: number; seasonId: number | null }>();
+
+export function invalidateSeasonOverrideCache(userId?: string): void {
+  if (userId) overrideCache.delete(userId);
+  else overrideCache.clear();
+}
+
+async function getSeasonOverride(
+  userId: string | undefined,
+): Promise<number | null> {
+  if (!userId) return null;
+  const now = Date.now();
+  const hit = overrideCache.get(userId);
+  if (hit && now - hit.at < CACHE_TTL_MS) return hit.seasonId;
+
+  try {
+    const [row] = await db
+      .select({ seasonOverrideId: usersTable.seasonOverrideId })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+    let seasonId = row?.seasonOverrideId ?? null;
+
+    // A pin at a season that no longer exists is ignored rather than honoured,
+    // so deleting a season cannot strand the users pinned to it.
+    if (seasonId != null) {
+      const rows = await listSeasons();
+      if (rows.length > 0 && !rows.some((r) => r.id === seasonId)) {
+        logger.warn(
+          { userId, seasonId },
+          "[season] user pinned to an unknown season; ignoring",
+        );
+        seasonId = null;
+      }
+    }
+
+    overrideCache.set(userId, { at: now, seasonId });
+    return seasonId;
+  } catch (err) {
+    logger.error({ err, userId }, "[season] failed to read season override");
+    return null;
+  }
 }
 
 /**

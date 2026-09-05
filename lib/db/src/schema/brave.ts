@@ -338,6 +338,14 @@ export const usersTable = pgTable(
     // lastSeenAt, which tracks last activity on any request.
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     loginCount: integer("login_count").notNull().default(0),
+    // Pins this ONE user to a season, overriding the globally live one.
+    //
+    // NULL for everybody by default, which is the whole point: an unpinned
+    // user follows `seasons.is_active` exactly as before, so switching the
+    // live season still moves the entire programme. Only named users opt out.
+    // Intended for piloting a season with a handful of students while the
+    // cohort stays put.
+    seasonOverrideId: integer("season_override_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -351,6 +359,9 @@ export const usersTable = pgTable(
     index("users_role_idx").on(t.role),
     index("users_email_idx").on(t.email),
     index("users_last_seen_idx").on(t.lastSeenAt),
+    // Small partial-shaped lookup: the admin page lists who is pinned, and
+    // that is a rare row among many nulls.
+    index("users_season_override_idx").on(t.seasonOverrideId),
   ],
 );
 
