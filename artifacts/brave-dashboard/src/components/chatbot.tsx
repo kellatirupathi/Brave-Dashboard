@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Bot, X, Send, Trash2 } from "lucide-react";
-import chatbotIconUrl from "@assets/chatbot_icon_transparent.png";
+import chatbotIconUrl from "@/assets/chatbot-icon.png";
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = {
