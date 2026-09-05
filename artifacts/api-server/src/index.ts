@@ -473,6 +473,16 @@ async function ensureLeadsControlColumns(): Promise<void> {
   `);
 }
 
+// Season-scoped Weekly Journal submissions lock. Production does not run
+// drizzle-kit push, so keep this idempotent bootstrap in sync with the schema.
+async function ensureJournalSubmissionsLockColumns(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE programme_config
+      ADD COLUMN IF NOT EXISTS journal_submissions_locked boolean NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS journal_submissions_lock_message text
+  `);
+}
+
 // Page-view source tracking is additive and nullable. Existing rows and older
 // cached dashboard bundles remain valid with a null/unknown platform. Production
 // deploys do not run drizzle-kit push, so keep this bootstrap in sync with the
@@ -1739,6 +1749,11 @@ async function runBootstrap(): Promise<void> {
     await ensureLeadsControlColumns();
   } catch (err) {
     logger.error({ err }, "ensureLeadsControlColumns failed");
+  }
+  try {
+    await ensureJournalSubmissionsLockColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureJournalSubmissionsLockColumns failed");
   }
   try {
     await ensureAgreementAccessColumn();

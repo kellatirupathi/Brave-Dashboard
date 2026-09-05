@@ -43,6 +43,7 @@ import demoDaySubmissionsRouter from "./demoday-submissions";
 import adminBrdDriveRouter from "./admin-brd-drive";
 import popupsRouter from "./popups";
 import projectsLockRouter from "./projects-lock";
+import journalSubmissionsLockRouter from "./journal-submissions-lock";
 import finaleRouter from "./finale";
 import pcaVotesRouter from "./pca-votes";
 import rejectionReasonsRouter from "./rejection-reasons";
@@ -138,6 +139,8 @@ router.use(adminBrdDriveRouter);
 router.use(popupsRouter);
 // Projects submissions lock: admin Config toggle + student read (additive)
 router.use(projectsLockRouter);
+// Weekly Journal submissions lock: season-scoped admin toggle + student read.
+router.use(journalSubmissionsLockRouter);
 router.use(finaleRouter);
 router.use(pcaVotesRouter);
 // Revenue rejection reasons catalog: admin Config CRUD + queue chips (additive)
