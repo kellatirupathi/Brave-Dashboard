@@ -37,7 +37,7 @@ export const DEFAULT_GRIT_LEVELS: GritLevel[] = [
   { level: 1, revenueTarget: 25000, miles: 100 },
   { level: 2, revenueTarget: 50000, miles: 150 },
   { level: 3, revenueTarget: 100000, miles: 250 },
-  { level: 4, revenueTarget: 200000, miles: 500 },
+  { level: 4, revenueTarget: 200000, miles: 400 },
   { level: 5, revenueTarget: 400000, miles: 1000 },
 ];
 
