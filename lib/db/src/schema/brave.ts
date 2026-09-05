@@ -338,6 +338,14 @@ export const usersTable = pgTable(
     // lastSeenAt, which tracks last activity on any request.
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     loginCount: integer("login_count").notNull().default(0),
+    // Pins this ONE user to a season, overriding the globally live one.
+    //
+    // NULL for everybody by default, which is the whole point: an unpinned
+    // user follows `seasons.is_active` exactly as before, so switching the
+    // live season still moves the entire programme. Only named users opt out.
+    // Intended for piloting a season with a handful of students while the
+    // cohort stays put.
+    seasonOverrideId: integer("season_override_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -351,6 +359,9 @@ export const usersTable = pgTable(
     index("users_role_idx").on(t.role),
     index("users_email_idx").on(t.email),
     index("users_last_seen_idx").on(t.lastSeenAt),
+    // Small partial-shaped lookup: the admin page lists who is pinned, and
+    // that is a rare row among many nulls.
+    index("users_season_override_idx").on(t.seasonOverrideId),
   ],
 );
 
@@ -1179,6 +1190,13 @@ export const programmeConfigTable = pgTable("programme_config", {
   // Message shown at the top of the student Projects pages while locked.
   // Null → the UI falls back to a default message.
   projectSubmissionsLockMessage: text("project_submissions_lock_message"),
+  // Weekly Journal submissions lock (admin Config toggle). Season-scoped via
+  // programme_config so Season 1 and Season 2 can be controlled independently.
+  journalSubmissionsLocked: boolean("journal_submissions_locked")
+    .notNull()
+    .default(false),
+  // Message shown on the student Weekly Journal page while it is view-only.
+  journalSubmissionsLockMessage: text("journal_submissions_lock_message"),
   // When true (default), the "Request to submit" button is shown to team
   // leaders in the projects-lock banner while the global lock is on, letting
   // them file a request an admin reviews. When false, the button is hidden and

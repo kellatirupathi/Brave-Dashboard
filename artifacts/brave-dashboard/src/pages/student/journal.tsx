@@ -11,6 +11,7 @@ import {
   ImageIcon,
   Upload,
   X,
+  Lock,
 } from "lucide-react";
 import { useRequestUploadUrl } from "@workspace/api-client-react";
 import {
@@ -148,6 +149,7 @@ export default function Journal() {
   // gate the per-row Edit/Delete buttons on the past-week toggle.
   function canMutateRow(row: WeeklyJournal): boolean {
     if (!permissions) return false;
+    if (permissions.submissionsLocked) return false;
     if (permissions.allowPastWeekEdits) return true;
     // Even when toggle is off, allow editing the *currently open* week's row
     // for consistency with the main form.
@@ -274,6 +276,7 @@ export default function Journal() {
   };
 
   const noOpenWeeks = !loadingCurrent && (!openWeeks || openWeeks.length === 0);
+  const journalReadOnly = permissions?.seasonWritable === false;
 
   const currentWeekId = currentStatus?.weekId ?? null;
   const isCurrentSelected = selectedWeekId === currentWeekId;
@@ -294,7 +297,23 @@ export default function Journal() {
         </p>
       </div>
 
-      {noOpenWeeks ? (
+      {journalReadOnly && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="flex gap-3 py-4 text-amber-950">
+            <Lock className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-medium">Weekly Journal submissions are locked</p>
+              <p className="mt-1 text-sm">
+                {permissions.submissionsLocked
+                  ? permissions.lockMessage
+                  : "Weekly Journal submissions are unavailable for this season. You can still view your previous journals."}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {journalReadOnly ? null : noOpenWeeks ? (
         <Card data-tour="journal-empty-state">
           <CardContent className="py-12 text-center">
             <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-2" />
@@ -630,7 +649,7 @@ export default function Journal() {
       </Card>
 
       <JournalEditDialog
-        open={editing !== null}
+        open={!journalReadOnly && editing !== null}
         onOpenChange={(o) => !o && setEditing(null)}
         journal={editing}
         invalidateKeys={[

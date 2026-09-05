@@ -162,13 +162,17 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
     override != null &&
     (seasonList.length === 0 || seasonList.some((s) => s.id === override));
   const activeSeason = seasonList.find((season) => season.isActive);
-  // A student always starts in the season the admin marked active. Students
-  // may still arrive with an old URL or localStorage value, but those are
-  // handled by SeasonUrlGate and redirected to the active dashboard rather
-  // than allowing stale season data to render during first login.
+  // A student starts in the season the SERVER resolved for them. That is the
+  // active season for almost everyone, but a student pinned by an admin gets
+  // their own — and the server is the only side that knows about the pin, so
+  // preferring the active season here would quietly override it.
+  //
+  // Students may still arrive with an old URL or localStorage value; those are
+  // handled by SeasonUrlGate and redirected rather than allowing stale season
+  // data to render during first login.
   const viewingId =
     user?.role === "student"
-      ? (activeSeason?.id ?? data?.viewing ?? null)
+      ? (data?.viewing ?? activeSeason?.id ?? null)
       : (urlSeason?.id ??
         (overrideIsValid ? override : null) ??
         data?.viewing ??

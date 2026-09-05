@@ -24,6 +24,7 @@ import {
   Mail,
   CalendarDays,
   CalendarRange,
+  Pin,
   MessageCircle,
   Trophy,
   Bell,
@@ -60,6 +61,7 @@ import {
 import { ProgrammeWeeksManager } from "@/components/programme-weeks-manager";
 import { ReminderSettingsCard } from "@/components/reminder-settings-card";
 import { SeasonsAdminCard } from "@/components/seasons-admin-card";
+import { SeasonOverridesCard } from "@/components/season-overrides-card";
 import { WhatsAppAdminCard } from "@/components/whatsapp-admin-card";
 import { useMyAdminAccess } from "@/lib/admin-access";
 import { ResourcesSettingsCard } from "@/components/resources-settings-card";
@@ -69,6 +71,7 @@ import { GritConfigCard } from "@/components/grit-config-card";
 import { BrdDriveCard } from "@/components/brd-drive-card";
 import { PopupsAdminCard } from "@/components/popups-admin-card";
 import { ProjectsLockCard } from "@/components/projects-lock-card";
+import { JournalSubmissionsLockCard } from "@/components/journal-submissions-lock-card";
 import { PipelineGatesCard } from "@/components/pipeline-gates-card";
 import { RejectionReasonsCard } from "@/components/rejection-reasons-card";
 import { TeamSubmissionsPage } from "@/components/team-submissions-card";
@@ -225,6 +228,7 @@ export default function AdminConfig() {
   // Which config section is shown in the right pane (left-menu navigation).
   const [, setLocation] = useLocation();
   const { viewing } = useSeason();
+  const isSeason2 = viewing?.slug === "2.0";
   // Matches both the season-prefixed URL and the legacy one; SeasonUrlGate
   // rewrites the second into the first, so in practice this reads the former.
   const [, canonicalParams] = useRoute("/admin/season/:season/config/:section");
@@ -418,6 +422,12 @@ export default function AdminConfig() {
   }> = [
     { id: "seasons", slug: "seasons", label: "Seasons", icon: CalendarRange },
     {
+      id: "season-overrides",
+      slug: "season-overrides",
+      label: "Season Overrides",
+      icon: Pin,
+    },
+    {
       id: "schedule",
       slug: "programme-schedule",
       label: "Programme Schedule",
@@ -431,12 +441,16 @@ export default function AdminConfig() {
     },
     { id: "grit", slug: "grit-miles", label: "GRIT Miles", icon: Trophy },
     { id: "user-stats", slug: "user-stats", label: "User Stats", icon: BarChart3 },
-    {
-      id: "leads-control",
-      slug: "leads-control",
-      label: "Leads Control",
-      icon: SlidersHorizontal,
-    },
+    ...(isSeason2
+      ? [
+          {
+            id: "leads-control",
+            slug: "leads-control",
+            label: "Leads Control",
+            icon: SlidersHorizontal,
+          },
+        ]
+      : []),
     {
       id: "reminders",
       slug: "notifications",
@@ -740,7 +754,9 @@ export default function AdminConfig() {
           {/* ── User Stats ── */}
           {activeSection === "user-stats" && <UserStatsCard />}
 
-          {activeSection === "leads-control" && <LeadsControlCard />}
+          {activeSection === "leads-control" && isSeason2 && (
+            <LeadsControlCard />
+          )}
 
           {/* ── Notifications & Reminders ── */}
           {activeSection === "whatsapp" && (
@@ -751,6 +767,12 @@ export default function AdminConfig() {
 
           {activeSection === "seasons" && (
             <SeasonsAdminCard
+              callerIsSuperAdmin={!!adminAccess?.isSuperAdmin}
+            />
+          )}
+
+          {activeSection === "season-overrides" && (
+            <SeasonOverridesCard
               callerIsSuperAdmin={!!adminAccess?.isSuperAdmin}
             />
           )}
@@ -766,6 +788,8 @@ export default function AdminConfig() {
               <PopupsAdminCard />
               {/* Projects submissions lock — pause student orders/BRD uploads. */}
               <ProjectsLockCard />
+              {/* Weekly Journal lock — view-only student journal page. */}
+              <JournalSubmissionsLockCard />
               {/* Season 2 pipeline gates: advisory (default) vs enforced. */}
               <PipelineGatesCard />
               {/* Leaderboard: hide rank from students + banner image. */}

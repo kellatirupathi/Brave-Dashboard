@@ -26,6 +26,7 @@ import {
   db,
   programmeConfigTable,
   seasonsTable,
+  usersTable,
   SEASON_1_ID,
   SEASON_2_ID,
   type ProgrammeConfig,
@@ -104,16 +105,26 @@ function parseSeasonId(raw: unknown): number | null {
 /**
  * Which season is this request about? In precedence order:
  *
- *   1. the `x-brave-season` header      — what the dashboard is showing now
- *   2. a `?season=` query param         — so links stay shareable
- *   3. the session's remembered choice  — survives a refresh
- *   4. the staff default                — for admins and coordinators
- *   5. the active season                — the default for everyone else
+ *   1. a student's season override      — pins that student to one season
+ *   2. the `x-brave-season` header      — what an unpinned user is viewing
+ *   3. a `?season=` query param         — so staff links stay shareable
+ *   4. the session's remembered choice  — survives a refresh
+ *   5. the staff default                — for admins and coordinators
+ *   6. the active season                — the default for everyone else
  *
  * An id that does not exist is ignored rather than rejected, so a stale client
  * can never 400 its way out of the dashboard.
  */
 export async function resolveSeason(req: Request): Promise<number> {
+  // A student pin is authoritative. It must beat stale client state from an
+  // old URL, x-brave-season header, or remembered session; otherwise a pinned
+  // student can escape the assigned season simply by retaining that state.
+  // Staff remain free to select any season and are never pinned by this flow.
+  if (req.user?.role === "student") {
+    const override = await getSeasonOverride(req.user.id);
+    if (override != null) return override;
+  }
+
   const requested =
     parseSeasonId(req.headers[SEASON_HEADER]) ??
     parseSeasonId(req.query?.[SEASON_QUERY_PARAM]) ??
@@ -136,6 +147,58 @@ export async function resolveSeason(req: Request): Promise<number> {
   }
 
   return getActiveSeasonId();
+}
+
+/**
+ * The season this user is pinned to, or null when they follow the live one.
+ *
+ * Cached per user for the same window as the season list, because this now
+ * runs on every request that resolves a season. Never throws: an unreadable
+ * users row must fall through to the global season rather than break the
+ * request, which is the same posture as the rest of this module.
+ */
+const overrideCache = new Map<string, { at: number; seasonId: number | null }>();
+
+export function invalidateSeasonOverrideCache(userId?: string): void {
+  if (userId) overrideCache.delete(userId);
+  else overrideCache.clear();
+}
+
+async function getSeasonOverride(
+  userId: string | undefined,
+): Promise<number | null> {
+  if (!userId) return null;
+  const now = Date.now();
+  const hit = overrideCache.get(userId);
+  if (hit && now - hit.at < CACHE_TTL_MS) return hit.seasonId;
+
+  try {
+    const [row] = await db
+      .select({ seasonOverrideId: usersTable.seasonOverrideId })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+    let seasonId = row?.seasonOverrideId ?? null;
+
+    // A pin at a season that no longer exists is ignored rather than honoured,
+    // so deleting a season cannot strand the users pinned to it.
+    if (seasonId != null) {
+      const rows = await listSeasons();
+      if (rows.length > 0 && !rows.some((r) => r.id === seasonId)) {
+        logger.warn(
+          { userId, seasonId },
+          "[season] user pinned to an unknown season; ignoring",
+        );
+        seasonId = null;
+      }
+    }
+
+    overrideCache.set(userId, { at: now, seasonId });
+    return seasonId;
+  } catch (err) {
+    logger.error({ err, userId }, "[season] failed to read season override");
+    return null;
+  }
 }
 
 /**

@@ -1,0 +1,24 @@
+ Config → Season Overrides (super admin only) — search a student, pin them to 1.0 or 2.0, or remove the pin.
+
+Nothing existing changed
+users.season_override_id is nullable and NULL for everyone. An unpinned user resolves exactly as before — seasons.is_active still decides for very nearly everyone, and flipping the live season still moves the whole programme.
+
+The override is a new rung in resolveSeason: below the staff default (so staff can still view any season), above the active season (so the pin wins for the user it names). Nothing above it moved. The 36 tests still pass, including the season-resolution ones.
+
+Two client traps I found
+This could not have been a server-only change. Two places would have silently defeated the pin:
+
+season-context.tsx preferred activeSeason.id over the server's answer for students — so the pin would never have taken effect in the UI.
+App.tsx's URL gate bounced students out of any inactive season. A pinned student's season is inactive by definition, so this would have redirected them back to the live season on every navigation.
+Both now use the season the server resolved, since that's the only side that knows about the pin. Staff paths untouched.
+
+Deliberate constraints
+Students only. Pinning staff would fight the staff default they already use; a refusal beats two competing rules for one person.
+A pin at a deleted season is ignored, so removing a season can't strand anyone.
+Cached per user (same window as the season list, since it now runs on every season-resolving request), and the write publishes the cache so a change isn't swallowed for 30 seconds.
+Never throws — an unreadable row falls through to the global season, matching the rest of that module.
+Prod gets the column from the idempotent bootstrap, since the deploy never runs push.
+
+One caveat I flagged earlier and it still stands: teams share leads, projects and revenue. If two members of one team get different seasons, each writes into a different season and neither sees the other's work. Fine for piloting with individuals; not a way to run two real cohorts on one team.
+
+Verified: all packages typecheck, 36/36 tests pass, both builds succeed. Needs a Publish in Replit.

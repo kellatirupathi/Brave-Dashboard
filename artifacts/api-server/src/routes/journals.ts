@@ -20,6 +20,7 @@ import {
 import { requireAdminPage } from "../lib/require-admin-page";
 import { isSeasonWritable, resolveSeason } from "../lib/season";
 import { requireWritableSeason } from "../middlewares/seasonGuard";
+import { getJournalSubmissionsLockError } from "./journal-submissions-lock";
 
 const router: IRouter = Router();
 
@@ -379,6 +380,11 @@ router.get("/journals/week-tracker", async (req, res): Promise<void> => {
 router.post("/journals", requireWritableSeason("journal"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const lockMessage = await getJournalSubmissionsLockError(req);
+  if (lockMessage) {
+    res.status(403).json({ error: lockMessage });
     return;
   }
   const teamId = await getMyTeamId(req.user.id);
@@ -1067,6 +1073,7 @@ router.get("/journals/permissions", async (req, res): Promise<void> => {
   const role = req.user.role;
   const season = await resolveSeason(req);
   const allowPastWeekEdits = await getAllowPastWeekEdits(season);
+  const lockMessage = await getJournalSubmissionsLockError(req);
 
   // Whether this season accepts journal writes at all. Admins and coordinators
   // bypass the archive (they correct historical records), so this only ever
@@ -1074,10 +1081,12 @@ router.get("/journals/permissions", async (req, res): Promise<void> => {
   // on POST/PATCH/DELETE /journals will do. The frontend hides its add/edit
   // buttons off the back of this, so the two must agree or a student sees a
   // button that 409s.
-  const writable =
+  const seasonWritable =
     role === "admin" ||
     role === "coordinator" ||
     (await isSeasonWritable(season, "journal"));
+  const submissionsLocked = role === "student" && lockMessage != null;
+  const writable = seasonWritable && !submissionsLocked;
 
   res.json({
     role,
@@ -1093,6 +1102,8 @@ router.get("/journals/permissions", async (req, res): Promise<void> => {
     // rendering an empty toolbar.
     seasonId: season,
     seasonWritable: writable,
+    submissionsLocked,
+    lockMessage: lockMessage ?? "",
   });
 });
 
@@ -1125,6 +1136,11 @@ router.patch("/journals/:id", requireWritableSeason("journal"), async (req, res)
   const denial = await authorizeJournalMutation(req.user, existing);
   if (denial) {
     res.status(denial.status).json({ error: denial.error });
+    return;
+  }
+  const lockMessage = await getJournalSubmissionsLockError(req);
+  if (lockMessage) {
+    res.status(403).json({ error: lockMessage });
     return;
   }
 
@@ -1218,6 +1234,11 @@ router.delete("/journals/:id", requireWritableSeason("journal"), async (req, res
   const denial = await authorizeJournalMutation(req.user, existing);
   if (denial) {
     res.status(denial.status).json({ error: denial.error });
+    return;
+  }
+  const lockMessage = await getJournalSubmissionsLockError(req);
+  if (lockMessage) {
+    res.status(403).json({ error: lockMessage });
     return;
   }
 

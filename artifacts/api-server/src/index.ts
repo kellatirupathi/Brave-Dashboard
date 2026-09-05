@@ -218,7 +218,13 @@ async function ensureUserColumns(): Promise<void> {
         ADD COLUMN IF NOT EXISTS profile_completed_at timestamptz,
         ADD COLUMN IF NOT EXISTS last_seen_at timestamptz,
         ADD COLUMN IF NOT EXISTS last_login_at timestamptz,
-        ADD COLUMN IF NOT EXISTS login_count integer NOT NULL DEFAULT 0
+        ADD COLUMN IF NOT EXISTS login_count integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS season_override_id integer
+    `);
+    // Rare among many nulls — this index serves the admin list of pinned users.
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS users_season_override_idx
+        ON users (season_override_id)
     `);
   } catch (err) {
     logger.error({ err }, "Failed to ensure users columns");
@@ -464,6 +470,16 @@ async function ensureLeadsControlColumns(): Promise<void> {
       ADD COLUMN IF NOT EXISTS leads_control_permissions jsonb,
       ADD COLUMN IF NOT EXISTS leads_submissions_locked boolean NOT NULL DEFAULT false,
       ADD COLUMN IF NOT EXISTS leads_submissions_lock_message text
+  `);
+}
+
+// Season-scoped Weekly Journal submissions lock. Production does not run
+// drizzle-kit push, so keep this idempotent bootstrap in sync with the schema.
+async function ensureJournalSubmissionsLockColumns(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE programme_config
+      ADD COLUMN IF NOT EXISTS journal_submissions_locked boolean NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS journal_submissions_lock_message text
   `);
 }
 
@@ -1733,6 +1749,11 @@ async function runBootstrap(): Promise<void> {
     await ensureLeadsControlColumns();
   } catch (err) {
     logger.error({ err }, "ensureLeadsControlColumns failed");
+  }
+  try {
+    await ensureJournalSubmissionsLockColumns();
+  } catch (err) {
+    logger.error({ err }, "ensureJournalSubmissionsLockColumns failed");
   }
   try {
     await ensureAgreementAccessColumn();

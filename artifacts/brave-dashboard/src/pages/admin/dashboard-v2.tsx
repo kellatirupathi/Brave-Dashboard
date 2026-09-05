@@ -519,23 +519,23 @@ export default function AdminDashboardV2() {
             <Link
               href="/admin/roster"
               data-testid="admin-v2-roster-requests-card"
-              className="order-last flex items-center gap-2 self-start rounded-lg border border-amber-400/50 bg-amber-50 px-2.5 py-1.5 transition-colors hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 sm:order-none"
+              className="order-last flex items-center gap-2.5 self-start rounded-lg border border-amber-400/50 bg-amber-50 px-3.5 py-2 transition-colors hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 sm:order-none sm:min-w-[210px]"
             >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-amber-200/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
-                <UserPlus className="h-3.5 w-3.5" />
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-200/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                <UserPlus className="h-4 w-4" />
               </span>
-              <span className="min-w-0 leading-tight">
-                <span className="block text-[11px] font-semibold text-amber-900 dark:text-amber-100">
+              <span className="min-w-0 leading-tight sm:mr-auto">
+                <span className="block text-xs font-semibold text-amber-900 dark:text-amber-100">
                   {summary.pendingAccessRequestCount} roster{" "}
                   {summary.pendingAccessRequestCount === 1
                     ? "request"
                     : "requests"}
                 </span>
-                <span className={cn("block text-[9px]", MUTED)}>
+                <span className={cn("block text-[10px]", MUTED)}>
                   Awaiting your review
                 </span>
               </span>
-              <ArrowRight className="h-3 w-3 shrink-0 text-amber-700 dark:text-amber-200" />
+              <ArrowRight className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-200" />
             </Link>
           ) : null}
           <div className="flex items-center gap-1.5 self-start">

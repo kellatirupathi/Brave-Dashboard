@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import { useSeason } from "@/lib/season-context";
 
 export const LEADS_CONTROL_SECTIONS = [
   "leads",
@@ -47,8 +48,9 @@ export function saveLeadsControl(
 }
 
 export function useLeadsControl() {
+  const { viewing } = useSeason();
   const q = useQuery({
-    queryKey: LEADS_CONTROL_KEY,
+    queryKey: [...LEADS_CONTROL_KEY, viewing?.id ?? null],
     queryFn: getLeadsControl,
     staleTime: 30_000,
     retry: false,

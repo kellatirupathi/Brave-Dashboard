@@ -43,6 +43,7 @@ import demoDaySubmissionsRouter from "./demoday-submissions";
 import adminBrdDriveRouter from "./admin-brd-drive";
 import popupsRouter from "./popups";
 import projectsLockRouter from "./projects-lock";
+import journalSubmissionsLockRouter from "./journal-submissions-lock";
 import finaleRouter from "./finale";
 import pcaVotesRouter from "./pca-votes";
 import rejectionReasonsRouter from "./rejection-reasons";
@@ -58,11 +59,15 @@ import pricingRouter from "./pricing";
 import reviewRouter from "./review";
 import productTourRouter from "./product-tour";
 import publicAppRouter from "./public-app";
+import seasonOverridesRouter from "./season-overrides";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(publicAppRouter);
+// Per-user season overrides: pins named students to a season while everyone
+// else follows the live one (additive, isolated, super-admin only).
+router.use(seasonOverridesRouter);
 router.use(authRouter);
 router.use(devAuthRouter);
 router.use(storageRouter);
@@ -134,6 +139,8 @@ router.use(adminBrdDriveRouter);
 router.use(popupsRouter);
 // Projects submissions lock: admin Config toggle + student read (additive)
 router.use(projectsLockRouter);
+// Weekly Journal submissions lock: season-scoped admin toggle + student read.
+router.use(journalSubmissionsLockRouter);
 router.use(finaleRouter);
 router.use(pcaVotesRouter);
 // Revenue rejection reasons catalog: admin Config CRUD + queue chips (additive)

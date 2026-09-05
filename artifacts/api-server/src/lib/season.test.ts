@@ -3,6 +3,7 @@ import type { Request } from "express";
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
+  overrideId: null as number | null,
 }));
 
 vi.mock("@workspace/db", () => ({
@@ -13,6 +14,10 @@ vi.mock("@workspace/db", () => ({
   seasonsTable: {
     id: "id",
     isActive: "isActive",
+  },
+  usersTable: {
+    id: "userId",
+    seasonOverrideId: "seasonOverrideId",
   },
   SEASON_1_ID: 1,
   SEASON_2_ID: 2,
@@ -37,7 +42,7 @@ function request(
     headers: options.header ? { "x-brave-season": options.header } : {},
     query: options.query ? { season: options.query } : {},
     viewingSeasonId: options.remembered,
-    user: { role },
+    user: { id: "test-user", role },
   } as unknown as Request;
 }
 
@@ -45,14 +50,30 @@ describe("resolveSeason staff default", () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.select.mockReset();
-    mocks.select.mockReturnValue({
-      from: () => ({
-        orderBy: async () => [
-          { id: 1, isActive: true, isStaffDefault: false },
-          { id: 2, isActive: false, isStaffDefault: true },
-        ],
-      }),
-    });
+    mocks.overrideId = null;
+    mocks.select.mockImplementation(
+      (selection?: Record<string, unknown>) => {
+      if (selection && "seasonOverrideId" in selection) {
+        return {
+          from: () => ({
+            where: () => ({
+              limit: async () => [
+                { seasonOverrideId: mocks.overrideId },
+              ],
+            }),
+          }),
+        };
+      }
+      return {
+        from: () => ({
+          orderBy: async () => [
+            { id: 1, isActive: true, isStaffDefault: false },
+            { id: 2, isActive: false, isStaffDefault: true },
+          ],
+        }),
+      };
+    },
+    );
   });
 
   it.each(["admin", "coordinator"] as const)(
@@ -68,6 +89,21 @@ describe("resolveSeason staff default", () => {
     const { resolveSeason } = await import("./season");
 
     await expect(resolveSeason(request("student"))).resolves.toBe(1);
+  });
+
+  it("keeps a pinned student on the override despite stale client season state", async () => {
+    mocks.overrideId = 2;
+    const { resolveSeason } = await import("./season");
+
+    await expect(
+      resolveSeason(
+        request("student", {
+          header: "1",
+          query: "1",
+          remembered: 1,
+        }),
+      ),
+    ).resolves.toBe(2);
   });
 
   it("keeps an explicit staff selection ahead of the default", async () => {

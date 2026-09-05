@@ -318,11 +318,24 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
     }
     const requested = seasons.find((season) => season.slug === canonical.slug);
     const activeSeason = seasons.find((season) => season.isActive);
+    // The season this student belongs in: the live one for almost everyone,
+    // but their own where an admin has pinned them. `viewing` is what the
+    // server resolved for this user, so it already accounts for the pin.
+    const studentSeason =
+      canonical.role === "student" ? (viewing ?? activeSeason) : undefined;
+    // An inactive season is only wrong for a student who has NOT been pinned
+    // to it — a pinned student's season is inactive by definition, and
+    // bouncing them to the live one would undo the pin on every navigation.
     const studentSeasonIsInactive =
-      canonical.role === "student" && !!requested && !requested.isActive;
+      canonical.role === "student" &&
+      !!requested &&
+      !requested.isActive &&
+      requested.id !== studentSeason?.id;
     if (!requested || studentSeasonIsInactive) {
       const fallback =
-        canonical.role === "student" ? activeSeason : (activeSeason ?? viewing);
+        canonical.role === "student"
+          ? studentSeason
+          : (activeSeason ?? viewing);
       if (!fallback) return <BraveLoader />;
       return (
         <SeasonRouteRedirect

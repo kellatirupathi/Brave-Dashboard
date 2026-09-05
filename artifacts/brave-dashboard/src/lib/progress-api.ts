@@ -138,6 +138,10 @@ export type JournalPermissions = {
   canUpdate: boolean;
   canDelete: boolean;
   allowPastWeekEdits: boolean;
+  seasonId: number;
+  seasonWritable: boolean;
+  submissionsLocked: boolean;
+  lockMessage: string;
 };
 
 export function getJournalPermissions(): Promise<JournalPermissions> {
