@@ -105,17 +105,26 @@ function parseSeasonId(raw: unknown): number | null {
 /**
  * Which season is this request about? In precedence order:
  *
- *   1. the `x-brave-season` header      — what the dashboard is showing now
- *   2. a `?season=` query param         — so links stay shareable
- *   3. the session's remembered choice  — survives a refresh
- *   4. the staff default                — for admins and coordinators
- *   5. this user's season override      — pins one named user to a season
+ *   1. a student's season override      — pins that student to one season
+ *   2. the `x-brave-season` header      — what an unpinned user is viewing
+ *   3. a `?season=` query param         — so staff links stay shareable
+ *   4. the session's remembered choice  — survives a refresh
+ *   5. the staff default                — for admins and coordinators
  *   6. the active season                — the default for everyone else
  *
  * An id that does not exist is ignored rather than rejected, so a stale client
  * can never 400 its way out of the dashboard.
  */
 export async function resolveSeason(req: Request): Promise<number> {
+  // A student pin is authoritative. It must beat stale client state from an
+  // old URL, x-brave-season header, or remembered session; otherwise a pinned
+  // student can escape the assigned season simply by retaining that state.
+  // Staff remain free to select any season and are never pinned by this flow.
+  if (req.user?.role === "student") {
+    const override = await getSeasonOverride(req.user.id);
+    if (override != null) return override;
+  }
+
   const requested =
     parseSeasonId(req.headers[SEASON_HEADER]) ??
     parseSeasonId(req.query?.[SEASON_QUERY_PARAM]) ??
@@ -136,13 +145,6 @@ export async function resolveSeason(req: Request): Promise<number> {
     const staffDefault = rows.find((season) => season.isStaffDefault);
     if (staffDefault) return staffDefault.id;
   }
-
-  // A pinned user follows their own season instead of the live one. Sits below
-  // an explicit request so staff can still look at any season, and above the
-  // active season so the pin actually wins for the user it names. Everyone
-  // else has no pin and falls straight through, exactly as before.
-  const override = await getSeasonOverride(req.user?.id);
-  if (override != null) return override;
 
   return getActiveSeasonId();
 }
