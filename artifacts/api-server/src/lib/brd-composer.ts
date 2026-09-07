@@ -9,7 +9,7 @@
  * Submission progress lives here too, so the checklist the student sees and
  * the check that actually blocks submission are the same code.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   db,
   leadsTable,
@@ -19,6 +19,7 @@ import {
   projectPhasesTable,
   projectsTable,
   teamsTable,
+  uploadedFilesTable,
 } from "@workspace/db";
 import { evaluateGateA, type GateAStatus } from "./lead-pipeline";
 
@@ -30,6 +31,37 @@ import { evaluateGateA, type GateAStatus } from "./lead-pipeline";
 function toUrlList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is string => typeof v === "string" && v !== "");
+}
+
+/**
+ * Content types for stored uploads, keyed by object path.
+ *
+ * An uploaded file is stored as `/objects/<uuid>` with NO extension, so nothing
+ * downstream can tell a photo from a PDF by looking at the path. The upload
+ * metadata recorded the real type, so the document carries it rather than
+ * leaving every reader to guess — which is why payment proofs and meet proofs
+ * were rendering as links instead of pictures.
+ *
+ * Best-effort: a missing row simply means the reader falls back to guessing
+ * from the extension, which is what it did before.
+ */
+async function contentTypesFor(
+  paths: string[],
+): Promise<Record<string, string>> {
+  const unique = [...new Set(paths.filter(Boolean))];
+  if (unique.length === 0) return {};
+  try {
+    const rows = await db
+      .select({
+        objectPath: uploadedFilesTable.objectPath,
+        contentType: uploadedFilesTable.contentType,
+      })
+      .from(uploadedFilesTable)
+      .where(inArray(uploadedFilesTable.objectPath, unique));
+    return Object.fromEntries(rows.map((r) => [r.objectPath, r.contentType]));
+  } catch {
+    return {};
+  }
 }
 
 // ── Submission progress ─────────────────────────────────────────────────────
@@ -79,6 +111,10 @@ export type ComposedBrd = {
     firstMeetingDate: string;
     meetingMode: string;
     geoCaptured: boolean;
+    /** The captured coordinates, and a map link a reviewer can actually open. */
+    geoLat: string | null;
+    geoLng: string | null;
+    geoMapUrl: string | null;
   };
   problemStatement: string | null;
   solutionDescription: string | null;
@@ -94,6 +130,11 @@ export type ComposedBrd = {
   };
   /** The lead's own capture evidence: shopfront photo, visiting card, etc. */
   clientEvidence: string[];
+  /**
+   * Content type per stored object path. Uploads have no extension, so this is
+   * how a reader knows whether to render a picture or a link.
+   */
+  attachmentTypes: Record<string, string>;
   interactionTrail: Array<{
     date: string;
     type: string;
@@ -237,6 +278,19 @@ export async function composeBrd(
     };
   });
 
+  // Every stored upload this document points at, so their real content types
+  // can be resolved in one query rather than guessed from paths that have no
+  // extension.
+  const clientEvidence = toUrlList(lead.evidence);
+  const attachmentTypes = await contentTypesFor([
+    ...clientEvidence,
+    ...interactions.flatMap((i) => toUrlList(i.attachments)),
+    ...payments.flatMap((p) =>
+      [p.paymentProof, p.invoiceDoc].filter((v): v is string => !!v),
+    ),
+    ...(project.agreementDoc ? [project.agreementDoc] : []),
+  ]);
+
   // Five equally weighted completion items. This is the only checklist that
   // controls submission; interaction volume, elapsed days and trail bands are
   // deliberately not gates.
@@ -311,6 +365,14 @@ export async function composeBrd(
       firstMeetingDate: lead.firstMeetingDate,
       meetingMode: lead.meetingMode,
       geoCaptured: !!lead.geoLat && !!lead.geoLng,
+      geoLat: lead.geoLat,
+      geoLng: lead.geoLng,
+      // A coordinate pair a reviewer cannot open is not evidence they can
+      // check, so the document carries the link rather than the numbers alone.
+      geoMapUrl:
+        lead.geoLat && lead.geoLng
+          ? `https://www.google.com/maps/search/?api=1&query=${lead.geoLat},${lead.geoLng}`
+          : null,
     },
     problemStatement: project.problemStatement,
     solutionDescription: project.solutionDescription,
@@ -323,7 +385,8 @@ export async function composeBrd(
       prototypeUrl: project.prototypeUrl,
       demoCredentials: project.demoCredentials,
     },
-    clientEvidence: toUrlList(lead.evidence),
+    clientEvidence: clientEvidence,
+    attachmentTypes,
     interactionTrail: interactions.map((i) => ({
       date: i.interactionDate,
       type: i.interactionType,

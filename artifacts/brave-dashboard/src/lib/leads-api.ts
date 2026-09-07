@@ -547,6 +547,9 @@ export type ComposedBrd = {
     firstMeetingDate: string;
     meetingMode: string;
     geoCaptured: boolean;
+    geoLat: string | null;
+    geoLng: string | null;
+    geoMapUrl: string | null;
   };
   problemStatement: string | null;
   solutionDescription: string | null;
@@ -555,6 +558,8 @@ export type ComposedBrd = {
   links: Record<string, string | null>;
   /** Capture evidence from the lead itself: shopfront photo, visiting card. */
   clientEvidence: string[];
+  /** Content type per stored object path — uploads carry no extension. */
+  attachmentTypes: Record<string, string>;
   interactionTrail: Array<{
     date: string;
     type: string;
