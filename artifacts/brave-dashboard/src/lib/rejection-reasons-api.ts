@@ -3,6 +3,16 @@
 // helpers. CRUD lives on the Config page; the review queue reads the list.
 import { customFetch } from "@workspace/api-client-react";
 
+/**
+ * The one cache key for this catalogue.
+ *
+ * Both readers (the review queue's chips) and the writer (the Config card)
+ * import it from here, so an edit in Config always invalidates exactly what
+ * the queue is reading. Keeping two copies of the string in sync by hand is
+ * what would let them drift.
+ */
+export const REJECTION_REASONS_QUERY_KEY = ["admin-rejection-reasons"] as const;
+
 export type RejectionReason = {
   id: number;
   label: string;

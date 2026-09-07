@@ -31,6 +31,10 @@ export const EMAIL_CATEGORIES = [
   "heatmapNudges",
   "teamMembership",
   "pcaVotes",
+  // Support tickets: the acknowledgement a student gets on raising one, and
+  // the resolution they get when staff close it. Both default on.
+  "ticketCreated",
+  "ticketResolved",
 ] as const;
 
 export type EmailCategory = (typeof EMAIL_CATEGORIES)[number];

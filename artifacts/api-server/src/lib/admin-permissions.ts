@@ -74,6 +74,7 @@ export const ADMIN_PAGES: readonly AdminPage[] = [
   { href: "/admin/campus-leaderboard", label: "Campus Leaderboard" },
   { href: "/admin/config", label: "Config" },
   { href: "/admin/resources", label: "Resources" },
+  { href: "/admin/tickets", label: "Ticket Support" },
 ] as const;
 
 // Which pages actually have the NEW actions wired to a real route. Anything

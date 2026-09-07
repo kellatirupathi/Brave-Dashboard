@@ -61,6 +61,7 @@ import productTourRouter from "./product-tour";
 import publicAppRouter from "./public-app";
 import seasonOverridesRouter from "./season-overrides";
 import studentArchiveRouter from "./student-archive";
+import ticketsRouter from "./tickets";
 
 const router: IRouter = Router();
 
@@ -174,5 +175,9 @@ router.use(pricingRouter);
 // Phase 7 evaluation: assignment, decisions, appeals, audit (additive, isolated)
 router.use(reviewRouter);
 router.use(productTourRouter);
+// Support tickets: students raise them, staff assign / answer / close them
+// (additive, isolated, season-scoped). Deleting tickets.ts means removing this
+// line and its import above.
+router.use(ticketsRouter);
 
 export default router;

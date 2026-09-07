@@ -62,6 +62,25 @@ export default function TeamDashboardSeason2() {
     lbConfig?.bannerContent?.timeText?.trim() ||
     DEFAULT_BANNER_CONTENT.timeText;
 
+  // Performance-snapshot filter. Component state on purpose — a reload returns
+  // to the student's own season, so nobody is left looking at last season's
+  // figures believing they are this season's.
+  //
+  // These three hooks MUST stay above the early returns below. React counts
+  // hooks per render, so a hook that only runs once `summary` has arrived
+  // makes the loaded render call more hooks than the loading one — which is
+  // exactly React error #310, and it crashes the whole dashboard.
+  const { seasons, viewingId } = useSeason();
+  const [snapshotScope, setSnapshotScope] = useState<SeasonScope | null>(null);
+
+  // Only fetch when a filter is actually chosen; the default figures already
+  // came with the summary, so the unfiltered dashboard costs no extra request.
+  const { data: filtered, isFetching: snapshotLoading } = useQuery({
+    queryKey: ["student-performance", String(snapshotScope ?? "current")],
+    queryFn: () => getPerformance(snapshotScope as SeasonScope),
+    enabled: snapshotScope != null,
+  });
+
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -103,20 +122,6 @@ export default function TeamDashboardSeason2() {
     nextTier != null
       ? ((streak - tierFloor) / (nextTier - tierFloor)) * 100
       : 100;
-
-  // Performance-snapshot filter. Component state on purpose — a reload returns
-  // to the student's own season, so nobody is left looking at last season's
-  // figures believing they are this season's.
-  const { seasons, viewingId } = useSeason();
-  const [snapshotScope, setSnapshotScope] = useState<SeasonScope | null>(null);
-
-  // Only fetch when a filter is actually chosen; the default figures already
-  // came with the summary, so the unfiltered dashboard costs no extra request.
-  const { data: filtered, isFetching: snapshotLoading } = useQuery({
-    queryKey: ["student-performance", String(snapshotScope ?? "current")],
-    queryFn: () => getPerformance(snapshotScope as SeasonScope),
-    enabled: snapshotScope != null,
-  });
 
   // A filter only replaces the four snapshot figures. Everything else on the
   // dashboard — GRIT Miles, the journal, the progress centre — keeps meaning

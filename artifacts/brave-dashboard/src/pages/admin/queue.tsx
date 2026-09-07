@@ -67,7 +67,10 @@ import {
 } from "@/components/ui/popover";
 import { DocumentLinkButton } from "@/components/document-viewer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listRejectionReasons } from "@/lib/rejection-reasons-api";
+import {
+  listRejectionReasons,
+  REJECTION_REASONS_QUERY_KEY,
+} from "@/lib/rejection-reasons-api";
 import { downloadReviewQueueCsv } from "@/lib/review-queue-export";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useRef, useState } from "react";
@@ -130,6 +133,29 @@ type SortOption =
   | "team_sum_desc"
   | "team_sum_asc";
 
+// Shared query for the admin-managed reject reasons.
+//
+// WHY A SHARED HOOK. The chips used to fetch on mount — i.e. at the moment the
+// reject dialog opened — so every rejection began with an empty gap while a
+// round-trip completed. The queue page now calls this once on load, which puts
+// the list in the cache long before anybody clicks Reject; the dialog then
+// reads that cache and paints immediately.
+//
+// The list is a short, rarely-edited catalogue, so it is cached for the whole
+// session and not refetched on focus or remount. An admin who edits it in
+// Config invalidates this key there, which is what keeps it correct.
+function useRejectionReasons() {
+  return useQuery({
+    queryKey: REJECTION_REASONS_QUERY_KEY,
+    queryFn: listRejectionReasons,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+}
+
 // Small chip row that inserts a suggested reason into the reject textarea.
 // Reasons are admin-managed from Config → Revenue Rejection Reasons (was a
 // hardcoded list before).
@@ -138,12 +164,29 @@ function RejectReasonSuggestions({
 }: {
   onPick: (text: string) => void;
 }) {
-  const { data } = useQuery({
-    queryKey: ["admin-rejection-reasons"],
-    queryFn: listRejectionReasons,
-    staleTime: 60_000,
-  });
+  const { data, isLoading } = useRejectionReasons();
   const reasons = data?.items ?? [];
+  // Only on a genuinely cold cache — normally the page-load prefetch means
+  // this never shows. Placeholder chips keep the dialog from resizing under
+  // the cursor when the real ones arrive.
+  if (isLoading && reasons.length === 0) {
+    return (
+      <div className="space-y-1.5">
+        <p className="text-xs text-muted-foreground">
+          Quick reasons — tap to add:
+        </p>
+        <div className="flex flex-wrap gap-1.5" aria-hidden>
+          {[180, 240, 200].map((w) => (
+            <span
+              key={w}
+              className="h-7 animate-pulse rounded-full bg-muted"
+              style={{ width: w }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (reasons.length === 0) return null;
   return (
     <div className="space-y-1.5">
@@ -201,6 +244,9 @@ function readStored<T extends string>(
 
 export default function AdminQueue() {
   const { toast } = useToast();
+  // Warm the reject-reason chips while the admin is still reading the queue,
+  // so opening the reject dialog costs no network wait at all.
+  useRejectionReasons();
   const [tab, setTab] = useState<Tab>(() =>
     readStored<Tab>(
       QUEUE_TAB_KEY,
@@ -957,7 +1003,7 @@ function BulkReviewBar({
         open={open === "reject"}
         onOpenChange={(o) => (!o && !running ? setOpen(null) : undefined)}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Reject {items.length} entries</DialogTitle>
           </DialogHeader>
@@ -971,6 +1017,7 @@ function BulkReviewBar({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 required
+                className="min-h-[110px]"
               />
               <RejectReasonSuggestions
                 onPick={(text) => setNotes((prev) => appendReason(prev, text))}
@@ -1287,7 +1334,7 @@ function PendingActions({ item }: { item: QueueItem }) {
         open={open === "reject"}
         onOpenChange={(o) => (!o ? reset() : null)}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Reject Revenue Entry</DialogTitle>
           </DialogHeader>
@@ -1301,6 +1348,7 @@ function PendingActions({ item }: { item: QueueItem }) {
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 required
+                className="min-h-[110px]"
               />
               <RejectReasonSuggestions
                 onPick={(text) =>
@@ -1385,7 +1433,7 @@ function RejectAction({ item }: { item: QueueItem }) {
         <X className="w-4 h-4 mr-1" /> Reject
       </Button>
       <Dialog open={open} onOpenChange={(o) => (!o ? reset() : null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Reject Revenue Entry</DialogTitle>
           </DialogHeader>
@@ -1399,6 +1447,7 @@ function RejectAction({ item }: { item: QueueItem }) {
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 required
+                className="min-h-[110px]"
               />
               <RejectReasonSuggestions
                 onPick={(text) =>

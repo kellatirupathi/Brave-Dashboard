@@ -82,6 +82,7 @@ import { Label } from "@/components/ui/label";
 import { BraveAppSettingsCard } from "@/components/brave-app-settings-card";
 import { UserStatsCard } from "@/components/user-stats-card";
 import { LeadsControlCard } from "@/components/leads-control-card";
+import { TicketsControlCard } from "@/components/tickets-control-card";
 import { regenerateProgrammeWeeks } from "@/lib/progress-api";
 
 type ChatbotProvider = "cloudflare" | "cerebras";
@@ -440,7 +441,12 @@ export default function AdminConfig() {
       icon: CalendarDays,
     },
     { id: "grit", slug: "grit-miles", label: "GRIT Miles", icon: Trophy },
-    { id: "user-stats", slug: "user-stats", label: "User Stats", icon: BarChart3 },
+    {
+      id: "user-stats",
+      slug: "user-stats",
+      label: "User Stats",
+      icon: BarChart3,
+    },
     ...(isSeason2
       ? [
           {
@@ -488,7 +494,12 @@ export default function AdminConfig() {
       label: "Teams & Coordinators",
       icon: Users,
     },
-    { id: "whatsapp", slug: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+    {
+      id: "whatsapp",
+      slug: "whatsapp",
+      label: "WhatsApp",
+      icon: MessageCircle,
+    },
     {
       id: "integrations",
       slug: "integrations",
@@ -538,7 +549,11 @@ export default function AdminConfig() {
   useEffect(() => {
     if (!viewing || !activeSlug || sectionSlug === activeSlug) return;
     setLocation(
-      legacyToCanonicalPath(`/admin/config/${activeSlug}`, "admin", viewing.slug),
+      legacyToCanonicalPath(
+        `/admin/config/${activeSlug}`,
+        "admin",
+        viewing.slug,
+      ),
       { replace: true },
     );
   }, [viewing, activeSlug, sectionSlug, setLocation]);
@@ -755,7 +770,10 @@ export default function AdminConfig() {
           {activeSection === "user-stats" && <UserStatsCard />}
 
           {activeSection === "leads-control" && isSeason2 && (
-            <LeadsControlCard />
+            <div className="space-y-6">
+              <LeadsControlCard />
+              <TicketsControlCard />
+            </div>
           )}
 
           {/* ── Notifications & Reminders ── */}
