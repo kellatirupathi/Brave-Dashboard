@@ -24,10 +24,13 @@ import {
   createRejectionReason,
   updateRejectionReason,
   deleteRejectionReason,
+  REJECTION_REASONS_QUERY_KEY,
   type RejectionReason,
 } from "@/lib/rejection-reasons-api";
 
-export const REJECTION_REASONS_QUERY_KEY = ["admin-rejection-reasons"];
+// Re-exported for existing importers; defined with the API helpers so the
+// queue and this card cannot disagree about what to invalidate.
+export { REJECTION_REASONS_QUERY_KEY };
 
 export function RejectionReasonsCard() {
   const { toast } = useToast();
