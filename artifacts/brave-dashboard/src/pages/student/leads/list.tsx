@@ -5,7 +5,7 @@
 // the season being viewed.
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Plus,
   MapPin,
@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Users,
   CalendarDays,
+  ArrowRight,
   Mic,
   Pause,
   Play,
@@ -57,7 +58,6 @@ import {
   leadKeys,
   listLeads,
   OPEN_STAGES,
-  STAGE_LABEL,
   type CreateLeadBody,
   type LeadListRow,
   leadRef,
@@ -923,6 +923,51 @@ function MobileLeadCard({
   );
 }
 
+/** Meaning → colour. Approved reads positive, rejected negative, and the rest
+ *  is neutral work still to do. */
+const STEP_TONE: Record<LeadListRow["nextStepTone"], string> = {
+  todo: "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10",
+  waiting: "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100",
+  good: "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+  bad: "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100",
+};
+
+/**
+ * What to do next with this lead, and a way straight to it.
+ *
+ * The whole card is already a Link, so this cannot be one too — nesting them
+ * is invalid and browsers resolve it unpredictably. It navigates on click and
+ * stops the event, so pressing the chip goes to the step while pressing
+ * anywhere else on the card still opens the lead.
+ */
+function NextStepChip({ lead }: { lead: LeadListRow }) {
+  const [, navigate] = useLocation();
+  const settled =
+    lead.nextStepTone === "good" || lead.nextStepTone === "bad";
+  return (
+    <button
+      type="button"
+      data-testid={`lead-next-step-${lead.id}`}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(lead.nextStepHref);
+      }}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        STEP_TONE[lead.nextStepTone],
+      )}
+    >
+      {lead.nextStepLabel}
+      {/* A settled outcome is a report, not an instruction, so it loses the
+          arrow that says "there is something to do here". */}
+      {!settled ? (
+        <ArrowRight className="h-3 w-3" aria-hidden="true" />
+      ) : null}
+    </button>
+  );
+}
+
 function LeadCard({
   lead,
   tone,
@@ -948,13 +993,11 @@ function LeadCard({
               <Phone className="h-3 w-3" aria-hidden="true" />
               {lead.phone}
             </span>
-            <Badge variant="outline" className="font-normal">
-              {STAGE_LABEL[lead.stage]}
-            </Badge>
             <span className="tabular-nums">
               {lead.interactionCount} interaction
               {lead.interactionCount === 1 ? "" : "s"}
             </span>
+            <NextStepChip lead={lead} />
           </div>
         </div>
 

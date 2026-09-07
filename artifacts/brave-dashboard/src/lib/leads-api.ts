@@ -107,6 +107,13 @@ export type LeadListRow = Lead & {
   /** Null when nothing has been logged yet. */
   silentDays: number | null;
   needsFollowUp: boolean;
+  /**
+   * What to do next with this lead, decided server-side where the project and
+   * submission state already live. `tone` is meaning, not colour.
+   */
+  nextStepLabel: string;
+  nextStepTone: "todo" | "waiting" | "good" | "bad";
+  nextStepHref: string;
 };
 
 export type LeadDetail = {

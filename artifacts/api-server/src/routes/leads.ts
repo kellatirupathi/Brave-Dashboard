@@ -365,6 +365,91 @@ router.delete(
 
 // ── list + detail ───────────────────────────────────────────────────────────
 
+/**
+ * What the student should do next with a lead, and where that happens.
+ *
+ * The board used to show the STAGE, which says where a lead got to rather than
+ * what it now needs — three leads all reading "Converted" tells nobody which
+ * one to open. This answers the other question.
+ *
+ * Ordered so the FIRST unmet thing wins, which is the one action worth naming.
+ * Once a BRD is submitted the lead has left the student's hands, so the status
+ * reports the review outcome instead of asking for anything.
+ *
+ * `tone` is the meaning, not the colour — the client maps it. Approved reads
+ * positive, rejected negative, and everything in between is neutral work.
+ */
+type NextStepTone = "todo" | "waiting" | "good" | "bad";
+
+function nextStepFor(
+  lead: { id: number; stage: string; publicId: string | null },
+  interactionCount: number,
+  project:
+    | {
+        project_id: number;
+        has_work: boolean;
+        has_proof: boolean;
+        has_phases: boolean;
+        has_payment: boolean;
+        entry_status: string | null;
+      }
+    | undefined,
+): {
+  nextStepLabel: string;
+  nextStepTone: NextStepTone;
+  nextStepHref: string;
+} {
+  const ref = lead.publicId ?? String(lead.id);
+
+  // Reviewed, or awaiting review: the outcome is the status.
+  if (project?.entry_status) {
+    const at = `/leads/${ref}/delivery/${project.project_id}`;
+    if (project.entry_status === "verified") {
+      return { nextStepLabel: "Approved", nextStepTone: "good", nextStepHref: at };
+    }
+    if (project.entry_status === "rejected") {
+      return { nextStepLabel: "Rejected", nextStepTone: "bad", nextStepHref: at };
+    }
+    if (project.entry_status === "submitted") {
+      return {
+        nextStepLabel: "Pending review",
+        nextStepTone: "waiting",
+        nextStepHref: at,
+      };
+    }
+  }
+
+  // A project exists: name the first Gate C item still outstanding.
+  if (project) {
+    const at = `/leads/${ref}/delivery/${project.project_id}`;
+    const ready =
+      interactionCount > 0 &&
+      project.has_work &&
+      project.has_proof &&
+      project.has_phases &&
+      project.has_payment;
+    return ready
+      ? { nextStepLabel: "Submit for review", nextStepTone: "todo", nextStepHref: at }
+      : { nextStepLabel: "Delivery & payments", nextStepTone: "todo", nextStepHref: at };
+  }
+
+  // Converted but no project yet.
+  if (lead.stage === "converted") {
+    return {
+      nextStepLabel: "Open the project",
+      nextStepTone: "todo",
+      nextStepHref: `/leads/${ref}/project`,
+    };
+  }
+
+  // Still being worked. The trail is what this stage is for.
+  return {
+    nextStepLabel: "Log an interaction",
+    nextStepTone: "todo",
+    nextStepHref: `/leads/${ref}`,
+  };
+}
+
 router.get("/leads", async (req: Request, res: Response): Promise<void> => {
   const scope = await resolveTeamScope(req, res);
   if (!scope) return;
@@ -396,6 +481,58 @@ router.get("/leads", async (req: Request, res: Response): Promise<void> => {
     .groupBy(leadInteractionsTable.leadId);
   const byLead = new Map(counts.map((c) => [c.leadId, c]));
 
+  // Project + submission state per lead, so a card can say what happens NEXT
+  // rather than only where the lead got to. One grouped query rather than
+  // composeBrd() per lead, which would be an N+1 across the whole board.
+  //
+  // The five booleans below mirror Gate C's five items in brd-composer.ts
+  // EXACTLY — interaction, work, proof, phases, payment. If that checklist
+  // changes, this must change with it, or a card will invite a student to
+  // submit something the server then refuses.
+  const projectRows = await db.execute<{
+    lead_id: number;
+    project_id: number;
+    has_work: boolean;
+    has_proof: boolean;
+    has_phases: boolean;
+    has_payment: boolean;
+    entry_status: string | null;
+  }>(sql`
+    SELECT
+      p.lead_id,
+      p.id AS project_id,
+      (p.title IS NOT NULL AND btrim(p.title) <> ''
+        AND p.service_category IS NOT NULL
+        AND p.problem_statement IS NOT NULL
+        AND p.solution_description IS NOT NULL)                  AS has_work,
+      (COALESCE(p.live_product_url, p.demo_video_url,
+                p.source_code_url, p.prototype_url) IS NOT NULL) AS has_proof,
+      EXISTS (SELECT 1 FROM project_phases ph
+               WHERE ph.project_id = p.id)                       AS has_phases,
+      EXISTS (SELECT 1 FROM payments pay
+               WHERE pay.project_id = p.id)                      AS has_payment,
+      (SELECT re.status FROM revenue_entries re
+        WHERE re.project_id = p.id
+        ORDER BY re.id DESC LIMIT 1)                             AS entry_status
+    FROM projects p
+    WHERE p.team_id = ${scope.teamId}
+      AND p.season_id = ${season}
+      AND p.lead_id IS NOT NULL
+  `);
+  const byLeadProject = new Map(
+    (projectRows as unknown as {
+      rows: Array<{
+        lead_id: number;
+        project_id: number;
+        has_work: boolean;
+        has_proof: boolean;
+        has_phases: boolean;
+        has_payment: boolean;
+        entry_status: string | null;
+      }>;
+    }).rows.map((r) => [r.lead_id, r]),
+  );
+
   const today = todayIso();
   res.json(
     rows.map((l) => {
@@ -417,6 +554,10 @@ router.get("/leads", async (req: Request, res: Response): Promise<void> => {
         // 10 / 21 / 30-day thresholds the crons use.
         silentDays,
         needsFollowUp: silentDays != null && silentDays >= 10,
+        // What the student should do next with this lead. The card renders
+        // this directly, so the decision lives here where the project and
+        // submission state already are.
+        ...nextStepFor(l, c?.n ?? 0, byLeadProject.get(l.id)),
       };
     }),
   );
