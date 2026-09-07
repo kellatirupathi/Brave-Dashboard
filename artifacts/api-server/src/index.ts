@@ -1059,6 +1059,65 @@ async function ensureLeadPipeline(): Promise<void> {
     logger.error({ err }, "Failed to ensure leads table");
   }
 
+  // Support tickets. Enums first — CREATE TYPE has no IF NOT EXISTS, so each
+  // is guarded by a catch rather than by a condition.
+  try {
+    await db.execute(sql`
+      DO $$ BEGIN
+        CREATE TYPE support_ticket_status AS ENUM ('open', 'in_progress', 'resolved');
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    `);
+    await db.execute(sql`
+      DO $$ BEGIN
+        CREATE TYPE support_ticket_category AS ENUM
+          ('technical', 'leads', 'revenue', 'team', 'account', 'other');
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS support_tickets (
+        id serial PRIMARY KEY,
+        public_id uuid NOT NULL DEFAULT gen_random_uuid(),
+        season_id integer NOT NULL DEFAULT 1,
+        created_by text NOT NULL,
+        team_id integer,
+        subject text NOT NULL,
+        description text NOT NULL,
+        category support_ticket_category NOT NULL DEFAULT 'other',
+        attachments jsonb,
+        status support_ticket_status NOT NULL DEFAULT 'open',
+        assigned_to text,
+        assigned_at timestamptz,
+        resolution text,
+        resolved_by text,
+        resolved_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(
+      sql`CREATE UNIQUE INDEX IF NOT EXISTS support_tickets_public_id_unique ON support_tickets (public_id)`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS support_tickets_season_idx ON support_tickets (season_id)`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS support_tickets_created_by_idx ON support_tickets (created_by)`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS support_tickets_status_idx ON support_tickets (status)`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS support_tickets_assigned_idx ON support_tickets (assigned_to)`,
+    );
+    await db.execute(sql`
+      ALTER TABLE programme_config
+        ADD COLUMN IF NOT EXISTS tickets_control_permissions jsonb,
+        ADD COLUMN IF NOT EXISTS tickets_menu_enabled boolean NOT NULL DEFAULT false
+    `);
+  } catch (err) {
+    logger.error({ err }, "Failed to ensure support_tickets table");
+  }
+
   // 3) lead_interactions.
   try {
     await db.execute(sql`

@@ -1255,6 +1255,14 @@ export const programmeConfigTable = pgTable("programme_config", {
     .notNull()
     .default(false),
   leadsSubmissionsLockMessage: text("leads_submissions_lock_message"),
+  // Support tickets. Same shape as the leads controls above: one jsonb map of
+  // add/view/edit/delete rather than a column per checkbox. Null uses the
+  // server defaults — add and view allowed, edit and delete denied — so a
+  // student can raise a ticket and read it back but never rewrite history a
+  // reviewer has already acted on.
+  ticketsControlPermissions: jsonb("tickets_control_permissions"),
+  // Whether students see the Ticket Support entry at all.
+  ticketsMenuEnabled: boolean("tickets_menu_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
@@ -2624,3 +2632,79 @@ export const whatsappSendsTable = pgTable(
 );
 
 export type WhatsappSend = typeof whatsappSendsTable.$inferSelect;
+
+// ── support_tickets ─────────────────────────────────────────────────────────
+// Student-raised support requests, resolved by staff.
+//
+// SEASON-SCOPED, deliberately: a ticket belongs to the run of the programme it
+// was raised in, so Season 1's support history stays separate from Season 2's
+// rather than the two piling into one list.
+export const supportTicketStatusEnum = pgEnum("support_ticket_status", [
+  "open",
+  "in_progress",
+  "resolved",
+]);
+
+export const supportTicketCategoryEnum = pgEnum("support_ticket_category", [
+  "technical",
+  "leads",
+  "revenue",
+  "team",
+  "account",
+  "other",
+]);
+
+export const supportTicketsTable = pgTable(
+  "support_tickets",
+  {
+    id: serial("id").primaryKey(),
+    // What a student sees and quotes when they ask about a ticket. A serial id
+    // would be guessable and would leak how many tickets exist programme-wide.
+    publicId: uuid("public_id").notNull().defaultRandom(),
+    seasonId: integer("season_id").notNull().default(1),
+
+    // Who raised it. Kept even if they later leave a team — a ticket is the
+    // person's, not the team's.
+    createdBy: text("created_by").notNull(),
+    teamId: integer("team_id"),
+
+    subject: text("subject").notNull(),
+    description: text("description").notNull(),
+    category: supportTicketCategoryEnum("category").notNull().default("other"),
+    // Object paths for anything the student attached, as a jsonb string[] —
+    // the same shape lead evidence and interaction attachments already use.
+    attachments: jsonb("attachments"),
+
+    status: supportTicketStatusEnum("status").notNull().default("open"),
+    // Set when a staff member takes the ticket. Reassignment simply overwrites
+    // it, so a ticket always names exactly one current owner.
+    assignedTo: text("assigned_to"),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
+
+    // Sanitised HTML, written in the rich-text editor.
+    resolution: text("resolution"),
+    resolvedBy: text("resolved_by"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("support_tickets_public_id_unique").on(t.publicId),
+    index("support_tickets_season_idx").on(t.seasonId),
+    index("support_tickets_created_by_idx").on(t.createdBy),
+    index("support_tickets_status_idx").on(t.status),
+    index("support_tickets_assigned_idx").on(t.assignedTo),
+  ],
+);
+
+export const insertSupportTicketSchema = createInsertSchema(
+  supportTicketsTable,
+).omit({ id: true, publicId: true, createdAt: true, updatedAt: true });
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+export type SupportTicket = typeof supportTicketsTable.$inferSelect;

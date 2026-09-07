@@ -43,6 +43,7 @@ import {
   Inbox,
   Vote,
   Lock,
+  LifeBuoy,
 } from "lucide-react";
 
 import { docsHref } from "@/lib/docs-links";
@@ -385,6 +386,28 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const hasPastSeasons = (archiveSeasons?.seasons ?? []).some(
     (s) => s.journalCount > 0 || s.projectCount > 0,
   );
+
+  // Ticket Support: the entry appears only once an admin has switched the
+  // feature on for this season AND this student is allowed to see tickets.
+  // Defaults are off, so nothing appears until Config says so.
+  const { data: ticketsConfig } = useQuery<{
+    menuEnabled: boolean;
+    permissions: { add: boolean; view: boolean };
+  }>({
+    queryKey: ["tickets-config"],
+    queryFn: async () => {
+      const res = await fetch("/api/tickets/config", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to load ticket settings");
+      return res.json();
+    },
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  const ticketsVisibleForStudent =
+    !!ticketsConfig?.menuEnabled &&
+    (!!ticketsConfig?.permissions?.view || !!ticketsConfig?.permissions?.add);
 
   // True once every visibility flag above has settled. `isLoading` is false
   // for disabled queries, so this is only ever false for students — other
@@ -764,6 +787,23 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
 
         {role === "student" && (
           <div className="px-4 pb-2">
+            {ticketsVisibleForStudent && (
+              <Link href="/tickets" onClick={onNavigate}>
+                <span
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
+                    location === "/tickets" || location.startsWith("/tickets/")
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                  data-testid="link-sidebar-tickets"
+                >
+                  <LifeBuoy className="w-4 h-4" />
+                  <span className="flex-1">Ticket Support</span>
+                </span>
+              </Link>
+            )}
+
             <button
               type="button"
               onClick={() => setShowIntroVideo(true)}
@@ -788,6 +828,26 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
             </a>
           </div>
         )}
+
+        {(role === "admin" || role === "coordinator") &&
+          !isHidden(adminAccess, "/admin/tickets") && (
+            <div className="px-4 pb-2">
+              <Link href="/admin/tickets" onClick={onNavigate}>
+                <span
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
+                    location === "/admin/tickets"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )}
+                  data-testid="link-sidebar-admin-tickets"
+                >
+                  <LifeBuoy className="w-4 h-4" />
+                  <span className="flex-1">Ticket Support</span>
+                </span>
+              </Link>
+            </div>
+          )}
 
         <div className="p-4 border-t border-sidebar-border">
           <DropdownMenu>

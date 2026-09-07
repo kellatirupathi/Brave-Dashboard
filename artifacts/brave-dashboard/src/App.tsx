@@ -46,6 +46,8 @@ import TeamProfile from "@/pages/student/team";
 import GetStarted from "@/pages/student/get-started";
 import GritMilesPage from "@/pages/student/demo-day";
 import PastSeasons from "@/pages/student/past-seasons";
+import StudentTickets from "@/pages/student/tickets";
+import AdminTickets from "@/pages/admin/tickets";
 import DemoDayUpload from "@/pages/student/demo-day-upload";
 import TeamDashboardLegacy from "@/pages/student/dashboard-legacy";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
@@ -205,8 +207,7 @@ function seasonDashboardHref(role: CanonicalSeasonRole, slug: string): string {
 
 function seasonHref(href: string): string {
   const route =
-    ROUTER_BASE &&
-    (href === ROUTER_BASE || href.startsWith(ROUTER_BASE + "/"))
+    ROUTER_BASE && (href === ROUTER_BASE || href.startsWith(ROUTER_BASE + "/"))
       ? href.slice(ROUTER_BASE.length) || "/"
       : href;
   const current = parseCanonicalSeasonPath(browserRoute());
@@ -230,10 +231,7 @@ function readLegacyLocation(): string {
  */
 function useSeasonLocation(): [
   string,
-  (
-    to: string,
-    options?: { replace?: boolean; state?: unknown },
-  ) => void,
+  (to: string, options?: { replace?: boolean; state?: unknown }) => void,
 ] {
   // See useBrowserRouteState for why this is not useState + useEffect.
   const location = useSyncExternalStore(
@@ -290,7 +288,12 @@ function SeasonRouteRedirect({
 
 function SeasonUrlGate({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { seasons, viewing, viewingId, isLoading: seasonsLoading } = useSeason();
+  const {
+    seasons,
+    viewing,
+    viewingId,
+    isLoading: seasonsLoading,
+  } = useSeason();
   // This must track the real canonical URL, not Wouter's adapted legacy path.
   // The first-login redirect changes "/" to
   // "/student/season/<slug>/dashboard", but both map internally to "/".
@@ -313,7 +316,10 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
       if (!viewing) return <BraveLoader />;
       return (
         <SeasonRouteRedirect
-          to={seasonDashboardHref(user.role as CanonicalSeasonRole, viewing.slug)}
+          to={seasonDashboardHref(
+            user.role as CanonicalSeasonRole,
+            viewing.slug,
+          )}
         />
       );
     }
@@ -375,7 +381,11 @@ function SeasonUrlGate({ children }: { children: React.ReactNode }) {
   // the docs URL itself), so it must never be canonicalised.
   if (publicPaths.has(rawPath) || rawPath.startsWith("/docs/"))
     return <>{children}</>;
-  if (!viewing || !user?.role || !["admin", "coordinator", "student"].includes(user.role)) {
+  if (
+    !viewing ||
+    !user?.role ||
+    !["admin", "coordinator", "student"].includes(user.role)
+  ) {
     return <BraveLoader />;
   }
   return (
@@ -709,7 +719,10 @@ function Router() {
         {/* Student Routes */}
         <Route path="/projects">
           <SeasonFlowRoute requires="projects">
-            <ProtectedRoute component={ProjectsList} allowedRoles={["student"]} />
+            <ProtectedRoute
+              component={ProjectsList}
+              allowedRoles={["student"]}
+            />
           </SeasonFlowRoute>
         </Route>
         <Route path="/projects/:id">
@@ -726,12 +739,18 @@ function Router() {
             specific path must be declared first: wouter matches in order. */}
         <Route path="/leads/:id/delivery/:projectId">
           <SeasonFlowRoute requires="pipeline">
-            <ProtectedRoute component={LeadDelivery} allowedRoles={["student"]} />
+            <ProtectedRoute
+              component={LeadDelivery}
+              allowedRoles={["student"]}
+            />
           </SeasonFlowRoute>
         </Route>
         <Route path="/leads/:id/project">
           <SeasonFlowRoute requires="pipeline">
-            <ProtectedRoute component={LeadProject} allowedRoles={["student"]} />
+            <ProtectedRoute
+              component={LeadProject}
+              allowedRoles={["student"]}
+            />
           </SeasonFlowRoute>
         </Route>
         <Route path="/leads/:id">
@@ -749,6 +768,12 @@ function Router() {
         <Route path="/get-app" component={GetApp} />
         <Route path="/leaderboard">
           <ProtectedRoute component={Leaderboard} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/tickets">
+          <ProtectedRoute
+            component={StudentTickets}
+            allowedRoles={["student"]}
+          />
         </Route>
         <Route path="/past-seasons">
           <ProtectedRoute component={PastSeasons} allowedRoles={["student"]} />
@@ -1021,6 +1046,12 @@ function Router() {
             /admin/season/2.0/config/seasons onto /admin/config/seasons. */}
         <Route path="/admin/config/:section">
           <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/tickets">
+          <ProtectedRoute
+            component={AdminTickets}
+            allowedRoles={["admin", "coordinator"]}
+          />
         </Route>
         <Route path="/admin/config">
           <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
