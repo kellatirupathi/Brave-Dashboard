@@ -11,6 +11,7 @@ import { Link } from "wouter";
 import {
   Activity,
   ArrowRight,
+  FileText,
   Bell,
   BookOpenCheck,
   BriefcaseBusiness,
@@ -338,6 +339,49 @@ function AttentionItem({
   );
 }
 
+/**
+ * One piece of work waiting on an admin, in the header row.
+ *
+ * Both cards share this component rather than repeating a class string,
+ * because the two sit side by side and any drift in padding or icon size is
+ * visible as a mismatch. `items-stretch` on the row plus `h-full` here keeps
+ * their heights equal whatever the label wraps to.
+ */
+function PendingWorkCard({
+  href,
+  testId,
+  icon: Icon,
+  count,
+  label,
+  detail,
+}: {
+  href: string;
+  testId: string;
+  icon: React.ComponentType<{ className?: string }>;
+  count: number;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <Link
+      href={href}
+      data-testid={testId}
+      className="flex h-full min-w-[190px] flex-1 items-center gap-2.5 rounded-lg border border-amber-400/50 bg-amber-50 px-3.5 py-2 transition-colors hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 sm:min-w-[215px] sm:flex-none"
+    >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-200/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="mr-auto min-w-0 leading-tight">
+        <span className="block text-xs font-semibold text-amber-900 dark:text-amber-100">
+          {count} {label}
+        </span>
+        <span className={cn("block text-[10px]", MUTED)}>{detail}</span>
+      </span>
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-200" />
+    </Link>
+  );
+}
+
 export default function AdminDashboardV2() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -510,33 +554,50 @@ export default function AdminDashboardV2() {
               Program-wide health, pending work, and live activity at a glance.
             </p>
           </div>
-          {/* Roster access requests. Season 1 shows these in a full-width
+          {/* Work waiting on an admin. Season 1 shows these in a full-width
               banner under the header; this season's dashboard is dense enough
               that a banner would push the KPIs below the fold, so the same
-              signal rides in the header row instead. Hidden at zero — an
+              signals ride in the header row instead. Each hides at zero — an
               always-present "0 pending" trains people to stop looking. */}
-          {summary.pendingAccessRequestCount > 0 ? (
-            <Link
-              href="/admin/roster"
-              data-testid="admin-v2-roster-requests-card"
-              className="order-last flex items-center gap-2.5 self-start rounded-lg border border-amber-400/50 bg-amber-50 px-3.5 py-2 transition-colors hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 sm:order-none sm:min-w-[210px]"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-200/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
-                <UserPlus className="h-4 w-4" />
-              </span>
-              <span className="min-w-0 leading-tight sm:mr-auto">
-                <span className="block text-xs font-semibold text-amber-900 dark:text-amber-100">
-                  {summary.pendingAccessRequestCount} roster{" "}
-                  {summary.pendingAccessRequestCount === 1
-                    ? "request"
-                    : "requests"}
-                </span>
-                <span className={cn("block text-[10px]", MUTED)}>
-                  Awaiting your review
-                </span>
-              </span>
-              <ArrowRight className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-200" />
-            </Link>
+          {summary.pendingAccessRequestCount > 0 ||
+          summary.pendingReviewCount > 0 ? (
+            <div className="order-last flex flex-wrap items-stretch gap-2 self-start sm:order-none">
+              {summary.pendingAccessRequestCount > 0 ? (
+                <PendingWorkCard
+                  href="/admin/roster"
+                  testId="admin-v2-roster-requests-card"
+                  icon={UserPlus}
+                  count={summary.pendingAccessRequestCount}
+                  label={
+                    summary.pendingAccessRequestCount === 1
+                      ? "roster request"
+                      : "roster requests"
+                  }
+                  detail="Awaiting your review"
+                />
+              ) : null}
+              {/* Submitted only — an entry already verified or rejected is not
+                  waiting on anybody, so counting it here would overstate the
+                  queue. */}
+              {summary.pendingReviewCount > 0 ? (
+                <PendingWorkCard
+                  href="/admin/queue"
+                  testId="admin-v2-brd-submitted-card"
+                  icon={FileText}
+                  count={summary.pendingReviewCount}
+                  label={
+                    summary.pendingReviewCount === 1
+                      ? "BRD submitted"
+                      : "BRDs submitted"
+                  }
+                  detail={
+                    summary.overdueReviewCount > 0
+                      ? `${summary.overdueReviewCount} overdue`
+                      : "Pending review"
+                  }
+                />
+              ) : null}
+            </div>
           ) : null}
           <div className="flex items-center gap-1.5 self-start">
             <SeasonSwitcher />
