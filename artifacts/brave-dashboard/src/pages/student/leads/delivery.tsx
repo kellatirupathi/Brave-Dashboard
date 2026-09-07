@@ -1422,7 +1422,7 @@ export default function LeadDelivery() {
           <AlertDialogHeader>
             <AlertDialogTitle>Submit this project for review?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your BRD goes to a coordinator as it stands. The project, its
+              Your BRD goes to the BRAVE team as it stands. The project, its
               phases and its payments are locked while it is being reviewed, so
               check the preview first if you still need to change anything.
             </AlertDialogDescription>
