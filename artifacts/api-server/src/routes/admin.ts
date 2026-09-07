@@ -277,6 +277,9 @@ router.get("/admin/review-queue", async (req, res): Promise<void> => {
       isOverdue: status === "submitted" && submittedAt < cutoff,
       supportingDocUrl: null,
       brdUrl: e.brdUrl ?? null,
+      // Season 2 entries have no PDF; the BRD is composed from records. The id
+      // lets the queue fetch that document for review.
+      projectId: e.projectId ?? null,
       status: e.status as "submitted" | "verified" | "rejected",
       verifiedAmount: e.verifiedAmount ?? null,
       verifiedAt: e.verifiedAt ?? null,

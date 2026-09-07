@@ -107,6 +107,13 @@ export type LeadListRow = Lead & {
   /** Null when nothing has been logged yet. */
   silentDays: number | null;
   needsFollowUp: boolean;
+  /**
+   * What to do next with this lead, decided server-side where the project and
+   * submission state already live. `tone` is meaning, not colour.
+   */
+  nextStepLabel: string;
+  nextStepTone: "todo" | "waiting" | "good" | "bad";
+  nextStepHref: string;
 };
 
 export type LeadDetail = {
@@ -540,6 +547,9 @@ export type ComposedBrd = {
     firstMeetingDate: string;
     meetingMode: string;
     geoCaptured: boolean;
+    geoLat: string | null;
+    geoLng: string | null;
+    geoMapUrl: string | null;
   };
   problemStatement: string | null;
   solutionDescription: string | null;
@@ -548,6 +558,8 @@ export type ComposedBrd = {
   links: Record<string, string | null>;
   /** Capture evidence from the lead itself: shopfront photo, visiting card. */
   clientEvidence: string[];
+  /** Content type per stored object path — uploads carry no extension. */
+  attachmentTypes: Record<string, string>;
   interactionTrail: Array<{
     date: string;
     type: string;

@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/format";
+import { Spinner } from "@/components/ui/spinner";
+import type { SeasonScope } from "@/lib/student-archive-api";
 import { cn } from "@/lib/utils";
 import { JournalWeekTracker } from "@/components/journal-week-tracker";
 import { NotificationsBell } from "@/components/notifications-bell";
@@ -155,7 +157,78 @@ function RankValue({
 
 export type DesktopDashboardProps = MobileDashboardProps & {
   demoEligible: boolean;
+  /** Performance-snapshot filter. Null means "this season", the default. */
+  snapshotScope?: SeasonScope | null;
+  setSnapshotScope?: (next: SeasonScope | null) => void;
+  snapshotLoading?: boolean;
+  snapshotSeasons?: ReadonlyArray<{ id: number; slug: string }>;
+  currentSeasonId?: number | null;
 };
+
+/**
+ * Season filter for the performance snapshot.
+ *
+ * Only the four snapshot figures change; the rest of the dashboard keeps
+ * meaning "this season". The chosen scope is NOT persisted — a reload returns
+ * to the student's own season, so nobody is left reading last season's numbers
+ * as if they were current.
+ *
+ * Renders nothing when there is only one season to look at, because a select
+ * with a single option is furniture, not a control.
+ */
+function SnapshotFilter({
+  scope,
+  onChange,
+  loading,
+  seasons,
+  currentSeasonId,
+}: {
+  scope: SeasonScope | null;
+  onChange?: (next: SeasonScope | null) => void;
+  loading: boolean;
+  seasons: ReadonlyArray<{ id: number; slug: string }>;
+  currentSeasonId: number | null;
+}) {
+  if (!onChange || seasons.length < 2) {
+    return <span className="text-[10.5px] text-[#8A6F66]">At a glance</span>;
+  }
+
+  // "" is the default — this student's own season, whatever that is.
+  const value = scope == null ? "" : String(scope);
+
+  return (
+    <span className="flex items-center gap-2">
+      {loading ? (
+        <Spinner className="h-3 w-3 text-[#8A6F66]" />
+      ) : null}
+      <select
+        aria-label="Filter the performance snapshot by season"
+        data-testid="snapshot-season-filter"
+        value={value}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (next === "") onChange(null);
+          else if (next === "all") onChange("all");
+          else onChange(Number(next));
+        }}
+        className="h-7 rounded-md border border-[#EFE0D6] bg-white px-2 text-[11px] font-medium text-[#5A3A33] outline-none focus-visible:ring-2 focus-visible:ring-[#E51B23]/30"
+      >
+        <option value="">
+          This season
+          {currentSeasonId != null
+            ? ` (${seasons.find((s) => s.id === currentSeasonId)?.slug ?? ""})`
+            : ""}
+        </option>
+        {seasons.map((s) => (
+          <option key={s.id} value={s.id}>
+            Season {s.slug}
+          </option>
+        ))}
+        <option value="all">All seasons</option>
+      </select>
+    </span>
+  );
+}
 
 export function DesktopDashboard(p: DesktopDashboardProps) {
   const streakStars = [1, 2, 3];
@@ -349,7 +422,13 @@ export function DesktopDashboard(p: DesktopDashboardProps) {
       <section className={cn(CARD, "px-6 pt-3.5 pb-[52px]")}>
         <div className="flex items-center justify-between">
           <Eyebrow>Performance snapshot</Eyebrow>
-          <span className="text-[10.5px] text-[#8A6F66]">At a glance</span>
+          <SnapshotFilter
+            scope={p.snapshotScope ?? null}
+            onChange={p.setSnapshotScope}
+            loading={!!p.snapshotLoading}
+            seasons={p.snapshotSeasons ?? []}
+            currentSeasonId={p.currentSeasonId ?? null}
+          />
         </div>
 
         <div

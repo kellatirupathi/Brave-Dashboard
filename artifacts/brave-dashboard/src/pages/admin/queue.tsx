@@ -12,11 +12,14 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { BrdDocument } from "@/components/brd-document";
+import { getBrd } from "@/lib/leads-api";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -55,6 +58,7 @@ import {
   ChevronRight,
   ArrowUpDown,
   Download,
+  FileText,
 } from "lucide-react";
 import {
   Popover,
@@ -82,6 +86,8 @@ type QueueItem = {
   isOverdue: boolean;
   supportingDocUrl?: string | null;
   brdUrl?: string | null;
+  /** Season 2 entries have no PDF — the BRD is composed from records. */
+  projectId?: number | null;
   status: "submitted" | "verified" | "rejected";
   verifiedAmount?: number | null;
   verifiedAt?: string | Date | null;
@@ -732,7 +738,7 @@ function QueueRow({
             </div>
           ) : null}
 
-          {item.brdUrl ? (
+          {item.brdUrl || item.projectId ? (
             <div
               className="mt-3 relative z-20"
               onClick={(e) => e.stopPropagation()}
@@ -754,12 +760,20 @@ function QueueRow({
               filename={`${item.teamName}-supporting-doc`}
               testId={`button-view-doc-${item.id}`}
             />
-            <DocumentLinkButton
-              url={item.brdUrl ?? null}
-              label="BRD"
-              filename={`${item.teamName}-brd`}
-              testId={`button-view-brd-${item.id}`}
-            />
+            {item.brdUrl ? (
+              <DocumentLinkButton
+                url={item.brdUrl}
+                label="BRD"
+                filename={`${item.teamName}-brd`}
+                testId={`button-view-brd-${item.id}`}
+              />
+            ) : item.projectId ? (
+              <ComposedBrdButton
+                projectId={item.projectId}
+                teamName={item.teamName}
+                entryId={item.id}
+              />
+            ) : null}
           </div>
 
           {canEdit &&
@@ -1679,6 +1693,70 @@ function scoreColor(score: number | null | undefined): string {
   if (score >= 75) return "bg-emerald-100 text-emerald-800 border-emerald-200";
   if (score >= 40) return "bg-amber-100 text-amber-800 border-amber-200";
   return "bg-red-100 text-red-800 border-red-200";
+}
+
+/**
+ * Opens the composed BRD for a Season 2 entry.
+ *
+ * Season 1 links out to the PDF the student uploaded. Season 2 has no file, so
+ * the reviewer reads the same document the student saw — the SAME component,
+ * not a second rendering of it, because a review has to be of the record the
+ * student actually submitted.
+ *
+ * Fetched only once opened: the queue lists many entries and most are never
+ * expanded.
+ */
+function ComposedBrdButton({
+  projectId,
+  teamName,
+  entryId,
+}: {
+  projectId: number;
+  teamName: string;
+  entryId: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const { data: brd, isLoading } = useQuery({
+    queryKey: ["admin-composed-brd", projectId],
+    queryFn: () => getBrd(projectId),
+    enabled: open,
+  });
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        data-testid={`button-view-composed-brd-${entryId}`}
+      >
+        <FileText className="mr-1.5 h-4 w-4" />
+        BRD
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="flex h-[92vh] max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+          <DialogHeader className="shrink-0 border-b py-4 pl-5 pr-14 text-left">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {teamName} — BRD
+            </DialogTitle>
+            <DialogDescription>
+              Composed from the team's lead, project and payment records.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-3 sm:p-6">
+            {isLoading || !brd ? (
+              <div className="flex justify-center py-20">
+                <Spinner size="lg" />
+              </div>
+            ) : (
+              <BrdDocument brd={brd} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function AiBrdAuditCard({ item }: { item: QueueItem }) {

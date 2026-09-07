@@ -20,6 +20,11 @@ import { DEFAULT_BANNER_CONTENT } from "@/components/leaderboard-banner-template
 import { AutoIntroVideo } from "@/components/intro-video-dialog";
 import { useProgrammeCountdown } from "@/components/program-countdown";
 import { FeedbackDialog } from "@/components/feedback-dialog";
+import {
+  getPerformance,
+  type SeasonScope,
+} from "@/lib/student-archive-api";
+import { useSeason } from "@/lib/season-context";
 import { MobileDashboard } from "./dashboard-mobile";
 import { DesktopDashboard } from "./dashboard-desktop";
 
@@ -99,16 +104,54 @@ export default function TeamDashboardSeason2() {
       ? ((streak - tierFloor) / (nextTier - tierFloor)) * 100
       : 100;
 
+  // Performance-snapshot filter. Component state on purpose — a reload returns
+  // to the student's own season, so nobody is left looking at last season's
+  // figures believing they are this season's.
+  const { seasons, viewingId } = useSeason();
+  const [snapshotScope, setSnapshotScope] = useState<SeasonScope | null>(null);
+
+  // Only fetch when a filter is actually chosen; the default figures already
+  // came with the summary, so the unfiltered dashboard costs no extra request.
+  const { data: filtered, isFetching: snapshotLoading } = useQuery({
+    queryKey: ["student-performance", String(snapshotScope ?? "current")],
+    queryFn: () => getPerformance(snapshotScope as SeasonScope),
+    enabled: snapshotScope != null,
+  });
+
+  // A filter only replaces the four snapshot figures. Everything else on the
+  // dashboard — GRIT Miles, the journal, the progress centre — keeps meaning
+  // "this season", which is what those sections are about.
+  const snapshot =
+    snapshotScope != null && filtered
+      ? {
+          verifiedRevenue: filtered.verifiedRevenue,
+          orderBook: filtered.orderBook,
+          nationalRank: filtered.nationalRank,
+          campusRank: filtered.campusRank,
+        }
+      : {
+          verifiedRevenue: summary.totalRevenue,
+          orderBook: summary.totalOrderBook,
+          nationalRank: summary.nationalRank,
+          campusRank: summary.campusRank,
+        };
+
   /** The one set of figures both layouts render. */
   const shared = {
     firstName: user?.firstName ?? "",
     teamName: summary.team?.name || "Your Team",
     tagline: summary.team?.tagline || "No tagline set",
     campusName: summary.team?.campusName || "Your campus",
-    verifiedRevenue: summary.totalRevenue,
-    orderBook: summary.totalOrderBook,
-    nationalRank: summary.nationalRank,
-    campusRank: summary.campusRank,
+    verifiedRevenue: snapshot.verifiedRevenue,
+    orderBook: snapshot.orderBook,
+    nationalRank: snapshot.nationalRank,
+    campusRank: snapshot.campusRank,
+    // Snapshot filter, rendered by the desktop layout only.
+    snapshotScope,
+    setSnapshotScope,
+    snapshotLoading,
+    snapshotSeasons: seasons,
+    currentSeasonId: viewingId,
     rankHidden,
     revealText,
     progressPercent,

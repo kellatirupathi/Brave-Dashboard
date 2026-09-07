@@ -36,6 +36,7 @@ import {
   UserCheck,
   UserPlus,
   GraduationCap,
+  History,
   ExternalLink,
   Rocket,
   Sparkles,
@@ -49,6 +50,7 @@ import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { getFinaleMe } from "@/lib/finale-api";
+import { archiveKeys, getArchiveSeasons } from "@/lib/student-archive-api";
 import { cn } from "@/lib/utils";
 import { useSeason } from "@/lib/season-context";
 import { BraveLogo } from "./brave-logo";
@@ -371,6 +373,19 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   const finaleMenuVisibleForStudent =
     !!finaleMe?.enabled && !!finaleMe?.eligible;
 
+  // Past Seasons: only worth a menu entry when an earlier season actually
+  // holds something. A first-term student has neither, and a link to an empty
+  // archive is worse than no link.
+  const { data: archiveSeasons } = useQuery({
+    queryKey: archiveKeys.seasons(),
+    queryFn: getArchiveSeasons,
+    staleTime: 60_000,
+    enabled: user?.role === "student",
+  });
+  const hasPastSeasons = (archiveSeasons?.seasons ?? []).some(
+    (s) => s.journalCount > 0 || s.projectCount > 0,
+  );
+
   // True once every visibility flag above has settled. `isLoading` is false
   // for disabled queries, so this is only ever false for students — other
   // roles render immediately.
@@ -451,6 +466,18 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
               ]
             : []),
           { name: "My Team", href: "/team", icon: Users },
+          // Past Seasons appears only once there IS an earlier season with
+          // something in it — a first-term student would otherwise get a link
+          // to an empty page.
+          ...(hasPastSeasons
+            ? [
+                {
+                  name: "Past Seasons",
+                  href: "/past-seasons",
+                  icon: History,
+                },
+              ]
+            : []),
           // Resources entry is gated by the admin-controlled visibility flag.
           ...(configReady && resourcesVisibleForStudent
             ? [
