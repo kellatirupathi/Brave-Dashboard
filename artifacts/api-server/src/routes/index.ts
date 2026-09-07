@@ -60,6 +60,7 @@ import reviewRouter from "./review";
 import productTourRouter from "./product-tour";
 import publicAppRouter from "./public-app";
 import seasonOverridesRouter from "./season-overrides";
+import studentArchiveRouter from "./student-archive";
 
 const router: IRouter = Router();
 
@@ -68,6 +69,9 @@ router.use(publicAppRouter);
 // Per-user season overrides: pins named students to a season while everyone
 // else follows the live one (additive, isolated, super-admin only).
 router.use(seasonOverridesRouter);
+// Student history across seasons: the dashboard snapshot filter and the
+// read-only Past Seasons page (additive, isolated, GET-only).
+router.use(studentArchiveRouter);
 router.use(authRouter);
 router.use(devAuthRouter);
 router.use(storageRouter);

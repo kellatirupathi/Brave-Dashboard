@@ -45,6 +45,7 @@ import Leaderboard from "@/pages/student/leaderboard";
 import TeamProfile from "@/pages/student/team";
 import GetStarted from "@/pages/student/get-started";
 import GritMilesPage from "@/pages/student/demo-day";
+import PastSeasons from "@/pages/student/past-seasons";
 import DemoDayUpload from "@/pages/student/demo-day-upload";
 import TeamDashboardLegacy from "@/pages/student/dashboard-legacy";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
@@ -748,6 +749,9 @@ function Router() {
         <Route path="/get-app" component={GetApp} />
         <Route path="/leaderboard">
           <ProtectedRoute component={Leaderboard} allowedRoles={["student"]} />
+        </Route>
+        <Route path="/past-seasons">
+          <ProtectedRoute component={PastSeasons} allowedRoles={["student"]} />
         </Route>
         <Route path="/team">
           <ProtectedRoute component={TeamProfile} allowedRoles={["student"]} />
