@@ -2645,13 +2645,26 @@ export const supportTicketStatusEnum = pgEnum("support_ticket_status", [
   "resolved",
 ]);
 
+// Category is a Postgres enum, so values can be ADDED but never removed or
+// renamed without a rewrite. The original six shipped before the category tree
+// existed; the six below them are the ones the UI offers now. The originals are
+// kept so any row already written still reads back, and so ALTER TYPE ... ADD
+// VALUE stays the only migration this needs.
 export const supportTicketCategoryEnum = pgEnum("support_ticket_category", [
+  // Superseded — retained only so existing rows remain valid.
   "technical",
   "leads",
   "revenue",
   "team",
   "account",
   "other",
+  // Current tree. Each maps to a real area of the student app.
+  "leads_clients",
+  "projects_brd",
+  "revenue_payments",
+  "team_membership",
+  "journal_grit",
+  "account_technical",
 ]);
 
 export const supportTicketsTable = pgTable(
@@ -2670,7 +2683,14 @@ export const supportTicketsTable = pgTable(
 
     subject: text("subject").notNull(),
     description: text("description").notNull(),
-    category: supportTicketCategoryEnum("category").notNull().default("other"),
+    category: supportTicketCategoryEnum("category")
+      .notNull()
+      .default("account_technical"),
+    // The specific complaint within the category. Free text rather than a
+    // second enum: the sub-lists are phrased as symptoms and will be reworded
+    // as staff learn what students actually report, and rewording an enum
+    // value in Postgres is far more disruptive than editing a string.
+    subcategory: text("subcategory"),
     // Object paths for anything the student attached, as a jsonb string[] —
     // the same shape lead evidence and interaction attachments already use.
     attachments: jsonb("attachments"),

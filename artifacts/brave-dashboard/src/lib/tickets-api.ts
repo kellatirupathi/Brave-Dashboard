@@ -7,23 +7,9 @@ import { customFetch } from "@workspace/api-client-react";
 
 export type TicketStatus = "open" | "in_progress" | "resolved";
 
-export type TicketCategory =
-  | "technical"
-  | "leads"
-  | "revenue"
-  | "team"
-  | "account"
-  | "other";
-
-/** Labels for the category codes stored on the row. */
-export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
-  technical: "Technical issue",
-  leads: "Leads & pipeline",
-  revenue: "Revenue & payments",
-  team: "Team & members",
-  account: "Account & access",
-  other: "Something else",
-};
+// The tree itself lives in ticket-categories.ts — one definition for the
+// student picker, the admin filter and the display labels.
+export type { TicketCategory } from "./ticket-categories";
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   open: "Open",
@@ -37,7 +23,9 @@ export type Ticket = {
   seasonId: number;
   subject: string;
   description: string;
-  category: TicketCategory;
+  category: string;
+  /** The specific complaint within the category. */
+  subcategory: string | null;
   attachments: string[] | null;
   status: TicketStatus;
   assignedTo: string | null;
@@ -59,7 +47,7 @@ export type TicketsConfig = {
   permissions: { add: boolean; view: boolean; edit: boolean; delete: boolean };
   menuEnabled: boolean;
   isStaff: boolean;
-  categories: TicketCategory[];
+  categories: string[];
 };
 
 export type TicketAssignee = {
@@ -108,7 +96,8 @@ export function getMyTickets(): Promise<{ tickets: Ticket[] }> {
 export function createTicket(body: {
   subject: string;
   description: string;
-  category: TicketCategory;
+  category: string;
+  subcategory: string;
   attachments?: string[];
 }): Promise<{ ticket: Ticket }> {
   return customFetch("/api/tickets", {

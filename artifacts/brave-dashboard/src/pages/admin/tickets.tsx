@@ -51,12 +51,14 @@ import {
   resolveTicket,
   ticketKeys,
   ticketRef,
-  TICKET_CATEGORY_LABELS,
   type Ticket,
-  type TicketCategory,
   type TicketScope,
   type TicketStatus,
 } from "@/lib/tickets-api";
+import {
+  TICKET_CATEGORY_TREE,
+  categoryLabel,
+} from "@/lib/ticket-categories";
 
 const STATUS_STYLES: Record<
   TicketStatus,
@@ -213,13 +215,11 @@ export default function AdminTickets() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {(Object.keys(TICKET_CATEGORY_LABELS) as TicketCategory[]).map(
-              (c) => (
-                <SelectItem key={c} value={c}>
-                  {TICKET_CATEGORY_LABELS[c]}
-                </SelectItem>
-              ),
-            )}
+            {TICKET_CATEGORY_TREE.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Input
@@ -339,8 +339,13 @@ function AdminTicketCard({
               #{ticketRef(ticket.publicId)}
             </span>
             <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              {TICKET_CATEGORY_LABELS[ticket.category]}
+              {categoryLabel(ticket.category)}
             </span>
+            {ticket.subcategory && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
+                {ticket.subcategory}
+              </span>
+            )}
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border",

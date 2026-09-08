@@ -1070,9 +1070,29 @@ async function ensureLeadPipeline(): Promise<void> {
     await db.execute(sql`
       DO $$ BEGIN
         CREATE TYPE support_ticket_category AS ENUM
-          ('technical', 'leads', 'revenue', 'team', 'account', 'other');
+          ('technical', 'leads', 'revenue', 'team', 'account', 'other',
+           'leads_clients', 'projects_brd', 'revenue_payments',
+           'team_membership', 'journal_grit', 'account_technical');
       EXCEPTION WHEN duplicate_object THEN NULL; END $$
     `);
+    // The category tree landed after the type already existed in some
+    // environments, so add the newer values one at a time. IF NOT EXISTS makes
+    // each a no-op where it is already present; ALTER TYPE ... ADD VALUE is the
+    // only way to extend a Postgres enum in place.
+    for (const value of [
+      "leads_clients",
+      "projects_brd",
+      "revenue_payments",
+      "team_membership",
+      "journal_grit",
+      "account_technical",
+    ]) {
+      await db.execute(
+        sql.raw(
+          `ALTER TYPE support_ticket_category ADD VALUE IF NOT EXISTS '${value}'`,
+        ),
+      );
+    }
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS support_tickets (
         id serial PRIMARY KEY,
@@ -1109,6 +1129,10 @@ async function ensureLeadPipeline(): Promise<void> {
     await db.execute(
       sql`CREATE INDEX IF NOT EXISTS support_tickets_assigned_idx ON support_tickets (assigned_to)`,
     );
+    await db.execute(sql`
+      ALTER TABLE support_tickets
+        ADD COLUMN IF NOT EXISTS subcategory text
+    `);
     await db.execute(sql`
       ALTER TABLE programme_config
         ADD COLUMN IF NOT EXISTS tickets_control_permissions jsonb,

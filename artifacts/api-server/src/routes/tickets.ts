@@ -42,19 +42,40 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+// The category tree the UI offers. Mirrored in the client at
+// brave-dashboard/src/lib/ticket-categories.ts, which also holds the
+// sub-category lists and the display labels.
+//
+// The six superseded values (technical / leads / revenue / team / account /
+// other) are still valid in the database enum so older rows read back, but a
+// new ticket can only be filed under one of these.
 const TICKET_CATEGORIES = [
+  "leads_clients",
+  "projects_brd",
+  "revenue_payments",
+  "team_membership",
+  "journal_grit",
+  "account_technical",
+] as const;
+
+// Every value the admin filter may be given — the tree plus the superseded
+// ones, so a queue filtered by an old category still finds those tickets.
+const FILTERABLE_CATEGORIES: readonly string[] = [
+  ...TICKET_CATEGORIES,
   "technical",
   "leads",
   "revenue",
   "team",
   "account",
   "other",
-] as const;
+];
 
 const CreateTicketBody = z.object({
   subject: z.string().trim().min(3).max(200),
   description: z.string().trim().min(10).max(5000),
-  category: z.enum(TICKET_CATEGORIES).default("other"),
+  category: z.enum(TICKET_CATEGORIES),
+  // Required: the whole point of the tree is that a ticket arrives routed.
+  subcategory: z.string().trim().min(1).max(200),
   // Object paths from the shared uploader. Bounded so one ticket cannot carry
   // an unbounded list.
   attachments: z.array(z.string().trim().min(1).max(2000)).max(5).optional(),
@@ -68,6 +89,7 @@ const ticketColumns = {
   subject: supportTicketsTable.subject,
   description: supportTicketsTable.description,
   category: supportTicketsTable.category,
+  subcategory: supportTicketsTable.subcategory,
   attachments: supportTicketsTable.attachments,
   status: supportTicketsTable.status,
   assignedTo: supportTicketsTable.assignedTo,
@@ -184,6 +206,7 @@ router.post("/tickets", async (req: Request, res: Response): Promise<void> => {
       subject: d.subject,
       description: d.description,
       category: d.category,
+      subcategory: d.subcategory,
       attachments: d.attachments ?? null,
     })
     .returning();
@@ -247,7 +270,7 @@ router.get(
 
     if (
       category &&
-      (TICKET_CATEGORIES as readonly string[]).includes(category)
+FILTERABLE_CATEGORIES.includes(category)
     ) {
       where.push(
         eq(
@@ -271,6 +294,7 @@ router.get(
         sql`(
         lower(${supportTicketsTable.subject}) LIKE ${like}
         OR lower(${supportTicketsTable.description}) LIKE ${like}
+        OR lower(coalesce(${supportTicketsTable.subcategory}, '')) LIKE ${like}
         OR lower(coalesce(${usersTable.firstName}, '') || ' ' || coalesce(${usersTable.lastName}, '')) LIKE ${like}
         OR lower(coalesce(${usersTable.email}, '')) LIKE ${like}
         OR lower(coalesce(${usersTable.niatId}, '')) LIKE ${like}
