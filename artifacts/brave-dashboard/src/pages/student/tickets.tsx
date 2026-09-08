@@ -48,11 +48,15 @@ import {
   getTicketsConfig,
   ticketKeys,
   ticketRef,
-  TICKET_CATEGORY_LABELS,
   type Ticket,
-  type TicketCategory,
   type TicketStatus,
 } from "@/lib/tickets-api";
+import {
+  TICKET_CATEGORY_TREE,
+  categoryLabel,
+  subcategoriesFor,
+  type TicketCategory,
+} from "@/lib/ticket-categories";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -180,8 +184,13 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
               #{ticketRef(ticket.publicId)}
             </span>
             <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              {TICKET_CATEGORY_LABELS[ticket.category]}
+              {categoryLabel(ticket.category)}
             </span>
+            {ticket.subcategory && (
+              <span className="text-[11px] text-muted-foreground">
+                {ticket.subcategory}
+              </span>
+            )}
           </div>
           <h3 className="font-medium mt-1 break-words">{ticket.subject}</h3>
         </div>
@@ -251,7 +260,10 @@ function RaiseTicketDialog({
   const { toast } = useToast();
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<TicketCategory>("other");
+  // No default category: a pre-selected one gets submitted unchanged, which is
+  // how every ticket ends up in the same bucket.
+  const [category, setCategory] = useState<TicketCategory | "">("");
+  const [subcategory, setSubcategory] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -268,7 +280,8 @@ function RaiseTicketDialog({
   const reset = (): void => {
     setSubject("");
     setDescription("");
-    setCategory("other");
+    setCategory("");
+    setSubcategory("");
     setAttachments([]);
   };
 
@@ -278,6 +291,7 @@ function RaiseTicketDialog({
         subject: subject.trim(),
         description: description.trim(),
         category,
+        subcategory,
         attachments: attachments.length ? attachments : undefined,
       }),
     onSuccess: () => {
@@ -326,35 +340,74 @@ function RaiseTicketDialog({
 
   // The server enforces these same bounds; matching them here means the button
   // is only enabled when the request would actually succeed.
-  const valid = subject.trim().length >= 3 && description.trim().length >= 10;
+  const valid =
+    !!category &&
+    !!subcategory &&
+    subject.trim().length >= 3 &&
+    description.trim().length >= 10;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Raise a ticket</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium">What's it about?</label>
-            <Select
-              value={category}
-              onValueChange={(v) => setCategory(v as TicketCategory)}
-            >
-              <SelectTrigger className="mt-1.5" data-testid="select-category">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(TICKET_CATEGORY_LABELS) as TicketCategory[]).map(
-                  (c) => (
-                    <SelectItem key={c} value={c}>
-                      {TICKET_CATEGORY_LABELS[c]}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium">Category</label>
+              <Select
+                value={category}
+                onValueChange={(v) => {
+                  setCategory(v as TicketCategory);
+                  // The old sub-category belongs to a different list now, so
+                  // clear it rather than submitting a mismatched pair.
+                  setSubcategory("");
+                }}
+              >
+                <SelectTrigger
+                  className="mt-1.5"
+                  data-testid="select-category"
+                >
+                  <SelectValue placeholder="Choose an area" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TICKET_CATEGORY_TREE.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
                     </SelectItem>
-                  ),
-                )}
-              </SelectContent>
-            </Select>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">What's happening?</label>
+              <Select
+                value={subcategory}
+                onValueChange={setSubcategory}
+                disabled={!category}
+              >
+                <SelectTrigger
+                  className="mt-1.5"
+                  data-testid="select-subcategory"
+                >
+                  <SelectValue
+                    placeholder={
+                      category ? "Choose the closest one" : "Pick a category first"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {subcategoriesFor(category).map((sub) => (
+                    <SelectItem key={sub} value={sub}>
+                      {sub}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div>
@@ -370,7 +423,7 @@ function RaiseTicketDialog({
           </div>
 
           <div>
-            <label className="text-sm font-medium">What's happening?</label>
+            <label className="text-sm font-medium">Tell us more</label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
