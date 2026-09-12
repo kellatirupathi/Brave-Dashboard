@@ -44,11 +44,13 @@ import {
   Vote,
   Lock,
   LifeBuoy,
+  LayoutGrid,
 } from "lucide-react";
 
 import { docsHref } from "@/lib/docs-links";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { useMyAdminAccess, isHidden } from "@/lib/admin-access";
+import { SITE_ADMIN_SECTIONS } from "@/lib/site-admin";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
 import { getFinaleMe } from "@/lib/finale-api";
 import { archiveKeys, getArchiveSeasons } from "@/lib/student-archive-api";
@@ -429,6 +431,10 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
   // genuinely different products, and Season 1's must never change.
   const usesLeadPipeline = !!viewing && viewing.slug !== "1.0";
 
+  // Admins keep the Season 1.0 sidebar exactly as it was. From 2.0 on they
+  // get the short list below, and every other page lives on Site Admin.
+  const isSeasonOneView = viewing?.slug === "1.0";
+
   if (!user) return null;
 
   const role = user.role;
@@ -680,7 +686,44 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
     ],
   };
 
-  const rawItems = (navItems[role as keyof typeof navItems] || []) as NavItem[];
+  // Site Admin only appears when at least one of its pages is visible to this
+  // admin; a hub with nothing in it would be a dead end.
+  const siteAdminVisible = SITE_ADMIN_SECTIONS.some((section) =>
+    section.items.some((item) => !isHidden(adminAccess, item.pageKey)),
+  );
+  const adminNavCurrent: NavItem[] = [
+    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { name: "Review Queue", href: "/admin/queue", icon: CheckSquare },
+    { name: "Team Requests", href: "/admin/team-requests", icon: UserCheck },
+    { name: "Teams", href: "/admin/teams", icon: Users },
+    { name: "Leaderboard", href: "/admin/leaderboard", icon: Trophy },
+    { name: "Users", href: "/admin/users", icon: UserCog },
+    { name: "Campus Insights", href: "/admin/campus-insights", icon: BarChart3 },
+    { name: "Config", href: "/admin/config", icon: Settings },
+    ...(siteAdminVisible
+      ? [
+          {
+            name: "Site Admin",
+            href: "/admin/site-admin",
+            icon: LayoutGrid,
+            isNew: true,
+          },
+        ]
+      : []),
+    { name: "Resources", href: "/admin/resources", icon: BookOpen },
+    {
+      name: "Guidebook",
+      href: "/guidebook",
+      icon: GraduationCap,
+      newTab: true,
+    },
+  ];
+
+  const rawItems = (
+    role === "admin" && !isSeasonOneView
+      ? adminNavCurrent
+      : navItems[role as keyof typeof navItems] || []
+  ) as NavItem[];
   // For restricted admins, drop hidden leaves and any group left empty.
   // Super admins / default-allow admins keep the full nav (isHidden → false).
   const items: NavItem[] =

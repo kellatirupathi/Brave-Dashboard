@@ -9,6 +9,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { canonicalToLegacyPath } from "./season-routing";
+import { siteAdminPageKey } from "./site-admin";
 
 // `approve` / `reject` split the two halves of a review decision, which used
 // to share the single `edit` bit. `export` gates CSV/Excel downloads. Keep in
@@ -219,7 +220,11 @@ export function isRouteBlocked(
   if (!access || access.isSuperAdmin) return false;
   // Canonical season URLs must inherit the exact same permission key as their
   // legacy equivalent (for example /admin/season/s/teams/7 -> /admin/teams/7).
-  const normalizedLocation = canonicalToLegacyPath(location);
+  const legacyLocation = canonicalToLegacyPath(location);
+  // Site Admin mounts pages a second time under /admin/site-admin/<page>.
+  // Resolve that address back to the page it shows, or a page hidden from
+  // this admin would be reachable through its new URL.
+  const normalizedLocation = siteAdminPageKey(legacyLocation) ?? legacyLocation;
   const sorted = [...ADMIN_PAGES].sort((a, b) => b.href.length - a.href.length);
   const match = sorted.find(
     (p) =>
