@@ -623,17 +623,19 @@ router.get("/admin/users", async (req, res): Promise<void> => {
           .where(eq(campusesTable.id, u.campusId));
         campusName = campus?.name ?? null;
       }
-      // Strip passwordHash plus the super-admin/permission columns — these are
-      // exposed only via the dedicated /admin/access and /admin/permissions
-      // endpoints, never through general user listings.
+      // Strip passwordHash and the per-page permission map. The map is exposed
+      // only via the dedicated /admin/access and /admin/permissions endpoints.
+      // isSuperAdmin is the one exception: the Users page shows it as the role,
+      // and this endpoint is admin-only, so it goes out as a plain boolean.
       const {
         passwordHash,
-        isSuperAdmin: _sa,
+        isSuperAdmin,
         adminPermissions: _ap,
         ...safe
       } = u;
       return {
         ...safe,
+        isSuperAdmin: isSuperAdmin === true,
         campusId: u.role === "admin" ? null : safe.campusId,
         campusName,
         niatId: u.niatId ?? null,

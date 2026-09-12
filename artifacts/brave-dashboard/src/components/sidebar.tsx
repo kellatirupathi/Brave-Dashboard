@@ -875,7 +875,11 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                     {user.firstName} {user.lastName}
                   </p>
                   <p className="text-xs text-sidebar-foreground/50 truncate capitalize">
-                    {user.role}
+                    {/* A super admin is role admin plus a flag that only the
+                        access endpoint carries, so read it from there. */}
+                    {user.role === "admin" && adminAccess?.isSuperAdmin
+                      ? "Super Admin"
+                      : user.role}
                   </p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-sidebar-foreground/40" />
