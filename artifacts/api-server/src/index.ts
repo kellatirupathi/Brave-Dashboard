@@ -1138,6 +1138,28 @@ async function ensureLeadPipeline(): Promise<void> {
         ADD COLUMN IF NOT EXISTS tickets_control_permissions jsonb,
         ADD COLUMN IF NOT EXISTS tickets_menu_enabled boolean NOT NULL DEFAULT false
     `);
+    // Ticket conversations: every reply and follow-up after the opening
+    // question (supportTicketMessagesTable in the schema). No backfill here on
+    // purpose: the server is already taking requests while this runs, so a
+    // pre-thread answer is folded in by the tickets route itself, under a row
+    // lock, the first time that ticket is touched.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS support_ticket_messages (
+        id serial PRIMARY KEY,
+        ticket_id integer NOT NULL,
+        author_id text NOT NULL,
+        author_kind text NOT NULL,
+        body text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        edited_at timestamptz,
+        edited_by text,
+        deleted_at timestamptz,
+        deleted_by text
+      )
+    `);
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS support_ticket_messages_ticket_idx ON support_ticket_messages (ticket_id, created_at)`,
+    );
   } catch (err) {
     logger.error({ err }, "Failed to ensure support_tickets table");
   }

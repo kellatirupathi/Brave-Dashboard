@@ -19,6 +19,7 @@ import {
   Shield,
   Search,
   ShieldCheck,
+  Crown,
   Mail,
   Trash2,
   Pencil,
@@ -125,6 +126,8 @@ type AnyUser = {
   firstName: string;
   lastName: string;
   role: "admin" | "coordinator" | "student";
+  // An admin with is_super_admin set. Only ever true when role is admin.
+  isSuperAdmin?: boolean;
   campusId?: number | null;
   campusName?: string | null;
   niatId?: string | null;
@@ -729,6 +732,7 @@ export default function AdminUsers() {
         Email: u.email,
         "Mobile Number": u.mobileNumber ?? "",
         Role: u.role,
+        "Super Admin": u.isSuperAdmin ? "Yes" : "No",
         Campus: u.campusName ?? "",
         Source: SOURCE_LABEL[u.provisionedVia] ?? u.provisionedVia,
         Active: u.isActive ? "Yes" : "No",
@@ -754,7 +758,9 @@ export default function AdminUsers() {
   // across the whole filtered set, not just this page).
   const counts = {
     total: totalUsers,
-    admin: allUsers.filter((u) => u.role === "admin").length,
+    superAdmin: allUsers.filter((u) => u.role === "admin" && u.isSuperAdmin)
+      .length,
+    admin: allUsers.filter((u) => u.role === "admin" && !u.isSuperAdmin).length,
     coordinator: allUsers.filter((u) => u.role === "coordinator").length,
     student: allUsers.filter((u) => u.role === "student").length,
   };
@@ -858,7 +864,15 @@ export default function AdminUsers() {
     setLastSeenTo("");
   };
 
-  const renderRoleBadge = (r: AnyUser["role"]) => {
+  const renderRoleBadge = (r: AnyUser["role"], isSuperAdmin?: boolean) => {
+    // A super admin is still role admin in the database; the flag is what
+    // tells them apart, so check it first.
+    if (r === "admin" && isSuperAdmin)
+      return (
+        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100 border-none">
+          <Crown className="w-3 h-3 mr-1" /> Super Admin
+        </Badge>
+      );
     if (r === "admin")
       return (
         <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 dark:bg-purple-900 dark:text-purple-100 border-none">
@@ -884,8 +898,9 @@ export default function AdminUsers() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Users</h1>
           <p className="text-muted-foreground">
-            All users: {counts.total} ({counts.admin} admin ·{" "}
-            {counts.coordinator} coordinator · {counts.student} student)
+            All users: {counts.total} ({counts.superAdmin} super admin ·{" "}
+            {counts.admin} admin · {counts.coordinator} coordinator ·{" "}
+            {counts.student} student)
           </p>
         </div>
 
@@ -1560,7 +1575,7 @@ export default function AdminUsers() {
                         {user.formsUserId ?? "—"}
                       </span>
                     </TableCell>
-                    <TableCell>{renderRoleBadge(user.role)}</TableCell>
+                    <TableCell>{renderRoleBadge(user.role, user.isSuperAdmin)}</TableCell>
                     {/* Tags — coordinators only. Blank for other roles. */}
                     <TableCell data-testid={`tags-${user.id}`}>
                       {user.role === "coordinator" ? (

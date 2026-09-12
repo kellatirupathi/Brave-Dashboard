@@ -5,6 +5,18 @@
  * sides read the same rows, so what a student is told and what staff recorded
  * cannot drift apart.
  *
+ * A TICKET IS A CONVERSATION. The opening question lives on the ticket row
+ * (subject + description). Everything after it — staff replies and student
+ * follow-ups — lives in support_ticket_messages, oldest first. A follow-up
+ * reopens the ticket so it lands back in the staff queue; a staff reply
+ * closes it again and emails the student.
+ *
+ * Tickets answered before threads existed carry that answer only in
+ * support_tickets.resolution. lockTicket() copies it into the thread the
+ * first time anything touches the ticket, under a row lock, so it is never
+ * lost and never copied twice. `resolution` stays in step with the latest
+ * staff reply, so the list endpoints return what they always did.
+ *
  * SEASON-SCOPED. Every list is filtered to the caller's season, so Season 1's
  * support history stays separate from Season 2's rather than the two piling
  * into one queue.
@@ -14,13 +26,14 @@
  * governed by that map; their access is the ordinary role check.
  *
  * Deleting the feature means removing the single `router.use(...)` line in
- * routes/index.ts plus its import, and dropping the table.
+ * routes/index.ts plus its import, and dropping the tables.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   db,
   supportTicketsTable,
+  supportTicketMessagesTable,
   usersTable,
   teamMembersTable,
   campusesTable,
@@ -70,6 +83,11 @@ const FILTERABLE_CATEGORIES: readonly string[] = [
   "other",
 ];
 
+// publicId is a uuid column; a malformed value makes Postgres throw rather
+// than match nothing, so it is turned away as "not found" before any query.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const CreateTicketBody = z.object({
   subject: z.string().trim().min(3).max(200),
   description: z.string().trim().min(10).max(5000),
@@ -113,6 +131,124 @@ function ticketQuery() {
     .from(supportTicketsTable)
     .leftJoin(usersTable, eq(usersTable.id, supportTicketsTable.createdBy))
     .leftJoin(campusesTable, eq(campusesTable.id, usersTable.campusId));
+}
+
+// ── Threads ─────────────────────────────────────────────────────────────────
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Lock a ticket for a thread change, and fold in its pre-thread answer.
+ *
+ * Every thread write — and the first read of an old ticket — goes through
+ * here inside a transaction. The row lock serialises concurrent writers on
+ * one ticket, which is what keeps the one-time copy of `resolution` into the
+ * thread from ever happening twice. The copy only runs while the ticket has
+ * no messages at all; a soft-deleted reply still counts, so an answer an
+ * admin deleted is never resurrected.
+ */
+async function lockTicket(tx: Tx, publicId: string) {
+  const [ticket] = await tx
+    .select()
+    .from(supportTicketsTable)
+    .where(eq(supportTicketsTable.publicId, publicId))
+    .for("update");
+  if (!ticket) return null;
+
+  if (ticket.resolution?.trim()) {
+    const [existing] = await tx
+      .select({ id: supportTicketMessagesTable.id })
+      .from(supportTicketMessagesTable)
+      .where(eq(supportTicketMessagesTable.ticketId, ticket.id))
+      .limit(1);
+    if (!existing) {
+      await tx.insert(supportTicketMessagesTable).values({
+        ticketId: ticket.id,
+        authorId: ticket.resolvedBy ?? ticket.assignedTo ?? "system",
+        authorKind: "staff",
+        body: ticket.resolution,
+        createdAt: ticket.resolvedAt ?? ticket.updatedAt,
+      });
+    }
+  }
+  return ticket;
+}
+
+/** The newest staff reply still standing, or null when none is left. */
+async function latestStaffReply(tx: Tx, ticketId: number) {
+  const [row] = await tx
+    .select()
+    .from(supportTicketMessagesTable)
+    .where(
+      and(
+        eq(supportTicketMessagesTable.ticketId, ticketId),
+        eq(supportTicketMessagesTable.authorKind, "staff"),
+        isNull(supportTicketMessagesTable.deletedAt),
+      ),
+    )
+    .orderBy(
+      desc(supportTicketMessagesTable.createdAt),
+      desc(supportTicketMessagesTable.id),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * The conversation after the opening question, oldest first.
+ *
+ * Students see every staff reply as "BRAVE team", as the ticket page always
+ * has; staff see who actually wrote it. Author ids never leave the server.
+ */
+async function loadThread(ticketId: number, viewerIsStaff: boolean) {
+  const rows = await db
+    .select()
+    .from(supportTicketMessagesTable)
+    .where(
+      and(
+        eq(supportTicketMessagesTable.ticketId, ticketId),
+        isNull(supportTicketMessagesTable.deletedAt),
+      ),
+    )
+    .orderBy(
+      asc(supportTicketMessagesTable.createdAt),
+      asc(supportTicketMessagesTable.id),
+    );
+
+  const authorIds = [...new Set(rows.map((r) => r.authorId))];
+  const authors = authorIds.length
+    ? await db
+        .select({
+          id: usersTable.id,
+          firstName: usersTable.firstName,
+          lastName: usersTable.lastName,
+        })
+        .from(usersTable)
+        .where(inArray(usersTable.id, authorIds))
+    : [];
+  const nameById = new Map(
+    authors.map((a) => [
+      a.id,
+      `${a.firstName ?? ""} ${a.lastName ?? ""}`.trim(),
+    ]),
+  );
+
+  return rows.map((r) => {
+    const staff = r.authorKind === "staff";
+    const name = nameById.get(r.authorId) ?? "";
+    return {
+      id: r.id,
+      authorKind: staff ? ("staff" as const) : ("student" as const),
+      authorName: staff
+        ? viewerIsStaff
+          ? name || "BRAVE team"
+          : "BRAVE team"
+        : name || "Student",
+      body: r.body,
+      createdAt: r.createdAt,
+      editedAt: r.editedAt,
+    };
+  });
 }
 
 /**
@@ -268,10 +404,7 @@ router.get(
       );
     }
 
-    if (
-      category &&
-FILTERABLE_CATEGORIES.includes(category)
-    ) {
+    if (category && FILTERABLE_CATEGORIES.includes(category)) {
       where.push(
         eq(
           supportTicketsTable.category,
@@ -346,6 +479,10 @@ router.post(
       return;
     }
     const publicId = String(req.params["publicId"] ?? "");
+    if (!UUID_RE.test(publicId)) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
     const assignee =
       typeof req.body?.assignTo === "string" && req.body.assignTo.trim()
         ? String(req.body.assignTo)
@@ -380,9 +517,10 @@ const ResolveBody = z.object({
 /**
  * POST /api/tickets/:publicId/resolve  (staff)
  *
- * Answer and close. The resolution is sanitised before it is stored, so what
- * reaches a student's browser and inbox is already safe by the time anything
- * renders it.
+ * Reply and close. The reply is sanitised before it is stored, so what reaches
+ * a student's browser and inbox is already safe by the time anything renders
+ * it. It is added to the thread and mirrored into `resolution`, so a ticket
+ * can be answered again after a follow-up without losing the earlier replies.
  */
 router.post(
   "/tickets/:publicId/resolve",
@@ -408,26 +546,43 @@ router.post(
     }
 
     const publicId = String(req.params["publicId"] ?? "");
-    const [updated] = await db
-      .update(supportTicketsTable)
-      .set({
-        resolution: clean,
-        resolvedBy: req.user.id,
-        resolvedAt: new Date(),
-        status: "resolved",
-        // Answering a ticket nobody had claimed makes the answerer its owner,
-        // so "my tickets" reflects what this person actually handled.
-        assignedTo: sql`COALESCE(${supportTicketsTable.assignedTo}, ${req.user.id})`,
-      })
-      .where(eq(supportTicketsTable.publicId, publicId))
-      .returning();
+    if (!UUID_RE.test(publicId)) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    const userId = req.user.id;
+
+    const updated = await db.transaction(async (tx) => {
+      const locked = await lockTicket(tx, publicId);
+      if (!locked) return null;
+      const [row] = await tx
+        .update(supportTicketsTable)
+        .set({
+          resolution: clean,
+          resolvedBy: userId,
+          resolvedAt: new Date(),
+          status: "resolved",
+          // Answering a ticket nobody had claimed makes the answerer its
+          // owner, so "my tickets" reflects what this person handled.
+          assignedTo: sql`COALESCE(${supportTicketsTable.assignedTo}, ${userId})`,
+        })
+        .where(eq(supportTicketsTable.id, locked.id))
+        .returning();
+      await tx.insert(supportTicketMessagesTable).values({
+        ticketId: locked.id,
+        authorId: userId,
+        authorKind: "staff",
+        body: clean,
+      });
+      return row ?? null;
+    });
 
     if (!updated) {
       res.status(404).json({ error: "Ticket not found" });
       return;
     }
 
-    void sendTicketResolvedEmail(updated).catch((err) =>
+    void sendTicketReplyEmail(updated, clean, "answered").catch((err) =>
       logger.warn(
         { err, ticketId: updated.id },
         "[tickets] resolved email failed",
@@ -436,7 +591,7 @@ router.post(
 
     try {
       await logAudit(
-        req.user.id,
+        userId,
         "resolve_support_ticket",
         "support_ticket",
         updated.id,
@@ -478,10 +633,383 @@ router.get(
   },
 );
 
+// ── Ticket detail and conversation ──────────────────────────────────────────
+//
+// Registered after every literal /tickets/<word> route above (config, mine,
+// assignees). Express matches in registration order, so /tickets/:publicId
+// can never swallow them.
+
+/**
+ * GET /api/tickets/:publicId
+ *
+ * One ticket and its conversation. A student may open only their own; staff
+ * may open any. A student asking for someone else's ticket gets the same
+ * answer as a ticket that does not exist, so ids cannot be probed.
+ */
+router.get(
+  "/tickets/:publicId",
+  requireAdminPage("/admin/tickets", "view"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const publicId = String(req.params["publicId"] ?? "");
+    if (!UUID_RE.test(publicId)) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    const staff = isTicketsStaff(req);
+    if (!staff && !(await allowTicketAction(req, "view"))) {
+      res.status(403).json({ error: "You cannot view tickets." });
+      return;
+    }
+
+    const [ticket] = await ticketQuery()
+      .where(eq(supportTicketsTable.publicId, publicId))
+      .limit(1);
+    if (!ticket || (!staff && ticket.createdBy !== req.user.id)) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+
+    // An old ticket's answer is folded into the thread on its first read.
+    if (ticket.resolution?.trim()) {
+      await db.transaction((tx) => lockTicket(tx, publicId));
+    }
+
+    const messages = await loadThread(ticket.id, staff);
+    res.json({ ticket, messages });
+  },
+);
+
+const FollowUpBody = z.object({
+  body: z.string().trim().min(2).max(5000),
+});
+
+/**
+ * POST /api/tickets/:publicId/messages  (the student who raised it)
+ *
+ * A follow-up question on the same ticket. It puts the ticket back in front of
+ * staff — open again, or in progress if somebody already holds it — so it
+ * shows up in the Active queue with the whole conversation attached.
+ */
+router.post(
+  "/tickets/:publicId/messages",
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (isTicketsStaff(req)) {
+      res
+        .status(403)
+        .json({ error: "Staff reply from the ticket page instead." });
+      return;
+    }
+    if (!(await allowTicketAction(req, "add"))) {
+      res
+        .status(403)
+        .json({ error: "Sending follow-ups is turned off right now." });
+      return;
+    }
+    const parsed = FollowUpBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Write your follow-up before sending." });
+      return;
+    }
+    const publicId = String(req.params["publicId"] ?? "");
+    if (!UUID_RE.test(publicId)) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    const userId = req.user.id;
+    const body = parsed.data.body;
+
+    const message = await db.transaction(async (tx) => {
+      const ticket = await lockTicket(tx, publicId);
+      if (!ticket || ticket.createdBy !== userId) return null;
+      const [row] = await tx
+        .insert(supportTicketMessagesTable)
+        .values({
+          ticketId: ticket.id,
+          authorId: userId,
+          authorKind: "student",
+          body,
+        })
+        .returning();
+      await tx
+        .update(supportTicketsTable)
+        .set({
+          status: ticket.assignedTo ? "in_progress" : "open",
+          resolvedAt: null,
+          resolvedBy: null,
+        })
+        .where(eq(supportTicketsTable.id, ticket.id));
+      return row ?? null;
+    });
+
+    if (!message) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    res
+      .status(201)
+      .json({ message: { id: message.id, createdAt: message.createdAt } });
+  },
+);
+
+const EditReplyBody = z.object({
+  body: z.string().trim().min(1).max(20000),
+});
+
+type ReplyChange =
+  | { kind: "missing" }
+  | { kind: "not-staff" }
+  | {
+      kind: "ok";
+      ticket: {
+        id: number;
+        publicId: string;
+        subject: string;
+        createdBy: string;
+      };
+    };
+
+/** Parse the two path ids a reply route takes, or null when either is bad. */
+function replyIds(req: Request): { publicId: string; messageId: number } | null {
+  const publicId = String(req.params["publicId"] ?? "");
+  const messageId = Number(req.params["messageId"]);
+  if (!UUID_RE.test(publicId)) return null;
+  if (!Number.isInteger(messageId) || messageId <= 0) return null;
+  return { publicId, messageId };
+}
+
+/**
+ * PATCH /api/tickets/:publicId/messages/:messageId  (staff)
+ *
+ * Correct a staff reply — on an open or a closed ticket. Only staff replies
+ * can be changed here; a student's own words are never edited by staff. The
+ * student is emailed the corrected reply, since what they were told changed.
+ */
+router.patch(
+  "/tickets/:publicId/messages/:messageId",
+  requireAdminPage("/admin/tickets", "edit"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (!isTicketsStaff(req)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const parsed = EditReplyBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const clean = sanitizeRichText(parsed.data.body);
+    if (!richTextToPlain(clean)) {
+      res.status(400).json({ error: "Write the reply before saving." });
+      return;
+    }
+    const ids = replyIds(req);
+    if (!ids) {
+      res.status(404).json({ error: "Reply not found" });
+      return;
+    }
+    const userId = req.user.id;
+
+    const outcome: ReplyChange = await db.transaction(async (tx) => {
+      const ticket = await lockTicket(tx, ids.publicId);
+      if (!ticket) return { kind: "missing" };
+      const [msg] = await tx
+        .select()
+        .from(supportTicketMessagesTable)
+        .where(
+          and(
+            eq(supportTicketMessagesTable.id, ids.messageId),
+            eq(supportTicketMessagesTable.ticketId, ticket.id),
+            isNull(supportTicketMessagesTable.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!msg) return { kind: "missing" };
+      if (msg.authorKind !== "staff") return { kind: "not-staff" };
+
+      await tx
+        .update(supportTicketMessagesTable)
+        .set({ body: clean, editedAt: new Date(), editedBy: userId })
+        .where(eq(supportTicketMessagesTable.id, msg.id));
+
+      // `resolution` mirrors the latest staff reply for the list endpoints.
+      const latest = await latestStaffReply(tx, ticket.id);
+      if (latest?.id === msg.id) {
+        await tx
+          .update(supportTicketsTable)
+          .set({ resolution: clean })
+          .where(eq(supportTicketsTable.id, ticket.id));
+      }
+      return { kind: "ok", ticket };
+    });
+
+    if (outcome.kind === "missing") {
+      res.status(404).json({ error: "Reply not found" });
+      return;
+    }
+    if (outcome.kind === "not-staff") {
+      res
+        .status(403)
+        .json({ error: "Only replies from the BRAVE team can be edited." });
+      return;
+    }
+
+    void sendTicketReplyEmail(outcome.ticket, clean, "updated").catch((err) =>
+      logger.warn(
+        { err, ticketId: outcome.ticket.id },
+        "[tickets] updated-reply email failed",
+      ),
+    );
+
+    try {
+      await logAudit(
+        userId,
+        "edit_support_ticket_reply",
+        "support_ticket",
+        outcome.ticket.id,
+        JSON.stringify({ publicId: ids.publicId, messageId: ids.messageId }),
+      );
+    } catch {
+      // The edit is already saved; a missing audit row must not undo it.
+    }
+
+    res.json({ ok: true });
+  },
+);
+
+/**
+ * DELETE /api/tickets/:publicId/messages/:messageId  (staff)
+ *
+ * Withdraw a staff reply. It is soft-deleted, so the record of what the
+ * student was told survives, and it disappears from both views. A ticket left
+ * with no reply at all is not answered any more, so it goes back into the
+ * Active queue rather than staying closed with nothing said.
+ */
+router.delete(
+  "/tickets/:publicId/messages/:messageId",
+  requireAdminPage("/admin/tickets", "delete"),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.isAuthenticated()) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (!isTicketsStaff(req)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const ids = replyIds(req);
+    if (!ids) {
+      res.status(404).json({ error: "Reply not found" });
+      return;
+    }
+    const userId = req.user.id;
+
+    const outcome: ReplyChange = await db.transaction(async (tx) => {
+      const ticket = await lockTicket(tx, ids.publicId);
+      if (!ticket) return { kind: "missing" };
+      const [msg] = await tx
+        .select()
+        .from(supportTicketMessagesTable)
+        .where(
+          and(
+            eq(supportTicketMessagesTable.id, ids.messageId),
+            eq(supportTicketMessagesTable.ticketId, ticket.id),
+            isNull(supportTicketMessagesTable.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!msg) return { kind: "missing" };
+      if (msg.authorKind !== "staff") return { kind: "not-staff" };
+
+      await tx
+        .update(supportTicketMessagesTable)
+        .set({ deletedAt: new Date(), deletedBy: userId })
+        .where(eq(supportTicketMessagesTable.id, msg.id));
+
+      const latest = await latestStaffReply(tx, ticket.id);
+      if (latest) {
+        await tx
+          .update(supportTicketsTable)
+          .set(
+            ticket.status === "resolved"
+              ? {
+                  resolution: latest.body,
+                  resolvedAt: latest.createdAt,
+                  resolvedBy: latest.authorId,
+                }
+              : { resolution: latest.body },
+          )
+          .where(eq(supportTicketsTable.id, ticket.id));
+      } else {
+        await tx
+          .update(supportTicketsTable)
+          .set({
+            resolution: null,
+            resolvedAt: null,
+            resolvedBy: null,
+            status:
+              ticket.status === "resolved"
+                ? ticket.assignedTo
+                  ? "in_progress"
+                  : "open"
+                : ticket.status,
+          })
+          .where(eq(supportTicketsTable.id, ticket.id));
+      }
+      return { kind: "ok", ticket };
+    });
+
+    if (outcome.kind === "missing") {
+      res.status(404).json({ error: "Reply not found" });
+      return;
+    }
+    if (outcome.kind === "not-staff") {
+      res
+        .status(403)
+        .json({ error: "Only replies from the BRAVE team can be deleted." });
+      return;
+    }
+
+    try {
+      await logAudit(
+        userId,
+        "delete_support_ticket_reply",
+        "support_ticket",
+        outcome.ticket.id,
+        JSON.stringify({ publicId: ids.publicId, messageId: ids.messageId }),
+      );
+    } catch {
+      // The reply is already withdrawn; a missing audit row must not undo it.
+    }
+
+    res.json({ ok: true });
+  },
+);
+
 // ── Emails ──────────────────────────────────────────────────────────────────
 
 function shortId(publicId: string): string {
   return publicId.slice(0, 8).toUpperCase();
+}
+
+/** Student-written text goes into the HTML body, so it is escaped first. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 async function sendTicketCreatedEmail(
@@ -526,13 +1054,17 @@ status any time on the Ticket Support page in your dashboard.
   });
 }
 
-async function sendTicketResolvedEmail(ticket: {
-  id: number;
-  publicId: string;
-  subject: string;
-  createdBy: string;
-  resolution: string | null;
-}): Promise<void> {
+/**
+ * A staff reply, emailed to the student who raised the ticket — either a new
+ * answer or a corrected one. Both go under the ticketResolved kill switch:
+ * they are the same email to the student, and a second switch would only
+ * give admins a way to stop corrections while answers still went out.
+ */
+async function sendTicketReplyEmail(
+  ticket: { id: number; publicId: string; subject: string; createdBy: string },
+  html: string,
+  kind: "answered" | "updated",
+): Promise<void> {
   const [user] = await db
     .select({ email: usersTable.email, firstName: usersTable.firstName })
     .from(usersTable)
@@ -542,36 +1074,46 @@ async function sendTicketResolvedEmail(ticket: {
 
   const name = user.firstName?.trim() || "there";
   const ref = shortId(ticket.publicId);
-  const html = ticket.resolution ?? "";
   const plain = richTextToPlain(html);
+  const updated = kind === "updated";
+
+  const subject = updated
+    ? `Update to your ticket (${ref}) — ${ticket.subject}`
+    : `Your ticket (${ref}) has been answered — ${ticket.subject}`;
+  const intro = updated
+    ? "The BRAVE team has updated its reply to your support ticket."
+    : "Good news — your support ticket has been answered.";
+  const lead = updated
+    ? "Here's the updated reply:"
+    : "Here's what the team said:";
+  const followUp =
+    "If this didn't sort it out, open the ticket on the Ticket Support page and send a follow-up. It comes straight back to us.";
 
   await sendEmail({
     to: { email: user.email, name: user.firstName ?? undefined },
     category: "ticketResolved",
-    subject: `Your ticket (${ref}) has been answered — ${ticket.subject}`,
+    subject,
     text: `Hi ${name},
 
-Good news — your support ticket has been answered.
+${intro}
 
 Reference: ${ref}
 Subject: ${ticket.subject}
 
-Here's what the team said:
+${lead}
 
 ${plain}
 
-If this didn't sort it out, raise a new ticket from the Ticket Support page and
-we'll pick it up.
+${followUp}
 
 — The BRAVE team`,
-    html: `<p>Hi ${name},</p>
-<p>Good news — your support ticket has been answered.</p>
+    html: `<p>Hi ${escapeHtml(name)},</p>
+<p>${intro}</p>
 <p><strong>Reference:</strong> ${ref}<br>
-<strong>Subject:</strong> ${ticket.subject}</p>
-<p>Here's what the team said:</p>
+<strong>Subject:</strong> ${escapeHtml(ticket.subject)}</p>
+<p>${lead}</p>
 <div style="border-left:3px solid #ddd;padding-left:12px;margin:12px 0">${html}</div>
-<p>If this didn't sort it out, raise a new ticket from the Ticket Support page
-and we'll pick it up.</p>
+<p>${followUp}</p>
 <p>— The BRAVE team</p>`,
   });
 }

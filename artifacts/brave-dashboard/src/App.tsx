@@ -4,6 +4,7 @@ import {
   Route,
   Router as WouterRouter,
   useLocation,
+  useRoute,
   Redirect,
 } from "wouter";
 import { recordPageView } from "@/lib/page-views-api";
@@ -48,6 +49,8 @@ import GritMilesPage from "@/pages/student/demo-day";
 import PastSeasons from "@/pages/student/past-seasons";
 import StudentTickets from "@/pages/student/tickets";
 import AdminTickets from "@/pages/admin/tickets";
+import StudentTicketDetail from "@/pages/student/ticket-detail";
+import AdminTicketDetail from "@/pages/admin/ticket-detail";
 import DemoDayUpload from "@/pages/student/demo-day-upload";
 import TeamDashboardLegacy from "@/pages/student/dashboard-legacy";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
@@ -115,6 +118,14 @@ import AdminNotifications from "@/pages/admin/notifications";
 import CoordinatorJournals from "@/pages/coordinator/journals";
 import CoordinatorJournalTracking from "@/pages/coordinator/journal-tracking";
 import AdminReports from "@/pages/admin/reports";
+import AdminSiteAdmin from "@/pages/admin/site-admin";
+import { SiteAdminBreadcrumb } from "@/components/site-admin-breadcrumb";
+import {
+  SITE_ADMIN_BASE,
+  findSiteAdminPage,
+  siteAdminPageHref,
+  type SiteAdminPageSlug,
+} from "@/lib/site-admin";
 import AdminReelsScripts from "@/pages/admin/reels-scripts";
 import ReportView from "@/pages/reports/view";
 import CoordinatorJournalTeamDetail from "@/pages/coordinator/journal-team-detail";
@@ -468,6 +479,55 @@ function ProtectedRoute({
   );
 }
 
+// Site Admin pages: every page the 2.0 admin sidebar dropped, keyed by its
+// URL segment. The Record type makes a page listed in lib/site-admin.ts
+// without a component here a compile error rather than a dead row.
+const SITE_ADMIN_PAGE_COMPONENTS: Record<
+  SiteAdminPageSlug,
+  React.ComponentType
+> = {
+  leads: AdminLeads,
+  projects: AdminProjects,
+  roster: AdminRoster,
+  campuses: AdminCampuses,
+  heatmap: AdminHeatmap,
+  journals: AdminJournals,
+  "finale-submissions": AdminFinaleSubmissions,
+  "demo-day-submissions": AdminDemoDaySubmissions,
+  "peoples-choice-votes": AdminPcaVotes,
+  "submission-requests": AdminSubmissionRequests,
+  "new-user-requests": AdminNewUsersRequests,
+  announcements: AdminAnnouncements,
+  popups: AdminPopups,
+  feedback: AdminFeedback,
+  "journal-reports": AdminReports,
+  "chatbot-history": AdminChatbotHistory,
+  "reels-scripts": AdminReelsScripts,
+  "audit-log": AdminAuditLog,
+};
+
+// /admin/site-admin/<section>/<page>: the breadcrumb, then the page itself,
+// which is the same component its original route renders. An unknown page
+// goes back to the index, and a known page under the wrong section is sent
+// to its real address, so every page has exactly one Site Admin URL.
+function SiteAdminPageEntry() {
+  const [, params] = useRoute("/admin/site-admin/:section/:page");
+  const found = params ? findSiteAdminPage(params.page) : null;
+  if (!params || !found) return <Redirect to={SITE_ADMIN_BASE} />;
+  if (found.section.slug !== params.section) {
+    return (
+      <Redirect to={siteAdminPageHref(found.section.slug, found.item.slug)} />
+    );
+  }
+  const Page = SITE_ADMIN_PAGE_COMPONENTS[found.item.slug];
+  return (
+    <div className="space-y-4">
+      <SiteAdminBreadcrumb section={found.section} page={found.item} />
+      <Page />
+    </div>
+  );
+}
+
 // Wraps the student Resources page so it respects the admin-controlled
 // visibility toggle. When the flag is OFF, the student is bounced back
 // to "/" — keeps the URL un-bookmarkable when the feature is hidden.
@@ -775,6 +835,12 @@ function Router() {
             allowedRoles={["student"]}
           />
         </Route>
+        <Route path="/tickets/:publicId">
+          <ProtectedRoute
+            component={StudentTicketDetail}
+            allowedRoles={["student"]}
+          />
+        </Route>
         <Route path="/past-seasons">
           <ProtectedRoute component={PastSeasons} allowedRoles={["student"]} />
         </Route>
@@ -1053,6 +1119,12 @@ function Router() {
             allowedRoles={["admin", "coordinator"]}
           />
         </Route>
+        <Route path="/admin/tickets/:publicId">
+          <ProtectedRoute
+            component={AdminTicketDetail}
+            allowedRoles={["admin", "coordinator"]}
+          />
+        </Route>
         <Route path="/admin/config">
           <ProtectedRoute component={AdminConfig} allowedRoles={["admin"]} />
         </Route>
@@ -1141,6 +1213,23 @@ function Router() {
         </Route>
         <Route path="/admin/heatmap">
           <ProtectedRoute component={AdminHeatmap} allowedRoles={["admin"]} />
+        </Route>
+        {/* Site Admin (Season 2.0 admin index). /admin/site-admin lists every
+            section, /<section> shows one, and /<section>/<page> renders that
+            page under a breadcrumb. The pages keep their original routes too,
+            so existing links still work. isRouteBlocked maps these addresses
+            back to the original page permission key. */}
+        <Route path="/admin/site-admin">
+          <ProtectedRoute component={AdminSiteAdmin} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/site-admin/:section">
+          <ProtectedRoute component={AdminSiteAdmin} allowedRoles={["admin"]} />
+        </Route>
+        <Route path="/admin/site-admin/:section/:page">
+          <ProtectedRoute
+            component={SiteAdminPageEntry}
+            allowedRoles={["admin"]}
+          />
         </Route>
 
         {/* Shared */}

@@ -30,7 +30,7 @@ export type Ticket = {
   status: TicketStatus;
   assignedTo: string | null;
   assignedAt: string | null;
-  /** Sanitised HTML, written by staff. Safe to render. */
+  /** The latest staff reply — sanitised HTML, safe to render. */
   resolution: string | null;
   resolvedBy: string | null;
   resolvedAt: string | null;
@@ -42,6 +42,23 @@ export type Ticket = {
   creatorNiatId: string | null;
   campusName: string | null;
 };
+
+/**
+ * One entry in a ticket's conversation after the opening question, which
+ * stays on the ticket itself (subject + description).
+ */
+export type TicketMessage = {
+  id: number;
+  authorKind: "student" | "staff";
+  /** Students see every staff reply as "BRAVE team"; staff see the author. */
+  authorName: string;
+  /** Staff: sanitised HTML, safe to render. Student: plain text. */
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+};
+
+export type TicketDetail = { ticket: Ticket; messages: TicketMessage[] };
 
 export type TicketsConfig = {
   permissions: { add: boolean; view: boolean; edit: boolean; delete: boolean };
@@ -81,6 +98,7 @@ export const ticketKeys = {
       f.from ?? "",
       f.to ?? "",
     ] as const,
+  detail: (publicId: string) => ["ticket-detail", publicId] as const,
   assignees: () => ["tickets-assignees"] as const,
   adminControl: () => ["tickets-admin-control"] as const,
 };
@@ -119,6 +137,55 @@ export function getTicketQueue(f: TicketFilters): Promise<{
   return customFetch(`/api/tickets?${params.toString()}`, { method: "GET" });
 }
 
+/** One ticket and its whole conversation. */
+export function getTicket(publicId: string): Promise<TicketDetail> {
+  return customFetch(`/api/tickets/${encodeURIComponent(publicId)}`, {
+    method: "GET",
+  });
+}
+
+/** A student's follow-up question; it reopens the ticket for staff. */
+export function sendFollowUp(
+  publicId: string,
+  body: string,
+): Promise<{ message: { id: number; createdAt: string } }> {
+  return customFetch(
+    `/api/tickets/${encodeURIComponent(publicId)}/messages`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    },
+  );
+}
+
+/** Correct a staff reply. `body` is HTML; the server sanitises it. */
+export function editTicketReply(
+  publicId: string,
+  messageId: number,
+  body: string,
+): Promise<{ ok: true }> {
+  return customFetch(
+    `/api/tickets/${encodeURIComponent(publicId)}/messages/${messageId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    },
+  );
+}
+
+/** Withdraw a staff reply. */
+export function deleteTicketReply(
+  publicId: string,
+  messageId: number,
+): Promise<{ ok: true }> {
+  return customFetch(
+    `/api/tickets/${encodeURIComponent(publicId)}/messages/${messageId}`,
+    { method: "DELETE" },
+  );
+}
+
 export function getTicketAssignees(): Promise<{ assignees: TicketAssignee[] }> {
   return customFetch("/api/tickets/assignees", { method: "GET" });
 }
@@ -135,7 +202,7 @@ export function assignTicket(
   });
 }
 
-/** Answer and close. `resolution` is HTML; the server sanitises it. */
+/** Reply and close. `resolution` is HTML; the server sanitises it. */
 export function resolveTicket(
   publicId: string,
   resolution: string,

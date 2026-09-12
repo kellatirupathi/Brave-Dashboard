@@ -26,10 +26,15 @@ adding `canAccessPage` guards to each admin route — a separate, larger, riskie
 **Why:** the agreed task delivered the management UI + endpoints + UI gating, not route guards.
 
 ## Don't leak the new columns
-The two new columns must be exposed ONLY via `/admin/access/me` and `/admin/permissions/:id`.
-They are deliberately absent from auth serialization (generated AuthUser Zod strips them) AND
-must be stripped from general user-listing responses in `routes/admin.ts` (the `...safe`
-spreads destructure out `isSuperAdmin`/`adminPermissions` alongside `passwordHash`).
+`admin_permissions` must be exposed ONLY via `/admin/access/me` and `/admin/permissions/:id`.
+Both columns are absent from auth serialization (generated AuthUser Zod strips them), and the
+`...safe` spreads in `routes/admin.ts` destructure out `adminPermissions` alongside `passwordHash`.
+
+Exception (Sep 2026): `GET /admin/users` returns `isSuperAdmin` as a plain boolean so the Users
+table can show "Super Admin" as the role. That endpoint is admin-only, and the flag is a role
+label rather than a capability map. The create and update responses still strip it. The sidebar
+reads the signed-in user flag from `/admin/access/me`, not from auth serialization.
+**Why:** super admins were shown as plain "Admin" everywhere, and the team asked for that fixed.
 
 ## Bootstrap can never lock out
 `bootstrap-superadmins.ts` runs on every startup and idempotently promotes configured emails

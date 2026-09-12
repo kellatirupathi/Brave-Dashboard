@@ -1,23 +1,23 @@
 // Ticket Support — the student's side (additive, isolated).
 //
 // A student raises a ticket and then wants one thing: to know whether anybody
-// has looked at it. So the list leads with status, and a closed ticket shows
-// the answer inline rather than behind another click — the reply is the whole
-// point of the page.
+// has looked at it. So the list is compact — reference, subject, status and
+// the first line of what they wrote — and opening a ticket shows the whole
+// conversation, where a follow-up can be sent on the same ticket.
 //
 // Everything here is governed by the season's ticket controls. If an admin has
 // not enabled the feature the sidebar entry is absent; if `add` is off the
 // form is absent too, and the list still reads.
 import { useState } from "react";
+import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ChevronRight,
   LifeBuoy,
-  Plus,
-  Paperclip,
-  X,
-  CheckCircle2,
-  Clock,
   Loader2,
+  Paperclip,
+  Plus,
+  X,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { Card } from "@/components/ui/card";
@@ -39,9 +39,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TicketStatusBadge } from "@/components/ticket-status-badge";
+import { attachmentName } from "@/components/ticket-thread";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
-import { formatDate } from "@/lib/format";
 import {
   createTicket,
   getMyTickets,
@@ -49,11 +49,9 @@ import {
   ticketKeys,
   ticketRef,
   type Ticket,
-  type TicketStatus,
 } from "@/lib/tickets-api";
 import {
   TICKET_CATEGORY_TREE,
-  categoryLabel,
   subcategoriesFor,
   type TicketCategory,
 } from "@/lib/ticket-categories";
@@ -61,35 +59,8 @@ import {
 const MAX_ATTACHMENTS = 5;
 const MAX_BYTES = 5 * 1024 * 1024;
 
-const STATUS_STYLES: Record<
-  TicketStatus,
-  { label: string; className: string; icon: typeof Clock }
-> = {
-  open: {
-    label: "Open",
-    className:
-      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900",
-    icon: Clock,
-  },
-  in_progress: {
-    label: "Being looked at",
-    className:
-      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900",
-    icon: Loader2,
-  },
-  resolved: {
-    label: "Answered",
-    className:
-      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900",
-    icon: CheckCircle2,
-  },
-};
-
-/** Keeps a long filename readable without losing what kind of file it is. */
-function shortName(path: string): string {
-  const name = path.split("/").pop() ?? path;
-  return name.length > 28 ? `${name.slice(0, 14)}…${name.slice(-10)}` : name;
-}
+// Past this, the one-line preview is cut off, so the row says there is more.
+const PREVIEW_CHARS = 90;
 
 export default function StudentTickets() {
   const { toast } = useToast();
@@ -147,9 +118,9 @@ export default function StudentTickets() {
           </p>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {tickets.map((t) => (
-            <TicketCard key={t.publicId} ticket={t} />
+            <TicketRow key={t.publicId} ticket={t} />
           ))}
         </div>
       )}
@@ -171,80 +142,37 @@ export default function StudentTickets() {
   );
 }
 
-function TicketCard({ ticket }: { ticket: Ticket }) {
-  const status = STATUS_STYLES[ticket.status];
-  const StatusIcon = status.icon;
-
+/**
+ * Two lines: the reference, subject and status, then the start of what the
+ * student wrote. Everything else waits on the ticket page.
+ */
+function TicketRow({ ticket }: { ticket: Ticket }) {
+  const long = ticket.description.length > PREVIEW_CHARS;
   return (
-    <Card className="p-4 sm:p-5" data-testid={`ticket-${ticket.publicId}`}>
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-[11px] text-muted-foreground">
-              #{ticketRef(ticket.publicId)}
-            </span>
-            <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              {categoryLabel(ticket.category)}
-            </span>
-            {ticket.subcategory && (
-              <span className="text-[11px] text-muted-foreground">
-                {ticket.subcategory}
-              </span>
-            )}
-          </div>
-          <h3 className="font-medium mt-1 break-words">{ticket.subject}</h3>
-        </div>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border shrink-0",
-            status.className,
-          )}
-        >
-          <StatusIcon className="w-3.5 h-3.5" />
-          {status.label}
+    <Link
+      href={`/tickets/${ticket.publicId}`}
+      className="block rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-testid={`ticket-${ticket.publicId}`}
+    >
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+          #{ticketRef(ticket.publicId)}
         </span>
+        <span className="min-w-0 flex-1 truncate font-medium">
+          {ticket.subject}
+        </span>
+        <TicketStatusBadge status={ticket.status} audience="student" />
       </div>
-
-      <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap break-words">
-        {ticket.description}
-      </p>
-
-      {!!ticket.attachments?.length && (
-        <div className="flex flex-wrap gap-2 mt-3">
-          {ticket.attachments.map((path) => (
-            <a
-              key={path}
-              href={path}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border hover:bg-muted transition-colors"
-            >
-              <Paperclip className="w-3 h-3" />
-              {shortName(path)}
-            </a>
-          ))}
-        </div>
-      )}
-
-      {ticket.status === "resolved" && ticket.resolution && (
-        <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300">
-            Reply from the BRAVE team
-          </p>
-          {/* Sanitised server-side before it was stored — see
-              api-server/src/lib/sanitize-html.ts. */}
-          <div
-            className="mt-1.5 text-sm [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_a]:text-primary [&_a]:underline"
-            dangerouslySetInnerHTML={{ __html: ticket.resolution }}
-          />
-        </div>
-      )}
-
-      <p className="text-[11px] text-muted-foreground mt-3">
-        Raised {formatDate(ticket.createdAt)}
-        {ticket.resolvedAt && ` · Answered ${formatDate(ticket.resolvedAt)}`}
-      </p>
-    </Card>
+      <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate">{ticket.description}</span>
+        {long && (
+          <span className="shrink-0 text-xs font-medium text-primary">
+            Read more
+          </span>
+        )}
+        <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+      </div>
+    </Link>
   );
 }
 
@@ -449,7 +377,7 @@ function RaiseTicketDialog({
                   className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border bg-muted/40"
                 >
                   <Paperclip className="w-3 h-3" />
-                  {shortName(path)}
+                  {attachmentName(path)}
                   <button
                     type="button"
                     onClick={() =>
