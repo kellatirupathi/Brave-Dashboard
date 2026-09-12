@@ -879,7 +879,8 @@ export function SidebarBody({ onNavigate }: { onNavigate?: () => void } = {}) {
                 <span
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
-                    location === "/admin/tickets"
+                    location === "/admin/tickets" ||
+                    location.startsWith("/admin/tickets/")
                       ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   )}

@@ -2728,3 +2728,37 @@ export const insertSupportTicketSchema = createInsertSchema(
 ).omit({ id: true, publicId: true, createdAt: true, updatedAt: true });
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
 export type SupportTicket = typeof supportTicketsTable.$inferSelect;
+
+// Everything said on a ticket after the opening question, oldest first: staff
+// replies and student follow-ups. The opening question itself stays on the
+// ticket row (subject + description).
+//
+// author_kind is fixed when the message is written ("staff" or "student")
+// rather than read from the author role later, so an old thread still reads
+// correctly after anyone changes role.
+//
+// Staff replies are sanitised HTML; student follow-ups are plain text. A
+// deleted reply is kept with deleted_at set, so the record of what a student
+// was told survives; readers skip it.
+export const supportTicketMessagesTable = pgTable(
+  "support_ticket_messages",
+  {
+    id: serial("id").primaryKey(),
+    ticketId: integer("ticket_id").notNull(),
+    authorId: text("author_id").notNull(),
+    authorKind: text("author_kind").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    editedBy: text("edited_by"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: text("deleted_by"),
+  },
+  (t) => [
+    index("support_ticket_messages_ticket_idx").on(t.ticketId, t.createdAt),
+  ],
+);
+export type SupportTicketMessage =
+  typeof supportTicketMessagesTable.$inferSelect;

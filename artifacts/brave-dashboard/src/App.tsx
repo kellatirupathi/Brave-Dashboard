@@ -49,6 +49,8 @@ import GritMilesPage from "@/pages/student/demo-day";
 import PastSeasons from "@/pages/student/past-seasons";
 import StudentTickets from "@/pages/student/tickets";
 import AdminTickets from "@/pages/admin/tickets";
+import StudentTicketDetail from "@/pages/student/ticket-detail";
+import AdminTicketDetail from "@/pages/admin/ticket-detail";
 import DemoDayUpload from "@/pages/student/demo-day-upload";
 import TeamDashboardLegacy from "@/pages/student/dashboard-legacy";
 import { getStudentGritConfig } from "@/lib/grit-config-api";
@@ -833,6 +835,12 @@ function Router() {
             allowedRoles={["student"]}
           />
         </Route>
+        <Route path="/tickets/:publicId">
+          <ProtectedRoute
+            component={StudentTicketDetail}
+            allowedRoles={["student"]}
+          />
+        </Route>
         <Route path="/past-seasons">
           <ProtectedRoute component={PastSeasons} allowedRoles={["student"]} />
         </Route>
@@ -1108,6 +1116,12 @@ function Router() {
         <Route path="/admin/tickets">
           <ProtectedRoute
             component={AdminTickets}
+            allowedRoles={["admin", "coordinator"]}
+          />
+        </Route>
+        <Route path="/admin/tickets/:publicId">
+          <ProtectedRoute
+            component={AdminTicketDetail}
             allowedRoles={["admin", "coordinator"]}
           />
         </Route>
