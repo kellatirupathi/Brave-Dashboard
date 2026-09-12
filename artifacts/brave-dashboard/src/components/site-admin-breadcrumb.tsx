@@ -1,8 +1,8 @@
-// Breadcrumb bar for the Site Admin pages (UI only).
+// Breadcrumb for the Site Admin pages (UI only).
 //
-// Site Admin › <Section> › <Page>. Every level except the current one is a
-// link, so you can always step back up without the browser's Back button —
-// the same trail a classic site-administration index puts above each page.
+// Site Admin › <Section> › <Page>, as a plain line of text at the top of the
+// page. Every level except the current one is a link, so you can always step
+// back up without the browser's Back button.
 import { Link } from "wouter";
 import { ChevronRight, LayoutGrid } from "lucide-react";
 import {
@@ -36,11 +36,7 @@ export function SiteAdminBreadcrumb({
   if (page) crumbs.push({ label: page.name });
 
   return (
-    <nav
-      aria-label="Breadcrumb"
-      className="rounded-md border border-border bg-card px-4 py-2.5"
-      data-testid="site-admin-breadcrumb"
-    >
+    <nav aria-label="Breadcrumb" data-testid="site-admin-breadcrumb">
       <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
         {crumbs.map((crumb, i) => (
           <li key={crumb.label} className="inline-flex items-center gap-1.5">
