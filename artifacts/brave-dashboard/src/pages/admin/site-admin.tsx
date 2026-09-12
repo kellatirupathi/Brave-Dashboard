@@ -2,24 +2,20 @@
 //
 // The 2.0 admin sidebar is deliberately short. Every page that left it lives
 // here: one section per area, one row per page, with what this admin may do
-// on the right — a classic site-administration index. Recent activity from
-// every admin sits alongside.
+// on the right — a classic site-administration index. Alongside it, Recent
+// actions lists the pages this admin opened from here most recently, so the
+// pages they actually use are one click away.
 //
 // Two addresses render this component: /admin/site-admin shows every
 // section, and /admin/site-admin/<section> shows just that one. The pages
-// themselves open at /admin/site-admin/<section>/<page> (see App.tsx).
+// themselves open at /admin/site-admin/<section>/<page> (see App.tsx), which
+// is also where a visit is recorded.
 //
-// Nothing here adds or changes an API. Rows open the same pages as their
-// original routes, and the activity panel reads the audit log endpoint the
-// Audit Log page already uses.
+// Nothing here adds or changes an API.
+import { useEffect, useState } from "react";
 import { Link, Redirect, useRoute } from "wouter";
-import {
-  useGetAuditLog,
-  getGetAuditLogQueryKey,
-  type AuditLogEntry,
-} from "@workspace/api-client-react";
-import { Eye, History, Pencil, Plus, X } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
+import { useAuth } from "@workspace/replit-auth-web";
+import { Eye, History, Pencil } from "lucide-react";
 import { SiteAdminBreadcrumb } from "@/components/site-admin-breadcrumb";
 import { canAccess, isHidden, useMyAdminAccess } from "@/lib/admin-access";
 import {
@@ -29,51 +25,28 @@ import {
   siteAdminPageHref,
   siteAdminSectionHref,
 } from "@/lib/site-admin";
+import {
+  RECENT_LIMIT,
+  clearSiteAdminVisits,
+  readSiteAdminVisits,
+  siteAdminVisitsKey,
+  type RecentSiteAdminPage,
+} from "@/lib/site-admin-recent";
 import { formatDateTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
-const RECENT_LIMIT = 12;
-const AUDIT_LOG_PAGE = "/admin/audit-log";
-
-type ActionKind = "add" | "change" | "delete";
-
-const KIND: Record<
-  ActionKind,
-  { icon: typeof Plus; className: string; label: string }
-> = {
-  add: {
-    icon: Plus,
-    className: "text-emerald-600 dark:text-emerald-400",
-    label: "Added",
-  },
-  change: {
-    icon: Pencil,
-    className: "text-amber-600 dark:text-amber-400",
-    label: "Changed",
-  },
-  delete: {
-    icon: X,
-    className: "text-red-600 dark:text-red-400",
-    label: "Deleted",
-  },
-};
-
-/**
- * Audit actions are free-form verbs ("verify_revenue_entry",
- * "create_rejection_reason"), so the kind is read from the verb. Anything
- * that is neither a creation nor a removal is a change — approvals and
- * rejections included, since both only move a record's status.
- */
-function actionKind(action: string): ActionKind {
-  const a = action.toLowerCase();
-  if (/(^|_)(create|add|import|invite|upload|provision)/.test(a)) return "add";
-  if (/(^|_)(delete|remove|revoke|deactivate)/.test(a)) return "delete";
-  return "change";
-}
-
-function humanise(value: string | null | undefined): string {
-  const text = (value ?? "").replace(/[_-]+/g, " ").trim();
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+/** "5 min ago" for recent visits; the full date once it is a week old. */
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return formatDateTime(iso);
+  const min = Math.floor(ms / 60_000);
+  if (min < 1) return "Just now";
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  const days = Math.floor(hr / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return formatDateTime(iso);
 }
 
 export default function AdminSiteAdmin() {
@@ -91,10 +64,6 @@ export default function AdminSiteAdmin() {
     }))
     .filter((section) => section.items.length > 0);
 
-  // The activity panel shows the audit log, so it follows that page's
-  // permission rather than appearing for someone the log is hidden from.
-  const canSeeActivity = canAccess(access, AUDIT_LOG_PAGE, "view");
-
   // An address naming a section that does not exist goes back to the index.
   if (sectionSlug && !focused) return <Redirect to={SITE_ADMIN_BASE} />;
 
@@ -102,23 +71,7 @@ export default function AdminSiteAdmin() {
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <SiteAdminBreadcrumb section={focused} />
 
-      <div>
-        <h1 className="text-3xl font-light tracking-tight">
-          {focused ? focused.title : "Site administration"}
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          {focused
-            ? `The ${focused.title} pages you have access to.`
-            : "Every admin page that is not in the sidebar, grouped by area."}
-        </p>
-      </div>
-
-      <div
-        className={cn(
-          "grid items-start gap-8",
-          canSeeActivity && "lg:grid-cols-[minmax(0,1fr)_340px]",
-        )}
-      >
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-8">
           {sections.length === 0 ? (
             <div className="rounded-md border border-border bg-card px-5 py-10 text-center text-sm text-muted-foreground">
@@ -196,84 +149,100 @@ export default function AdminSiteAdmin() {
           )}
         </div>
 
-        {canSeeActivity && <RecentActions />}
+        <RecentPages />
       </div>
     </div>
   );
 }
 
-function RecentActions() {
-  const params = { limit: RECENT_LIMIT };
-  const { data, isLoading, isError } = useGetAuditLog(params, {
-    query: { queryKey: getGetAuditLogQueryKey(params), staleTime: 30_000 },
-  });
-  const entries: AuditLogEntry[] = data ?? [];
+/**
+ * The pages this admin opened from Site Admin most recently, newest first,
+ * at most RECENT_LIMIT of them. Fixed height: past that the list scrolls
+ * inside the panel instead of stretching the page.
+ */
+function RecentPages() {
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
+  const { data: access } = useMyAdminAccess(true);
+  const [visits, setVisits] = useState<RecentSiteAdminPage[]>(() =>
+    readSiteAdminVisits(userId),
+  );
+
+  // Re-read once the signed-in user is known, and whenever another tab opens
+  // a Site Admin page, so the list is never stale for long.
+  useEffect(() => {
+    setVisits(readSiteAdminVisits(userId));
+    if (!userId) return;
+    const key = siteAdminVisitsKey(userId);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === key) setVisits(readSiteAdminVisits(userId));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [userId]);
+
+  // A page hidden from this admin since they opened it drops out of the list.
+  const shown = visits
+    .filter((v) => !isHidden(access, v.item.pageKey))
+    .slice(0, RECENT_LIMIT);
 
   return (
     <aside
-      className="overflow-hidden rounded-md border border-border bg-muted/40 lg:sticky lg:top-6"
+      className="flex h-[520px] flex-col overflow-hidden rounded-md border border-border bg-muted/40 lg:sticky lg:top-6"
       data-testid="site-admin-recent-actions"
     >
-      <div className="border-b border-border px-5 py-4">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
         <h2 className="text-lg font-light">Recent actions</h2>
+        {shown.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              clearSiteAdminVisits(userId);
+              setVisits([]);
+            }}
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+            data-testid="button-clear-recent"
+          >
+            Clear
+          </button>
+        )}
       </div>
-      <div className="px-5 py-4">
-        <h3 className="mb-4 text-sm font-semibold text-foreground/80">
-          All admins
+
+      <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
+        <h3 className="mb-3 text-sm font-semibold text-foreground/80">
+          Recently opened pages
         </h3>
 
-        {isLoading ? (
-          <div className="flex justify-center py-6">
-            <Spinner />
-          </div>
-        ) : isError ? (
+        {shown.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Recent actions could not be loaded.
+            Pages you open from Site Admin will appear here, newest first.
           </p>
-        ) : entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No actions yet.</p>
         ) : (
-          <ul className="space-y-4">
-            {entries.map((entry) => {
-              const kind = KIND[actionKind(entry.action)];
-              const Icon = kind.icon;
-              const detail = entry.details?.trim();
-              const title = detail || humanise(entry.action);
-              const caption = detail
-                ? `${humanise(entry.action)} · ${humanise(entry.targetType)}`
-                : humanise(entry.targetType);
-              return (
-                <li key={entry.id} className="flex gap-3">
-                  <Icon
-                    className={cn("mt-0.5 h-4 w-4 shrink-0", kind.className)}
-                    aria-label={kind.label}
+          <ul className="-mr-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-2">
+            {shown.map((v) => (
+              <li key={v.item.slug}>
+                <Link
+                  href={siteAdminPageHref(v.section.slug, v.item.slug)}
+                  className="group flex gap-3 rounded-md px-2 py-2 transition-colors hover:bg-background/70"
+                  data-testid={`recent-page-${v.item.slug}`}
+                >
+                  <History
+                    className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                    aria-hidden="true"
                   />
                   <div className="min-w-0">
-                    <p className="line-clamp-2 break-words text-sm text-primary">
-                      {title}
+                    <p className="truncate text-sm font-medium text-primary group-hover:underline">
+                      {v.item.name}
                     </p>
-                    {caption && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {caption}
-                      </p>
-                    )}
-                    <p className="text-[11px] text-muted-foreground/80">
-                      {entry.actorName} · {formatDateTime(entry.createdAt)}
+                    <p className="text-xs text-muted-foreground">
+                      {v.section.title} · {timeAgo(v.at)}
                     </p>
                   </div>
-                </li>
-              );
-            })}
+                </Link>
+              </li>
+            ))}
           </ul>
         )}
-
-        <Link
-          href={siteAdminPageHref("reports", "audit-log")}
-          className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-        >
-          <History className="h-3.5 w-3.5" aria-hidden="true" />
-          View all activity
-        </Link>
       </div>
     </aside>
   );

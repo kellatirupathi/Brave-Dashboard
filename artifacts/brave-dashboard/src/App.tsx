@@ -126,6 +126,7 @@ import {
   siteAdminPageHref,
   type SiteAdminPageSlug,
 } from "@/lib/site-admin";
+import { recordSiteAdminVisit } from "@/lib/site-admin-recent";
 import AdminReelsScripts from "@/pages/admin/reels-scripts";
 import ReportView from "@/pages/reports/view";
 import CoordinatorJournalTeamDetail from "@/pages/coordinator/journal-team-detail";
@@ -511,8 +512,22 @@ const SITE_ADMIN_PAGE_COMPONENTS: Record<
 // goes back to the index, and a known page under the wrong section is sent
 // to its real address, so every page has exactly one Site Admin URL.
 function SiteAdminPageEntry() {
+  const { user } = useAuth();
   const [, params] = useRoute("/admin/site-admin/:section/:page");
   const found = params ? findSiteAdminPage(params.page) : null;
+  const openedSlug =
+    params && found && found.section.slug === params.section
+      ? found.item.slug
+      : "";
+  const userId = user?.id ?? "";
+
+  // Remember the visit for the Site Admin Recent actions panel. Declared above
+  // the early returns below: a hook that only runs on some renders is React
+  // error 310, which is what took the student dashboard down once already.
+  useEffect(() => {
+    if (openedSlug && userId) recordSiteAdminVisit(userId, openedSlug);
+  }, [openedSlug, userId]);
+
   if (!params || !found) return <Redirect to={SITE_ADMIN_BASE} />;
   if (found.section.slug !== params.section) {
     return (
